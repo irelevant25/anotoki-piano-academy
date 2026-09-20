@@ -1,8 +1,10 @@
 // Runs one learning-path step (see shared/path.js), then shows the result:
 // pass (best accuracy >= PASS_ACCURACY) unlocks the next step, otherwise the
 // learner retries. Each step type has its own renderer below; all of them
-// call `done({ accuracy, session })` when the attempt ends and return a
-// destroy() that removes their MIDI listeners.
+// call `done({ accuracy, session, delayMs })` the moment the attempt ends and
+// return a destroy() that removes their MIDI listeners. The result is saved
+// at once; `delayMs` only holds back the result screen so the learner can see
+// the feedback for the last note.
 
 import { midiToName } from '/shared/theory.js';
 import { gradeAttempt, updateNoteState } from '/shared/srs.js';
@@ -65,9 +67,8 @@ export function renderLesson(container, ctx, { unitId, stepId } = {}) {
     destroyBody = STEP_RENDERERS[step.type](body, ctx, entry, finish);
   }
 
-  function finish({ accuracy, session }) {
+  function finish({ accuracy, session, delayMs = 0 }) {
     destroyBody();
-    destroyBody = () => {};
     const wasPassed = isStepPassed(ctx.getPathProgress(), entry.key);
     const updated = recordStepResult(ctx.getPathProgress(), entry.key, accuracy);
     ctx.savePathProgress(updated).catch((err) => console.error('Failed to save path progress', err));
@@ -75,7 +76,8 @@ export function renderLesson(container, ctx, { unitId, stepId } = {}) {
       ctx.recordSession({ mode: 'lesson', label: `${unit.title} · ${STEP_TYPES[step.type].short}`, unitId: unit.id, stepId: step.id, ...session })
         .catch((err) => console.error('Failed to record session', err));
     }
-    renderResult(accuracy, wasPassed, getStepRecord(updated, entry.key));
+    const timer = setTimeout(() => renderResult(accuracy, wasPassed, getStepRecord(updated, entry.key)), delayMs);
+    destroyBody = () => clearTimeout(timer);
   }
 
   function renderResult(accuracy, wasPassed, record) {
@@ -91,6 +93,7 @@ export function renderLesson(container, ctx, { unitId, stepId } = {}) {
     else if (wasPassed) message = `Not this time, but your best is ${record.bestAccuracy}%, so the path stays open.`;
     else message = `You need ${PASS_ACCURACY}% to continue. Give it another try - it gets easier every time.`;
 
+    destroyBody = () => {};
     body.innerHTML = `
       <div class="lesson-result ${open ? 'is-pass' : 'is-fail'}">
         ${step.type === 'meet' ? '' : `<div class="result-score">${accuracy}%</div>`}
@@ -130,6 +133,7 @@ function renderMeet(body, ctx, { phase, unit }, done) {
   let noteIndex = 0;
   let reps = 0;
   let waiting = true;
+  let timer = null;
 
   body.innerHTML = `
     <p class="lesson-instruction">Here ${unit.newNotes.length === 1 ? 'is your new note' : 'are your new notes'}.
@@ -186,16 +190,17 @@ function renderMeet(body, ctx, { phase, unit }, done) {
     }
     waiting = false;
     setFeedback(feedbackEl, `That's ${midiToName(target)}!`, 'correct');
-    setTimeout(() => {
-      noteIndex += 1;
-      if (noteIndex < unit.newNotes.length) showNote();
-      else done({ accuracy: 100, session: null });
-    }, 800);
+    noteIndex += 1;
+    if (noteIndex < unit.newNotes.length) timer = setTimeout(showNote, 800);
+    else done({ accuracy: 100, session: null, delayMs: 800 });
   }
 
   ctx.midi.addEventListener('noteon', onNoteOn);
   showNote();
-  return () => ctx.midi.removeEventListener('noteon', onNoteOn);
+  return () => {
+    clearTimeout(timer);
+    ctx.midi.removeEventListener('noteon', onNoteOn);
+  };
 }
 
 /** Drill: flashcards read from the staff only (no name), new notes mixed with earlier ones. */
@@ -248,16 +253,17 @@ function renderDrill(body, ctx, { phase, unit }, done) {
     }
 
     index += 1;
-    timer = setTimeout(() => {
-      if (index < round.length) {
-        showPrompt();
-        return;
-      }
-      done({
-        accuracy: Math.round((correctCount / round.length) * 100),
-        session: { startedAt, endedAt: new Date().toISOString(), attempts: round.length, correct: correctCount, accuracy: Math.round((correctCount / round.length) * 100) },
-      });
-    }, correct ? 700 : 1500);
+    const pauseMs = correct ? 700 : 1500;
+    if (index < round.length) {
+      timer = setTimeout(showPrompt, pauseMs);
+      return;
+    }
+    const accuracy = Math.round((correctCount / round.length) * 100);
+    done({
+      accuracy,
+      session: { startedAt, endedAt: new Date().toISOString(), attempts: round.length, correct: correctCount, accuracy },
+      delayMs: pauseMs,
+    });
   }
 
   ctx.midi.addEventListener('noteon', onNoteOn);
@@ -292,7 +298,7 @@ function renderRead(body, ctx, entry, done) {
   const pool = notePoolForUnit(entry.unit.id);
   const player = mountPlayer(body, ctx, entry, {
     instruction: 'Play the melody from left to right. No metronome - take your time on each note.',
-  }, (result) => setTimeout(() => done({ accuracy: result.accuracy, session: sessionFieldsFromResult(result) }), 900));
+  }, (result) => done({ accuracy: result.accuracy, session: sessionFieldsFromResult(result), delayMs: 900 }));
   player.load(generateMelody(pool, MELODY_LENGTH, entry.unit.newNotes).map((midi) => ({ midi })));
   player.start({ mode: 'wait' });
   return () => player.destroy();
@@ -311,7 +317,7 @@ function renderTempo(body, ctx, entry, done) {
       <label>Tempo: <select data-role="bpm">${bpmOptions([50, 60, 70, 80].map((v) => ({ value: v, label: `${v} BPM` })), 60)}</select></label>
       <button class="btn-primary" data-role="start" type="button">Start</button>
     `,
-  }, (result) => setTimeout(() => done({ accuracy: result.accuracy, session: sessionFieldsFromResult(result) }), 900));
+  }, (result) => done({ accuracy: result.accuracy, session: sessionFieldsFromResult(result), delayMs: 900 }));
 
   const startBtn = body.querySelector('[data-role="start"]');
   const bpmSelect = body.querySelector('[data-role="bpm"]');
@@ -342,7 +348,7 @@ function renderSong(body, ctx, entry, done) {
       setFeedback(feedback, `Practice run: ${result.accuracy}%. When you're ready, play it with the metronome.`, result.accuracy >= PASS_ACCURACY ? 'correct' : null);
       return;
     }
-    setTimeout(() => done({ accuracy: result.accuracy, session: { songId: song.id, songTitle: song.title, ...sessionFieldsFromResult(result) } }), 900);
+    done({ accuracy: result.accuracy, session: { songId: song.id, songTitle: song.title, ...sessionFieldsFromResult(result) }, delayMs: 900 });
   });
 
   player.load(song.notes, { timeSignature: song.timeSignature });

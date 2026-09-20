@@ -25,7 +25,7 @@ export class PianoMIDI extends EventTarget {
 
   listInputs() {
     if (!this.access) return [];
-    return [...this.access.inputs.values()].map((input) => ({
+    return [...this.access.inputs.values()].filter((input) => input.state !== 'disconnected').map((input) => ({
       id: input.id,
       name: input.name,
       manufacturer: input.manufacturer,
@@ -46,8 +46,10 @@ export class PianoMIDI extends EventTarget {
   }
 
   disconnect() {
-    if (this.input) this.input.onmidimessage = null;
+    if (!this.input) return;
+    this.input.onmidimessage = null;
     this.input = null;
+    this.dispatchEvent(new CustomEvent('disconnected'));
   }
 
   _handleMessage(event) {

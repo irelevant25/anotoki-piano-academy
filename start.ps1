@@ -624,6 +624,12 @@ while (((Get-Date) - $startTime).TotalSeconds -lt $ServerStartupTimeoutSeconds) 
     }
 }
 
+# The server runs hidden, without a console, so Ctrl+C never reaches it.
+# The finally block below stops it (npm -> node, the whole tree) when this
+# launcher ends for any reason - otherwise node keeps the port and the next
+# start fails.
+try {
+
 if ($serverReady) {
 
     Write-Success "Server is ready."
@@ -709,11 +715,19 @@ else {
     }
 }
 
-# ------------------------------------------------------------
-# Cleanup
-# ------------------------------------------------------------
+}
+finally {
 
-Remove-Item $StdOutFile, $StdErrFile -Force -ErrorAction SilentlyContinue
+    # ------------------------------------------------------------
+    # Cleanup
+    # ------------------------------------------------------------
+
+    if (-not $serverProcess.HasExited) {
+        & taskkill.exe /PID $serverProcess.Id /T /F 2>&1 | Out-Null
+    }
+
+    Remove-Item $StdOutFile, $StdErrFile -Force -ErrorAction SilentlyContinue
+}
 
 exit 0
 

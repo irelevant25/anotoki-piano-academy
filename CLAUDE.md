@@ -17,7 +17,9 @@ Trainer / Sheet Practice / Songs kept as free practice.
 
 ## Always, after a change
 
-Keep the knowledge base in sync - this is part of finishing the task:
+Walk the skill's "Review checklist" (timers cleared in `destroy()`, local
+dates, `withFileLock` on writes, tested on a throwaway data dir), then
+keep the knowledge base in sync - this is part of finishing the task:
 - `.claude/skills/piano-learning-app/SKILL.md` - architecture, design
   decisions, new gotchas, roadmap status.
 - `CLAUDE.md` (this file) - only if the essentials below changed.

@@ -16,8 +16,11 @@ Before writing any code, load the `piano-learning-app` skill
 map, the learning-path design and its phase roadmap, project conventions,
 and a list of gotchas already hit (VexFlow's `Renderer.Backends` naming,
 the `context.clear()` vs `container.replaceChildren()` trap, SM-2
-ease-factor/interval capping, new-note pacing, awaiting saves inside MIDI
-handlers, metronome clicks outliving a view) that will cost real time to
+ease-factor/interval capping, the once-per-day schedule growth rule,
+new-note pacing, awaiting saves inside MIDI
+handlers, metronome clicks outliving a view, stale timers drawing over the
+next view, never running on empty state after a failed load, local-vs-UTC
+days, count-in filtering in tempo-mode tests) that will cost real time to
 rediscover if skipped. Also read `CLAUDE.md` and `README.md`.
 
 Working conventions specific to this repo:
@@ -27,9 +30,16 @@ Working conventions specific to this repo:
   `shared/songs.js`, `shared/path.js`) is imported identically by server
   and browser - keep it framework-free and never fork it between the two.
 - Play-along sequences go through `public/js/sequence-player.js`; don't
-  write another grading loop in a view.
+  write another grading loop in a view. Its tempo mode is clock-driven
+  (rhythm-game style: press is matched to the nearest click, unplayed notes
+  become misses, music keeps moving); 'wait' mode has no clock.
 - Every view's `render(container, ctx, params)` must return a `destroy()`
-  that removes any MIDI listeners (and timers) it added.
+  that removes any MIDI listeners (and timers) it added - `container` is the
+  shared view root, so a late timer paints over the next view.
+- Lesson step renderers call `done({ accuracy, session, delayMs })` at once;
+  `finish()` saves immediately and delays only the result screen.
+- Server routes that write go through `withFileLock` in `storage.js`.
+- Before reporting done, walk the skill's "Review checklist".
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 
 Since there's no real MIDI hardware in a dev sandbox, verify interactive

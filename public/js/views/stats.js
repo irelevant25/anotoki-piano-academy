@@ -1,17 +1,22 @@
 import { midiToName } from '/shared/theory.js';
 import { PianoKeyboard } from '../keyboard.js';
 
+/** Calendar day in the learner's own time zone (timestamps are stored in UTC). */
+function localDayKey(date) {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
 function computeStreak(sessions) {
   if (sessions.length === 0) return 0;
-  const days = new Set(sessions.map((s) => (s.startedAt || s.recordedAt).slice(0, 10)));
+  const days = new Set(sessions.map((s) => localDayKey(new Date(s.startedAt || s.recordedAt))));
   const cursor = new Date();
   cursor.setHours(0, 0, 0, 0);
   // If today has no session yet, start counting from yesterday so an
   // in-progress streak doesn't read as broken before today's practice.
-  if (!days.has(cursor.toISOString().slice(0, 10))) cursor.setDate(cursor.getDate() - 1);
+  if (!days.has(localDayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
   let streak = 0;
   for (;;) {
-    const key = cursor.toISOString().slice(0, 10);
+    const key = localDayKey(cursor);
     if (!days.has(key)) break;
     streak += 1;
     cursor.setDate(cursor.getDate() - 1);

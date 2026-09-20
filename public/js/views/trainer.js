@@ -28,12 +28,13 @@ export function renderTrainer(container, ctx) {
   let index = 0;
   let awaitingAnswer = true;
   let correctCount = 0;
-  let startedAt = new Date().toISOString();
+  let timer = null;
+  const startedAt = new Date().toISOString();
 
   container.innerHTML = `
     <div class="card">
       <h2>Note Trainer</h2>
-      <p class="tag">Prompt <span id="tr-progress">1 / ${ROUND_LENGTH}</span> &middot; ${correctCount} correct so far</p>
+      <p class="tag">Prompt <span id="tr-progress">1 / ${ROUND_LENGTH}</span> &middot; <span id="tr-correct">0</span> correct so far</p>
       <div id="tr-notation" class="notation-container"></div>
       <p class="prompt" id="tr-name"></p>
       <p class="feedback" id="tr-feedback">Play the note shown above on your piano.</p>
@@ -93,7 +94,7 @@ export function renderTrainer(container, ctx) {
     }
   }
 
-  async function onNoteOn(e) {
+  function onNoteOn(e) {
     if (!awaitingAnswer) return;
     awaitingAnswer = false;
 
@@ -109,6 +110,7 @@ export function renderTrainer(container, ctx) {
 
     if (correct) {
       correctCount += 1;
+      container.querySelector('#tr-correct').textContent = String(correctCount);
       feedbackEl.textContent = 'Correct!';
       feedbackEl.className = 'feedback feedback--correct';
     } else {
@@ -116,14 +118,10 @@ export function renderTrainer(container, ctx) {
       feedbackEl.className = 'feedback feedback--incorrect';
     }
 
-    try {
-      await ctx.saveProgress(progress);
-    } catch (err) {
-      console.error('Failed to save progress', err);
-    }
+    ctx.saveProgress(progress).catch((err) => console.error('Failed to save progress', err));
 
     index += 1;
-    setTimeout(() => {
+    timer = setTimeout(() => {
       if (index >= ROUND_LENGTH) finishRound();
       else showPrompt();
     }, 700);
@@ -132,7 +130,10 @@ export function renderTrainer(container, ctx) {
   ctx.midi.addEventListener('noteon', onNoteOn);
   showPrompt();
 
+  // The timer must go too: `container` is the app's view root, so a late
+  // finishRound() would draw "Round complete" over whatever view came next.
   return () => {
+    clearTimeout(timer);
     ctx.midi.removeEventListener('noteon', onNoteOn);
   };
 }

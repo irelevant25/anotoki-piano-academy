@@ -26,6 +26,8 @@ app.use('/vendor/vexflow', express.static(path.join(__dirname, '..', 'node_modul
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  // Bad request body (malformed JSON, too large) - the client's fault, not a crash.
+  if (err.status >= 400 && err.status < 500) return res.status(err.status).json({ error: err.message });
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
 });

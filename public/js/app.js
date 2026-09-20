@@ -6,7 +6,7 @@ import {
   recordSession as apiRecordSession,
 } from './api.js';
 import { CURRICULUM } from '/shared/theory.js';
-import { getKnownNotes, createInitialNoteState } from '/shared/srs.js';
+import { getKnownNotes, createInitialNoteState, repairInflatedProgress } from '/shared/srs.js';
 import { createInitialPathProgress } from '/shared/path.js';
 
 import { renderHome } from './views/home.js';
@@ -28,6 +28,7 @@ const navButtons = [...document.querySelectorAll('.nav-btn')];
 
 let state = { progress: {}, sessions: [], path: createInitialPathProgress() };
 let currentDestroy = null;
+let stateLoaded = false; // nav stays off until saved progress is in memory
 
 // Saves are chained so PUTs reach the server in order; each one serializes the
 // latest state when it runs, so the last write always wins with fresh data.
@@ -61,7 +62,7 @@ const ctx = {
 
 /** @param {string} name @param {object} [params] - view-specific, e.g. { unitId, stepId } for 'lesson'. */
 function navigateTo(name, params = {}) {
-  if (!views[name]) return;
+  if (!views[name] || !stateLoaded) return;
   if (currentDestroy) {
     try { currentDestroy(); } catch (err) { console.error(err); }
     currentDestroy = null;
@@ -87,6 +88,9 @@ const refreshBtn = document.getElementById('midi-refresh-btn');
 const LAST_DEVICE_KEY = 'piano-learning:last-midi-device-name';
 
 function renderDeviceOptions(devices) {
+  // The piano was unplugged or switched off: stop showing it as connected.
+  if (midi.input && !devices.some((d) => d.id === midi.input.id)) midi.disconnect();
+
   selectEl.replaceChildren();
   if (devices.length === 0) {
     const opt = document.createElement('option');
@@ -105,10 +109,9 @@ function renderDeviceOptions(devices) {
   let lastName = null;
   try { lastName = localStorage.getItem(LAST_DEVICE_KEY); } catch { /* ignore */ }
   const match = lastName && devices.find((d) => d.name === lastName);
-  if (match) {
-    selectEl.value = match.id;
-    midi.connect(match.id);
-  }
+  if (match) selectEl.value = match.id;
+  if (midi.input) selectEl.value = midi.input.id;
+  else if (match) midi.connect(match.id);
 }
 
 async function refreshDevices() {
@@ -135,6 +138,12 @@ midi.addEventListener('connected', (e) => {
   try { localStorage.setItem(LAST_DEVICE_KEY, e.detail.name); } catch { /* ignore */ }
 });
 
+midi.addEventListener('disconnected', () => {
+  statusEl.textContent = 'Piano not connected';
+  statusEl.classList.remove('midi-status--connected');
+  statusEl.classList.add('midi-status--disconnected');
+});
+
 midi.addEventListener('devicechange', (e) => renderDeviceOptions(e.detail));
 
 // --- boot ---
@@ -143,9 +152,24 @@ async function boot() {
   try {
     const loaded = await fetchState();
     state = { ...state, ...loaded, path: loaded.path || createInitialPathProgress() };
+    // In memory only; it reaches progress.json with the next normal save.
+    state.progress = repairInflatedProgress(state.progress);
   } catch (err) {
-    console.error('Failed to load saved progress, starting fresh.', err);
+    // Never start with empty state here: the first save would overwrite the
+    // learner's real progress files with it.
+    console.error('Failed to load saved progress.', err);
+    viewRoot.innerHTML = `
+      <div class="card">
+        <h2>Could not load your progress</h2>
+        <p>The app did not start, so your saved progress stays safe. Check that the server is still running, then try again.</p>
+        <button class="btn-primary" id="boot-retry" type="button">Try again</button>
+      </div>
+    `;
+    viewRoot.querySelector('#boot-retry').addEventListener('click', () => window.location.reload());
+    return;
   }
+
+  stateLoaded = true;
 
   if (midi.isSupported) {
     refreshDevices();

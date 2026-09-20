@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { readJson, writeJson } from '../lib/storage.js';
+import { readJson, writeJson, withFileLock } from '../lib/storage.js';
 
 const PROGRESS_FILE = 'progress.json';
 const SESSIONS_FILE = 'sessions.json';
@@ -30,7 +30,7 @@ apiRouter.put('/progress', async (req, res, next) => {
     if (!progress || typeof progress !== 'object' || Array.isArray(progress)) {
       return res.status(400).json({ error: 'Body must be a JSON object keyed by MIDI note number.' });
     }
-    await writeJson(PROGRESS_FILE, progress);
+    await withFileLock(PROGRESS_FILE, () => writeJson(PROGRESS_FILE, progress));
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -45,7 +45,7 @@ apiRouter.put('/path', async (req, res, next) => {
     if (!path || typeof path !== 'object' || !path.steps || typeof path.steps !== 'object' || Array.isArray(path.steps)) {
       return res.status(400).json({ error: 'Body must be an object with a "steps" object keyed by "unitId/stepId".' });
     }
-    await writeJson(PATH_FILE, path);
+    await withFileLock(PATH_FILE, () => writeJson(PATH_FILE, path));
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -56,13 +56,15 @@ apiRouter.put('/path', async (req, res, next) => {
 apiRouter.post('/sessions', async (req, res, next) => {
   try {
     const session = req.body;
-    if (!session || typeof session !== 'object') {
+    if (!session || typeof session !== 'object' || Array.isArray(session)) {
       return res.status(400).json({ error: 'Body must be a session object.' });
     }
-    const sessions = await readJson(SESSIONS_FILE, []);
     const stamped = { ...session, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, recordedAt: new Date().toISOString() };
-    sessions.push(stamped);
-    await writeJson(SESSIONS_FILE, sessions);
+    await withFileLock(SESSIONS_FILE, async () => {
+      const sessions = await readJson(SESSIONS_FILE, []);
+      sessions.push(stamped);
+      await writeJson(SESSIONS_FILE, sessions);
+    });
     res.status(201).json(stamped);
   } catch (err) {
     next(err);

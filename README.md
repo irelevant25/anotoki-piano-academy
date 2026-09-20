@@ -39,7 +39,9 @@ JSON files on your machine.
      notes are mixed with the ones you already know.
   3. **Read** — play a short melody made from your notes. No metronome;
      the app waits for each note.
-  4. **In time** — play a new melody along with a metronome.
+  4. **In time** — play a new melody along with a metronome. The music
+     moves by itself, one note on every click: play each note on its click.
+     A note you miss is marked wrong and the music keeps going.
   5. **Song** — play a real song that uses exactly those notes.
 
   You need **80%** on a step to unlock the next one, and you can retry as
@@ -75,7 +77,8 @@ Implemented and working end-to-end (verified with a scripted browser run
 simulating MIDI input — see the project skill for how, since there's no
 real piano attached in a dev sandbox):
 
-- MIDI connect/disconnect UI, remembers your last device.
+- MIDI connect/disconnect UI, remembers your last device, shows "not
+  connected" again when the piano is unplugged and reconnects when it's back.
 - **Learning path, phase 1 (right hand):** 5 units — C D E (Hot Cross
   Buns), G (Mary Had a Little Lamb), F (Ode to Joy), A (Twinkle Twinkle),
   B and high C (Joy to the World). Meet / Drill / Read / In time / Song
@@ -85,9 +88,17 @@ real piano attached in a dev sandbox):
 - Note Trainer: adaptive note introduction + SM-2-style spaced repetition,
   round-based practice with live accuracy, session logging.
 - Sheet Practice: generated sight-reading from known notes, metronome
-  count-in, per-note pitch + timing grading.
+  count-in, per-note pitch + timing grading. Tempo play works like a rhythm
+  game (same in lessons and Songs): each key press is checked against the
+  note of the nearest click, missed notes are marked wrong, and the music
+  never waits. Keys pressed during the count-in are ignored.
 - Songs: 5 songs, auto-unlock, adjustable tempo, same grading as Sheet
   Practice.
+- Review: a note's review time grows at most once per day, however often
+  you play it that day, so "mastered" takes several days of practice.
+  Mastered notes also come back for review when their time is up.
+- If your saved progress can't be loaded, the app stops with a message
+  instead of starting empty, so it can never overwrite your progress.
 - Stats: keyboard mastery heatmap, accuracy, streak, minutes practiced,
   session history table (including lesson steps).
 

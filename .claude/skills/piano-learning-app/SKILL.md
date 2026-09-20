@@ -28,7 +28,10 @@ shared/            Pure JS, imported identically by server (Node) and
                     introduction order), clef assignment.
   srs.js            SM-2-style adaptive scheduler: grading, note-state
                     updates, practice-queue selection, unlock checks,
-                    due-note count.
+                    due-note count. "Due" = any started note (mastered
+                    included) whose dueAt has passed. Schedule grows at
+                    most once per local day (see gotchas);
+                    repairInflatedProgress() fixes pre-rule data at boot.
   songs.js          Song library + unlock-check helper.
   path.js           Learning path: PHASES -> units -> steps, PASS_ACCURACY,
                     unlock/next-step logic, drill-round and melody
@@ -42,6 +45,8 @@ server/
   lib/storage.js      Whole-file JSON read/write under server/data/
                        (atomic write-then-rename). No DB. PIANO_DATA_DIR
                        env var points it at another directory (tests).
+                       withFileLock(file, task) queues work per file - wrap
+                       every write / read-modify-write route in it.
   data/                progress.json (per-note SRS), sessions.json (log),
                        path.json (path step results). These ARE tracked in
                        git (user's choice, commit 2565eb3) - never commit
@@ -53,7 +58,10 @@ public/
                                 it must stay connected across navigation.
   js/midi.js           PianoMIDI: Web MIDI wrapper, EventTarget emitting
                         'noteon'/'noteoff' (performance.now()-stamped) and
-                        'connected'/'devicechange'.
+                        'connected'/'disconnected'/'devicechange'. app.js
+                        calls disconnect() when the connected input vanishes
+                        from the device list (piano unplugged / switched off)
+                        and auto-reconnects the remembered device by name.
   js/keyboard.js       PianoKeyboard: SVG on-screen keyboard, colorable
                         per key (practice feedback or mastery heatmap).
   js/notation.js       Notation: thin VexFlow wrapper (single note or
@@ -67,14 +75,27 @@ public/
                         the current note, grades MIDI input, updates SRS.
                         Modes 'tempo' (metronome, pitch+timing) and 'wait'
                         (no clock, waits for the right note, first-try
-                        accuracy, key hint after 2 misses). Used by sheet,
-                        songs and the lesson view - don't re-implement a
-                        player loop in a view.
+                        accuracy, key hint after 2 misses). Tempo mode is
+                        clock-driven, like a rhythm game (user's Osu! idea):
+                        each note owns click +/- half a beat, a press is
+                        graded against the note whose window it falls in
+                        (index = round((t - T0) / beat)), an unplayed note is
+                        marked missed (no SRS update) when its window closes
+                        and the music keeps moving; count-in presses and
+                        extra presses on an answered note are ignored. One
+                        note per click for now. start() is a no-op after
+                        destroy(); it also sets `window.pianoPlayer` (tests
+                        read `expectedTimes` from it). Used by sheet, songs and
+                        the lesson view - don't re-implement a player loop in
+                        a view.
   js/api.js            fetch wrappers for the /api routes.
   js/app.js            Boots the app, owns the MIDI connection + router.
                         Exposes `window.pianoMIDI` for devtools/testing.
                         navigateTo(name, params) - params go to the view.
                         saveProgress/savePathProgress chain PUTs in order.
+                        If GET /api/state fails at boot the app shows an
+                        error card and stays off (navigateTo is blocked) -
+                        it must never run on empty state, see gotchas.
   js/views/*.js        home ("Learn" = the path), lesson (runs one path
                         step), trainer (Note Trainer), sheet (Sheet
                         Practice), songs (Songs), stats. Each exports
@@ -140,8 +161,14 @@ Pass rule and step ladder stay the same in every phase. New step types
   `destroy()` that removes any `ctx.midi` listeners it added (and clears
   pending timers) - app.js calls this on navigation. Sub-navigation
   *within* a view needs its own cleanup handoff: `nav.cleanup` in
-  `songs.js`, `destroyBody` in `lesson.js` (step renderer <-> result screen).
+  `songs.js`, `destroyBody` in `lesson.js` (step renderer -> pending
+  result-screen timer -> result screen).
   SequencePlayer adds its own listener - always call `player.destroy()`.
+- **Lesson steps report at once, the screen waits.** A step renderer calls
+  `done({ accuracy, session, delayMs })` the moment the attempt ends;
+  `finish()` in `lesson.js` saves immediately and only delays the result
+  screen by `delayMs`. Don't wrap `done()` in a `setTimeout` - leaving the
+  lesson during that pause used to lose (drill) or late-save the result.
 - **Curriculum is intentionally small (C3-C5 diatonic).** See
   `shared/theory.js` CURRICULUM and "Extending the curriculum" below
   before widening it.
@@ -167,6 +194,17 @@ Pass rule and step ladder stay the same in every phase. New step types
   value` out of `updateNoteState`. `shared/srs.js` bounds both
   (`MIN/MAX_EASE_FACTOR`, `MAX_INTERVAL_HOURS`) - keep those bounds if you
   touch the scheduler.
+- **One key press is not one review.** A lesson plays the same note 20+
+  times in minutes; plain SM-2 counted each press as a spaced review, so the
+  user's whole keyboard was "mastered" (intervals up to 180 days) after one
+  day. Rule in `updateNoteState` (agreed with the user 2026-09-20): the first
+  2 passes are learning steps (4 h, 24 h -> status `review`, so Songs/Sheet
+  still unlock in the first sitting); after that only the first pass of a
+  local day (`lastGrowthAt`) changes repetitions/interval/ease/dueAt. Later
+  passes that day only count for accuracy. A miss always lapses. With daily
+  practice a note is `mastered` after about 4 days. Old data (no
+  `lastGrowthAt`, repetitions > 2) is reset to reps 2 / 24 h / `review` by
+  `repairInflatedProgress()`, called in `boot()`; it is idempotent.
 - **New-note pacing counts only `status === 'learning'`**, not `review`,
   against `maxActiveNew` in `pickPracticeQueue`. Counting `review` too
   would block introducing note N+1 until note N is fully `mastered`
@@ -185,18 +223,43 @@ Pass rule and step ladder stay the same in every phase. New step types
   round; `spreadOut` in path.js picks only notes that keep a repeat-free
   completion possible.
 
+- **A view's `container` is the shared `#view-root`.** Any timer or promise
+  that touches `container` after `destroy()` draws over the *next* view (the
+  trainer's 700 ms "next prompt" timer used to paint "Round complete" on top
+  of Stats). Keep every timer id and clear it in `destroy()`.
+- **Never let the app run on empty state after a failed load.** Saves PUT
+  the whole progress map, so one key press after a failed `GET /api/state`
+  would overwrite the learner's real `progress.json` with a near-empty one.
+  `boot()` in app.js stops with an error card instead.
+- **Day boundaries are local, timestamps are UTC.** `startedAt` etc. are ISO
+  UTC strings; slicing them (`.slice(0, 10)`) gives the UTC day, which is
+  the wrong day for part of every day in the user's time zone (CET/CEST) and
+  broke the streak. Use `localDayKey()` in `stats.js` for anything per-day.
+- **`mastered` notes must still come back when due.** Filtering the queue /
+  due count to `learning`+`review` only meant a mastered note was never
+  reviewed again. `isDue()` in srs.js covers every status except `new`;
+  mastered notes are just never pulled in *early*.
+- **Tempo-mode tests must hit the clicks.** A press is matched to a note by
+  its `timestamp`, so a synthetic event stamped `performance.now()` right
+  after Start is count-in noise and gets ignored. Fast path: stamp note i
+  with `window.pianoPlayer.expectedTimes[i]` and fire them all at once (the
+  run finishes when the last note is answered). Real-time path: `setTimeout`
+  each press to `expectedTimes[i] - performance.now()`; skipped notes then
+  become misses by themselves.
+- **`start.ps1` runs the server hidden, with no console**, so Ctrl+C in the
+  launcher never reaches node. The `try/finally` around the wait loops kills
+  the process tree (`taskkill /T`); without it node keeps port 3002 and the
+  next launch fails with "server stopped before becoming ready".
+
 ## Known issues (not fixed yet)
 
-- **Every key press is a full SM-2 review, even seconds apart.** One path
-  unit gives C/D/E ~15-30 graded attempts, so they reach `mastered` with
-  10+ day intervals after a single sitting (seen in the 2026-09-15 test
-  run). The "due for review" banner then stays quiet for days. A fix would
-  count at most one SRS review per note per session/day (or only grow the
-  interval once the note is actually due) in `shared/srs.js` - discuss
-  with the user before changing scheduler behavior.
-- **Tempo mode stalls if a note is skipped entirely** - the player only
-  advances on key presses. The lesson "In time" step has a Restart button;
-  a beat-driven advance would be the real fix.
+- **Tempo mode assumes one note per click.** Windows are computed from the
+  beat index, not from `note.beat`/`durationBeats`. Longer/shorter notes and
+  rests (needed from phase 4) mean deriving each note's expected time and
+  window from its `beat`, and the metronome clicking per beat, not per note.
+- **No automated test suite in the repo.** Checks are ad-hoc scripts in the
+  scratchpad (see below). If this grows, a `test/` folder with the pure
+  `shared/` checks under `node --test` would be the first step.
 
 ## Testing without real MIDI hardware
 
@@ -222,10 +285,29 @@ drill prompt.
 PORT=3099 PIANO_DATA_DIR=<scratchpad>/testdata node server/index.js
 ```
 
+### Review checklist (run through it for every change)
+
+- Every `setTimeout` / listener added in a view is cleared in its `destroy()`.
+- MIDI handlers advance state synchronously; saves are fire-and-forget.
+- No logic copied out of `shared/`; no persisted unit/step ids renamed.
+- New server route that writes -> wrapped in `withFileLock`.
+- Anything "per day" uses local dates.
+- UI text: short, plain English.
+- Tested on port 3099 with `PIANO_DATA_DIR`; `git status` shows no change
+  under `server/data/`.
+
 Tooling that works on the user's Windows machine: no global Playwright,
 but Chrome and Edge are installed - `npm i playwright-core` in the
 scratchpad and `chromium.launch({ channel: 'chrome', headless: true })`
-(no browser download needed). Last full pass (2026-09-15): pure checks of
+(no browser download needed). Bug-review pass (2026-09-20): pure srs/path
+checks + e2e through Unit 1 including count-in presses ignored, a silent
+tempo run ending by itself at 0%, a real-time tempo run with one skipped
+note + one wrong key + one double press = exactly 75%, result saved before the result
+screen, Restart during the result pause, trainer -> Stats navigation race,
+streak = 1, blocked `/api/state` -> error card and zero PUTs, malformed JSON
+-> 400, 5 parallel session POSTs all stored; SRS: 30 passes in one sitting
+= reps 2 / 24 h, next day grows once, miss lapses, repair of a copy of the
+real progress.json -> 11 notes due, 0 mastered. Earlier full pass (2026-09-15): pure checks of
 path.js (structure, unlock rules, songs fit pools, 500x drill/melody
 generation) + an e2e run through all of Unit 1 (meet with a wrong key,
 drill failing at 70% then passing, read with misses -> 88%, tempo, song

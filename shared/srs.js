@@ -5,6 +5,9 @@
 const MIN_EASE_FACTOR = 1.3;
 const MAX_EASE_FACTOR = 3.5;
 const MAX_INTERVAL_HOURS = 24 * 180; // ~6 months - plenty for a "mastered" note's review cadence
+// The first correct answers are "learning steps" (4 h, then 24 h) and may all
+// happen in one sitting. Past that, the interval grows at most once per day.
+const LEARNING_STEPS = 2;
 
 /** @returns {object} a fresh, never-practiced state for a MIDI note. */
 export function createInitialNoteState(midi) {
@@ -19,6 +22,7 @@ export function createInitialNoteState(midi) {
     totalAttempts: 0,
     correctAttempts: 0,
     avgTimingErrorMs: null,
+    lastGrowthAt: null, // last time a correct answer moved the schedule forward
     updatedAt: null,
   };
 }
@@ -41,11 +45,20 @@ export function gradeAttempt({ correct, timingErrorMs, timingToleranceMs = 250 }
   return 2; // correct pitch, but timing was well off
 }
 
+function sameLocalDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 /**
  * Applies one graded attempt to a note's SRS state (SM-2 update rule).
  * grade >= 3 counts as a "pass": repetitions grow and the review interval
  * expands by the ease factor. grade < 3 is a "lapse": repetitions reset and
  * the note comes back for review soon.
+ *
+ * A piano lesson plays the same note many times within minutes, unlike a
+ * flashcard seen once a day. So once a note is past its learning steps, only
+ * the first pass of a (local) day moves the schedule; later passes that day
+ * still count for accuracy but leave repetitions/interval/ease/dueAt alone.
  */
 export function updateNoteState(state, grade, timingErrorMs = null, now = new Date()) {
   const next = { ...state };
@@ -65,7 +78,10 @@ export function updateNoteState(state, grade, timingErrorMs = null, now = new Da
     next.repetitions = 0;
     next.intervalHours = 1;
     next.status = next.status === 'mastered' ? 'review' : 'learning';
+  } else if (next.repetitions >= LEARNING_STEPS && next.lastGrowthAt && sameLocalDay(new Date(next.lastGrowthAt), now)) {
+    return next; // already moved forward today
   } else {
+    next.lastGrowthAt = now.toISOString();
     next.repetitions += 1;
     if (next.repetitions === 1) next.intervalHours = 4;
     else if (next.repetitions === 2) next.intervalHours = 24;
@@ -84,6 +100,33 @@ export function updateNoteState(state, grade, timingErrorMs = null, now = new Da
 
   next.dueAt = new Date(now.getTime() + next.intervalHours * 3600 * 1000).toISOString();
   return next;
+}
+
+/**
+ * One-time repair for progress saved before the once-per-day rule: there,
+ * every key press grew the interval, so notes became "mastered" with
+ * months-long intervals after a single sitting. Such notes (no lastGrowthAt,
+ * more repetitions than the learning steps) are put back to where one sitting
+ * really gets you: end of the learning steps, due a day after the last practice.
+ */
+export function repairInflatedProgress(progressMap) {
+  const repaired = {};
+  for (const [midi, state] of Object.entries(progressMap)) {
+    if (state && state.lastGrowthAt === undefined && state.repetitions > LEARNING_STEPS) {
+      const last = state.updatedAt ? new Date(state.updatedAt) : new Date();
+      repaired[midi] = {
+        ...state,
+        repetitions: LEARNING_STEPS,
+        intervalHours: 24,
+        status: 'review',
+        dueAt: new Date(last.getTime() + 24 * 3600 * 1000).toISOString(),
+        lastGrowthAt: last.toISOString(),
+      };
+    } else {
+      repaired[midi] = state;
+    }
+  }
+  return repaired;
 }
 
 /** A note counts as "known" for sheet/song generation once it's past initial learning. */
@@ -105,9 +148,11 @@ export function pickPracticeQueue(progressMap, curriculum, opts = {}) {
     state: progressMap[midi] || createInitialNoteState(midi),
   }));
 
+  // Mastered notes come back only when their (long) interval runs out; they
+  // are never pulled in early like learning/review notes are.
   const active = withState.filter(({ state }) => state.status === 'learning' || state.status === 'review');
-  const due = active
-    .filter(({ state }) => state.dueAt && new Date(state.dueAt).getTime() <= now)
+  const due = withState
+    .filter(({ state }) => isDue(state, now))
     .sort((a, b) => new Date(a.state.dueAt) - new Date(b.state.dueAt));
   const dueSet = new Set(due.map((x) => x.midi));
   const notYetDue = active
@@ -134,12 +179,14 @@ export function pickPracticeQueue(progressMap, curriculum, opts = {}) {
   return queue.slice(0, count).map((x) => x.midi);
 }
 
-/** How many started (learning/review) notes are due for review right now. */
+/** A started note (learning, review or mastered) whose review time has come. */
+function isDue(state, now) {
+  return !!state && state.status !== 'new' && !!state.dueAt && new Date(state.dueAt).getTime() <= now;
+}
+
+/** How many started notes (mastered ones included) are due for review right now. */
 export function countDueNotes(progressMap, curriculum, now = Date.now()) {
-  return curriculum.filter((midi) => {
-    const s = progressMap[midi];
-    return s && (s.status === 'learning' || s.status === 'review') && s.dueAt && new Date(s.dueAt).getTime() <= now;
-  }).length;
+  return curriculum.filter((midi) => isDue(progressMap[midi], now)).length;
 }
 
 /** Notes currently known well enough to appear in generated sheets/songs. */
