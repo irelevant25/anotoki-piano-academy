@@ -1,0 +1,12 @@
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+}

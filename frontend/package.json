@@ -1,0 +1,36 @@
+{
+  "name": "piano-academy",
+  "version": "2.0.0",
+  "description": "Piano Academy's frontend: Angular 21 (standalone, zoneless, signals), VexFlow for the notation, Web MIDI for the piano.",
+  "private": true,
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
+  },
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "build:dev": "ng build --configuration development",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test --watch=false"
+  },
+  "packageManager": "npm@10.9.2",
+  "dependencies": {
+    "@angular/common": "^21.2.0",
+    "@angular/compiler": "^21.2.0",
+    "@angular/core": "^21.2.0",
+    "@angular/platform-browser": "^21.2.0",
+    "@angular/router": "^21.2.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "vexflow": "5.0.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.2.24",
+    "@angular/cli": "^21.2.24",
+    "@angular/compiler-cli": "^21.2.0",
+    "jsdom": "^28.0.0",
+    "typescript": "~5.9.2",
+    "vitest": "^4.0.8"
+  }
+}

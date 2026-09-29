@@ -3,13 +3,26 @@
 set -u
 
 # ============================================================
-# Personal Piano Learning - Project Launcher
+# Piano Academy - start it on this computer
 # Linux / macOS
+#
+# Finds PHP (8.2 or newer, with pdo_pgsql and openssl), builds the
+# app once (again only after an update - that needs Node.js),
+# brings the database up to date, starts PHP's web server with the
+# backend serving the app, and opens the browser. Ctrl+C stops it.
+#
+# The first time it opens the setup page instead: it asks for your
+# PostgreSQL connection, switches sign-in off (this computer only,
+# no login) and brings in your old progress from server/data/.
 # ============================================================
 
-PROJECT_NAME="PersonalPianoLearning"
-NVM_INSTALL_URL="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.7/install.sh"
+PROJECT_NAME="Piano Academy"
 
+# Where the app answers: http://127.0.0.1:8300 (PIANO_PORT changes the port).
+PORT="${PIANO_PORT:-8300}"
+APP_URL="http://127.0.0.1:$PORT"
+
+# How long to wait for the server to start.
 SERVER_STARTUP_TIMEOUT=30
 
 # ------------------------------------------------------------
@@ -50,25 +63,64 @@ die() {
     exit 1
 }
 
-ask_yes_no() {
-    local question="$1"
-    local answer
+# Prints nothing when this PHP can run the app, else the reason it can't.
+php_problem() {
+    local php="$1" version major minor modules missing=""
 
-    while true; do
-        read -r -p "$question [Y/n]: " answer
+    version="$("$php" -v 2>/dev/null | sed -n 's/^PHP \([0-9][0-9]*\.[0-9][0-9]*\.[^ ]*\).*/\1/p' | head -n 1)"
+    if [ -z "$version" ]; then
+        echo "does not run"
+        return
+    fi
+    major="${version%%.*}"
+    minor="${version#*.}"
+    minor="${minor%%.*}"
+    if [ "$major" -lt 8 ] || { [ "$major" -eq 8 ] && [ "$minor" -lt 2 ]; }; then
+        echo "PHP $version is too old"
+        return
+    fi
 
-        case "$answer" in
-            [Yy]|[Yy][Ee][Ss]|"")
-                return 0
-                ;;
-            [Nn]|[Nn][Oo])
-                return 1
-                ;;
-            *)
-                echo "Please answer Y or N."
-                ;;
-        esac
+    modules="$("$php" -m 2>/dev/null)"
+    for ext in pdo_pgsql openssl; do
+        if ! printf '%s\n' "$modules" | grep -qix "$ext"; then
+            missing="$missing $ext"
+        fi
     done
+    if [ -n "$missing" ]; then
+        echo "PHP $version lacks$missing"
+    fi
+}
+
+# Every php worth trying: PIANO_PHP, PATH, the usual install folders.
+php_candidates() {
+    {
+        [ -n "${PIANO_PHP:-}" ] && echo "$PIANO_PHP"
+        type -ap php 2>/dev/null
+        echo /opt/homebrew/bin/php
+        echo /usr/local/bin/php
+        echo /usr/bin/php
+    } | awk '!seen[$0]++' | while read -r candidate; do
+        [ -x "$candidate" ] && echo "$candidate"
+    done
+}
+
+open_browser() {
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "$1" >/dev/null 2>&1 &
+    elif command -v open >/dev/null 2>&1; then
+        open "$1"
+    else
+        warning "Open $1 in your browser."
+    fi
+}
+
+# The status of GET /api/health: 200 running, 503 running but not set up, 0 nothing.
+health_status() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -s -o /dev/null -m 2 -w '%{http_code}' "$APP_URL/api/health" 2>/dev/null || echo 0
+    else
+        "$PHP" -r '$c = stream_context_create(["http" => ["ignore_errors" => true, "timeout" => 2]]); $s = @fopen($argv[1] . "/api/health", "rb", false, $c); if ($s === false) { echo 0; exit; } $m = stream_get_meta_data($s); fclose($s); echo preg_match("~^HTTP/\\S+\\s+(\\d{3})~", $m["wrapper_data"][0] ?? "", $x) ? $x[1] : 0;' "$APP_URL" 2>/dev/null || echo 0
+    fi
 }
 
 # ------------------------------------------------------------
@@ -80,545 +132,200 @@ clear 2>/dev/null || true
 echo ""
 echo -e "${BOLD}==============================================${NC}"
 echo -e "${BOLD}  $PROJECT_NAME${NC}"
-echo -e "${BOLD}  Project Launcher${NC}"
 echo -e "${BOLD}==============================================${NC}"
 echo ""
 
 # ------------------------------------------------------------
-# 1. Check project directory
+# 1. The project folder
 # ------------------------------------------------------------
 
-info "Checking project directory..."
+# The folder of this script, wherever it was started from.
+cd "$(dirname "$0")" || die "Cannot enter the folder of this script."
+ROOT="$(pwd)"
+BACKEND="$ROOT/backend"
+FRONTEND="$ROOT/frontend"
 
-if [ ! -f ".nvmrc" ]; then
-    die "Could not find .nvmrc.
-
-Please run this script from the root of the $PROJECT_NAME project."
-fi
-
-if [ ! -f "package.json" ]; then
-    die "Could not find package.json.
-
-Please run this script from the root of the $PROJECT_NAME project."
-fi
-
-success "Project directory OK."
-echo ""
-
-# ------------------------------------------------------------
-# 2. Read package.json
-# ------------------------------------------------------------
-
-if ! command -v node >/dev/null 2>&1; then
-    # Node may not exist yet, which is fine.
-    PACKAGE_JSON_NODE=""
-else
-    PACKAGE_JSON_NODE="$(node -e '
-        try {
-            const p = require("./package.json");
-            process.stdout.write(
-                p.engines && p.engines.node
-                    ? String(p.engines.node)
-                    : ""
-            );
-        } catch {
-            process.exit(1);
-        }
-    ' 2>/dev/null || true)"
+if [ ! -f "$BACKEND/router.php" ] || [ ! -f "$FRONTEND/package.json" ]; then
+    die "backend/ or frontend/ is missing. This script belongs in the $PROJECT_NAME folder."
 fi
 
 # ------------------------------------------------------------
-# 3. Determine required Node version
+# 2. PHP
 # ------------------------------------------------------------
 
-if [ -n "$PACKAGE_JSON_NODE" ]; then
-    REQUIRED_NODE_VERSION="$PACKAGE_JSON_NODE"
-else
-    REQUIRED_NODE_VERSION="$(tr -d '[:space:]' < .nvmrc)"
-fi
+info "Looking for PHP 8.2+ with pdo_pgsql and openssl..."
 
-REQUIRED_NODE_VERSION="${REQUIRED_NODE_VERSION#v}"
+PHP=""
+TRIED=""
 
-if [ -z "$REQUIRED_NODE_VERSION" ]; then
-    die "Could not determine the required Node.js version."
-fi
-
-if [[ ! "$REQUIRED_NODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    die "The project specifies an unsupported Node.js version:
-
-$REQUIRED_NODE_VERSION
-
-This launcher expects an exact version such as:
-
-22.15.0"
-fi
-
-success "Required Node.js version: v$REQUIRED_NODE_VERSION"
-echo ""
-
-# ------------------------------------------------------------
-# 4. Determine application host and port
-# ------------------------------------------------------------
-
-HOST="$(node -e '
-try {
-    const p = require("./package.json");
-    process.stdout.write(
-        p.config && p.config.host
-            ? String(p.config.host)
-            : "127.0.0.1"
-    );
-} catch {
-    process.stdout.write("127.0.0.1");
-}
-' 2>/dev/null)"
-
-PORT="$(node -e '
-try {
-    const p = require("./package.json");
-    process.stdout.write(
-        p.config && p.config.port
-            ? String(p.config.port)
-            : "3000"
-    );
-} catch {
-    process.stdout.write("3000");
-}
-' 2>/dev/null)"
-
-if [ -z "$HOST" ]; then
-    die "The host in package.json is empty."
-fi
-
-if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
-    die "Invalid application port: $PORT"
-fi
-
-APP_URL="http://${HOST}:${PORT}"
-
-success "Application host: $HOST"
-success "Application port: $PORT"
-success "Application URL:  $APP_URL"
-echo ""
-
-# ------------------------------------------------------------
-# 5. Load NVM
-# ------------------------------------------------------------
-
-load_nvm() {
-    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-
-    if [ -s "$NVM_DIR/nvm.sh" ]; then
-        # shellcheck disable=SC1090
-        . "$NVM_DIR/nvm.sh"
+while read -r candidate; do
+    problem="$(php_problem "$candidate")"
+    if [ -z "$problem" ]; then
+        PHP="$candidate"
+        break
     fi
-}
+    TRIED="$TRIED
+    $candidate  ($problem)"
+done <<EOF
+$(php_candidates)
+EOF
 
-load_nvm
-
-# ------------------------------------------------------------
-# 6. Check NVM
-# ------------------------------------------------------------
-
-info "Checking NVM..."
-
-if ! command -v nvm >/dev/null 2>&1; then
-
-    warning "NVM was not found."
-
-    echo ""
-    echo "NVM is required to manage the Node.js version used by"
-    echo "this project."
-    echo ""
-
-    if ! ask_yes_no "Install NVM now?"; then
-        die "NVM is required."
+if [ -z "$PHP" ]; then
+    if [ -n "$TRIED" ]; then
+        error "Tried:$TRIED"
     fi
+    die "No PHP 8.2 or newer with the extensions pdo_pgsql and openssl was found.
 
-    echo ""
-    info "Installing NVM..."
-    echo ""
+To install it:
+    macOS (Homebrew):   brew install php
+    Debian / Ubuntu:    sudo apt install php-cli php-pgsql php-curl
+    Fedora:             sudo dnf install php-cli php-pgsql
 
-    if command -v curl >/dev/null 2>&1; then
-        curl -o- "$NVM_INSTALL_URL" | bash
-    elif command -v wget >/dev/null 2>&1; then
-        wget -qO- "$NVM_INSTALL_URL" | bash
-    else
-        die "Neither curl nor wget is installed.
-
-Please install curl or wget and run this script again."
-    fi
-
-    load_nvm
-
-    if ! command -v nvm >/dev/null 2>&1; then
-
-        for profile in \
-            "$HOME/.bashrc" \
-            "$HOME/.bash_profile" \
-            "$HOME/.profile" \
-            "$HOME/.zshrc"
-        do
-            if [ -f "$profile" ]; then
-                # shellcheck disable=SC1090
-                . "$profile" 2>/dev/null || true
-            fi
-
-            if command -v nvm >/dev/null 2>&1; then
-                break
-            fi
-        done
-    fi
-
-    if ! command -v nvm >/dev/null 2>&1; then
-        die "NVM was installed but could not be loaded.
-
-Please open a new terminal and run the launcher again."
-    fi
-
-    success "NVM installed successfully."
-
-else
-    success "NVM found."
+Or set PIANO_PHP to the php to use. Then run this script again."
 fi
 
+success "PHP: $PHP"
 echo ""
 
 # ------------------------------------------------------------
-# 7. Check Node version
+# 3. The app (built once; again after an update)
 # ------------------------------------------------------------
 
-info "Checking Node.js v$REQUIRED_NODE_VERSION..."
-
-if nvm ls "$REQUIRED_NODE_VERSION" 2>/dev/null | grep -Eq "v?$REQUIRED_NODE_VERSION"; then
-    success "Node.js v$REQUIRED_NODE_VERSION is installed."
-else
-
-    warning "Node.js v$REQUIRED_NODE_VERSION is not installed."
-
-    echo ""
-
-    if ! ask_yes_no "Install Node.js v$REQUIRED_NODE_VERSION now?"; then
-        die "The required Node.js version is not installed."
-    fi
-
-    echo ""
-    info "Installing Node.js v$REQUIRED_NODE_VERSION..."
-    echo ""
-
-    if ! nvm install "$REQUIRED_NODE_VERSION"; then
-        die "Failed to install Node.js v$REQUIRED_NODE_VERSION."
-    fi
-
-    success "Node.js v$REQUIRED_NODE_VERSION installed."
+BUILT_INDEX="$FRONTEND/dist/piano-academy/browser/index.html"
+NEEDS_BUILD=0
+if [ ! -f "$BUILT_INDEX" ]; then
+    NEEDS_BUILD=1
+elif [ -n "$(find "$FRONTEND/src" "$FRONTEND/public" "$FRONTEND/package.json" "$FRONTEND/package-lock.json" "$FRONTEND/angular.json" -newer "$BUILT_INDEX" -print -quit 2>/dev/null)" ]; then
+    NEEDS_BUILD=1
 fi
 
-echo ""
+if [ "$NEEDS_BUILD" -eq 1 ]; then
+    if ! command -v npm >/dev/null 2>&1; then
+        if [ -f "$BUILT_INDEX" ]; then
+            warning "The app has changed since it was built, and Node.js is not installed to build it again."
+            warning "Starting the build you have. (Install Node.js 22 from https://nodejs.org to update it.)"
+            echo ""
+        else
+            die "The app has not been built yet, and building it needs Node.js.
 
-# ------------------------------------------------------------
-# 8. Activate Node
-# ------------------------------------------------------------
-
-info "Activating Node.js v$REQUIRED_NODE_VERSION..."
-
-if ! nvm use "$REQUIRED_NODE_VERSION"; then
-    die "Could not activate Node.js v$REQUIRED_NODE_VERSION."
-fi
-
-CURRENT_NODE_VERSION="$(node --version)"
-EXPECTED_NODE_VERSION="v$REQUIRED_NODE_VERSION"
-
-if [ "$CURRENT_NODE_VERSION" != "$EXPECTED_NODE_VERSION" ]; then
-    die "Wrong Node.js version is active.
-
-Expected: $EXPECTED_NODE_VERSION
-Found:    $CURRENT_NODE_VERSION"
-fi
-
-success "Node.js $CURRENT_NODE_VERSION is active."
-echo ""
-
-# ------------------------------------------------------------
-# 9. Determine application host and port
-# ------------------------------------------------------------
-
-APP_HOST="$(node -e '
-try {
-    const p = require("./package.json");
-    process.stdout.write(
-        p.config && p.config.host
-            ? String(p.config.host)
-            : "127.0.0.1"
-    );
-} catch {
-    process.exit(1);
-}
-' 2>/dev/null)" || die "Could not read application host from package.json."
-
-APP_PORT="$(node -e '
-try {
-    const p = require("./package.json");
-    process.stdout.write(
-        p.config && p.config.port
-            ? String(p.config.port)
-            : "3000"
-    );
-} catch {
-    process.exit(1);
-}
-' 2>/dev/null)" || die "Could not read application port from package.json."
-
-if [ -z "$APP_HOST" ]; then
-    die "The host in package.json is empty."
-fi
-
-if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || \
-   [ "$APP_PORT" -lt 1 ] || \
-   [ "$APP_PORT" -gt 65535 ]; then
-    die "Invalid application port: $APP_PORT"
-fi
-
-APP_URL="http://${APP_HOST}:${APP_PORT}"
-
-success "Application host: $APP_HOST"
-success "Application port: $APP_PORT"
-success "Application URL:  $APP_URL"
-echo ""
-
-
-# ------------------------------------------------------------
-# 10. Check npm
-# ------------------------------------------------------------
-
-info "Checking npm..."
-
-if ! command -v npm >/dev/null 2>&1; then
-    die "npm was not found."
-fi
-
-NPM_VERSION="$(npm --version)"
-
-success "npm v$NPM_VERSION found."
-echo ""
-
-# ------------------------------------------------------------
-# 11. Install dependencies
-# ------------------------------------------------------------
-
-info "Checking project dependencies..."
-
-if [ -f "package-lock.json" ]; then
-
-    if [ ! -d "node_modules" ]; then
-
-        echo ""
-        info "Installing project dependencies with npm ci..."
-        echo ""
-
-        if ! npm ci; then
-            die "npm ci failed."
+Install Node.js 22 (LTS) from https://nodejs.org, then run this script
+again. It builds the app once; after that it starts without Node.js."
         fi
-
-        success "Dependencies installed."
-
     else
-
-        success "Dependencies already installed."
-
+        if [ ! -d "$FRONTEND/node_modules" ]; then
+            info "Downloading what the app is built with (npm ci, once)..."
+            (cd "$FRONTEND" && npm ci --no-audit --no-fund) || die "npm ci did not finish: the messages above say why."
+        fi
+        info "Building the app (a minute at most)..."
+        (cd "$FRONTEND" && npm run build) || die "The app did not build: the messages above say why."
+        success "The app is built."
+        echo ""
     fi
+fi
 
-else
+# ------------------------------------------------------------
+# 4. The database (once it is set up)
+# ------------------------------------------------------------
 
-    warning "package-lock.json was not found."
+if [ -f "$BACKEND/config/database.local.php" ] && [ -f "$BACKEND/config/auth.local.php" ]; then
+    info "Bringing the database up to date..."
+    if ! (cd "$BACKEND" && "$PHP" migration.php); then
+        die "The database could not be brought up to date: the message above says why.
 
-    echo ""
-    echo "A package-lock.json is recommended for reproducible installs."
-    echo "Running npm install instead."
-    echo ""
-
-    if ! npm install; then
-        die "npm install failed."
+PostgreSQL must be installed and running
+(https://www.postgresql.org/download/). The connection is in
+backend/config/database.local.php - to enter it again, open
+$APP_URL/setup.php while the app runs."
     fi
-
-    success "Dependencies installed."
-fi
-
-echo ""
-
-# ------------------------------------------------------------
-# 12. Check start script
-# ------------------------------------------------------------
-
-info "Checking project start command..."
-
-HAS_START_SCRIPT="$(node -e '
-const p = require("./package.json");
-process.stdout.write(
-    p.scripts && p.scripts.start
-        ? "yes"
-        : "no"
-);
-' 2>/dev/null)"
-
-if [ "$HAS_START_SCRIPT" != "yes" ]; then
-    die 'package.json does not contain a "start" script.
-
-Expected something like:
-
-    "scripts": {
-        "start": "node server/index.js"
-    }'
-fi
-
-success "Start command found."
-echo ""
-
-# ------------------------------------------------------------
-# 13. Environment ready
-# ------------------------------------------------------------
-
-echo -e "${BOLD}==============================================${NC}"
-echo -e "${BOLD}  Environment ready${NC}"
-echo -e "${BOLD}==============================================${NC}"
-echo ""
-
-echo "Node.js: $CURRENT_NODE_VERSION"
-echo "npm:     v$NPM_VERSION"
-echo "URL:     $APP_URL"
-echo ""
-
-# ------------------------------------------------------------
-# 14. Ask whether to start
-# ------------------------------------------------------------
-
-if ! ask_yes_no "Start $PROJECT_NAME now?"; then
-
     echo ""
-    success "Setup complete."
-    echo ""
-
-    exit 0
 fi
 
-echo ""
+# ------------------------------------------------------------
+# 5. Start
+# ------------------------------------------------------------
+
+case "$(health_status)" in
+    200)
+        success "$PROJECT_NAME is already running."
+        open_browser "$APP_URL"
+        exit 0
+        ;;
+    503)
+        success "$PROJECT_NAME is already running, and not set up yet."
+        open_browser "$APP_URL/setup.php"
+        exit 0
+        ;;
+esac
+
+if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    die "Port $PORT is taken:
+$(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN)
+
+If that is an older copy of this app, stop it first - or start on another
+port: PIANO_PORT=8310 ./start.sh"
+fi
+
 info "Starting $PROJECT_NAME..."
-echo ""
 
-# ------------------------------------------------------------
-# 15. Start server in background
-# ------------------------------------------------------------
+TEMP_DIR="${TMPDIR:-/tmp}/PianoAcademy"
+STDOUT_FILE="$TEMP_DIR/server.stdout.log"
+STDERR_FILE="$TEMP_DIR/server.stderr.log"
 
-npm start &
+mkdir -p "$TEMP_DIR"
+rm -f "$STDOUT_FILE" "$STDERR_FILE"
+
+# 127.0.0.1 only: without a login, nobody but this computer may reach the app.
+(cd "$BACKEND" && exec "$PHP" -d display_errors=stderr -S "127.0.0.1:$PORT" router.php) >"$STDOUT_FILE" 2>"$STDERR_FILE" &
 SERVER_PID=$!
 
-info "Waiting for server at $APP_URL..."
-
-SERVER_READY=false
-START_TIME=$(date +%s)
-
-while true; do
-
-    CURRENT_TIME=$(date +%s)
-    ELAPSED=$((CURRENT_TIME - START_TIME))
-
-    if [ "$ELAPSED" -ge "$SERVER_STARTUP_TIMEOUT" ]; then
-        break
+# Ctrl+C lands here too: stop the server (and anything it started).
+stop_server() {
+    if kill -0 "$SERVER_PID" 2>/dev/null; then
+        pkill -P "$SERVER_PID" 2>/dev/null
+        kill "$SERVER_PID" 2>/dev/null
     fi
+    rm -f "$STDOUT_FILE" "$STDERR_FILE"
+}
+trap stop_server EXIT
+trap 'exit 130' INT TERM
 
-    # Check whether the server process is still alive.
+info "Waiting for $APP_URL..."
+
+STATUS=0
+for _ in $(seq 1 $((SERVER_STARTUP_TIMEOUT * 2))); do
+    sleep 0.5
     if ! kill -0 "$SERVER_PID" 2>/dev/null; then
         break
     fi
-
-    sleep 0.5
-
-    if command -v curl >/dev/null 2>&1; then
-
-        if curl \
-            --silent \
-            --output /dev/null \
-            --max-time 2 \
-            "$APP_URL"; then
-
-            SERVER_READY=true
-            break
-        fi
-
-    elif command -v wget >/dev/null 2>&1; then
-
-        if wget \
-            --quiet \
-            --spider \
-            --timeout=2 \
-            "$APP_URL"; then
-
-            SERVER_READY=true
-            break
-        fi
+    STATUS="$(health_status)"
+    if [ "$STATUS" = "200" ] || [ "$STATUS" = "503" ]; then
+        break
     fi
-
 done
 
-# ------------------------------------------------------------
-# 16. Open browser
-# ------------------------------------------------------------
-
-if [ "$SERVER_READY" = true ]; then
-
-    success "Server is ready."
+if [ "$STATUS" != "200" ] && [ "$STATUS" != "503" ]; then
+    error "The server did not start."
     echo ""
-
-    info "Opening $APP_URL..."
-
-    if command -v xdg-open >/dev/null 2>&1; then
-        xdg-open "$APP_URL" >/dev/null 2>&1 &
-    elif command -v open >/dev/null 2>&1; then
-        open "$APP_URL"
-    else
-        warning "Could not automatically open a browser."
-        echo ""
-        echo "Open this address manually:"
-        echo ""
-        echo "    $APP_URL"
-    fi
-
-    echo ""
-    success "Application is running."
-    echo ""
-    echo "URL: $APP_URL"
-    echo ""
-    echo "Press Ctrl+C to stop the application."
-    echo ""
-
-    wait "$SERVER_PID"
-
-else
-
-    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-
-        error "The server stopped before becoming ready."
-        echo ""
-        echo "Check the output above for the error."
-        echo ""
-
-        wait "$SERVER_PID"
-        exit $?
-
-    else
-
-        warning "The server did not respond within ${SERVER_STARTUP_TIMEOUT}s."
-
-        echo ""
-        echo "The server is still running."
-        echo "Opening $APP_URL anyway..."
-        echo ""
-
-        if command -v xdg-open >/dev/null 2>&1; then
-            xdg-open "$APP_URL" >/dev/null 2>&1 &
-        elif command -v open >/dev/null 2>&1; then
-            open "$APP_URL"
-        fi
-
-        wait "$SERVER_PID"
-    fi
+    tail -n 20 "$STDERR_FILE" 2>/dev/null
+    exit 1
 fi
+
+success "Server is ready."
+echo ""
+
+if [ "$STATUS" = "503" ]; then
+    warning "$PROJECT_NAME is not set up yet: the setup page opens in your browser."
+    warning "When it says Saved, press 'Open Piano Academy'."
+    open_browser "$APP_URL/setup.php"
+else
+    info "Opening $APP_URL..."
+    open_browser "$APP_URL"
+fi
+
+echo ""
+success "$PROJECT_NAME is running at $APP_URL"
+echo ""
+echo "Press Ctrl+C to stop it."
+echo ""
+
+wait "$SERVER_PID"

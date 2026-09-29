@@ -1,0 +1,66 @@
+.lesson-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.lesson-title h2 {
+  margin: 0.1rem 0 0;
+}
+
+.step-dots {
+  list-style: none;
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+.step-dots li {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.step-dots li.is-passed {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.step-dots li.is-current {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.lesson-result {
+  text-align: center;
+  padding: 1.5rem 0 0.5rem;
+}
+
+.result-score {
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.lesson-result.is-pass .result-score {
+  color: var(--good);
+}
+
+.lesson-result.is-fail .result-score {
+  color: var(--warn);
+}
+
+.result-message {
+  font-size: 1.15rem;
+}
+
+.result-actions {
+  justify-content: center;
+  margin-top: 1rem;
+}

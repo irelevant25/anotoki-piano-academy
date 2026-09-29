@@ -1,0 +1,100 @@
+<?php
+
+// config/config.php: the settings come from the two *.local.php files and
+// nowhere else - without them the app is not set up, a committed file can
+// never stand in for them, and the tests' own folder is only ever for a
+// throwaway database.
+
+declare(strict_types=1);
+
+require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database and settings
+
+/** $fn with PIANO_TEST_CONFIG pointing at $dir, then the file's own folder again. */
+function with_config_dir(string $dir, callable $fn): mixed
+{
+    putenv("PIANO_TEST_CONFIG=$dir");
+    localSettings(true);
+    try {
+        return $fn();
+    } finally {
+        putenv('PIANO_TEST_CONFIG=' . $GLOBALS['TEST_CONFIG_DIR']);
+        localSettings(true);
+    }
+}
+
+function good_database(): array
+{
+    return ['host' => '127.0.0.1', 'port' => 5432, 'name' => 'piano_test_config', 'user' => 'postgres', 'password' => ''];
+}
+
+test('without the *.local.php files the app is not set up, and says which one is missing', function (): void {
+    $dir = test_temp_dir('empty-config');
+    assert_same('config/database.local.php is missing.', with_config_dir($dir, 'settingsProblem'));
+    assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/database\.local\.php is missing/');
+    assert_throws(static fn() => with_config_dir($dir, 'authSettings'), '/missing/');
+
+    file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+    assert_same('config/auth.local.php is missing.', with_config_dir($dir, 'settingsProblem'));
+
+    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_none(), true) . ';');
+    assert_same(null, with_config_dir($dir, 'settingsProblem'));
+    assert_same('none', with_config_dir($dir, 'authMode'));
+});
+
+test('a settings file that does not say what it must is no setting', function (): void {
+    $bad = [
+        'no host' => [['host' => ''] + good_database(), test_auth_none(), '/database server/'],
+        'a port that is no number' => [['port' => 'five'] + good_database(), test_auth_none(), '/port/'],
+        'a port out of range' => [['port' => 70000] + good_database(), test_auth_none(), '/port/'],
+        'an odd database name' => [['name' => 'piano academy'] + good_database(), test_auth_none(), '/database name/'],
+        'no user' => [['user' => ''] + good_database(), test_auth_none(), '/user/'],
+        'no password key at all' => [array_diff_key(good_database(), ['password' => 1]), test_auth_none(), '/password/'],
+        'no mode' => [good_database(), ['mode' => ''] + test_auth_none(), '/sign-in mode/'],
+        'iam without an issuer' => [good_database(), ['mode' => 'iam', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], '/issuer/'],
+        'iam without a client id' => [good_database(), ['client_id' => ''] + test_auth_iam(), '/client id/'],
+        'iam without a cache folder' => [good_database(), ['cache_dir' => ''] + test_auth_iam(), '/cache_dir/'],
+        'a file that returns nothing' => [good_database(), null, '/sign-in mode/'],
+    ];
+    foreach ($bad as $what => [$database, $auth, $pattern]) {
+        $dir = test_temp_dir('bad-config');
+        file_put_contents("$dir/database.local.php", '<?php return ' . var_export($database, true) . ';');
+        file_put_contents("$dir/auth.local.php", $auth === null ? '<?php // nothing' : '<?php return ' . var_export($auth, true) . ';');
+        assert_match($pattern, (string) with_config_dir($dir, 'settingsProblem'), $what);
+    }
+});
+
+test('nothing committed stands in for the settings: config/ holds the loader and nothing else', function (): void {
+    $committed = array_values(array_filter(
+        array_map('basename', glob(TEST_BACKEND . '/config/*') ?: []),
+        static fn(string $name): bool => !str_ends_with($name, '.local.php')
+    ));
+    assert_same(['config.php'], $committed, 'no template with working values beside the loader');
+    $ignored = (string) file_get_contents(dirname(TEST_BACKEND) . '/.gitignore');
+    assert_match('~^backend/config/\*\.local\.php$~m', $ignored, 'git ignores the settings files');
+});
+
+test('the tests\' settings folder is honoured only for a piano_test_ database', function (): void {
+    $dir = test_temp_dir('not-a-test-db');
+    file_put_contents("$dir/database.local.php", '<?php return ' . var_export(['name' => 'piano_academy'] + good_database(), true) . ';');
+    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_none(), true) . ';');
+    assert_match('/only for the tests/', (string) with_config_dir($dir, 'settingsProblem'));
+    assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/only for the tests/');
+});
+
+test('the settings files: written for their owner only, and read again at once', function (): void {
+    $dir = test_temp_dir('write-config');
+    with_config_dir($dir, static function (): void {
+        writeLocalConfig('database', ['password' => "it's \$ecret"] + good_database());
+        assert_same('config/auth.local.php is missing.', settingsProblem(), 'read again after writing');
+        writeLocalConfig('auth', test_auth_none(7));
+        assert_same(null, settingsProblem());
+        assert_same(7, authLocalUserId());
+        assert_same("it's \$ecret", databaseSettings()['password']);
+    });
+    $values = require "$dir/database.local.php";
+    assert_same("it's \$ecret", $values['password']);
+    if (PHP_OS_FAMILY !== 'Windows') {
+        assert_same('0600', substr(sprintf('%o', fileperms("$dir/database.local.php")), -4), 'readable by its owner only');
+    }
+    assert_same("$dir/storage", with_config_dir($dir, 'storageDir'), 'the tests write at run time inside their own folder');
+});

@@ -1,0 +1,32 @@
+@if (!finished()) {
+    <div class="card">
+        <h2>Note Trainer</h2>
+        <p class="tag">
+            Prompt <span id="tr-progress">{{ index() + 1 }} / {{ roundLength }}</span> &middot; <span id="tr-correct">{{ correctCount() }}</span> correct so far
+        </p>
+        <app-notation id="tr-notation" />
+        <p class="prompt" id="tr-name">{{ name() }}</p>
+        <p class="feedback" id="tr-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
+            {{ feedback().text }}
+        </p>
+        <app-piano-keyboard id="tr-keyboard" [model]="keyboard" [lowMidi]="41" [highMidi]="79" />
+    </div>
+} @else {
+    <div class="card" id="tr-done">
+        <h2>Round complete</h2>
+        <div class="grid">
+            <div class="stat-tile">
+                <div class="value">{{ correctCount() }}/{{ roundLength }}</div>
+                <div class="label">Correct</div>
+            </div>
+            <div class="stat-tile">
+                <div class="value">{{ accuracy() }}%</div>
+                <div class="label">Accuracy</div>
+            </div>
+        </div>
+        <div class="controls-row done-actions">
+            <button id="tr-again" type="button" (click)="newRound()">Practice again</button>
+            <button id="tr-stats" type="button" (click)="viewStats()">View stats</button>
+        </div>
+    </div>
+}

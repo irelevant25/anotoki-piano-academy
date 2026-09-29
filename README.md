@@ -1,137 +1,121 @@
-# Piano Learning
+# Piano Academy
 
 An interactive piano tutor for learning to read and play notes on a real
-piano — built around a **KAWAI ES120** (or any class-compliant USB-MIDI
-keyboard) plugged straight into your PC. The browser talks to the piano
-directly; there's a small Node server for the app itself and for saving
-your progress. No cloud, no database — everything is stored locally as
-JSON files on your machine.
+piano - built around a **KAWAI ES120**, and fine with any class-compliant
+USB-MIDI keyboard plugged into the computer. The browser talks to the piano
+directly (Web MIDI); the app shows the music as staff notation, listens to
+what you play, and keeps your progress in a PostgreSQL database.
 
-## How to run
+- **Learn** - a Duolingo-style learning path: phases, units, steps. Every
+  unit meets its new notes, drills them as flashcards, reads a short melody,
+  plays one in time with a metronome, then plays a real song. 80% on a step
+  opens the next one.
+- **Free practice** - the **Note Trainer** (an adaptive spaced-repetition
+  schedule, like Anki), **Sheet Practice** (sight-reading generated from the
+  notes you know) and **Songs**.
+- **Stats** - a keyboard heatmap of how well you know each note, your
+  accuracy, day streak, minutes practised and recent sessions.
 
-1. Download the project (ZIP via GitHub's "Code → Download ZIP", or
-   `git clone` if you're developing) and extract/open it.
-2. Plug your piano into the PC via USB.
-3. Run the launcher:
-   - Windows: double-click `start.ps1` (or run `.\start.ps1` in PowerShell)
-   - macOS/Linux: `./start.sh`
+It runs two ways:
 
-   It installs everything it needs on first run and then opens the app in
-   your browser automatically. Press `Ctrl+C` in that terminal to stop it.
-4. Use **Chrome or Edge** (required — see [Browser support](#browser-support)).
-5. In the header, pick your piano from the device dropdown and click
-   **Connect**.
+- **On your own computer**, started by `start.ps1` (Windows) or `start.sh`
+  (macOS, Linux): no sign-in, only this computer can open it, and it keeps
+  *your* progress.
+- **Hosted** at `https://piano.anotoki.eu`: everybody signs in with their
+  anotoki account (the anotoki IAM, `../anotoki-iam`), and each person sees
+  only their own progress.
+
+| Part | Folder | Stack |
+| --- | --- | --- |
+| Backend | `backend/` | PHP 8.2+, Slim 4, PostgreSQL - the API, the setup page, the migrations, the tests |
+| Frontend | `frontend/` | Angular 21 (standalone, zoneless, signals), VexFlow 5.0.0, Web MIDI |
+| Old progress | `server/data/` | the progress files from before the database - history, read once by the setup |
+| Launchers | `start.ps1`, `start.sh` | one command to build the app once and start it on this computer |
+
+On a development machine the frontend runs at `http://localhost:4500`, the
+backend at `:8300`, and sign-in goes through the IAM at `http://localhost:4300`.
+
+## Using it on your own computer
+
+You need, once: **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl`
+extensions, **PostgreSQL**, and **Node.js 22** (only to build the app the
+first time, and again after an update). The launcher looks for PHP in the
+usual places and says what to install if something is missing.
+
+1. Plug the piano in (USB).
+2. Run `start.ps1` (Windows: right-click, *Run with PowerShell*) or
+   `./start.sh`.
+3. The first time, the **setup page** opens in your browser: enter your
+   PostgreSQL connection, press **Test the database**, leave **No sign-in**
+   chosen, and **Save**. It makes the database and brings in your old
+   progress from `server/data/`. Then **Open Piano Academy**.
+4. Use **Chrome or Edge**. In the header, choose your piano and **Connect**.
+
+From then on the launcher just starts the app at `http://127.0.0.1:8300`.
+`Ctrl+C` in its window stops it.
 
 ## How it works
 
-- **MIDI connection is direct and local.** The frontend uses the
-  browser's [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API)
-  to read note-on/note-off events straight from the piano — no backend,
-  no driver installation beyond your OS's standard USB-MIDI support.
-  This is also why the project doesn't need .NET or any native MIDI
-  library: the browser already exposes everything required.
-- **Learn (the learning path)** is the main way to use the app — like
-  Duolingo, but for piano. The path is split into units, and every unit
-  goes through the same steps:
-  1. **Meet** — the new notes are shown on the staff and on the keyboard;
-     play each one a few times.
-  2. **Drill** — flashcards: read a note on the staff and play it. New
-     notes are mixed with the ones you already know.
-  3. **Read** — play a short melody made from your notes. No metronome;
-     the app waits for each note.
-  4. **In time** — play a new melody along with a metronome. The music
-     moves by itself, one note on every click: play each note on its click.
-     A note you miss is marked wrong and the music keeps going.
-  5. **Song** — play a real song that uses exactly those notes.
+- **The piano connects straight to the browser** through the
+  [Web MIDI API](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) -
+  no driver beyond the system's own USB-MIDI support, no server in between.
+  The app remembers your piano and connects to it again when it comes back.
+- **The learning path** is planned in phases: right hand -> left hand -> both
+  hands -> left-hand chords -> right-hand chords -> melody with chords. The
+  right hand is playable now; the others show as "coming soon".
+- **Every mode feeds the same per-note progress**, so practising anywhere
+  helps everywhere. A note's review time grows at most once a day, however
+  often you play it that day - "mastered" takes a few days of practice.
+- **Saving** happens in the background while you play. If a save does not get
+  through (no network, the server or the IAM is away), the header says
+  **Not saved yet** and the app keeps trying; a finished round waits in the
+  browser until the server has it, even across a reload.
+- **Signing in** (hosted site only): the app sends you to the anotoki IAM and
+  back. The header then shows your name, a link to your IAM account and
+  **Sign out**. Only accounts with a role in Piano Academy (given in the IAM
+  admin console) can use it. If your sign-in runs out while you practise, the
+  app says so and keeps your finished rounds until you sign in again.
+- **Light and dark**: the theme button at the bottom follows your computer, or
+  keeps the one you choose. The version number beside it shows what is new.
 
-  You need **80%** on a step to unlock the next one, and you can retry as
-  often as you like. Press **Continue** on the Learn page to pick up where
-  you left off.
-- **The path is planned in phases:** right hand → left hand → both hands →
-  left-hand chords → right-hand chords → melody with chords. Phase 1
-  (right hand) is playable now; the others are shown as "coming soon".
-- **Free practice** is still there for practicing outside the path:
-  - **Note Trainer** teaches individual notes with an adaptive schedule —
-    the same idea as spaced-repetition language apps (Anki, etc.): notes
-    you nail repeatedly get spaced further apart; notes you miss come back
-    sooner. The Learn page tells you when notes are due for review.
-  - **Sheet Practice** generates a short sight-reading exercise from the
-    notes you know and grades pitch and timing against a metronome.
-  - **Songs** lists all songs; each unlocks once you know every note it uses.
-- Every mode feeds the same per-note progress, so practicing anywhere
-  helps everywhere.
-- **Stats** shows a keyboard heatmap of your mastery per note, overall
-  accuracy, day streak, minutes practiced, and your session history.
+### Data and privacy
 
-### Data & privacy
+Your progress lives in PostgreSQL: the progress per note, the learning-path
+steps you have passed, and a log of your practice rounds - all under your IAM
+user id (on your own computer, `local_user_id` in the settings: 1 unless you
+set another). Nothing is sent anywhere but to the app's own server.
 
-All practice history lives in `server/data/` — `progress.json` (progress
-per note), `sessions.json` (session log) and `path.json` (learning-path
-steps you've passed) — and is never sent anywhere except your own local
-server. To reset your progress entirely, stop the server and delete those
-three files.
-
-## Current state
-
-Implemented and working end-to-end (verified with a scripted browser run
-simulating MIDI input — see the project skill for how, since there's no
-real piano attached in a dev sandbox):
-
-- MIDI connect/disconnect UI, remembers your last device, shows "not
-  connected" again when the piano is unplugged and reconnects when it's back.
-- **Learning path, phase 1 (right hand):** 5 units — C D E (Hot Cross
-  Buns), G (Mary Had a Little Lamb), F (Ode to Joy), A (Twinkle Twinkle),
-  B and high C (Joy to the World). Meet / Drill / Read / In time / Song
-  steps, 80% pass rule, progress saved per step with best score.
-- Phases 2–6 (left hand, both hands, chords) are listed on the path as
-  "coming soon".
-- Note Trainer: adaptive note introduction + SM-2-style spaced repetition,
-  round-based practice with live accuracy, session logging.
-- Sheet Practice: generated sight-reading from known notes, metronome
-  count-in, per-note pitch + timing grading. Tempo play works like a rhythm
-  game (same in lessons and Songs): each key press is checked against the
-  note of the nearest click, missed notes are marked wrong, and the music
-  never waits. Keys pressed during the count-in are ignored.
-- Songs: 5 songs, auto-unlock, adjustable tempo, same grading as Sheet
-  Practice.
-- Review: a note's review time grows at most once per day, however often
-  you play it that day, so "mastered" takes several days of practice.
-  Mastered notes also come back for review when their time is up.
-- If your saved progress can't be loaded, the app stops with a message
-  instead of starting empty, so it can never overwrite your progress.
-- Stats: keyboard mastery heatmap, accuracy, streak, minutes practiced,
-  session history table (including lesson steps).
-
-Curriculum currently covers **15 white keys, C3–C5**; the learning path
-uses the 8 right-hand notes so far. Sheet music is treble-clef only,
-which is why the left-hand phase comes next — see the roadmap in the
-project skill (`.claude/skills/piano-learning-app/SKILL.md`).
+`server/data/` holds the progress from before the app had a database. It stays
+in git as history; the setup page brings it into your account once, and never
+changes the files. `php tools/progress.php` (in `backend/`) exports your
+progress as one file - to keep a copy, or to take it to the hosted site.
 
 ## Browser support
 
-Requires **Chrome or Edge** (or another Chromium-based browser) —
-Firefox and Safari don't implement the Web MIDI API. The app detects this
-and shows a clear message rather than failing silently.
+**Chrome or Edge** (or another Chromium browser): Firefox and Safari do not
+offer Web MIDI, and the app says so instead of failing quietly. Browsers offer
+Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
+`http://localhost` on your own computer - so the hosted site must be on HTTPS.
 
-## Project structure
+## Current state
 
-```
-shared/         Note-name/MIDI conversions, SRS scheduler, song library,
-                learning path. Used identically by the server and the browser.
-server/         Express app: static file serving, JSON-file persistence
-                under server/data/ (no database).
-public/         Frontend: vanilla JS/CSS, no build step, no framework.
-  js/midi.js             Web MIDI wrapper
-  js/keyboard.js         On-screen piano keyboard (SVG)
-  js/notation.js         Staff notation rendering (VexFlow)
-  js/metronome.js        Click track + timing reference
-  js/sequence-player.js  Play-along grading used by lessons, sheets, songs
-  js/views/              One module per screen (home = learning path,
-                         lesson, trainer, sheet, songs, stats)
-```
+- The learning path's phase 1 (right hand): five units - C D E (Hot Cross
+  Buns), G (Mary Had a Little Lamb), F (Ode to Joy), A (Twinkle Twinkle),
+  B and high C (Joy to the World) - with every step type. Phases 2-6 are
+  listed as coming soon.
+- Note Trainer, Sheet Practice, Songs (five, each unlocking once you know its
+  notes) and Stats; one metronome-graded play-along shared by all of them.
+- The curriculum covers 15 white keys, C3-C5; the path uses the 8 right-hand
+  ones so far. Sheet music is treble clef only, which is why the left hand
+  comes next.
+- Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
+  with a setup page for every installation and a changelog in the app.
 
-For architecture details, conventions, and known gotchas when making
-changes here, see `CLAUDE.md` and the project skill
-`.claude/skills/piano-learning-app/SKILL.md` — it's written to be loaded
-before any development work on this repo (there's also a matching
-`piano-dev` subagent preconfigured to load it automatically).
+## More
+
+- Setting it up for development, testing, building and deploying:
+  [DEVELOPING.md](DEVELOPING.md).
+- How the code is organised, and the rules for changing it: [CLAUDE.md](CLAUDE.md)
+  and the project skill, [.claude/skills/piano-learning-app/SKILL.md](.claude/skills/piano-learning-app/SKILL.md).
+- Signing in through the anotoki IAM: the IAM repository (`../anotoki-iam`),
+  its `docs/integrating-an-app.md`.

@@ -1,0 +1,18 @@
+<div class="midi-panel">
+    <span id="midi-status" class="midi-status" [class.midi-status--connected]="midi.status().connected" [class.midi-status--disconnected]="!midi.status().connected" role="status">
+        {{ midi.status().text }}
+    </span>
+    <div class="midi-connect">
+        <select id="midi-device-select" aria-label="MIDI input device" (change)="choose($event)">
+            @for (device of midi.devices(); track device.id) {
+                <option [value]="device.id" [selected]="device.id === midi.selectedId()">{{ device.name || device.id }}</option>
+            } @empty {
+                @if (midi.asked()) {
+                    <option disabled selected>No MIDI devices found</option>
+                }
+            }
+        </select>
+        <button id="midi-connect-btn" type="button" (click)="midi.connect()">Connect</button>
+        <button id="midi-refresh-btn" type="button" title="Rescan MIDI devices" aria-label="Rescan MIDI devices" (click)="midi.refresh()">⟳</button>
+    </div>
+</div>

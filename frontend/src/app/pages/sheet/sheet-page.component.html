@@ -1,0 +1,29 @@
+<div class="card">
+    <h2>Sheet Practice</h2>
+    @if (knownTreble.length < minKnown) {
+        <p>
+            Learn at least {{ minKnown }} notes first — you currently know {{ knownTreble.length }}. Sheet Practice mixes whichever notes you've learned into a short piece of music for you to
+            sight-read.
+        </p>
+        <button id="sh-goto-path" type="button" (click)="goToPath()">Go to the learning path</button>
+    } @else {
+        <p class="tag">Known notes used: {{ knownNames }}</p>
+        <div class="controls-row">
+            <label>
+                Tempo:
+                <select id="sh-bpm" (change)="chooseTempo($event)">
+                    @for (tempo of tempos; track tempo) {
+                        <option [value]="tempo" [selected]="tempo === bpm()">{{ tempo }} BPM</option>
+                    }
+                </select>
+            </label>
+            <button id="sh-new" type="button" (click)="newSheet()">New sheet</button>
+            <button id="sh-start" type="button" [disabled]="playing()" (click)="start()">Start (4-beat count-in)</button>
+        </div>
+        <app-notation id="sh-notation" />
+        <p class="feedback" id="sh-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
+            {{ feedback().text }}
+        </p>
+        <app-piano-keyboard id="sh-keyboard" [model]="keyboard" [lowMidi]="48" [highMidi]="84" />
+    }
+</div>

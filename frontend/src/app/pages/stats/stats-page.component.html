@@ -1,0 +1,71 @@
+<div class="card">
+    <h2>Your Progress</h2>
+    <div class="grid">
+        <div class="stat-tile">
+            <div class="value">{{ tiles().known }}/{{ curriculumLength }}</div>
+            <div class="label">Notes known</div>
+        </div>
+        <div class="stat-tile">
+            <div class="value">{{ tiles().mastered }}</div>
+            <div class="label">Notes mastered</div>
+        </div>
+        <div class="stat-tile">
+            <div class="value">{{ tiles().accuracy }}</div>
+            <div class="label">Overall accuracy</div>
+        </div>
+        <div class="stat-tile">
+            <div class="value">{{ tiles().streak }}</div>
+            <div class="label">Day streak</div>
+        </div>
+        <div class="stat-tile">
+            <div class="value">{{ tiles().sessions }}</div>
+            <div class="label">Sessions logged</div>
+        </div>
+        <div class="stat-tile">
+            <div class="value">{{ tiles().minutes }}</div>
+            <div class="label">Minutes practiced</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Keyboard mastery</h2>
+    <p class="tag legend">
+        <span class="dot learning">&#9679;</span> learning
+        <span class="dot review">&#9679;</span> review
+        <span class="dot mastered">&#9679;</span> mastered
+    </p>
+    <app-piano-keyboard id="st-keyboard" [model]="keyboard" [lowMidi]="41" [highMidi]="84" />
+</div>
+
+<div class="card">
+    <h2>Recent sessions</h2>
+    @if (recent().length === 0) {
+        <p>No sessions yet — practice a round in Note Trainer to get started.</p>
+    } @else {
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Mode</th>
+                        <th>Score</th>
+                        <th>Accuracy</th>
+                        <th>Avg timing</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (row of recent(); track row.id) {
+                        <tr>
+                            <td>{{ row.when }}</td>
+                            <td>{{ row.mode }}</td>
+                            <td>{{ row.score }}</td>
+                            <td>{{ row.accuracy }}</td>
+                            <td>{{ row.timing }}</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

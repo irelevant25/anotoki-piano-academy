@@ -1,0 +1,59 @@
+@if (openStep(); as current) {
+    <div class="card lesson">
+        <div class="lesson-head">
+            <button id="ls-back" type="button" (click)="backToPath()">&larr; Path</button>
+            <div class="lesson-title">
+                <div class="tag">{{ current.phase.title }} · Unit {{ current.unit.number }}</div>
+                <h2>{{ current.unit.title }} — {{ path.stepTypes[current.step.type].title }}</h2>
+            </div>
+        </div>
+        <ol class="step-dots">
+            @for (dot of dots(); track dot.id) {
+                <li [class.is-current]="dot.current" [class.is-passed]="!dot.current && dot.passed">{{ dot.short }}</li>
+            }
+        </ol>
+
+        <div class="lesson-body" id="ls-body">
+            @if (result(); as done) {
+                <div class="lesson-result" [class.is-pass]="done.open" [class.is-fail]="!done.open">
+                    @if (!done.isMeet) {
+                        <div class="result-score">{{ done.accuracy }}%</div>
+                    }
+                    <p class="result-message">{{ done.message }}</p>
+                    @if (done.lastForNow) {
+                        <p>That was the last unit for now - more are coming.</p>
+                    }
+                    <div class="controls-row result-actions">
+                        @if (done.next; as next) {
+                            <button class="btn-primary btn-large" id="ls-next" type="button" (click)="goNext(next)">{{ done.nextLabel }}</button>
+                        }
+                        <button id="ls-retry" type="button" [class.btn-primary]="!done.open" [class.btn-large]="!done.open" (click)="restart()">
+                            {{ done.open ? 'Practice again' : 'Try again' }}
+                        </button>
+                        <button id="ls-path" type="button" (click)="backToPath()">Back to the path</button>
+                    </div>
+                </div>
+            } @else {
+                @for (run of [attempt()]; track run) {
+                    @switch (current.step.type) {
+                        @case ('meet') {
+                            <app-meet-step [entry]="current" (done)="finish($event)" />
+                        }
+                        @case ('drill') {
+                            <app-drill-step [entry]="current" (done)="finish($event)" />
+                        }
+                        @default {
+                            <app-sequence-step [entry]="current" (done)="finish($event)" />
+                        }
+                    }
+                }
+            }
+        </div>
+    </div>
+} @else {
+    <div class="card">
+        <h2>This step is locked</h2>
+        <p>Finish the earlier steps on the path first.</p>
+        <button class="btn-primary" id="ls-path" type="button" (click)="backToPath()">Back to the path</button>
+    </div>
+}

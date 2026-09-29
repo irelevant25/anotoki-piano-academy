@@ -1,16 +1,26 @@
 # ============================================================
-# Personal Piano Learning - Project Launcher
+# Piano Academy - start it on this computer
 # Windows / PowerShell
+#
+# Finds PHP (8.2 or newer, with pdo_pgsql and openssl), builds the
+# app once (again only after an update - that needs Node.js),
+# brings the database up to date, starts PHP's web server with the
+# backend serving the app, and opens the browser. Ctrl+C stops it.
+#
+# The first time it opens the setup page instead: it asks for your
+# PostgreSQL connection, switches sign-in off (this computer only,
+# no login) and brings in your old progress from server/data/.
 # ============================================================
 
 $ErrorActionPreference = "Stop"
 
-$ProjectName = "PersonalPianoLearning"
+$ProjectName = "Piano Academy"
 
-# Official NVM for Windows installer.
-$NvmInstallerUrl = "https://github.com/coreybutler/nvm-windows/releases/download/1.2.2/nvm-setup.exe"
+# Where the app answers: http://127.0.0.1:8300 (PIANO_PORT changes the port).
+$Port = if ($env:PIANO_PORT) { [int]$env:PIANO_PORT } else { 8300 }
+$AppUrl = "http://127.0.0.1:$Port"
 
-# How long to wait for the Node server to start.
+# How long to wait for the server to start.
 $ServerStartupTimeoutSeconds = 30
 
 # ------------------------------------------------------------
@@ -44,77 +54,103 @@ function Stop-Script {
     Write-ErrorMessage "ERROR: $Message"
     Write-Host ""
 
+    # Started by a double-click, the window would close before this could be read.
+    Read-Host "Press Enter to close" | Out-Null
     exit 1
 }
 
-function Ask-YesNo {
-    param([string]$Question)
+# A native command's output, whatever it writes to stderr.
+function Get-Output {
+    param([string]$Exe, [string[]]$Arguments)
 
-    while ($true) {
-        $answer = Read-Host "$Question [Y/n]"
-
-        if ([string]::IsNullOrWhiteSpace($answer)) {
-            return $true
-        }
-
-        switch ($answer.ToLowerInvariant()) {
-            "y"     { return $true }
-            "yes"   { return $true }
-            "n"     { return $false }
-            "no"    { return $false }
-            default {
-                Write-Host "Please answer Y or N."
-            }
-        }
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        return (& $Exe @Arguments 2>$null | Out-String)
+    }
+    catch {
+        return ""
+    }
+    finally {
+        $ErrorActionPreference = $previous
     }
 }
 
-function Refresh-Path {
+# "" when this PHP can run the app, else the reason it can't.
+function Test-Php {
+    param([string]$Php)
 
-    $machinePath = [Environment]::GetEnvironmentVariable(
-        "Path",
-        [EnvironmentVariableTarget]::Machine
-    )
-
-    $userPath = [Environment]::GetEnvironmentVariable(
-        "Path",
-        [EnvironmentVariableTarget]::User
-    )
-
-    $paths = @()
-
-    if ($machinePath) {
-        $paths += $machinePath
+    $version = Get-Output $Php @("-v")
+    if ($version -notmatch '(?m)^PHP (\d+)\.(\d+)\.(\S+)') {
+        return "does not run"
+    }
+    $found = "PHP $($Matches[1]).$($Matches[2]).$($Matches[3])"
+    if ([int]$Matches[1] -lt 8 -or ([int]$Matches[1] -eq 8 -and [int]$Matches[2] -lt 2)) {
+        return "$found is too old"
     }
 
-    if ($userPath) {
-        $paths += $userPath
+    $modules = Get-Output $Php @("-m")
+    $missing = @("pdo_pgsql", "openssl") | Where-Object { $modules -notmatch "(?mi)^$_\s*$" }
+    if ($missing) {
+        return "$found lacks $($missing -join ', ')"
     }
-
-    $env:Path = $paths -join ";"
+    return ""
 }
 
-function Get-NvmPath {
+# Every php.exe worth trying: PIANO_PHP, PATH, the usual install folders.
+function Get-PhpCandidates {
+    $list = New-Object System.Collections.Generic.List[string]
 
-    $nvmCommand = Get-Command nvm.exe -ErrorAction SilentlyContinue
-
-    if ($nvmCommand) {
-        return $nvmCommand.Source
+    if ($env:PIANO_PHP) {
+        $list.Add($env:PIANO_PHP)
     }
 
-    $possiblePaths = @(
-        "$env:NVM_HOME\nvm.exe",
-        "$env:APPDATA\nvm\nvm.exe",
-        "$env:ProgramFiles\nvm\nvm.exe"
-    )
+    Get-Command php.exe -All -CommandType Application -ErrorAction SilentlyContinue |
+        ForEach-Object { $list.Add($_.Source) }
 
-    foreach ($path in $possiblePaths) {
-        if (Test-Path $path) {
-            return $path
+    $folders = @("C:\php", "C:\xampp\php",
+        "$env:USERPROFILE\scoop\apps\php\current",
+        "$env:LOCALAPPDATA\Microsoft\WinGet\Links")
+    foreach ($parent in @("C:\", "C:\tools", "C:\laragon\bin\php", "$env:LOCALAPPDATA\Microsoft\WinGet\Packages")) {
+        Get-ChildItem -LiteralPath $parent -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^(php|PHP\.PHP)' } |
+            Sort-Object Name -Descending |
+            ForEach-Object { $folders += $_.FullName }
+    }
+    foreach ($folder in $folders) {
+        $exe = Join-Path $folder "php.exe"
+        if (Test-Path -LiteralPath $exe -PathType Leaf) {
+            $list.Add($exe)
         }
     }
 
-    return $null
+    return $list | Select-Object -Unique
+}
+
+# The newest change among the app's sources: the build is stale when older.
+function Get-SourcesChanged {
+    param([string]$Frontend)
+
+    $newest = [datetime]::MinValue
+    $items = @()
+    foreach ($folder in @("src", "public")) {
+        $path = Join-Path $Frontend $folder
+        if (Test-Path -LiteralPath $path) {
+            $items += Get-ChildItem -LiteralPath $path -Recurse -File -ErrorAction SilentlyContinue
+        }
+    }
+    foreach ($file in @("package.json", "package-lock.json", "angular.json")) {
+        $path = Join-Path $Frontend $file
+        if (Test-Path -LiteralPath $path) {
+            $items += Get-Item -LiteralPath $path
+        }
+    }
+    foreach ($item in $items) {
+        if ($item.LastWriteTimeUtc -gt $newest) {
+            $newest = $item.LastWriteTimeUtc
+        }
+    }
+    return $newest
 }
 
 # ------------------------------------------------------------
@@ -126,455 +162,184 @@ Clear-Host
 Write-Host ""
 Write-Host "==============================================" -ForegroundColor White
 Write-Host "  $ProjectName" -ForegroundColor White
-Write-Host "  Project Launcher" -ForegroundColor White
 Write-Host "==============================================" -ForegroundColor White
 Write-Host ""
 
 # ------------------------------------------------------------
-# 1. Check project directory
+# 1. The project folder
 # ------------------------------------------------------------
 
-Write-Info "Checking project directory..."
+# The folder of this script, wherever it was started from.
+Set-Location -LiteralPath $PSScriptRoot
 
-if (-not (Test-Path ".nvmrc" -PathType Leaf)) {
-    Stop-Script @"
-Could not find .nvmrc.
+$Backend = Join-Path $PSScriptRoot "backend"
+$Frontend = Join-Path $PSScriptRoot "frontend"
 
-Please run this script from the root of the $ProjectName project.
-"@
-}
-
-if (-not (Test-Path "package.json" -PathType Leaf)) {
-    Stop-Script @"
-Could not find package.json.
-
-Please run this script from the root of the $ProjectName project.
-"@
-}
-
-Write-Success "Project directory OK."
-Write-Host ""
-
-# ------------------------------------------------------------
-# 2. Read package.json
-# ------------------------------------------------------------
-
-Write-Info "Reading project configuration..."
-
-try {
-    $packageJson = Get-Content "package.json" -Raw | ConvertFrom-Json
-}
-catch {
-    Stop-Script "package.json is not valid JSON."
+if (-not (Test-Path (Join-Path $Backend "router.php") -PathType Leaf) -or -not (Test-Path (Join-Path $Frontend "package.json") -PathType Leaf)) {
+    Stop-Script "backend/ or frontend/ is missing. This script belongs in the $ProjectName folder."
 }
 
 # ------------------------------------------------------------
-# 3. Determine required Node version
+# 2. PHP
 # ------------------------------------------------------------
 
-$RequiredNodeVersion = $null
+Write-Info "Looking for PHP 8.2+ with pdo_pgsql and openssl..."
 
-if ($packageJson.engines -and $packageJson.engines.node) {
-    $RequiredNodeVersion = $packageJson.engines.node.ToString().Trim()
-}
+$Php = $null
+$tried = @()
 
-if ([string]::IsNullOrWhiteSpace($RequiredNodeVersion)) {
-    $RequiredNodeVersion = (Get-Content ".nvmrc" -Raw).Trim()
-}
-
-if ([string]::IsNullOrWhiteSpace($RequiredNodeVersion)) {
-    Stop-Script "Could not determine the required Node.js version."
-}
-
-$RequiredNodeVersion = $RequiredNodeVersion.TrimStart("v")
-
-if ($RequiredNodeVersion -notmatch '^\d+\.\d+\.\d+$') {
-    Stop-Script @"
-The project specifies an unsupported Node.js version:
-
-    $RequiredNodeVersion
-
-This launcher expects an exact version such as:
-
-    22.15.0
-"@
-}
-
-Write-Success "Required Node.js version: v$RequiredNodeVersion"
-Write-Host ""
-
-# ------------------------------------------------------------
-# 4. Determine application host and port
-# ------------------------------------------------------------
-
-$AppHost = "127.0.0.1"
-$AppPort = 3000
-
-if ($packageJson.config) {
-
-    if ($packageJson.config.host) {
-        $AppHost = $packageJson.config.host.ToString().Trim()
+foreach ($candidate in Get-PhpCandidates) {
+    $problem = Test-Php $candidate
+    if (-not $problem) {
+        $Php = $candidate
+        break
     }
+    $tried += "    $candidate  ($problem)"
+}
 
-    if ($packageJson.config.port) {
-        try {
-            $AppPort = [int]$packageJson.config.port
+if (-not $Php) {
+    $triedText = if ($tried) { "Tried:`n" + ($tried -join "`n") + "`n`n" } else { "" }
+    Stop-Script @"
+No PHP 8.2 or newer with the extensions pdo_pgsql and openssl was found.
+
+$triedText
+To install it:
+  1. Download PHP 8 for Windows (the x64 Thread Safe zip) from
+     https://windows.php.net/download
+  2. Unzip it, e.g. to C:\php, and add that folder to PATH.
+  3. In that folder, copy php.ini-production to php.ini and turn these on
+     (remove the ; in front of each line):
+         extension_dir = "ext"
+         extension=curl
+         extension=openssl
+         extension=pdo_pgsql
+
+Or set PIANO_PHP to the php.exe to use. Then run this script again.
+"@
+}
+
+Write-Success "PHP: $Php"
+Write-Host ""
+
+# ------------------------------------------------------------
+# 3. The app (built once; again after an update)
+# ------------------------------------------------------------
+
+$BuiltIndex = Join-Path $Frontend "dist\piano-academy\browser\index.html"
+$built = Test-Path -LiteralPath $BuiltIndex -PathType Leaf
+$stale = $built -and ((Get-SourcesChanged $Frontend) -gt (Get-Item -LiteralPath $BuiltIndex).LastWriteTimeUtc)
+
+if (-not $built -or $stale) {
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $npm) {
+        if ($built) {
+            Write-WarningMessage "The app has changed since it was built, and Node.js is not installed to build it again."
+            Write-WarningMessage "Starting the build you have. (Install Node.js 22 from https://nodejs.org to update it.)"
+            Write-Host ""
         }
-        catch {
-            Stop-Script "The port in package.json is not a valid number."
+        else {
+            Stop-Script @"
+The app has not been built yet, and building it needs Node.js.
+
+Install Node.js 22 (LTS) from https://nodejs.org, then run this script
+again. It builds the app once; after that it starts without Node.js.
+"@
         }
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($AppHost)) {
-    Stop-Script "The host in package.json is empty."
-}
-
-if ($AppPort -lt 1 -or $AppPort -gt 65535) {
-    Stop-Script "Invalid application port: $AppPort"
-}
-
-$AppUrl = "http://${AppHost}:${AppPort}"
-
-Write-Success "Application host: $AppHost"
-Write-Success "Application port: $AppPort"
-Write-Success "Application URL:  $AppUrl"
-Write-Host ""
-
-# ------------------------------------------------------------
-# 5. Check NVM
-# ------------------------------------------------------------
-
-Write-Info "Checking NVM..."
-
-$nvmPath = Get-NvmPath
-
-if (-not $nvmPath) {
-
-    Write-WarningMessage "NVM for Windows was not found."
-
-    Write-Host ""
-    Write-Host "NVM for Windows is required to manage the Node.js version"
-    Write-Host "used by this project."
-    Write-Host ""
-
-    if (-not (Ask-YesNo "Install NVM for Windows now?")) {
-        Stop-Script "NVM for Windows is required."
-    }
-
-    Write-Host ""
-    Write-Info "Downloading NVM for Windows..."
-    Write-Host ""
-
-    $tempDirectory = Join-Path $env:TEMP "PersonalPianoLearning-NVM"
-    $installerPath = Join-Path $tempDirectory "nvm-setup.exe"
-
-    if (Test-Path $tempDirectory) {
-        Remove-Item $tempDirectory -Recurse -Force
-    }
-
-    New-Item -ItemType Directory -Path $tempDirectory -Force | Out-Null
-
-    try {
-        Invoke-WebRequest `
-            -Uri $NvmInstallerUrl `
-            -OutFile $installerPath `
-            -UseBasicParsing
-    }
-    catch {
-        Stop-Script "Could not download NVM for Windows.`n`n$($_.Exception.Message)"
-    }
-
-    if (-not (Test-Path $installerPath)) {
-        Stop-Script "NVM installer was not downloaded."
-    }
-
-    Write-Success "NVM installer downloaded."
-    Write-Host ""
-
-    Write-WarningMessage "The NVM installer requires administrator privileges."
-
-    Write-Host ""
-    Write-Host "The NVM installer will now open."
-    Write-Host "Please complete the installation."
-    Write-Host ""
-
-    try {
-        $process = Start-Process `
-            -FilePath $installerPath `
-            -Verb RunAs `
-            -Wait `
-            -PassThru
-    }
-    catch {
-        Stop-Script "NVM installation was cancelled or failed.`n`n$($_.Exception.Message)"
-    }
-
-    if ($process.ExitCode -ne 0) {
-        Stop-Script "NVM installer exited with code $($process.ExitCode)."
-    }
-
-    Remove-Item $tempDirectory -Recurse -Force -ErrorAction SilentlyContinue
-
-    Refresh-Path
-
-    $nvmPath = Get-NvmPath
-
-    if (-not $nvmPath) {
-        Stop-Script @"
-NVM was installed, but this PowerShell process cannot find it.
-
-Please close this terminal, open a new PowerShell window,
-and run the launcher again.
-"@
-    }
-
-    Write-Success "NVM for Windows installed successfully."
-
-}
-else {
-    Write-Success "NVM for Windows found."
-}
-
-Write-Host ""
-
-# ------------------------------------------------------------
-# 6. Show NVM version
-# ------------------------------------------------------------
-
-try {
-    $nvmVersionOutput = (& $nvmPath version 2>&1).ToString().Trim()
-}
-catch {
-    Stop-Script "NVM was found but could not be executed."
-}
-
-Write-Info "NVM: $nvmVersionOutput"
-Write-Host ""
-
-# ------------------------------------------------------------
-# 7. Check Node version
-# ------------------------------------------------------------
-
-Write-Info "Checking Node.js v$RequiredNodeVersion..."
-
-try {
-    $nvmListOutput = (& $nvmPath list 2>&1 | Out-String)
-}
-catch {
-    Stop-Script "Could not execute 'nvm list'."
-}
-
-$escapedVersion = [regex]::Escape($RequiredNodeVersion)
-
-$nodeVersionInstalled =
-    $nvmListOutput -match "(?m)^\s*\*?\s*v?$escapedVersion(?:\s|$)"
-
-if (-not $nodeVersionInstalled) {
-
-    Write-WarningMessage "Node.js v$RequiredNodeVersion is not installed."
-
-    Write-Host ""
-
-    if (-not (Ask-YesNo "Install Node.js v$RequiredNodeVersion now?")) {
-        Stop-Script "The required Node.js version is not installed."
-    }
-
-    Write-Host ""
-    Write-Info "Installing Node.js v$RequiredNodeVersion..."
-    Write-Host ""
-
-    & $nvmPath install $RequiredNodeVersion
-
-    if ($LASTEXITCODE -ne 0) {
-        Stop-Script "NVM failed to install Node.js v$RequiredNodeVersion."
-    }
-
-    Write-Success "Node.js v$RequiredNodeVersion installed."
-
-}
-else {
-    Write-Success "Node.js v$RequiredNodeVersion is installed."
-}
-
-Write-Host ""
-
-# ------------------------------------------------------------
-# 8. Activate Node version
-# ------------------------------------------------------------
-
-Write-Info "Activating Node.js v$RequiredNodeVersion..."
-
-& $nvmPath use $RequiredNodeVersion
-
-if ($LASTEXITCODE -ne 0) {
-    Stop-Script "Could not activate Node.js v$RequiredNodeVersion."
-}
-
-Refresh-Path
-
-# ------------------------------------------------------------
-# 9. Verify Node
-# ------------------------------------------------------------
-
-$nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
-
-if (-not $nodeCommand) {
-    Stop-Script @"
-Node.js could not be found after running:
-
-    nvm use $RequiredNodeVersion
-"@
-}
-
-$CurrentNodeVersion = (& node --version).Trim()
-$ExpectedNodeVersion = "v$RequiredNodeVersion"
-
-if ($CurrentNodeVersion -ne $ExpectedNodeVersion) {
-    Stop-Script @"
-The wrong Node.js version is active.
-
-Expected:
-    $ExpectedNodeVersion
-
-Found:
-    $CurrentNodeVersion
-"@
-}
-
-Write-Success "Node.js $CurrentNodeVersion is active."
-Write-Host ""
-
-# ------------------------------------------------------------
-# 10. Verify npm
-# ------------------------------------------------------------
-
-Write-Info "Checking npm..."
-
-$npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
-
-if (-not $npmCommand) {
-    $npmCommand = Get-Command npm.exe -ErrorAction SilentlyContinue
-}
-
-if (-not $npmCommand) {
-    Stop-Script "npm was not found."
-}
-
-$NpmVersion = (& npm --version).Trim()
-
-Write-Success "npm v$NpmVersion found."
-Write-Host ""
-
-# ------------------------------------------------------------
-# 11. Install dependencies
-# ------------------------------------------------------------
-
-Write-Info "Checking project dependencies..."
-
-if (Test-Path "package-lock.json" -PathType Leaf) {
-
-    if (-not (Test-Path "node_modules" -PathType Container)) {
-
-        Write-Host ""
-        Write-Info "Installing project dependencies with npm ci..."
-        Write-Host ""
-
-        & npm ci
-
-        if ($LASTEXITCODE -ne 0) {
-            Stop-Script "npm ci failed."
-        }
-
-        Write-Success "Dependencies installed."
-
     }
     else {
-        Write-Success "Dependencies already installed."
+        Push-Location -LiteralPath $Frontend
+        try {
+            if (-not (Test-Path -LiteralPath (Join-Path $Frontend "node_modules"))) {
+                Write-Info "Downloading what the app is built with (npm ci, once)..."
+                & $npm.Source ci --no-audit --no-fund
+                if ($LASTEXITCODE -ne 0) {
+                    Stop-Script "npm ci did not finish: the messages above say why."
+                }
+            }
+            Write-Info "Building the app (a minute at most)..."
+            & $npm.Source run build
+            if ($LASTEXITCODE -ne 0) {
+                Stop-Script "The app did not build: the messages above say why."
+            }
+        }
+        finally {
+            Pop-Location
+        }
+        Write-Success "The app is built."
+        Write-Host ""
     }
-
 }
-else {
-
-    Write-WarningMessage "package-lock.json was not found."
-
-    Write-Host ""
-    Write-Host "A package-lock.json is recommended for reproducible installs."
-    Write-Host "Running npm install instead."
-    Write-Host ""
-
-    & npm install
-
-    if ($LASTEXITCODE -ne 0) {
-        Stop-Script "npm install failed."
-    }
-
-    Write-Success "Dependencies installed."
-}
-
-Write-Host ""
 
 # ------------------------------------------------------------
-# 12. Check start script
+# 4. The database (once it is set up)
 # ------------------------------------------------------------
 
-Write-Info "Checking project start command..."
+$setUp = (Test-Path (Join-Path $Backend "config\database.local.php")) -and (Test-Path (Join-Path $Backend "config\auth.local.php"))
 
-if (-not $packageJson.scripts -or -not $packageJson.scripts.start) {
+if ($setUp) {
+    Write-Info "Bringing the database up to date..."
+    Push-Location -LiteralPath $Backend
+    try {
+        & $Php migration.php
+        $migrated = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    if ($migrated -ne 0) {
+        Stop-Script @"
+The database could not be brought up to date: the message above says why.
+
+PostgreSQL must be installed and running
+(https://www.postgresql.org/download/windows/). The connection is in
+backend\config\database.local.php - to enter it again, open
+$AppUrl/setup.php while the app runs.
+"@
+    }
+    Write-Host ""
+}
+
+# ------------------------------------------------------------
+# 5. Start
+# ------------------------------------------------------------
+
+try {
+    $health = Invoke-WebRequest -Uri "$AppUrl/api/health" -UseBasicParsing -TimeoutSec 2
+    if ($health.StatusCode -eq 200) {
+        Write-Success "$ProjectName is already running."
+        Start-Process $AppUrl
+        exit 0
+    }
+}
+catch {
+    # Running already, but not set up (503): its setup page.
+    if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 503) {
+        Write-Success "$ProjectName is already running, and not set up yet."
+        Start-Process "$AppUrl/setup.php"
+        exit 0
+    }
+    # Otherwise it is not running yet.
+}
+
+$busy = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+
+if ($busy) {
+    $owner = Get-Process -Id $busy.OwningProcess -ErrorAction SilentlyContinue
     Stop-Script @"
-package.json does not contain a "start" script.
+Port $Port is taken by $($owner.ProcessName) (process $($busy.OwningProcess)).
 
-Expected something like:
-
-    "scripts": {
-        "start": "node server/index.js"
-    }
+If that is an older copy of this app, close its window, or stop it with:
+    Stop-Process -Id $($busy.OwningProcess)
+Or start on another port: set PIANO_PORT, e.g. `$env:PIANO_PORT = 8310
 "@
 }
 
-Write-Success "Start command found."
-Write-Host ""
-
-# ------------------------------------------------------------
-# 13. Environment ready
-# ------------------------------------------------------------
-
-Write-Host "==============================================" -ForegroundColor White
-Write-Host "  Environment ready" -ForegroundColor White
-Write-Host "==============================================" -ForegroundColor White
-Write-Host ""
-
-Write-Host "Node.js: $CurrentNodeVersion"
-Write-Host "npm:     v$NpmVersion"
-Write-Host "URL:     $AppUrl"
-Write-Host ""
-
-# ------------------------------------------------------------
-# 14. Ask whether to start
-# ------------------------------------------------------------
-
-if (-not (Ask-YesNo "Start $ProjectName now?")) {
-
-    Write-Host ""
-    Write-Success "Setup complete."
-    Write-Host ""
-
-    exit 0
-}
-
-# ------------------------------------------------------------
-# 15. Start server
-# ------------------------------------------------------------
-
-Write-Host ""
 Write-Info "Starting $ProjectName..."
-Write-Host ""
 
-# Create temporary files for server stdout/stderr.
-# This allows the launcher to monitor the process without
-# creating another console window.
-
-$TempDirectory = Join-Path $env:TEMP "PersonalPianoLearning"
+# The server shares this window's console, so Ctrl+C or closing the window
+# stops it too; its output goes to files.
+$TempDirectory = Join-Path $env:TEMP "PianoAcademy"
 $StdOutFile = Join-Path $TempDirectory "server.stdout.log"
 $StdErrFile = Join-Path $TempDirectory "server.stderr.log"
 
@@ -584,150 +349,90 @@ if (-not (Test-Path $TempDirectory)) {
 
 Remove-Item $StdOutFile, $StdErrFile -Force -ErrorAction SilentlyContinue
 
-# Start npm.cmd without creating a new console window.
+# 127.0.0.1 only: without a login, nobody but this computer may reach the app.
 $serverProcess = Start-Process `
-    -FilePath "npm.cmd" `
-    -ArgumentList "start" `
-    -WorkingDirectory (Get-Location).Path `
-    -WindowStyle Hidden `
+    -FilePath $Php `
+    -ArgumentList "-d", "display_errors=stderr", "-S", "127.0.0.1:$Port", "router.php" `
+    -WorkingDirectory $Backend `
+    -NoNewWindow `
     -RedirectStandardOutput $StdOutFile `
     -RedirectStandardError $StdErrFile `
     -PassThru
 
-Write-Info "Waiting for server at $AppUrl..."
+try {
+    Write-Info "Waiting for $AppUrl..."
 
-$serverReady = $false
-$startTime = Get-Date
+    $status = 0
+    $startTime = Get-Date
 
-while (((Get-Date) - $startTime).TotalSeconds -lt $ServerStartupTimeoutSeconds) {
+    while (((Get-Date) - $startTime).TotalSeconds -lt $ServerStartupTimeoutSeconds) {
 
-    Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds 500
 
-    # Check whether the server process has already exited.
-    if ($serverProcess.HasExited) {
-        break
-    }
+        if ($serverProcess.HasExited) {
+            break
+        }
 
-    try {
-        $response = Invoke-WebRequest `
-            -Uri $AppUrl `
-            -UseBasicParsing `
-            -TimeoutSec 2
-
-        if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
-            $serverReady = $true
+        try {
+            $response = Invoke-WebRequest -Uri "$AppUrl/api/health" -UseBasicParsing -TimeoutSec 2
+            $status = [int]$response.StatusCode
+        }
+        catch {
+            # A 503 is an answer too: not set up yet.
+            if ($_.Exception.Response) {
+                $status = [int]$_.Exception.Response.StatusCode
+            }
+        }
+        if ($status -eq 200 -or $status -eq 503) {
             break
         }
     }
-    catch {
-        # Server isn't ready yet.
+
+    if ($status -ne 200 -and $status -ne 503) {
+        Write-ErrorMessage "The server did not start."
+        Write-Host ""
+        if (Test-Path $StdErrFile) { Get-Content $StdErrFile -Encoding UTF8 | Select-Object -Last 20 }
+        Write-Host ""
+        Read-Host "Press Enter to close" | Out-Null
+        exit 1
     }
-}
-
-# The server runs hidden, without a console, so Ctrl+C never reaches it.
-# The finally block below stops it (npm -> node, the whole tree) when this
-# launcher ends for any reason - otherwise node keeps the port and the next
-# start fails.
-try {
-
-if ($serverReady) {
 
     Write-Success "Server is ready."
     Write-Host ""
 
-    Write-Info "Opening $AppUrl..."
-    Start-Process $AppUrl
-
-    Write-Host ""
-    Write-Success "Application is running."
-    Write-Host ""
-    Write-Host "URL: $AppUrl"
-    Write-Host ""
-    Write-Host "Server output:"
-    Write-Host ""
-
-    # Show the server's current output.
-    if (Test-Path $StdOutFile) {
-        Get-Content $StdOutFile
-    }
-
-    if (Test-Path $StdErrFile) {
-        Get-Content $StdErrFile
-    }
-
-    Write-Host ""
-    Write-Host "Press Ctrl+C to stop the application."
-    Write-Host ""
-
-    # Keep the launcher alive while the server is running.
-    while (-not $serverProcess.HasExited) {
-
-        Start-Sleep -Milliseconds 500
-
-        # Display newly written server output.
-        if (Test-Path $StdOutFile) {
-            $newOutput = Get-Content $StdOutFile
-            if ($newOutput) {
-                # Deliberately not displaying repeatedly here because
-                # Get-Content would print the entire file each time.
-            }
-        }
-    }
-
-}
-else {
-
-    if ($serverProcess.HasExited) {
-
-        Write-ErrorMessage "The server stopped before becoming ready."
-        Write-Host ""
-
-        if (Test-Path $StdOutFile) {
-            Write-Host "Server output:"
-            Get-Content $StdOutFile
-        }
-
-        if (Test-Path $StdErrFile) {
-            Write-Host ""
-            Write-Host "Server errors:"
-            Get-Content $StdErrFile
-        }
-
-        Write-Host ""
-
-        exit $serverProcess.ExitCode
-
+    if ($status -eq 503) {
+        Write-WarningMessage "$ProjectName is not set up yet: the setup page opens in your browser."
+        Write-WarningMessage "When it says Saved, press 'Open Piano Academy'."
+        Start-Process "$AppUrl/setup.php"
     }
     else {
-
-        Write-WarningMessage "The server did not respond within $ServerStartupTimeoutSeconds seconds."
-
-        Write-Host ""
-        Write-Host "The server process is still running."
-        Write-Host "Opening $AppUrl anyway..."
-        Write-Host ""
-
+        Write-Info "Opening $AppUrl..."
         Start-Process $AppUrl
-
-        while (-not $serverProcess.HasExited) {
-            Start-Sleep -Milliseconds 500
-        }
     }
-}
 
+    Write-Host ""
+    Write-Success "$ProjectName is running at $AppUrl"
+    Write-Host ""
+    Write-Host "Press Ctrl+C (or close this window) to stop it."
+    Write-Host ""
+
+    while (-not $serverProcess.HasExited) {
+        Start-Sleep -Milliseconds 500
+    }
 }
 finally {
-
-    # ------------------------------------------------------------
-    # Cleanup
-    # ------------------------------------------------------------
-
+    # Ctrl+C lands here too. Stop the whole process tree, or the next start
+    # finds the port taken.
     if (-not $serverProcess.HasExited) {
-        & taskkill.exe /PID $serverProcess.Id /T /F 2>&1 | Out-Null
+        # It may exit in the meantime; taskkill's complaint must not stop the cleanup.
+        try {
+            & taskkill.exe /PID $serverProcess.Id /T /F 2>$null | Out-Null
+        }
+        catch {
+            # already stopped
+        }
     }
-
     Remove-Item $StdOutFile, $StdErrFile -Force -ErrorAction SilentlyContinue
 }
 
 exit 0
-

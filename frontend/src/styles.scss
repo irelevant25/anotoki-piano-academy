@@ -1,0 +1,271 @@
+////
+/// Piano Academy's stylesheet: every colour token, and the few element styles
+/// the whole app shares. Each component's own look is in its .scss.
+///
+/// Colours exist only as custom properties, and both palettes define the same
+/// names - so no component can reach for a colour one theme lacks. Light is
+/// written onto :root, so a page without data-theme is a complete light page.
+/// Dark applies through data-theme="dark" (the footer's theme button, or
+/// public/theme-boot.js before the app loads), and through the system
+/// setting for as long as nothing has said "light". The dark palette is the
+/// app's original look.
+////
+
+@mixin palette-light {
+  color-scheme: light;
+
+  --bg: #f4f5f8;
+  --panel: #ffffff;
+  --panel-alt: #eef0f5;
+  --border: #d6dae3;
+  --text: #1b1d24;
+  --text-dim: #5b6272;
+
+  --accent: #1f6fd1;
+  --accent-contrast: #ffffff;
+  --link: #1f6fd1;
+  --good: #1d8a55;
+  --good-contrast: #ffffff;
+  --bad: #c9403a;
+  --warn: #9a6512;
+  --continue-glow: rgb(31 111 209 / 10%);
+  --backdrop: rgb(20 22 28 / 45%);
+
+  --key-white: #ffffff;
+  --key-black: #1a1c22;
+  --key-stroke: #3a3f4b;
+  --key-known-white: #dce8ff;
+  --key-known-black: #24344d;
+  --key-target: #1f6fd1;
+  --key-correct: #2fa66a;
+  --key-incorrect: #d6453e;
+  --key-learning: #e5a93a;
+  --key-review: #6fa5f5;
+
+  --notation-bg: #ffffff;
+  --notation-border: #d6dae3;
+  --notation-current: #1f6fd1;
+  --notation-correct: #1d8a55;
+  --notation-incorrect: #c9403a;
+}
+
+@mixin palette-dark {
+  color-scheme: dark;
+
+  --bg: #14161c;
+  --panel: #1d2029;
+  --panel-alt: #262a36;
+  --border: #343948;
+  --text: #eef0f5;
+  --text-dim: #9aa1b4;
+
+  --accent: #5aa9ff;
+  --accent-contrast: #0b1422;
+  --link: #5aa9ff;
+  --good: #4cc38a;
+  --good-contrast: #0b1a12;
+  --bad: #e5615a;
+  --warn: #e5b95a;
+  --continue-glow: rgb(90 169 255 / 14%);
+  --backdrop: rgb(4 6 10 / 70%);
+
+  --key-white: #f4f4f4;
+  --key-black: #1a1c22;
+  --key-stroke: #10121a;
+  --key-known-white: #dce8ff;
+  --key-known-black: #24344d;
+  --key-target: #5aa9ff;
+  --key-correct: #4cc38a;
+  --key-incorrect: #e5615a;
+  --key-learning: #e5b95a;
+  --key-review: #7fb3ff;
+
+  // The staff stays black on white in the dark too; its colours are for white.
+  --notation-bg: #ffffff;
+  --notation-border: transparent;
+  --notation-current: #1f6fd1;
+  --notation-correct: #1d8a55;
+  --notation-incorrect: #c9403a;
+}
+
+:root {
+  @include palette-light;
+
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  @include palette-dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    @include palette-dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+// `hidden` wins over any display rule.
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-wrap: break-word;
+}
+
+// Before Angular has drawn anything (index.html).
+.boot-loading {
+  color: var(--text-dim);
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+a {
+  color: var(--link);
+}
+
+select,
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.btn-large {
+  padding: 0.7rem 1.4rem;
+  font-size: 1.05rem;
+  border-radius: 8px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.stat-tile {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+
+.stat-tile .value {
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.stat-tile .label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.tag {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.chip {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+}
+
+.controls-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.prompt {
+  font-size: 2rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 0.5rem 0 1rem;
+}
+
+.feedback {
+  text-align: center;
+  font-size: 1.1rem;
+  min-height: 1.6em;
+  font-weight: 600;
+}
+
+.feedback--correct {
+  color: var(--good);
+}
+
+.feedback--incorrect {
+  color: var(--bad);
+}
+
+.lesson-instruction {
+  font-size: 1.05rem;
+}
+
+@media (max-width: 600px) {
+  .card {
+    padding: 1rem;
+  }
+
+  .prompt {
+    font-size: 1.6rem;
+  }
+}

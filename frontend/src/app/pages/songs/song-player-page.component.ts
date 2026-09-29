@@ -1,0 +1,105 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
+import { Router } from '@angular/router';
+import { MidiService } from '../../core/midi/midi.service';
+import { SongsService } from '../../core/music/songs.service';
+import { SrsService } from '../../core/music/srs.service';
+import { TheoryService } from '../../core/music/theory.service';
+import { SequencePlayer, sessionFieldsFromResult } from '../../core/player/sequence-player';
+import { ProgressStore } from '../../core/state/progress-store.service';
+import { NotationComponent } from '../../ui/notation/notation.component';
+import { KeyboardModel } from '../../ui/piano-keyboard/keyboard-model';
+import { PianoKeyboardComponent } from '../../ui/piano-keyboard/piano-keyboard.component';
+import { Feedback } from '../lesson/step-outcome';
+
+/** One song (/songs/:songId), played along with the metronome at its own tempo, a little slower or faster. */
+@Component({
+  selector: 'app-song-player-page',
+  templateUrl: './song-player-page.component.html',
+  styleUrl: './song-player-page.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NotationComponent, PianoKeyboardComponent],
+})
+export class SongPlayerPageComponent implements OnInit {
+  private readonly midi = inject(MidiService);
+  private readonly theory = inject(TheoryService);
+  private readonly srs = inject(SrsService);
+  private readonly library = inject(SongsService);
+  private readonly store = inject(ProgressStore);
+  private readonly router = inject(Router);
+
+  /** From the address (withComponentInputBinding). */
+  readonly songId = input<string>();
+
+  protected readonly song = computed(() => this.library.byId(this.songId()));
+  /**
+   * Opened by its address, a locked song stays locked. Decided once, when the
+   * song opens: a miss while playing can send a note back to "learning", and
+   * the song must not lock itself in the middle of being played.
+   */
+  protected readonly unlocked = signal(false);
+  protected readonly tempos = computed(() => {
+    const song = this.song();
+    return song
+      ? [0.75, 1, 1.25].map((factor) => {
+          const value = Math.round(song.bpm * factor);
+          return { value, label: `${value} BPM${factor === 1 ? ' (original)' : ''}` };
+        })
+      : [];
+  });
+
+  private readonly staff = viewChild(NotationComponent);
+  protected readonly keyboard = new KeyboardModel();
+  protected readonly bpm = signal(0);
+  protected readonly playing = signal(false);
+  protected readonly feedback = signal<Feedback>({ text: 'Press Start, then play along with the click.', kind: null });
+
+  private player: SequencePlayer | null = null;
+
+  constructor() {
+    this.keyboard.markKnown(this.store.knownNotes());
+    afterNextRender(() => this.begin());
+    inject(DestroyRef).onDestroy(() => this.player?.destroy());
+  }
+
+  ngOnInit(): void {
+    const song = this.song();
+    const progress = this.store.progress();
+    this.unlocked.set(!!song && this.library.isSongUnlocked(song, (midi) => this.srs.isUnlocked(progress[midi])));
+  }
+
+  private begin(): void {
+    const song = this.song();
+    const staff = this.staff();
+    if (!song || !staff || !this.unlocked()) return;
+    this.bpm.set(song.bpm);
+    this.player = new SequencePlayer({
+      midi: this.midi.piano,
+      srs: this.srs,
+      theory: this.theory,
+      store: this.store,
+      notation: staff.notation(),
+      keyboard: this.keyboard,
+      feedback: (text, kind = null) => this.feedback.set({ text, kind }),
+      onFinish: (result) => {
+        this.playing.set(false);
+        this.store
+          .recordSession({ mode: 'song', songId: song.id, songTitle: song.title, ...sessionFieldsFromResult(result) })
+          .catch((error) => console.error('Failed to record session', error));
+      },
+    });
+    this.player.load(song.notes, { timeSignature: song.timeSignature });
+  }
+
+  protected chooseTempo(event: Event): void {
+    this.bpm.set(Number((event.target as HTMLSelectElement).value));
+  }
+
+  protected start(): void {
+    this.playing.set(true);
+    this.player?.start({ mode: 'tempo', bpm: this.bpm() });
+  }
+
+  protected back(): void {
+    void this.router.navigateByUrl('/songs');
+  }
+}

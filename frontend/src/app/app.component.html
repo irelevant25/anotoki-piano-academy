@@ -1,0 +1,60 @@
+<header class="app-header">
+    <h1><span aria-hidden="true">🎹</span> Piano Academy</h1>
+    <div class="header-tools">
+        <app-midi-panel />
+        <app-account-panel />
+    </div>
+</header>
+
+<nav class="app-nav" id="app-nav" aria-label="Main">
+    @for (item of nav; track item.id) {
+        @if (item.id === 'trainer') {
+            <span class="nav-sep" aria-hidden="true"></span>
+        }
+        <button
+            type="button"
+            class="nav-btn"
+            [attr.data-view]="item.id"
+            [class.is-active]="activeNav() === item.id"
+            [attr.aria-current]="activeNav() === item.id ? 'page' : null"
+            (click)="go(item.path)">
+            {{ item.label }}
+        </button>
+    }
+</nav>
+
+@if (signedOutBanner()) {
+    <div class="signed-out-banner" id="signed-out-banner" role="alert">
+        <span>You are signed out, so your progress is not saved.</span>
+        <button class="btn-primary" id="signed-out-sign-in" type="button" (click)="boot.signIn()">Sign in</button>
+    </div>
+}
+
+<main id="view-root" class="view-root">
+    @switch (boot.status()) {
+        @case ('ready') {
+            <router-outlet />
+        }
+        @case ('sign-in') {
+            <app-sign-in-card />
+        }
+        @case ('not-set-up') {
+            <app-not-set-up />
+        }
+        @case ('load-error') {
+            <app-load-error />
+        }
+        @default {
+            <p class="loading">Loading&hellip;</p>
+        }
+    }
+</main>
+
+<footer class="app-footer">
+    @if (changelog.version(); as version) {
+        <button type="button" class="version" id="app-version" title="What's new" (click)="openChangelog()">Piano Academy v{{ version }}</button>
+    }
+    <app-theme-toggle />
+</footer>
+
+<app-changelog-dialog />

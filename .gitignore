@@ -1,1 +1,26 @@
-node_modules/
+# This installation's settings, with the database password: setup.php writes
+# them (on your computer and on the host). They are required and never committed
+# - see backend/config/config.php.
+backend/config/*.local.php
+
+# What PHP writes at run time: the IAM's key cache, the setup token and lock.
+backend/storage/*
+!backend/storage/.gitkeep
+
+# The upload built by backend/tools/build.php (only at the top: a vendored
+# package's own dist/ folder must stay).
+/dist/
+
+# The frontend's dependencies and build output.
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/out-tsc/
+frontend/coverage/
+
+# Claude Code's personal settings (the rest of .claude/ is shared).
+.claude/settings.local.json
+
+# Editors and systems.
+.DS_Store
+Thumbs.db

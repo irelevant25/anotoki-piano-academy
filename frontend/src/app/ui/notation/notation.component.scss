@@ -1,0 +1,44 @@
+// Not encapsulated (VexFlow draws the SVG): every rule starts with app-notation.
+
+app-notation {
+  display: block;
+}
+
+// Music is black on white in either theme; a wide piece scrolls inside its
+// own box, never the page.
+app-notation .notation-container {
+  overflow-x: auto;
+  background: var(--notation-bg);
+  border: 1px solid var(--notation-border);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+app-notation .notation-container svg {
+  display: block;
+}
+
+app-notation .notation-center {
+  display: flex;
+  justify-content: center;
+}
+
+// VexFlow 5 draws noteheads as text in its music font and stems as paths:
+// both take the colour.
+app-notation .vf-stavenote.is-current path,
+app-notation .vf-stavenote.is-current text {
+  fill: var(--notation-current);
+  stroke: var(--notation-current);
+}
+
+app-notation .vf-stavenote.is-correct path,
+app-notation .vf-stavenote.is-correct text {
+  fill: var(--notation-correct);
+  stroke: var(--notation-correct);
+}
+
+app-notation .vf-stavenote.is-incorrect path,
+app-notation .vf-stavenote.is-incorrect text {
+  fill: var(--notation-incorrect);
+  stroke: var(--notation-incorrect);
+}

@@ -1,0 +1,150 @@
+.continue-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-color: var(--accent);
+  background: linear-gradient(135deg, var(--continue-glow), var(--panel) 60%);
+}
+
+.continue-card h2 {
+  margin: 0.2rem 0;
+}
+
+.continue-card p {
+  margin: 0;
+}
+
+.continue-step {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.review-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  margin-bottom: 1.25rem;
+  color: var(--warn);
+}
+
+.phase-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.phase-head h2 {
+  margin: 0;
+}
+
+.phase-head > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.phase-number {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.phase.is-coming {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 0.8rem 1.25rem;
+  margin-bottom: 0.6rem;
+  opacity: 0.65;
+}
+
+.unit-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.unit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+}
+
+.unit.is-current {
+  border-color: var(--accent);
+}
+
+.unit.is-locked {
+  opacity: 0.55;
+}
+
+.unit-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.unit-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.unit.is-current .unit-badge {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.unit.is-done .unit-badge {
+  border-color: var(--good);
+  background: var(--good);
+  color: var(--good-contrast);
+}
+
+.step-chips {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.step-chip {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
+
+.step-chip.is-passed {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.step-chip.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+}

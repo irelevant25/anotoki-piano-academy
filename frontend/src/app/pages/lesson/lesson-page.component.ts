@@ -1,0 +1,142 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Router } from '@angular/router';
+import { PathStep, StepRecord } from '../../core/music/music.types';
+import { PASS_ACCURACY, PathService } from '../../core/music/path.service';
+import { ProgressStore } from '../../core/state/progress-store.service';
+import { StepOutcome } from './step-outcome';
+import { DrillStepComponent } from './steps/drill-step.component';
+import { MeetStepComponent } from './steps/meet-step.component';
+import { SequenceStepComponent } from './steps/sequence-step.component';
+
+interface ResultView {
+  accuracy: number;
+  open: boolean;
+  message: string;
+  lastForNow: boolean;
+  next: PathStep | null;
+  nextLabel: string;
+  isMeet: boolean;
+}
+
+/**
+ * One learning-path step (/lesson/:unitId/:stepId), then its result: passing
+ * (best accuracy >= PASS_ACCURACY) opens the next step, otherwise the learner
+ * tries again. Each step type has its own component; all of them report the
+ * moment an attempt ends (StepOutcome) and stop listening to the piano.
+ */
+@Component({
+  selector: 'app-lesson-page',
+  templateUrl: './lesson-page.component.html',
+  styleUrl: './lesson-page.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [MeetStepComponent, DrillStepComponent, SequenceStepComponent],
+})
+export class LessonPageComponent {
+  private readonly router = inject(Router);
+  private readonly store = inject(ProgressStore);
+  protected readonly path = inject(PathService);
+
+  /** From the address (withComponentInputBinding). */
+  readonly unitId = input<string>();
+  readonly stepId = input<string>();
+
+  protected readonly entry = computed(() => this.path.findStep(this.unitId(), this.stepId()));
+  protected readonly unlocked = computed(() => {
+    const entry = this.entry();
+    return !!entry && this.path.isStepUnlocked(this.store.pathProgress(), entry.key);
+  });
+  /** The step, when it may be played: every step before it passed. */
+  protected readonly openStep = computed(() => (this.unlocked() ? this.entry() : null));
+  protected readonly dots = computed(() => {
+    const entry = this.entry();
+    if (!entry) return [];
+    return entry.unit.steps.map((step) => ({
+      id: step.id,
+      short: this.path.stepTypes[step.type].short,
+      current: step.id === entry.step.id,
+      passed: this.path.isStepPassed(this.store.pathProgress(), this.path.stepKey(entry.unit.id, step.id)),
+    }));
+  });
+
+  /** Changes to start the step afresh: a new attempt is a new step component. */
+  protected readonly attempt = signal(0);
+  protected readonly result = signal<ResultView | null>(null);
+  private resultTimer: ReturnType<typeof setTimeout> | null = null;
+  private shownKey: string | null = null;
+
+  constructor() {
+    // Next and Continue open another step on this same page: start it afresh.
+    effect(() => {
+      const key = this.entry()?.key ?? null;
+      untracked(() => {
+        if (this.shownKey !== null && key !== this.shownKey) this.restart();
+        this.shownKey = key;
+      });
+    });
+    inject(DestroyRef).onDestroy(() => this.clearTimer());
+  }
+
+  private clearTimer(): void {
+    if (this.resultTimer !== null) clearTimeout(this.resultTimer);
+    this.resultTimer = null;
+  }
+
+  protected restart(): void {
+    this.clearTimer();
+    this.result.set(null);
+    this.attempt.update((n) => n + 1);
+  }
+
+  /** An attempt ended: saved now; the result screen after the step's pause. */
+  protected finish(outcome: StepOutcome): void {
+    const entry = this.entry();
+    if (!entry || this.resultTimer !== null) return;
+    const { unit, step, key } = entry;
+    const before = this.store.pathProgress();
+    const wasPassed = this.path.isStepPassed(before, key);
+    const updated = this.path.recordStepResult(before, key, outcome.accuracy);
+    this.store.savePathProgress(updated).catch((error) => console.error('Failed to save path progress', error));
+    if (outcome.session) {
+      this.store
+        .recordSession({ ...outcome.session, mode: 'lesson', label: `${unit.title} · ${this.path.stepTypes[step.type].short}`, unitId: unit.id, stepId: step.id })
+        .catch((error) => console.error('Failed to record session', error));
+    }
+    const record = this.path.getStepRecord(updated, key);
+    this.resultTimer = setTimeout(() => {
+      this.resultTimer = null;
+      this.result.set(this.resultView(entry, outcome.accuracy, wasPassed, record));
+    }, outcome.delayMs);
+  }
+
+  private resultView(entry: PathStep, accuracy: number, wasPassed: boolean, record: StepRecord | null): ResultView {
+    const passedNow = accuracy >= PASS_ACCURACY;
+    const open = passedNow || wasPassed;
+    const next = this.path.getStepAfter(entry.key);
+    const finishesUnit = open && (!next || next.unit.id !== entry.unit.id);
+
+    let message: string;
+    if (entry.step.type === 'meet') message = 'You met the new notes. Now let\'s see if you can find them without help.';
+    else if (passedNow && finishesUnit) message = `Unit ${entry.unit.number} complete! 🎉`;
+    else if (passedNow) message = 'Step passed - nice work!';
+    else if (wasPassed) message = `Not this time, but your best is ${record?.bestAccuracy ?? accuracy}%, so the path stays open.`;
+    else message = `You need ${PASS_ACCURACY}% to continue. Give it another try - it gets easier every time.`;
+
+    return {
+      accuracy,
+      open,
+      message,
+      lastForNow: open && !next,
+      next: open ? next : null,
+      nextLabel: next && next.unit.id === entry.unit.id ? 'Continue' : 'Next unit',
+      isMeet: entry.step.type === 'meet',
+    };
+  }
+
+  protected goNext(next: PathStep): void {
+    void this.router.navigate(['/lesson', next.unit.id, next.step.id]);
+  }
+
+  protected backToPath(): void {
+    void this.router.navigateByUrl('/');
+  }
+}

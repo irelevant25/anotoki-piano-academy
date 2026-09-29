@@ -1,0 +1,8 @@
+<svg class="piano-keyboard" [attr.viewBox]="'0 0 ' + layout().width + ' ' + whiteHeight" role="img" aria-label="On-screen piano keyboard">
+    @for (key of layout().whites; track key.midi) {
+        <rect [attr.x]="key.x" y="0" [attr.width]="whiteWidth" [attr.height]="whiteHeight" rx="2" [attr.class]="keyClass(key.midi, 'white')" [attr.data-midi]="key.midi" [attr.data-name]="key.name" />
+    }
+    @for (key of layout().blacks; track key.midi) {
+        <rect [attr.x]="key.x" y="0" [attr.width]="blackWidth" [attr.height]="blackHeight" rx="2" [attr.class]="keyClass(key.midi, 'black')" [attr.data-midi]="key.midi" [attr.data-name]="key.name" />
+    }
+</svg>

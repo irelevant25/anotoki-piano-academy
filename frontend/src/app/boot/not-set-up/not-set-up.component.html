@@ -1,0 +1,9 @@
+<div class="card not-set-up" id="not-set-up">
+    <h2>Piano Academy is not set up yet</h2>
+    <p>Before you can practise, the app needs its database - and to know whether people sign in. The setup page asks for both and takes a minute.</p>
+    @if (boot.notSetUpDetail()) {
+        <p class="detail">{{ boot.notSetUpDetail() }}</p>
+    }
+    <a class="btn-primary btn-large button-link" href="/setup.php">Open the setup page</a>
+    <p class="tag">When it is done, come back here and reload the page.</p>
+</div>

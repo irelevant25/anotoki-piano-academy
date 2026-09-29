@@ -1,0 +1,36 @@
+.midi-panel {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.midi-status {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.midi-status--disconnected {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.midi-status--connected {
+  color: var(--good);
+  border-color: var(--good);
+}
+
+.midi-connect {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  min-width: 0;
+}
+
+// A long device name must not push the header wider than a phone.
+select {
+  max-width: 14rem;
+  min-width: 0;
+}

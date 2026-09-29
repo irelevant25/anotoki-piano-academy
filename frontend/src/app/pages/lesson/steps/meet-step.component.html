@@ -1,0 +1,13 @@
+<p class="lesson-instruction">
+    Here {{ newNotes().length === 1 ? 'is your new note' : 'are your new notes' }}. Find the blue key and play it {{ repetitions }} times.
+</p>
+<div class="meet-layout">
+    <app-notation id="mt-notation" />
+    <div class="meet-text">
+        <p class="prompt" id="mt-name">{{ name() }}</p>
+        <p class="tag" id="mt-hint">{{ hint() }}</p>
+        <p class="rep-dots" id="mt-reps" [attr.aria-label]="reps() + ' of ' + repetitions">{{ repDots() }}</p>
+    </div>
+</div>
+<p class="feedback" id="mt-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">{{ feedback().text }}</p>
+<app-piano-keyboard id="mt-keyboard" [model]="keyboard" [lowMidi]="range().lowMidi" [highMidi]="range().highMidi" />

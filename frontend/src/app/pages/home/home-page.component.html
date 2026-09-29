@@ -1,0 +1,90 @@
+@if (next(); as step) {
+    <div class="card continue-card">
+        <div>
+            <div class="tag">{{ started() ? 'Continue where you left off' : 'Start here' }}</div>
+            <h2>Unit {{ step.unit.number }} · {{ step.unit.title }}</h2>
+            <p class="continue-step">{{ stepTitle(step) }}</p>
+        </div>
+        <button class="btn-primary btn-large" id="continue" type="button" (click)="open(step.unit.id, step.step.id)">{{ started() ? 'Continue' : 'Start learning' }}</button>
+    </div>
+} @else {
+    <div class="card continue-card">
+        <div>
+            <div class="tag">All available units done</div>
+            <h2>You finished the right hand! 🎉</h2>
+            <p>The left hand is coming next. Until then, keep your notes fresh with free practice below.</p>
+        </div>
+    </div>
+}
+
+@if (dueCount() > 0) {
+    <div class="review-banner">
+        <span><strong>{{ dueCount() }}</strong> note{{ dueCount() === 1 ? ' is' : 's are' }} due for review.</span>
+        <button type="button" (click)="go('/trainer')">Review in Note Trainer</button>
+    </div>
+}
+
+@for (view of phases(); track view.phase.id) {
+    @if (view.phase.comingSoon) {
+        <section class="phase is-coming">
+            <div class="phase-head">
+                <span class="phase-number">{{ view.phase.number }}</span>
+                <div>
+                    <strong>{{ view.phase.title }}</strong>
+                    <div class="tag">{{ view.phase.description }}</div>
+                </div>
+                <span class="chip">Coming soon</span>
+            </div>
+        </section>
+    } @else {
+        <section class="card phase">
+            <div class="phase-head">
+                <span class="phase-number">{{ view.phase.number }}</span>
+                <div>
+                    <h2>{{ view.phase.title }}</h2>
+                    <div class="tag">{{ view.phase.description }}</div>
+                </div>
+            </div>
+            <ol class="unit-list">
+                @for (item of view.units; track item.unit.id) {
+                    <li class="unit" [class.is-done]="item.status === 'done'" [class.is-current]="item.status === 'current'" [class.is-locked]="item.status === 'locked'">
+                        <div class="unit-head">
+                            <span class="unit-badge">{{ item.status === 'done' ? '✓' : item.unit.number }}</span>
+                            <div>
+                                <strong>Unit {{ item.unit.number }} · {{ item.unit.title }}</strong>
+                                <div class="tag">{{ item.details }}</div>
+                            </div>
+                        </div>
+                        <div class="step-chips">
+                            @for (chip of item.chips; track chip.key) {
+                                <button
+                                    type="button"
+                                    class="step-chip"
+                                    [class.is-passed]="chip.state === 'passed'"
+                                    [class.is-open]="chip.state === 'open'"
+                                    [class.is-locked]="chip.state === 'locked'"
+                                    [attr.data-open]="chip.key"
+                                    [disabled]="chip.state === 'locked'"
+                                    [title]="chip.title"
+                                    (click)="open(chip.unitId, chip.stepId)">
+                                    {{ chip.label }}
+                                </button>
+                            }
+                        </div>
+                    </li>
+                }
+            </ol>
+        </section>
+    }
+}
+
+<div class="card">
+    <h2>Free practice</h2>
+    <p class="tag">Practice on your own, outside the path. It uses the same note progress, so it helps the path too.</p>
+    <div class="controls-row">
+        <button type="button" (click)="go('/trainer')">Note Trainer</button>
+        <button type="button" (click)="go('/sheet')">Sheet Practice</button>
+        <button type="button" (click)="go('/songs')">Songs</button>
+        <button type="button" (click)="go('/stats')">Stats</button>
+    </div>
+</div>

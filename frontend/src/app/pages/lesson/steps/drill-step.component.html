@@ -1,0 +1,5 @@
+<p class="lesson-instruction">Read the note on the staff and play it. The light-blue keys are the notes you know.</p>
+<p class="tag drill-progress" id="dr-progress">{{ index() + 1 }} / {{ length }} · {{ correctCount() }} correct</p>
+<app-notation id="dr-notation" [center]="true" />
+<p class="feedback" id="dr-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">{{ feedback().text }}</p>
+<app-piano-keyboard id="dr-keyboard" [model]="keyboard" [lowMidi]="range().lowMidi" [highMidi]="range().highMidi" />

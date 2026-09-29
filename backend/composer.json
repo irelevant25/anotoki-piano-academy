@@ -1,0 +1,17 @@
+{
+    "name": "anotoki/piano-academy",
+    "description": "Piano Academy's API: PHP, Slim 4 and PostgreSQL.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2",
+        "slim/psr7": "^1.8",
+        "slim/slim": "^4.15"
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.0"
+        },
+        "sort-packages": true
+    }
+}

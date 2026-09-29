@@ -1,0 +1,101 @@
+.changelog {
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 3rem);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.changelog::backdrop {
+  background: var(--backdrop);
+}
+
+.changelog-body {
+  padding: 1.25rem;
+}
+
+.changelog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.changelog-head h2 {
+  margin: 0;
+}
+
+.release {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--panel-alt);
+}
+
+.release.is-latest {
+  border-left-color: var(--accent);
+}
+
+.release-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.release-version {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.latest {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.release-date {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.section-title {
+  font-size: 0.95rem;
+  margin: 0.9rem 0 0.3rem;
+}
+
+.section-title.added {
+  color: var(--good);
+}
+
+.section-title.updated {
+  color: var(--accent);
+}
+
+.section-title.fixed {
+  color: var(--warn);
+}
+
+ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+li {
+  margin: 0.25rem 0;
+}

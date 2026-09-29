@@ -1,0 +1,4 @@
+<button type="button" class="theme-toggle" id="theme-toggle" [attr.aria-label]="label() + ' (press to change)'" [title]="label()" (click)="theme.cycle()">
+    <span aria-hidden="true">{{ icon() }}</span>
+    {{ label() }}
+</button>

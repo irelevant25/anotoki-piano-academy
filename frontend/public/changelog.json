@@ -1,0 +1,22 @@
+[
+  {
+    "version": "2.0",
+    "date": "2026-09-29",
+    "changes": {
+      "added": [
+        "Sign in with your anotoki account on the website, piano.anotoki.eu - your progress is saved to your account and waits for you on any computer",
+        "On your own computer the app still needs no sign-in, and a setup page asks for the database the first time",
+        "A light and a dark look - press the theme button at the bottom of the page to choose, or let your computer decide",
+        "The app works on phones and small screens too",
+        "This list of what is new: press the version number at the bottom of the page"
+      ],
+      "updated": [
+        "The whole app has been rebuilt from the ground up - the same lessons, Note Trainer, Sheet Practice, Songs and Stats, on a new base that is ready for the left hand, both hands and chords",
+        "Your progress is kept in a database instead of files - everything you practised before is still there",
+        "If a save does not get through (no internet, the server is away), the app says \"Not saved yet\" and keeps trying, and a finished round waits in your browser until it arrives",
+        "The note you should play now is coloured on the staff, not only its stem"
+      ],
+      "fixed": []
+    }
+  }
+]

@@ -1,0 +1,31 @@
+.song-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.song-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+}
+
+.song-item > div {
+  min-width: 0;
+}
+
+.song-item.is-locked {
+  opacity: 0.5;
+}
+
+.song-item button {
+  flex: none;
+}

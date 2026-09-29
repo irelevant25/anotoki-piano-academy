@@ -1,0 +1,62 @@
+:host {
+  display: block;
+}
+
+.piano-keyboard {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+.piano-key {
+  stroke: var(--key-stroke);
+  stroke-width: 1;
+  transition: fill 80ms ease;
+}
+
+.piano-key--white {
+  fill: var(--key-white);
+}
+
+.piano-key--black {
+  fill: var(--key-black);
+}
+
+.piano-key.is-known.piano-key--white {
+  fill: var(--key-known-white);
+}
+
+.piano-key.is-known.piano-key--black {
+  fill: var(--key-known-black);
+}
+
+// How a key is lit wins over whether it is known.
+.piano-key.is-target {
+  fill: var(--key-target);
+}
+
+.piano-key.is-pressed {
+  fill: var(--key-learning);
+}
+
+.piano-key.is-correct {
+  fill: var(--key-correct);
+}
+
+.piano-key.is-incorrect {
+  fill: var(--key-incorrect);
+}
+
+// Stats: each note's mastery.
+.piano-key.lvl-learning {
+  fill: var(--key-learning);
+}
+
+.piano-key.lvl-review {
+  fill: var(--key-review);
+}
+
+.piano-key.lvl-mastered {
+  fill: var(--key-correct);
+}

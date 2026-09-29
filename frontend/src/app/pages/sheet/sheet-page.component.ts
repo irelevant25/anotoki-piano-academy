@@ -1,0 +1,113 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, inject, signal, viewChild } from '@angular/core';
+import { Router } from '@angular/router';
+import { MidiService } from '../../core/midi/midi.service';
+import { PathService } from '../../core/music/path.service';
+import { SrsService } from '../../core/music/srs.service';
+import { TheoryService } from '../../core/music/theory.service';
+import { SequencePlayer, sessionFieldsFromResult } from '../../core/player/sequence-player';
+import { ProgressStore } from '../../core/state/progress-store.service';
+import { NotationComponent } from '../../ui/notation/notation.component';
+import { KeyboardModel } from '../../ui/piano-keyboard/keyboard-model';
+import { PianoKeyboardComponent } from '../../ui/piano-keyboard/piano-keyboard.component';
+import { Feedback } from '../lesson/step-outcome';
+
+const SEQUENCE_LENGTH = 6;
+const MIN_KNOWN_NOTES = 3;
+
+/**
+ * Sheet Practice: a short piece made from the notes the learner knows (the
+ * treble ones, for now), sight-read along with the metronome - pitch and
+ * timing graded, the round logged.
+ */
+@Component({
+  selector: 'app-sheet-page',
+  templateUrl: './sheet-page.component.html',
+  styleUrl: './sheet-page.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NotationComponent, PianoKeyboardComponent],
+})
+export class SheetPageComponent {
+  private readonly midi = inject(MidiService);
+  private readonly theory = inject(TheoryService);
+  private readonly srs = inject(SrsService);
+  private readonly path = inject(PathService);
+  private readonly store = inject(ProgressStore);
+  private readonly router = inject(Router);
+
+  private readonly staff = viewChild(NotationComponent);
+  protected readonly keyboard = new KeyboardModel();
+  protected readonly minKnown = MIN_KNOWN_NOTES;
+  protected readonly tempos = [60, 70, 80, 100, 120];
+
+  /** The known notes it may use, in a shuffled order - fixed while the page is open. */
+  protected readonly knownTreble = this.path.shuffle(this.store.knownNotes().filter((midi) => midi >= 60));
+  protected readonly knownNames = this.knownTreble.map((midi) => this.theory.midiToName(midi)).join(', ');
+  protected readonly bpm = signal(80);
+  protected readonly playing = signal(false);
+  protected readonly feedback = signal<Feedback>({ text: 'Press Start, then play the notes in order along with the click.', kind: null });
+
+  private player: SequencePlayer | null = null;
+
+  constructor() {
+    this.keyboard.markKnown(this.store.knownNotes());
+    afterNextRender(() => this.begin());
+    inject(DestroyRef).onDestroy(() => this.player?.destroy());
+  }
+
+  private begin(): void {
+    const staff = this.staff();
+    if (!staff || this.knownTreble.length < MIN_KNOWN_NOTES) return;
+    this.player = new SequencePlayer({
+      midi: this.midi.piano,
+      srs: this.srs,
+      theory: this.theory,
+      store: this.store,
+      notation: staff.notation(),
+      keyboard: this.keyboard,
+      feedback: (text, kind = null) => this.feedback.set({ text, kind }),
+      onFinish: (result) => {
+        this.playing.set(false);
+        this.store.recordSession({ mode: 'sheet', ...sessionFieldsFromResult(result) }).catch((error) => console.error('Failed to record session', error));
+      },
+    });
+    this.loadNewSheet();
+  }
+
+  /** A new piece: never the same note twice in a row (when there is a choice). */
+  private generateSequence(): number[] {
+    const sequence: number[] = [];
+    let last: number | null = null;
+    for (let i = 0; i < SEQUENCE_LENGTH; i++) {
+      let pick: number;
+      do {
+        pick = this.knownTreble[Math.floor(Math.random() * this.knownTreble.length)];
+      } while (pick === last && this.knownTreble.length > 1);
+      sequence.push(pick);
+      last = pick;
+    }
+    return sequence;
+  }
+
+  private loadNewSheet(): void {
+    this.player?.load(this.generateSequence().map((midi) => ({ midi })));
+    this.playing.set(false);
+  }
+
+  protected newSheet(): void {
+    this.loadNewSheet();
+    this.feedback.set({ text: 'New sheet ready. Press Start when you are.', kind: null });
+  }
+
+  protected chooseTempo(event: Event): void {
+    this.bpm.set(Number((event.target as HTMLSelectElement).value));
+  }
+
+  protected start(): void {
+    this.playing.set(true);
+    this.player?.start({ mode: 'tempo', bpm: this.bpm() });
+  }
+
+  protected goToPath(): void {
+    void this.router.navigateByUrl('/');
+  }
+}
