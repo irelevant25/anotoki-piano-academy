@@ -79,7 +79,7 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     $files = tree($dist);
     $top = array_values(array_unique(array_map(static fn(string $file): string => explode('/', $file)[0], $files)));
     sort($top);
-    assert_same(['.htaccess', '.piano-academy-build', 'api', 'changelog.json', 'composer.json', 'composer.lock', 'config', 'index.html',
+    assert_same(['.htaccess', '.piano-academy-build', 'api', 'changelog.json', 'config', 'index.html',
         'main-TEST.js', 'media', 'migrations', 'setup.php', 'storage', 'styles-TEST.css', 'theme-boot.js', 'vendor'], $top);
     foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/anotoki_iam.php', 'api/routes/progress.php', 'api/meddleware/setup.php',
         'config/config.php', 'config/.htaccess', 'migrations/piano_academy/001_init.sql', 'migrations/.htaccess', 'vendor/autoload.php',

@@ -28,7 +28,9 @@ declare(strict_types=1);
  *   storage/         empty; PHP writes the IAM key cache, the setup token and lock
  *
  * Left out: every *.local.php (your settings), your progress (server/data/),
- * router.php, migration.php and tools/ (for computers with a shell), the tests.
+ * router.php, migration.php and tools/ (for computers with a shell), the tests,
+ * and composer.json and composer.lock - vendor/ loads itself, and in the web
+ * root they would hand anybody the list of every dependency and its version.
  * DEVELOPING.md ("Deploying") has the rest.
  */
 
@@ -182,8 +184,6 @@ foreach (['api', 'migrations', 'vendor'] as $folder) {
 }
 $add("$backend/config/config.php", "$out/config/config.php");
 $add("$backend/setup.php", "$out/setup.php");
-$add("$backend/composer.json", "$out/composer.json");
-$add("$backend/composer.lock", "$out/composer.lock");
 
 // Folders only PHP reads: closed to the web, wherever PHP would run a file.
 $deny = "# Not for the web: only PHP reads these files.\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n"
