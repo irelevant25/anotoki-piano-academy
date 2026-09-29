@@ -11,7 +11,7 @@ for the hosting.
 | PostgreSQL | 13+ | a local server, and a login that may create databases (the setup and the tests make theirs) |
 | Node.js | 22.12+ | with npm, for the Angular app (`frontend/.nvmrc` pins 22.15.0) |
 | A browser | Chrome or Edge | Web MIDI; a USB-MIDI keyboard is optional (see *Testing without a piano*) |
-| The anotoki IAM | - | only to try signing in: `../anotoki-iam`, its own DEVELOPING.md |
+| The anotoki IAM | - | only to try signing in: `../anotoki-iam`, its own DEV.md |
 
 `backend/vendor/` is committed (the hosting cannot run Composer), so Composer
 is only needed to change PHP dependencies. `frontend/.npmrc` sets
@@ -32,7 +32,7 @@ back to a committed default. The setup page writes them.
 
 ```bash
 cd backend
-php -S localhost:8300 router.php
+composer start          # php -S localhost:8300 router.php
 ```
 
 Open **http://localhost:8300/setup.php**. Asked from this computer by a local
@@ -73,7 +73,7 @@ The app is at **http://localhost:4500**, the setup page at
 ### 3. Signing in, while developing
 
 Run the IAM (`../anotoki-iam`: its backend on `:8100`, its pages on
-`http://localhost:4300` - see its DEVELOPING.md). It registers Piano Academy
+`http://localhost:4300` - see its DEV.md). It registers Piano Academy
 for `http://localhost:4500`: the redirect URI `/auth/callback` (a route of this
 app), and `/` after signing out. On the setup page choose the IAM, with the
 address `http://localhost:4300`, and **Save**. Sign in at
@@ -84,7 +84,7 @@ admin console) get in.
 
 | | Command | Address |
 | --- | --- | --- |
-| API and setup page | `cd backend && php -S localhost:8300 router.php` | `http://localhost:8300` |
+| API and setup page | `cd backend && composer start` | `http://localhost:8300` |
 | The app | `cd frontend && npm start` | `http://localhost:4500` |
 | The owner's copy | `start.ps1` / `start.sh` | `http://127.0.0.1:8300` |
 

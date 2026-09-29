@@ -11,7 +11,7 @@ The browser talks to the piano directly (Web MIDI); an Angular 21 frontend
 keeps each person's progress in PostgreSQL. Two auth modes: `iam` (sign-in
 through the anotoki IAM - the hosted site piano.anotoki.eu) and `none` (the
 owner's own computer, no login). Read [README.md](../../../README.md) for the
-user's picture and [DEVELOPING.md](../../../DEVELOPING.md) for the commands -
+user's picture and [DEV.md](../../../DEV.md) for the commands -
 this file is the implementer's supplement: architecture, design, conventions,
 and the gotchas that cost time to rediscover.
 

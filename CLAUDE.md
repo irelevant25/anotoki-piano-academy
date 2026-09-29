@@ -14,7 +14,7 @@ PostgreSQL under their anotoki IAM user id.
 | Launchers | `start.ps1`, `start.sh` | the owner's one-command start |
 
 Dev addresses: frontend `http://localhost:4500` (`ng serve`, proxying `/api` and
-`/setup.php`), backend `:8300` (`php -S localhost:8300 router.php`), the IAM
+`/setup.php`), backend `:8300` (`composer start` in `backend/`), the IAM
 `http://localhost:4300` (repo `../anotoki-iam`: `backend/` on 8100, `frontend/`
 on 4300). The launchers serve the built app from the backend at
 `http://127.0.0.1:8300`.
@@ -25,7 +25,7 @@ on 4300). The launchers serve the built app from the backend at
    the architecture, the learning-path design and roadmap, conventions, gotchas,
    and how to test without a piano. For delegated work use the **`piano-dev`**
    agent (`.claude/agents/piano-dev.md`), which loads it too.
-2. `README.md` is what the app is; `DEVELOPING.md` how to set it up, run, test,
+2. `README.md` is what the app is; `DEV.md` how to set it up, run, test,
    build and deploy it.
 
 ## Always, after a change
@@ -33,7 +33,7 @@ on 4300). The launchers serve the built app from the backend at
 Walk the skill's review checklist, run the tests (below), then keep the
 knowledge base in step - part of finishing the task: the skill, this file (if
 the essentials changed), `.claude/agents/piano-dev.md`, `README.md` ("Current
-state"), `DEVELOPING.md` (commands), and `frontend/public/changelog.json` (a
+state"), `DEV.md` (commands), and `frontend/public/changelog.json` (a
 line in plain words for anything a learner would notice).
 
 ## Essentials
@@ -83,7 +83,7 @@ line in plain words for anything a learner would notice).
 
 ```
 # Backend (from backend/)
-php -S localhost:8300 router.php          # dev API + setup page (+ the built app, if built)
+composer start                            # dev API (php -S localhost:8300 router.php) + setup page (+ the built app, if built)
 php tests/run.php                         # every PHP test, throwaway databases
 php migration.php [--status|--dry-run]    # migrations for the configured database
 php tools/progress.php --export=FILE      # also --import=PATH, --owner=ID

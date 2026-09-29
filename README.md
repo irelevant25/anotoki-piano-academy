@@ -114,7 +114,7 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
 ## More
 
 - Setting it up for development, testing, building and deploying:
-  [DEVELOPING.md](DEVELOPING.md).
+  [DEV.md](DEV.md).
 - How the code is organised, and the rules for changing it: [CLAUDE.md](CLAUDE.md)
   and the project skill, [.claude/skills/piano-learning-app/SKILL.md](.claude/skills/piano-learning-app/SKILL.md).
 - Signing in through the anotoki IAM: the IAM repository (`../anotoki-iam`),

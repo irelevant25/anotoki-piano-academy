@@ -13,5 +13,14 @@
             "php": "8.2.0"
         },
         "sort-packages": true
+    },
+    "scripts": {
+        "start": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -S localhost:8300 router.php"
+        ]
+    },
+    "scripts-descriptions": {
+        "start": "The API and setup.php on http://localhost:8300: PHP's built-in server, with router.php"
     }
 }

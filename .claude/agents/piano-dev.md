@@ -24,7 +24,7 @@ saves inside MIDI handlers; never running on empty state; local-vs-UTC days;
 tempo tests on the clicks; PHP's `{}` -> `[]` trap; `Origin: null` under
 no-referrer; forwarded headers; the Authorization header under Apache CGI;
 npm's `legacy-peer-deps` and `npm.cmd` on Windows) that cost real time to
-rediscover. Also read `CLAUDE.md`, `README.md` and `DEVELOPING.md`.
+rediscover. Also read `CLAUDE.md`, `README.md` and `DEV.md`.
 
 Working conventions specific to this repo:
 - Angular components are **three files** (`.ts`, `.html`, `.scss`), never an
@@ -79,5 +79,5 @@ Stop every server you start (the whole process tree) and check the port.
 
 Finishing a change includes updating the knowledge base: the skill,
 `CLAUDE.md`, this agent file (if its summary went stale), README "Current
-state", DEVELOPING.md (if a command changed) and `frontend/public/changelog.json`
+state", DEV.md (if a command changed) and `frontend/public/changelog.json`
 (for a change a learner would notice). Report which of those you changed.

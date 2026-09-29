@@ -31,7 +31,7 @@ declare(strict_types=1);
  * router.php, migration.php and tools/ (for computers with a shell), the tests,
  * and composer.json and composer.lock - vendor/ loads itself, and in the web
  * root they would hand anybody the list of every dependency and its version.
- * DEVELOPING.md ("Deploying") has the rest.
+ * DEV.md ("Deploying") has the rest.
  */
 
 if (PHP_SAPI !== 'cli') {

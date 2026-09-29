@@ -6,8 +6,8 @@ declare(strict_types=1);
  * PHP's built-in web server, made to behave like the Apache the live site
  * runs on.
  *
- *   php -S localhost:8300 router.php      development: the API (and setup.php)
- *                                         behind `ng serve` on :4500, which
+ *   composer start                        development: the API (and setup.php)
+ *   (php -S localhost:8300 router.php)    behind `ng serve` on :4500, which
  *                                         proxies /api and /setup.php here
  *   start.ps1 / start.sh                  your own computer: the same, plus the
  *                                         built app, on one address
