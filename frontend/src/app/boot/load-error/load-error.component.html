@@ -1,5 +1,5 @@
 <div class="card load-error" id="load-error">
-    <h2>Could not load your progress</h2>
-    <p>The app did not start, so your saved progress stays safe. Check that the server is still running, then try again.</p>
-    <button class="btn-primary" id="boot-retry" type="button" (click)="retry()">Try again</button>
+    <h2>{{ 'boot.loadError.title' | translate }}</h2>
+    <p>{{ 'boot.loadError.text' | translate }}</p>
+    <button class="btn-primary" id="boot-retry" type="button" (click)="retry()">{{ 'boot.loadError.tryAgain' | translate }}</button>
 </div>

@@ -1,15 +1,17 @@
 <div class="card">
-    <h2>Songs</h2>
-    <p>Songs unlock automatically once you know every note they use. The learning path teaches them one by one.</p>
+    <h2>{{ 'songs.title' | translate }}</h2>
+    <p>{{ 'songs.intro' | translate }}</p>
     <ul class="song-list">
         @for (item of songs(); track item.song.id) {
             <li class="song-item" [class.is-locked]="!item.unlocked">
                 <div>
                     <strong>{{ item.song.title }}</strong>
                     <br />
-                    <span class="tag">{{ item.song.bpm }} BPM &middot; needs: {{ item.needs }}</span>
+                    <span class="tag">{{ 'songs.needs' | translate: { bpm: item.song.bpm, notes: item.needs } }}</span>
                 </div>
-                <button type="button" [attr.data-song]="item.song.id" [disabled]="!item.unlocked" (click)="play(item.song.id)">{{ item.unlocked ? 'Play' : 'Locked' }}</button>
+                <button type="button" [attr.data-song]="item.song.id" [disabled]="!item.unlocked" (click)="play(item.song.id)">
+                    {{ (item.unlocked ? 'songs.play' : 'songs.locked') | translate }}
+                </button>
             </li>
         }
     </ul>

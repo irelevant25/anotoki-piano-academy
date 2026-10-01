@@ -8,11 +8,16 @@ import { AuthService } from './auth.service';
  * refreshed before it runs out, and once more after a 401 (the SDK's own
  * fetch does the same; this is it for HttpClient). The sign-in settings
  * themselves need no token, and without sign-in nothing is added.
+ *
+ * Nor do the app's strings (GET /api/translations/{code}): they are public,
+ * asked for before anybody is signed in, and must not wait for a token to be
+ * refreshed. The owner's translation calls are under /api/owner/ and carry
+ * the token like every other call.
  */
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthService);
 
-  if (!auth.usesSignIn() || !request.url.startsWith('/api/') || request.url === '/api/auth/config') {
+  if (!auth.usesSignIn() || !request.url.startsWith('/api/') || request.url === '/api/auth/config' || request.url.startsWith('/api/translations/')) {
     return next(request);
   }
 

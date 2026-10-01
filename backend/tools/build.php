@@ -23,14 +23,17 @@ declare(strict_types=1);
  *   setup.php        the setup page - the first install, and later updates
  *   api/             the API: index.php (the front controller) and its code
  *   config/          config.php only - setup.php writes the *.local.php files here
- *   migrations/      the database's migrations
+ *   migrations/      the database's migrations: the tables, and the app's own
+ *                    strings in English and Slovak
  *   vendor/          Slim and its dependencies (the host cannot run composer)
  *   storage/         empty; PHP writes the IAM key cache, the setup token and lock
  *
  * Left out: every *.local.php (your settings), your progress (server/data/),
- * router.php, migration.php and tools/ (for computers with a shell), the tests,
- * and composer.json and composer.lock - vendor/ loads itself, and in the web
- * root they would hand anybody the list of every dependency and its version.
+ * router.php, migration.php and tools/ (for computers with a shell - this
+ * build, the progress tool, and the strings' command line and key scan: on the
+ * host the strings are edited in the browser), the tests, and composer.json
+ * and composer.lock - vendor/ loads itself, and in the web root they would
+ * hand anybody the list of every dependency and its version.
  * DEV.md ("Deploying") has the rest.
  */
 

@@ -22,11 +22,21 @@ import type { Notation, SequenceNote } from '../notation/notation';
 //    ignored.
 //  - 'wait': no clock; it waits on each note until it is played. Accuracy
 //    counts first-try hits; after a couple of misses the right key lights up.
+//
+// What it says to the learner it says as a key of the app's strings and the
+// values for that string's {placeholders} - never as a sentence: the page
+// words it, in the language it is in, and words it again when the language
+// changes. Every key is a whole sentence (player.*), written out here as a
+// literal so the key scan finds it. The player stays a plain class: nothing is
+// injected, nothing is imported from core/i18n, and nothing is awaited in its
+// MIDI handler.
 
 const WAIT_MODE_HINT_AFTER_MISSES = 2;
 
 export type PlayMode = 'tempo' | 'wait';
 export type FeedbackKind = 'correct' | 'incorrect' | null;
+/** The values of a sentence's placeholders: a note name ({note}) or whole numbers. */
+export type FeedbackParams = Record<string, string | number>;
 
 export interface PlayerResult {
   mode: PlayMode;
@@ -53,7 +63,8 @@ export interface SequencePlayerOptions {
   store: PlayerStore;
   notation: Notation;
   keyboard: KeyboardModel;
-  feedback: (text: string, kind?: FeedbackKind) => void;
+  /** What to tell the learner: a key of the app's strings, its placeholders' values, and how it went. */
+  feedback: (key: string, params?: FeedbackParams, kind?: FeedbackKind) => void;
   onFinish?: (result: PlayerResult) => void;
 }
 
@@ -120,10 +131,10 @@ export class SequencePlayer {
       this.expectedTimes = this.metronome.schedule(this.notes.length, bpm, { leadInBeats: 4 }).expectedPerformanceTimes;
       this.results = this.notes.map(() => null);
       this.scheduleWindowEnd();
-      this.options.feedback('Listen to the 4-beat count-in, then play one note on every click.');
+      this.options.feedback('player.countIn');
     } else {
       this.expectedTimes = null;
-      this.options.feedback('Play the blue note. Take your time - there is no clock.');
+      this.options.feedback('player.takeYourTime');
     }
   }
 
@@ -172,7 +183,7 @@ export class SequencePlayer {
         // Not played is no evidence about the note itself: no SRS update.
         this.results[this.index] = 'missed';
         this.markNote(this.index, 'is-incorrect');
-        this.options.feedback('Missed one - keep going.', 'incorrect');
+        this.options.feedback('player.missed', undefined, 'incorrect');
       }
       if (this.index === this.notes.length - 1) {
         this.finish();
@@ -201,9 +212,9 @@ export class SequencePlayer {
       this.correct += 1;
       this.timingErrors.push(timingErrorMs);
       const tight = Math.abs(timingErrorMs) <= toleranceMs * 0.4;
-      this.options.feedback(tight ? 'Right on the click!' : `Good - a little ${timingErrorMs < 0 ? 'early' : 'late'}.`, 'correct');
+      this.options.feedback(tight ? 'player.onTheClick' : timingErrorMs < 0 ? 'player.early' : 'player.late', undefined, 'correct');
     } else {
-      this.options.feedback(`That was ${this.options.theory.midiToName(played)} - keep going.`, 'incorrect');
+      this.options.feedback('player.wrong.keepGoing', { note: this.options.theory.midiToName(played) }, 'incorrect');
     }
     this.markNote(i, correct ? 'is-correct' : 'is-incorrect');
     this.options.keyboard.setKeyState(played, correct ? 'correct' : 'incorrect');
@@ -221,7 +232,7 @@ export class SequencePlayer {
       keyboard.setKeyState(played, 'incorrect');
       this.flashKey(played, 400);
       if (this.missesOnCurrent >= WAIT_MODE_HINT_AFTER_MISSES) keyboard.setKeyState(target, 'target');
-      this.options.feedback(`That was ${theory.midiToName(played)} - try again.`, 'incorrect');
+      this.options.feedback('player.wrong.tryAgain', { note: theory.midiToName(played) }, 'incorrect');
       return;
     }
 
@@ -235,7 +246,7 @@ export class SequencePlayer {
     keyboard.clearStates();
     keyboard.setKeyState(played, 'correct');
     this.flashKey(played, 250);
-    this.options.feedback(firstTry ? 'Good!' : 'Got it.', 'correct');
+    this.options.feedback(firstTry ? 'player.good' : 'player.gotIt', undefined, 'correct');
     this.advance();
   }
 
@@ -271,10 +282,10 @@ export class SequencePlayer {
     const avgTimingErrorMs = this.timingErrors.length
       ? Math.round(this.timingErrors.reduce((sum, error) => sum + Math.abs(error), 0) / this.timingErrors.length)
       : null;
-    this.options.feedback(
-      `Done - ${this.correct}/${total} correct (${accuracy}%)${avgTimingErrorMs !== null ? `, avg timing off by ${avgTimingErrorMs}ms` : ''}.`,
-      accuracy >= 80 ? 'correct' : null,
-    );
+    // Two whole sentences, not one with a clause glued on: a run in time also says how far off the clicks it was.
+    const counts = { correct: this.correct, total, accuracy };
+    if (avgTimingErrorMs !== null) this.options.feedback('player.doneTimed', { ...counts, ms: avgTimingErrorMs }, accuracy >= 80 ? 'correct' : null);
+    else this.options.feedback('player.done', counts, accuracy >= 80 ? 'correct' : null);
     this.options.onFinish?.({
       mode: this.mode,
       bpm: this.mode === 'tempo' ? this.bpm : null,

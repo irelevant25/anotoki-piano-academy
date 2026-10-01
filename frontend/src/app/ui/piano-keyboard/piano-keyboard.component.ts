@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { TheoryService } from '../../core/music/theory.service';
 import { KeyboardModel } from './keyboard-model';
 
@@ -17,10 +18,12 @@ interface DrawnKey {
  * The on-screen piano keyboard: an SVG that scales to its box, with every key
  * lit as its KeyboardModel says - the target, a right or wrong press, the
  * notes known, or (on Stats) each note's mastery. Each key carries data-midi
- * and data-name for the browser tests.
+ * and data-name for the browser tests. A screen reader hears it named by
+ * the key keyboard.label, in the page's language.
  */
 @Component({
   selector: 'app-piano-keyboard',
+  imports: [TranslatePipe],
   templateUrl: './piano-keyboard.component.html',
   styleUrl: './piano-keyboard.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

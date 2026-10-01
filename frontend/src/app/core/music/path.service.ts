@@ -12,28 +12,38 @@ import { TheoryService } from './theory.service';
 //
 // Step keys ("unitId/stepId") are saved: renaming a unit or a step orphans
 // everybody's progress on it.
+//
+// The path knows no language. What it says to the learner - a phase's title
+// and description, a step type's name, where a new note's key sits, a unit
+// title with ordinary words in it - is worded from these ids by
+// core/i18n/path-words.ts, in the language on the page; the keys are written
+// out in core/i18n/dynamic-keys.ts, and path-words.spec.ts holds that table
+// and this path in step. A new phase, step type, hint or worded unit title
+// needs its keys there, and its strings in a migration.
 
 export const PASS_ACCURACY = 80;
 
-export const STEP_TYPES: Record<StepType, { title: string; short: string }> = {
-  meet: { title: 'Meet the notes', short: 'Meet' },
-  drill: { title: 'Note drill', short: 'Drill' },
-  read: { title: 'Read a melody', short: 'Read' },
-  tempo: { title: 'Play in time', short: 'In time' },
-  song: { title: 'Song', short: 'Song' },
+/**
+ * DATA, not words for the page: the English short name a finished lesson
+ * round is stored under - its session label is `${unit.title} ·
+ * ${STEP_TYPES[type].short}`, English whatever language the page is in, as
+ * every label stored before. No page shows this: a step's name on the page is
+ * stepTitle() / stepShort() of path-words.ts.
+ */
+export const STEP_TYPES: Record<StepType, { short: string }> = {
+  meet: { short: 'Meet' },
+  drill: { short: 'Drill' },
+  read: { short: 'Read' },
+  tempo: { short: 'In time' },
+  song: { short: 'Song' },
 };
 
-/** Where each right-hand note sits on the keyboard, shown when it is introduced. */
-export const NOTE_HINTS: Record<number, string> = {
-  60: 'Middle C: the white key just left of the two black keys, near the middle of your piano.',
-  62: 'D sits between the two black keys.',
-  64: 'E is just right of the two black keys.',
-  65: 'F is just left of the three black keys.',
-  67: 'G sits between the first and second of the three black keys.',
-  69: 'A sits between the second and third of the three black keys.',
-  71: 'B is just right of the three black keys.',
-  72: 'This C is one octave above Middle C - the next C to the right.',
-};
+/**
+ * The right-hand notes that have a hint - where the key sits on the keyboard,
+ * shown when the note is introduced - by MIDI number. The hint's words are the
+ * language's (hintKey() of path-words.ts).
+ */
+export const NOTE_HINTS: readonly number[] = [60, 62, 64, 65, 67, 69, 71, 72];
 
 export type UnitStatus = 'done' | 'current' | 'locked';
 
@@ -108,12 +118,16 @@ export class PathService {
    * The whole journey. Later phases are listed (comingSoon, no units) so the
    * learner sees where it goes; each needs something new in the app first -
    * the bass clef, both hands, chords (see the project skill's roadmap).
+   *
+   * A phase's title and description are not here: phaseTitle() and
+   * phaseDescription() of path-words.ts word them from its id. A unit's title
+   * is DATA - the English a lesson's stored session label begins with - and a
+   * page shows it only through unitTitle(), which translates the one that has
+   * ordinary words in it ("B and high C") and leaves note letters as they are.
    */
   readonly phases: readonly Phase[] = this.numbered([
     {
       id: 'right-hand',
-      title: 'Right hand',
-      description: 'Learn the notes from Middle C up to the next C, one small group at a time.',
       keyboard: { lowMidi: 48, highMidi: 84 },
       units: [
         this.unit('rh-1', 'C, D, E', ['C4', 'D4', 'E4'], 'hot-cross-buns'),
@@ -123,11 +137,11 @@ export class PathService {
         this.unit('rh-5', 'B and high C', ['B4', 'C5'], 'joy-to-the-world'),
       ],
     },
-    { id: 'left-hand', title: 'Left hand', comingSoon: true, units: [], description: 'The same steps for the left hand, reading the bass clef: C3 to G3, then A3 and B3.' },
-    { id: 'hands-together', title: 'Both hands', comingSoon: true, units: [], description: 'Melodies passed between the hands, then both hands playing at the same time.' },
-    { id: 'left-hand-chords', title: 'Left-hand chords', comingSoon: true, units: [], description: 'C, F and G chords in the left hand.' },
-    { id: 'right-hand-chords', title: 'Right-hand chords', comingSoon: true, units: [], description: 'The same chords in the right hand.' },
-    { id: 'melody-and-chords', title: 'Melody and chords', comingSoon: true, units: [], description: 'A right-hand melody over left-hand chords.' },
+    { id: 'left-hand', comingSoon: true, units: [] },
+    { id: 'hands-together', comingSoon: true, units: [] },
+    { id: 'left-hand-chords', comingSoon: true, units: [] },
+    { id: 'right-hand-chords', comingSoon: true, units: [] },
+    { id: 'melody-and-chords', comingSoon: true, units: [] },
   ]);
 
   /** Every step of the path, in the order it must be done. */

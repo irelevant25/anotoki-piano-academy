@@ -11,7 +11,8 @@
  * <folder>/key.json    { kid, private_pem, jwks } - anotoki_iam_test_keypair()
  * <folder>/state.json  who signs in and how the IAM behaves; POST /_test/state
  *                      merges JSON into it:
- *   user      { id, username, roles }   who authorize signs in
+ *   user      { id, username, roles, locale? }   who authorize signs in; locale is the
+ *             language their account is set to - the token's `locale` claim (en)
  *   ttl       seconds an access token lives (600)
  *   down      true: every OIDC endpoint answers 503 (the IAM unreachable)
  *   refuse    true: refreshing answers invalid_grant (the IAM session ended)
@@ -79,7 +80,7 @@ function fake_tokens(array &$state, array $user, array $key, string $issuer, str
     $common = [
         'iss' => $issuer, 'sub' => (string) $user['id'], 'aud' => $clientId, 'iat' => $now, 'sid' => $sid,
         'preferred_username' => $user['username'], 'email' => $user['username'] . '@example.test',
-        'email_verified' => true, 'locale' => 'en', 'roles' => $user['roles'],
+        'email_verified' => true, 'locale' => is_string($user['locale'] ?? null) ? $user['locale'] : 'en', 'roles' => $user['roles'],
     ];
     $access = anotoki_iam_test_sign($common + ['client_id' => $clientId, 'exp' => $now + (int) $state['ttl'], 'jti' => bin2hex(random_bytes(8)), 'scope' => 'openid profile email'], $key['private_pem'], $key['kid']);
     $id = anotoki_iam_test_sign($common + ['azp' => $clientId, 'exp' => $now + 3600, 'auth_time' => $now] + ($nonce !== null ? ['nonce' => $nonce] : []), $key['private_pem'], $key['kid'], 'JWT');

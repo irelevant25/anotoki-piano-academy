@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
+import { LanguageChanges, NewLanguage, OwnerLanguage, TranslationChanges, TranslationGrid } from '../i18n/translation.model';
 import { AppState, PathProgress, ProgressMap, Session, SessionInput } from '../music/music.types';
 
 // The backend's API. Every call carries the access token in auth mode 'iam'
@@ -21,11 +22,33 @@ import { AppState, PathProgress, ProgressMap, Session, SessionInput } from '../m
 
 const OUTBOX_PREFIX = 'piano-learning:unsaved-sessions:';
 
-/** A call that did not work: the HTTP status (0 = no answer), the server's code, and whether it was refused for being the wrong user. */
+/**
+ * A call that did not work: the HTTP status (0 = no answer), the server's
+ * code, and whether it was refused for being the wrong user.
+ *
+ * `details` is the answer's body when it is an object: the server's own
+ * English sentence (`error`) and, for a string that was refused, the key and
+ * the language it is about (`key`, `language`). Only the owner's two pages
+ * read it - they are English; a learner's page words a failure itself and
+ * never shows the server's sentence.
+ */
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code: string | null = null, readonly wrongUser = false) {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null = null,
+    readonly wrongUser = false,
+    readonly details: Record<string, unknown> | null = null,
+  ) {
     super(message);
   }
+}
+
+/** An answer's body as `details`: a plain object - not a list, not a text, not the browser's own error for "no answer". */
+function bodyDetails(body: unknown): Record<string, unknown> | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const kind: unknown = Object.getPrototypeOf(body);
+  return kind === Object.prototype || kind === null ? (body as Record<string, unknown>) : null;
 }
 
 interface OutboxEntry {
@@ -97,8 +120,9 @@ export class ApiService {
       return await firstValueFrom(this.http.request<T>(method, url, { body, headers }));
     } catch (error) {
       if (error instanceof HttpErrorResponse) {
-        const code = typeof error.error?.code === 'string' ? error.error.code : null;
-        throw new ApiError(`${method} ${url} failed: ${error.status}`, error.status, code);
+        const details = bodyDetails(error.error);
+        const code = typeof details?.['code'] === 'string' ? details['code'] : null;
+        throw new ApiError(`${method} ${url} failed: ${error.status}`, error.status, code, false, details);
       }
       throw error;
     }
@@ -114,6 +138,53 @@ export class ApiService {
 
   async savePath(path: PathProgress): Promise<void> {
     await this.request('PUT', '/api/path', path);
+  }
+
+  // --- the app's own words: the owner's two pages (the server lets nobody else in) ---
+
+  /** Every language, the hidden ones too. */
+  async languages(): Promise<OwnerLanguage[]> {
+    return (await this.request<{ languages: OwnerLanguage[] }>('GET', '/api/owner/languages')).languages;
+  }
+
+  /**
+   * A new language, sorted last - and offered to readers at once only when
+   * `enabled` says so: one with no strings yet reads in English throughout, so
+   * the page that adds it says which it is, every time.
+   * ApiError 409 `language_exists`, 422 `invalid_language` or `too_many_languages`.
+   */
+  async createLanguage(language: NewLanguage & { enabled: boolean }): Promise<OwnerLanguage> {
+    return (await this.request<{ language: OwnerLanguage }>('POST', '/api/owner/languages', language)).language;
+  }
+
+  /** Its names, its place, whether it is offered. ApiError 409 `fallback_language` for switching English off. */
+  async updateLanguage(code: string, changes: LanguageChanges): Promise<OwnerLanguage> {
+    return (await this.request<{ language: OwnerLanguage }>('PUT', `/api/owner/languages/${encodeURIComponent(code)}`, changes)).language;
+  }
+
+  /** Its strings go with it. ApiError 409 `fallback_language` for English, `seeded_language` for a language the app is released in. */
+  async deleteLanguage(code: string): Promise<void> {
+    await this.request('DELETE', `/api/owner/languages/${encodeURIComponent(code)}`);
+  }
+
+  /** Every key with its string in every language. */
+  translationGrid(): Promise<TranslationGrid> {
+    return this.request<TranslationGrid>('GET', '/api/owner/translations');
+  }
+
+  /** Saves the cells that changed, all or none; answers the grid as it is now, other people's changes included. */
+  saveTranslations(values: TranslationChanges): Promise<TranslationGrid> {
+    return this.request<TranslationGrid>('PUT', '/api/owner/translations', { values });
+  }
+
+  /** One language's own strings as a flat {key: text} map - not merged with English. */
+  exportTranslations(code: string): Promise<Record<string, string>> {
+    return this.request<Record<string, string>>('GET', `/api/owner/translations/${encodeURIComponent(code)}/export`);
+  }
+
+  /** The way back: a flat {key: text} map, checked like a save; unknown keys are refused, blank values skipped. */
+  importTranslations(code: string, values: Record<string, string>): Promise<TranslationGrid> {
+    return this.request<TranslationGrid>('PUT', `/api/owner/translations/${encodeURIComponent(code)}/import`, values);
   }
 
   // --- the session outbox ---

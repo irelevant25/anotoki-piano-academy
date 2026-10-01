@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { PathProgress } from './music.types';
-import { PASS_ACCURACY, PathService } from './path.service';
+import { NOTE_HINTS, PASS_ACCURACY, PathService, STEP_TYPES } from './path.service';
 import { SongsService } from './songs.service';
 import { TheoryService } from './theory.service';
 
@@ -25,6 +25,23 @@ describe('PathService', () => {
     expect(path.phases[0].units.map((unit) => unit.id)).toEqual(['rh-1', 'rh-2', 'rh-3', 'rh-4', 'rh-5']);
     expect(path.phases.slice(1).every((phase) => phase.comingSoon && phase.units.length === 0)).toBe(true);
     expect(path.phases[0].units[1]).toMatchObject({ number: 2, phaseId: 'right-hand' });
+  });
+
+  it('keeps, as data, the English a stored session label is made of - and no other words', () => {
+    // "C, D, E · Drill": what every lesson round is stored under, whatever language the page is in.
+    expect(path.phases[0].units.map((unit) => unit.title)).toEqual(['C, D, E', 'G', 'F', 'A', 'B and high C']);
+    expect(STEP_TYPES).toEqual({ meet: { short: 'Meet' }, drill: { short: 'Drill' }, read: { short: 'Read' }, tempo: { short: 'In time' }, song: { short: 'Song' } });
+    expect(path.stepTypes).toBe(STEP_TYPES);
+
+    // A phase is its id, its keyboard and its units: its title and description are the language's (path-words.ts).
+    expect(path.phases.map((phase) => phase.id)).toEqual(['right-hand', 'left-hand', 'hands-together', 'left-hand-chords', 'right-hand-chords', 'melody-and-chords']);
+    for (const phase of path.phases) {
+      expect(Object.keys(phase).sort().filter((name) => !['comingSoon', 'keyboard'].includes(name))).toEqual(['id', 'number', 'units']);
+    }
+
+    // The hints are the notes that have one - the right hand's eight - and hold no sentence.
+    expect(NOTE_HINTS).toEqual([60, 62, 64, 65, 67, 69, 71, 72]);
+    expect(path.noteHints).toBe(NOTE_HINTS);
   });
 
   it('introduces the notes in the curriculum\'s order', () => {

@@ -1,0 +1,98 @@
+:host {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+// Beside the theme button in the footer, and as quiet as it is.
+.switcher {
+  min-width: 2.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.switcher:hover {
+  color: var(--text);
+}
+
+.switcher[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.switcher[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+// The button stands at the bottom of the page, so the menu opens upward,
+// centred on the button and never wider than the screen. --shift is what the
+// component moves it by when the button stands too near the screen's edge.
+.menu,
+.note {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+  z-index: 40;
+  max-width: calc(100vw - 2rem);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 10rem;
+  padding: 0.35rem;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--panel-alt);
+}
+
+.menu-item:focus-visible {
+  outline-offset: -2px;
+}
+
+.menu-item[aria-checked="true"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.menu-label {
+  overflow-wrap: anywhere;
+}
+
+.check {
+  flex: none;
+  color: var(--accent);
+}
+
+// The language that could not be loaded: said where the menu was.
+.note {
+  width: max-content;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: center;
+}

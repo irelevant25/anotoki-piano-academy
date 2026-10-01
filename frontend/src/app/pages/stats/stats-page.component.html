@@ -1,67 +1,85 @@
 <div class="card">
-    <h2>Your Progress</h2>
+    <h2>{{ 'stats.title' | translate }}</h2>
     <div class="grid">
         <div class="stat-tile">
             <div class="value">{{ tiles().known }}/{{ curriculumLength }}</div>
-            <div class="label">Notes known</div>
+            <div class="label">{{ 'stats.tile.known' | translate }}</div>
         </div>
         <div class="stat-tile">
             <div class="value">{{ tiles().mastered }}</div>
-            <div class="label">Notes mastered</div>
+            <div class="label">{{ 'stats.tile.mastered' | translate }}</div>
         </div>
         <div class="stat-tile">
-            <div class="value">{{ tiles().accuracy }}</div>
-            <div class="label">Overall accuracy</div>
+            <div class="value">
+                @if (tiles().accuracy !== null) {
+                    {{ 'common.percent' | translate: { value: tiles().accuracy } }}
+                } @else {
+                    —
+                }
+            </div>
+            <div class="label">{{ 'stats.tile.accuracy' | translate }}</div>
         </div>
         <div class="stat-tile">
             <div class="value">{{ tiles().streak }}</div>
-            <div class="label">Day streak</div>
+            <div class="label">{{ 'stats.tile.streak' | translate }}</div>
         </div>
         <div class="stat-tile">
             <div class="value">{{ tiles().sessions }}</div>
-            <div class="label">Sessions logged</div>
+            <div class="label">{{ 'stats.tile.sessions' | translate }}</div>
         </div>
         <div class="stat-tile">
             <div class="value">{{ tiles().minutes }}</div>
-            <div class="label">Minutes practiced</div>
+            <div class="label">{{ 'stats.tile.minutes' | translate }}</div>
         </div>
     </div>
 </div>
 
 <div class="card">
-    <h2>Keyboard mastery</h2>
+    <h2>{{ 'stats.keyboard.title' | translate }}</h2>
     <p class="tag legend">
-        <span class="dot learning">&#9679;</span> learning
-        <span class="dot review">&#9679;</span> review
-        <span class="dot mastered">&#9679;</span> mastered
+        <span class="dot learning">&#9679;</span> {{ 'stats.keyboard.learning' | translate }}
+        <span class="dot review">&#9679;</span> {{ 'stats.keyboard.review' | translate }}
+        <span class="dot mastered">&#9679;</span> {{ 'stats.keyboard.mastered' | translate }}
     </p>
     <app-piano-keyboard id="st-keyboard" [model]="keyboard" [lowMidi]="41" [highMidi]="84" />
 </div>
 
 <div class="card">
-    <h2>Recent sessions</h2>
+    <h2>{{ 'stats.recent.title' | translate }}</h2>
     @if (recent().length === 0) {
-        <p>No sessions yet — practice a round in Note Trainer to get started.</p>
+        <p>{{ 'stats.recent.empty' | translate }}</p>
     } @else {
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
-                        <th>When</th>
-                        <th>Mode</th>
-                        <th>Score</th>
-                        <th>Accuracy</th>
-                        <th>Avg timing</th>
+                        <th>{{ 'stats.recent.when' | translate }}</th>
+                        <th>{{ 'stats.recent.mode' | translate }}</th>
+                        <th>{{ 'stats.recent.score' | translate }}</th>
+                        <th>{{ 'stats.recent.accuracy' | translate }}</th>
+                        <th>{{ 'stats.recent.timing' | translate }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     @for (row of recent(); track row.id) {
                         <tr>
-                            <td>{{ row.when }}</td>
-                            <td>{{ row.mode }}</td>
+                            <td>{{ row.when | localDate: 'moment' }}</td>
+                            <td>
+                                <span>{{ row.mode[0] }}</span>
+                                @if (row.mode[2]) {
+                                    <span [attr.lang]="row.stored ? 'en' : null">{{ row.name }}</span>
+                                }
+                                <span>{{ row.mode[1] }}</span>
+                            </td>
                             <td>{{ row.score }}</td>
-                            <td>{{ row.accuracy }}</td>
-                            <td>{{ row.timing }}</td>
+                            <td>{{ 'common.percent' | translate: { value: row.accuracy } }}</td>
+                            <td>
+                                @if (row.timingMs !== null) {
+                                    {{ 'common.milliseconds' | translate: { value: row.timingMs } }}
+                                } @else {
+                                    —
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>

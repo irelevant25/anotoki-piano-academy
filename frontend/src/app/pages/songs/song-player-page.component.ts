@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { MidiService } from '../../core/midi/midi.service';
 import { SongsService } from '../../core/music/songs.service';
 import { SrsService } from '../../core/music/srs.service';
@@ -11,13 +12,19 @@ import { KeyboardModel } from '../../ui/piano-keyboard/keyboard-model';
 import { PianoKeyboardComponent } from '../../ui/piano-keyboard/piano-keyboard.component';
 import { Feedback } from '../lesson/step-outcome';
 
+/** A tempo on offer: the number, and whether it is the song's own - the template words it. */
+interface TempoOption {
+  value: number;
+  original: boolean;
+}
+
 /** One song (/songs/:songId), played along with the metronome at its own tempo, a little slower or faster. */
 @Component({
   selector: 'app-song-player-page',
   templateUrl: './song-player-page.component.html',
   styleUrl: './song-player-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe],
 })
 export class SongPlayerPageComponent implements OnInit {
   private readonly midi = inject(MidiService);
@@ -30,6 +37,7 @@ export class SongPlayerPageComponent implements OnInit {
   /** From the address (withComponentInputBinding). */
   readonly songId = input<string>();
 
+  /** The song's title is its name: shown as SongsService has it, in every language. */
   protected readonly song = computed(() => this.library.byId(this.songId()));
   /**
    * Opened by its address, a locked song stays locked. Decided once, when the
@@ -37,21 +45,17 @@ export class SongPlayerPageComponent implements OnInit {
    * the song must not lock itself in the middle of being played.
    */
   protected readonly unlocked = signal(false);
-  protected readonly tempos = computed(() => {
+  protected readonly tempos = computed<TempoOption[]>(() => {
     const song = this.song();
-    return song
-      ? [0.75, 1, 1.25].map((factor) => {
-          const value = Math.round(song.bpm * factor);
-          return { value, label: `${value} BPM${factor === 1 ? ' (original)' : ''}` };
-        })
-      : [];
+    return song ? [0.75, 1, 1.25].map((factor) => ({ value: Math.round(song.bpm * factor), original: factor === 1 })) : [];
   });
 
   private readonly staff = viewChild(NotationComponent);
   protected readonly keyboard = new KeyboardModel();
   protected readonly bpm = signal(0);
   protected readonly playing = signal(false);
-  protected readonly feedback = signal<Feedback>({ text: 'Press Start, then play along with the click.', kind: null });
+  /** A key and its values, never a sentence: the template words it. */
+  protected readonly feedback = signal<Feedback>({ key: 'songs.ready', kind: null });
 
   private player: SequencePlayer | null = null;
 
@@ -79,9 +83,10 @@ export class SongPlayerPageComponent implements OnInit {
       store: this.store,
       notation: staff.notation(),
       keyboard: this.keyboard,
-      feedback: (text, kind = null) => this.feedback.set({ text, kind }),
+      feedback: (key, params, kind = null) => this.feedback.set({ key, params, kind }),
       onFinish: (result) => {
         this.playing.set(false);
+        // The title stored with the session is the song's own English name, as ever (Stats words a row from the song's id).
         this.store
           .recordSession({ mode: 'song', songId: song.id, songTitle: song.title, ...sessionFieldsFromResult(result) })
           .catch((error) => console.error('Failed to record session', error));

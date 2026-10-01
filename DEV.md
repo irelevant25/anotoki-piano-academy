@@ -78,7 +78,8 @@ for `http://localhost:4500`: the redirect URI `/auth/callback` (a route of this
 app), and `/` after signing out. On the setup page choose the IAM, with the
 address `http://localhost:4300`, and **Save**. Sign in at
 `http://localhost:4500`; only accounts with a role in Piano Academy (the IAM's
-admin console) get in.
+admin console) get in, and only the role ADMIN sees and may use the
+Translations and Languages pages.
 
 ## Day to day
 
@@ -95,12 +96,43 @@ php migration.php [--status|--dry-run]          # apply pending migrations (setu
 php tools/progress.php --export=FILE [--user=ID] # one person's progress as a file
 php tools/progress.php --import=PATH [--user=ID] # into an account that has none: an export, or a folder of old files
 php tools/progress.php --owner=ID                # you are IAM user ID: your progress moves there
+php tools/translations.php --status              # the keys the frontend asks for against the database's
+php tools/translations.php --export sk [FILE]    # one language's strings as flat JSON (to the screen without FILE)
+php tools/translations.php --import sk FILE      # and back in, checked as a save in the browser is
 php tools/build.php [--out=DIR]                  # the upload (see Building and deploying)
 ```
 
 The database is `migrations/piano_academy/NNN_name.sql`, applied in order by the
 same engine as the IAM's and the genshin site's (`api/migration_runner.php`).
 Never edit an applied migration; add the next number.
+
+### The app's words
+
+What the app says is in the database, in English and Slovak (informal, "ty"),
+English the fallback: the tables `languages`, `translation_keys` and
+`translations` (migration 002), the keys and their first strings (003). The
+owner rewords them in the browser - **Translations** and **Languages**, linked
+at the bottom of the page for the owner (on your own computer, you; on the
+hosted site, an account with the role ADMIN of Piano Academy in the IAM). A
+key with no string shows as the key itself, on purpose.
+
+- `tools/translations.php --status` scans `frontend/src/app` for the keys it
+  asks for (`tools/translation_keys.php`: quoted literals of a key's shape,
+  `core/i18n/dynamic-keys.ts` for keys put together at run time) and compares
+  them with the database: exit 1 when a key is missing, has no English
+  string, or is asked for in a way the scan does not let through; it lists
+  keys nothing asks for. `php tests/run.php` runs the same scan against the
+  migrations. The tool refuses while a migration is pending, and what it
+  imports is written by nobody (`updated_by` null).
+- **A new string** is a new migration in 003's layout (a test reads it as
+  text): the key with a description, its English, its Slovak, and a closing
+  gate. A string the shell shows while there are no strings at all (the
+  header, the nav, the cards) also goes into
+  `frontend/src/app/core/i18n/kept-english.ts`, letter for letter.
+- While a migration is not released it may still change: after editing it,
+  `php tests/tools/testdb.php template --fresh` builds the tests' template
+  again from every migration (the template otherwise never reapplies a
+  migration it has seen).
 
 ## Tests
 
@@ -122,6 +154,9 @@ this machine's `config/database.local.php`, so run the setup once first. They
 never touch `piano_academy` or `server/data/` (the import tests use copies).
 To run them under a second PHP - the hosting's version - call that binary
 instead of `php`: `run.php` starts each file with the PHP it runs under.
+`php tests/tools/testdb.php template --fresh` drops and rebuilds the template
+they are copied from - needed after editing a migration that is not released
+yet; not while tests are running.
 
 A throwaway copy of the app, for trying things in a browser:
 
@@ -188,6 +223,51 @@ version with a new migration needs the setup page once more: delete
 `storage/installed.lock`, and open `/setup.php` (the upload carries it) with the
 same details - it applies what is missing and keeps everybody's progress.
 
+### Releasing the app's words
+
+The translation migrations (002 the tables, 003 the strings; later ones the
+same way) touch nobody's progress - a test holds them to it. They reach a
+database only with a released version, by the owner's own hand.
+
+1. **The dump comes first** - on your own computer before `start.ps1` /
+   `start.sh`, not after: the launcher applies pending migrations by itself
+   as it starts (its step 4, "Bringing the database up to date"), with no
+   pause. In `backend/`, with the server, port and user of
+   `config/database.local.php` (`pg_dump` asks for the password; on Windows it
+   is in `C:\Program Files\PostgreSQL\<version>\bin\`; make
+   `storage/backups/` first if it is missing - `storage/` is gitignored):
+
+   ```bash
+   pg_dump --host=localhost --port=5432 --username=postgres --format=custom --file=storage/backups/piano_academy-before-update.dump piano_academy
+   ```
+
+   To go back: `pg_restore --host=localhost --port=5432 --username=postgres --clean --if-exists --dbname=piano_academy storage/backups/piano_academy-before-update.dump`.
+2. **The encoding**: `SHOW server_encoding;` must answer `UTF8` on your
+   database and on the host's (psql, or the hosting panel's database tool).
+   002 refuses anything else with a sentence saying so; such a database has to
+   be made again with the encoding UTF8.
+3. **Your own computer**: the launcher's next start applies the migrations -
+   or `/setup.php` with your database entered, or `php migration.php`.
+   If one fails, the launcher stops with "The database could not be brought
+   up to date": its hint about PostgreSQL not running is then wrong - the
+   lines above it name the file and the error. A file is applied all or
+   nothing, and the earlier version starts again on the same database (an
+   applied migration the code does not know stops nothing).
+4. **The host**: in the browser, export both languages first (Translations,
+   each language's export) - your rewordings, kept. Then upload, delete
+   `storage/installed.lock` and run `/setup.php` **at once**: until it has
+   run, every visitor sees "Piano Academy is not set up yet". So the strings
+   of a release are collected into **one** migration - every migration means
+   this re-run.
+
+Strings the owner reworded in the browser survive every later migration
+(each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
+after release needs an `UPDATE` in its migration. The two databases (your
+computer, the host) each hold their own strings: export and import - on the
+Translations page or with `tools/translations.php` - are the bridge. After a
+release, a new or reworded string is a new migration, and a new string of the
+shell also goes into `core/i18n/kept-english.ts`.
+
 If a whole site answers "500 Internal Server Error" after an upload, the host
 may not allow a line of `.htaccess` (`Options -Indexes` or `CGIPassAuth`):
 remove that line. If you gave the wrong IAM user id: in the hosting panel's
@@ -207,3 +287,5 @@ first, if there is one).
 | "Your sign-in has run out" on every request | The issuer in `config/auth.local.php` is not exactly the IAM's address, or the backend cannot reach `{issuer}/.well-known/jwks.json`. |
 | The piano is not offered | Not Chrome or Edge, or not a secure page (`https://`, or `http://localhost` / `127.0.0.1`), or the browser was not allowed to use MIDI devices. |
 | `tests/run.php` stops before any test | No `config/database.local.php` to borrow the PostgreSQL server from: run the setup first. |
+| The launcher stops: "The database could not be brought up to date" | A migration failed (the lines above name the file and the error) - or PostgreSQL is not running. On a failed migration the hint about PostgreSQL is wrong; restore the dump or start the earlier version, which runs on the same database. A database that is not UTF8 is refused by 002 with a sentence saying so. |
+| A word on the page looks like `home.title` | That key has no string in the database: a migration is missing, or the key is new. `php tools/translations.php --status` names it. |

@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
-import { Session } from '../../core/music/music.types';
+import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
+import { stepShort, unitTitle } from '../../core/i18n/path-words';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationCut, TranslationService } from '../../core/i18n/translation.service';
+import { Session, SessionMode } from '../../core/music/music.types';
+import { PathService } from '../../core/music/path.service';
+import { SongsService } from '../../core/music/songs.service';
 import { TheoryService } from '../../core/music/theory.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { KeyboardModel } from '../../ui/piano-keyboard/keyboard-model';
@@ -41,17 +47,54 @@ export function practiceMinutes(sessions: Session[]): number {
   return Math.round(ms / 60000);
 }
 
+/**
+ * What a session's mode is called in the Mode column: whole keys, one a mode.
+ * The two that go on with a name ("Lesson: ...", "Song: ...") have it as
+ * {name}. A key is never put together from anything a session holds - its
+ * mode, ids and label are whatever was stored: a mode this table does not
+ * have reads as the Note Trainer's, as it always did.
+ */
+const MODE_KEYS: Record<SessionMode, string> = {
+  lesson: 'stats.mode.lesson',
+  song: 'stats.mode.song',
+  sheet: 'stats.mode.sheet',
+  trainer: 'stats.mode.trainer',
+};
+
+/** One line of "Recent sessions". */
+interface RecentRow {
+  id: string;
+  /** The moment it was played, as stored: the template writes it the way the page's language does. */
+  when: string;
+  /** The mode's words, cut where the name goes; not cut (the third is false) for a mode that has no name. */
+  mode: TranslationCut;
+  /** What was played: a lesson step or a song. */
+  name: string;
+  /**
+   * The name is text kept with the session - English, whatever language the
+   * page is in - because the step or the song it was is not in the app any
+   * more (or never said which it was). It is drawn marked `lang="en"`.
+   */
+  stored: boolean;
+  score: string;
+  accuracy: number | string;
+  timingMs: number | null;
+}
+
 /** Stats: the tiles, a keyboard heatmap of each note's mastery, and the recent sessions. */
 @Component({
   selector: 'app-stats-page',
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PianoKeyboardComponent],
+  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe],
 })
 export class StatsPageComponent {
   private readonly store = inject(ProgressStore);
   private readonly theory = inject(TheoryService);
+  private readonly path = inject(PathService);
+  private readonly songs = inject(SongsService);
+  private readonly i18n = inject(TranslationService);
 
   protected readonly keyboard = new KeyboardModel();
   protected readonly curriculumLength = this.theory.curriculum.length;
@@ -65,25 +108,36 @@ export class StatsPageComponent {
     return {
       known: this.store.knownNotes().length,
       mastered: this.theory.curriculum.filter((midi) => progress[midi]?.status === 'mastered').length,
-      accuracy: totalAttempts ? `${Math.round((totalCorrect / totalAttempts) * 100)}%` : '—',
+      /** A whole number of percent - null before the first answer. */
+      accuracy: totalAttempts ? Math.round((totalCorrect / totalAttempts) * 100) : null,
       streak: computeStreak(sessions),
       sessions: sessions.length,
       minutes: practiceMinutes(sessions),
     };
   });
 
-  /** The latest fifteen, newest first. Everything here is text - Angular escapes it. */
-  protected readonly recent = computed(() =>
-    [...this.store.sessions()].reverse().slice(0, 15).map((session) => ({
-      id: session.id,
-      when: new Date(session.startedAt || session.recordedAt).toLocaleString(),
-      mode: session.mode === 'lesson' ? `Lesson: ${session.label ?? ''}`
-        : session.mode === 'song' ? `Song: ${session.songTitle ?? ''}`
-          : session.mode === 'sheet' ? 'Sheet Practice' : 'Note Trainer',
-      score: `${session.correct ?? ''}/${session.attempts ?? ''}`,
-      accuracy: `${session.accuracy ?? ''}%`,
-      timing: session.avgTimingErrorMs != null ? `${session.avgTimingErrorMs}ms` : '—',
-    })),
+  /**
+   * The latest fifteen, newest first. Everything here is text - Angular escapes it.
+   *
+   * Worded here, inside the computed(), so the rows follow the language. A
+   * lesson's row is worded only when its step is still on the path, and then
+   * from that step's own ids; a song's from the song the app has under that
+   * id. Anything else shows what was stored with the session, as it is.
+   */
+  protected readonly recent = computed<RecentRow[]>(() =>
+    [...this.store.sessions()].reverse().slice(0, 15).map((session) => {
+      const named = this.named(session);
+      return {
+        id: session.id,
+        when: session.startedAt || session.recordedAt,
+        mode: this.i18n.around(Object.hasOwn(MODE_KEYS, session.mode) ? MODE_KEYS[session.mode] : MODE_KEYS.trainer, 'name'),
+        name: named.name,
+        stored: named.stored,
+        score: `${session.correct ?? ''}/${session.attempts ?? ''}`,
+        accuracy: session.accuracy ?? '',
+        timingMs: session.avgTimingErrorMs ?? null,
+      };
+    }),
   );
 
   constructor() {
@@ -93,5 +147,20 @@ export class StatsPageComponent {
         this.keyboard.setKeyLevel(midi, progress[midi]?.status ?? 'new');
       }
     });
+  }
+
+  /** What a lesson's or a song's session was of: found in the app by its ids, or else as stored. */
+  private named(session: Session): { name: string; stored: boolean } {
+    if (session.mode === 'lesson') {
+      const found = this.path.findStep(session.unitId, session.stepId);
+      return found
+        ? { name: this.i18n.t('stats.lessonLabel', { unit: unitTitle(this.i18n, found.unit), step: stepShort(this.i18n, found.step.type) }), stored: false }
+        : { name: session.label ?? '', stored: true };
+    }
+    if (session.mode === 'song') {
+      const song = this.songs.byId(session.songId);
+      return song ? { name: song.title, stored: false } : { name: session.songTitle ?? '', stored: true };
+    }
+    return { name: '', stored: false };
   }
 }

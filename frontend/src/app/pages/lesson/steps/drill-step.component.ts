@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { MidiService, NoteOnDetail } from '../../../core/midi/midi.service';
 import { PathStep, ProgressMap } from '../../../core/music/music.types';
 import { PathService } from '../../../core/music/path.service';
@@ -22,7 +23,7 @@ const DRILL_LENGTH = 10;
   templateUrl: './drill-step.component.html',
   styleUrl: './drill-step.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe],
 })
 export class DrillStepComponent {
   private readonly midi = inject(MidiService);
@@ -38,7 +39,8 @@ export class DrillStepComponent {
   protected readonly keyboard = new KeyboardModel();
   protected readonly index = signal(0);
   protected readonly correctCount = signal(0);
-  protected readonly feedback = signal<Feedback>({ text: '', kind: null });
+  /** A key and its values, never a sentence: the template words it. */
+  protected readonly feedback = signal<Feedback>({ key: null, kind: null });
   protected readonly range = computed(() => this.entry().phase.keyboard ?? { lowMidi: 48, highMidi: 84 });
   protected readonly length = DRILL_LENGTH;
 
@@ -71,9 +73,10 @@ export class DrillStepComponent {
     this.waiting = true;
     this.keyboard.clearStates();
     this.staff().notation().renderSingleNote(this.round[this.index()]);
-    this.feedback.set({ text: 'Which note is this?', kind: null });
+    this.feedback.set({ key: 'drill.question', kind: null });
   }
 
+  /** The piano's handler: it sets a key and its values at once - nothing worded, nothing awaited. */
   private answer(played: number): void {
     if (!this.waiting) return;
     this.waiting = false;
@@ -85,10 +88,10 @@ export class DrillStepComponent {
     this.keyboard.setKeyState(played, correct ? 'correct' : 'incorrect');
     if (correct) {
       this.correctCount.update((n) => n + 1);
-      this.feedback.set({ text: `Correct - ${this.theory.midiToName(target)}!`, kind: 'correct' });
+      this.feedback.set({ key: 'drill.correct', params: { note: this.theory.midiToName(target) }, kind: 'correct' });
     } else {
       this.keyboard.setKeyState(target, 'target');
-      this.feedback.set({ text: `That was ${this.theory.midiToName(played)} - this one is ${this.theory.midiToName(target)}.`, kind: 'incorrect' });
+      this.feedback.set({ key: 'drill.wrong', params: { played: this.theory.midiToName(played), target: this.theory.midiToName(target) }, kind: 'incorrect' });
     }
 
     const pauseMs = correct ? 700 : 1500;

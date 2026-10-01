@@ -7,16 +7,19 @@ import { NotSetUpComponent } from './boot/not-set-up/not-set-up.component';
 import { SignInCardComponent } from './boot/sign-in-card/sign-in-card.component';
 import { AuthService } from './core/auth/auth.service';
 import { ChangelogService } from './core/changelog/changelog.service';
+import { TranslatePipe } from './core/i18n/translate.pipe';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
 import { AccountPanelComponent } from './ui/account-panel/account-panel.component';
 import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog.component';
+import { LanguageSwitcherComponent } from './ui/language-switcher/language-switcher.component';
 import { MidiPanelComponent } from './ui/midi-panel/midi-panel.component';
 import { ThemeToggleComponent } from './ui/theme-toggle/theme-toggle.component';
 
 interface NavItem {
   id: string;
-  label: string;
+  /** The key of its word: state holds keys, the template words them. */
+  labelKey: string;
   path: string;
 }
 
@@ -24,7 +27,13 @@ interface NavItem {
  * The frame around every view: the header (the piano connection, and who is
  * signed in), the navigation, the "signed out" banner, the view - or, while
  * the app cannot run yet, the card saying why - and the footer with the
- * version (which opens what is new) and the theme.
+ * version (which opens what is new), the owner's link to the app's words, the
+ * language and the theme.
+ *
+ * All of it is drawn in every state of the start, also when the app has no
+ * strings at all (not set up, the backend down): every key used out here is
+ * in core/i18n/kept-english.ts too, which the translation service reads while
+ * no bundle is in memory.
  */
 @Component({
   selector: 'app-root',
@@ -33,8 +42,10 @@ interface NavItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     RouterOutlet,
+    TranslatePipe,
     MidiPanelComponent,
     AccountPanelComponent,
+    LanguageSwitcherComponent,
     ThemeToggleComponent,
     ChangelogDialogComponent,
     SignInCardComponent,
@@ -52,12 +63,18 @@ export class AppComponent {
   private readonly changelogDialog = viewChild.required(ChangelogDialogComponent);
 
   protected readonly nav: NavItem[] = [
-    { id: 'home', label: 'Learn', path: '/' },
-    { id: 'trainer', label: 'Note Trainer', path: '/trainer' },
-    { id: 'sheet', label: 'Sheet Practice', path: '/sheet' },
-    { id: 'songs', label: 'Songs', path: '/songs' },
-    { id: 'stats', label: 'Stats', path: '/stats' },
+    { id: 'home', labelKey: 'nav.learn', path: '/' },
+    { id: 'trainer', labelKey: 'nav.trainer', path: '/trainer' },
+    { id: 'sheet', labelKey: 'nav.sheet', path: '/sheet' },
+    { id: 'songs', labelKey: 'nav.songs', path: '/songs' },
+    { id: 'stats', labelKey: 'nav.stats', path: '/stats' },
   ];
+
+  /**
+   * The link to the app's words, for the person who may change them - once the
+   * app runs. It only hides what the server refuses anyway.
+   */
+  protected readonly ownerLink = computed(() => this.boot.status() === 'ready' && this.auth.isOwner());
 
   private readonly url = toSignal(
     this.router.events.pipe(

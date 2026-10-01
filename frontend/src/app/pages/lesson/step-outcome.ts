@@ -1,3 +1,4 @@
+import type { TranslationParams } from '../../core/i18n/translation.service';
 import type { SessionInput } from '../../core/music/music.types';
 
 /**
@@ -13,7 +14,18 @@ export interface StepOutcome {
   delayMs: number;
 }
 
+/**
+ * What a practice view tells the learner under the staff: never a sentence,
+ * but the key of one (with the values of its {placeholders}), so the template
+ * words it in the language on the page - and words it again when the language
+ * changes in the middle of a step. `key: null` is "nothing to say": the line
+ * stays on the page, empty.
+ *
+ * A MIDI handler sets this synchronously; nothing worded is ever awaited there.
+ * A note name goes in as a parameter, from TheoryService.midiToName().
+ */
 export interface Feedback {
-  text: string;
+  key: string | null;
+  params?: TranslationParams;
   kind: 'correct' | 'incorrect' | null;
 }

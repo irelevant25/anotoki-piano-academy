@@ -82,7 +82,9 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     assert_same(['.htaccess', '.piano-academy-build', 'api', 'changelog.json', 'config', 'index.html',
         'main-TEST.js', 'media', 'migrations', 'setup.php', 'storage', 'styles-TEST.css', 'theme-boot.js', 'vendor'], $top);
     foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/anotoki_iam.php', 'api/routes/progress.php', 'api/meddleware/setup.php',
-        'config/config.php', 'config/.htaccess', 'migrations/piano_academy/001_init.sql', 'migrations/.htaccess', 'vendor/autoload.php',
+        'api/translations.php', 'api/routes/translations.php',
+        'config/config.php', 'config/.htaccess', 'migrations/piano_academy/001_init.sql', 'migrations/piano_academy/002_languages_and_translations.sql',
+        'migrations/piano_academy/003_site_strings.sql', 'migrations/.htaccess', 'vendor/autoload.php',
         'vendor/slim/slim/Slim/App.php', 'vendor/.htaccess', 'storage/.htaccess', 'media/font-TEST.woff2'] as $file) {
         assert_true(in_array($file, $files, true), "$file is in the upload");
     }
@@ -153,7 +155,7 @@ test('the setup page on a real host: the token, the tests, the database - and th
 
     $done = site_form($site, '/setup.php', form($token, $database));
     assert_match('/<h1>Installed<\/h1>/', $done['raw']);
-    assert_match('/Made the tables \(001_init\.sql\)/', $done['raw']);
+    assert_match('/Made the tables \(001_init\.sql, 002_/', $done['raw']);
     assert_match('/The setup page has deleted itself/', $done['raw']);
     assert_no_match('/<script/', $done['raw'], 'no script to ask the deleted file for');
 

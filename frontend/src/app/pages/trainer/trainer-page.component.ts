@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, Injector, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationService } from '../../core/i18n/translation.service';
 import { MidiService, NoteOnDetail } from '../../core/midi/midi.service';
 import { ProgressMap } from '../../core/music/music.types';
 import { PathService } from '../../core/music/path.service';
@@ -24,7 +26,7 @@ const ROUND_LENGTH = 12;
   templateUrl: './trainer-page.component.html',
   styleUrl: './trainer-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe],
 })
 export class TrainerPageComponent {
   private readonly midi = inject(MidiService);
@@ -34,6 +36,7 @@ export class TrainerPageComponent {
   private readonly store = inject(ProgressStore);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  private readonly i18n = inject(TranslationService);
 
   private readonly staff = viewChild(NotationComponent);
   protected readonly keyboard = new KeyboardModel();
@@ -42,9 +45,19 @@ export class TrainerPageComponent {
   protected readonly finished = signal(false);
   protected readonly index = signal(0);
   protected readonly correctCount = signal(0);
-  protected readonly feedback = signal<Feedback>({ text: 'Play the note shown above on your piano.', kind: null });
+  /** A key and its values, never a sentence: the template words it. */
+  protected readonly feedback = signal<Feedback>({ key: 'trainer.start', kind: null });
+  /** The note's name: the same in every language. */
   protected readonly name = signal('');
   protected readonly accuracy = computed(() => Math.round((this.correctCount() / ROUND_LENGTH) * 100));
+
+  /**
+   * The line above the staff is two sentences, each cut at its number: the
+   * numbers stay elements of their own (#tr-progress, #tr-correct), and the
+   * words around them are the language's.
+   */
+  protected readonly prompt = computed(() => this.i18n.around('trainer.prompt', 'position'));
+  protected readonly correctSoFar = computed(() => this.i18n.around('trainer.correctSoFar', 'count'));
 
   private round: number[] = [];
   private progress: ProgressMap = {};
@@ -75,7 +88,7 @@ export class TrainerPageComponent {
     this.index.set(0);
     this.correctCount.set(0);
     this.startedAt = new Date().toISOString();
-    this.feedback.set({ text: 'Play the note shown above on your piano.', kind: null });
+    this.feedback.set({ key: 'trainer.start', kind: null });
     this.keyboard.markKnown(this.store.knownNotes());
     this.finished.set(false);
     afterNextRender(() => this.showPrompt(), { injector: this.injector });
@@ -84,12 +97,13 @@ export class TrainerPageComponent {
   private showPrompt(): void {
     const target = this.round[this.index()];
     this.name.set(this.theory.midiToName(target));
-    this.feedback.set({ text: 'Play this note on your piano.', kind: null });
+    this.feedback.set({ key: 'trainer.play', kind: null });
     this.keyboard.clearStates();
     this.staff()?.notation().renderSingleNote(target);
     this.awaitingAnswer = true;
   }
 
+  /** The piano's handler: it sets a key and its values at once - nothing worded, nothing awaited. */
   private answer(played: number): void {
     if (!this.awaitingAnswer) return;
     this.awaitingAnswer = false;
@@ -102,9 +116,9 @@ export class TrainerPageComponent {
     if (!correct) this.keyboard.setKeyState(target, 'target');
     if (correct) {
       this.correctCount.update((n) => n + 1);
-      this.feedback.set({ text: 'Correct!', kind: 'correct' });
+      this.feedback.set({ key: 'trainer.correct', kind: 'correct' });
     } else {
-      this.feedback.set({ text: `That was ${this.theory.midiToName(played)} — target was ${this.theory.midiToName(target)}.`, kind: 'incorrect' });
+      this.feedback.set({ key: 'trainer.wrong', params: { played: this.theory.midiToName(played), target: this.theory.midiToName(target) }, kind: 'incorrect' });
     }
 
     this.store.saveProgress(this.progress).catch((error) => console.error('Failed to save progress', error));

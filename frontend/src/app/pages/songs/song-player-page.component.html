@@ -3,31 +3,35 @@
         <h2>{{ current.title }}</h2>
         @if (unlocked()) {
             <div class="controls-row">
-                <button id="sg-back" type="button" (click)="back()">&larr; Back to songs</button>
+                <button id="sg-back" type="button" (click)="back()">&larr; {{ 'songs.back' | translate }}</button>
                 <label>
-                    Tempo:
+                    {{ 'tempo.label' | translate }}
                     <select id="sg-bpm" (change)="chooseTempo($event)">
                         @for (tempo of tempos(); track tempo.value) {
-                            <option [value]="tempo.value" [selected]="tempo.value === bpm()">{{ tempo.label }}</option>
+                            <option [value]="tempo.value" [selected]="tempo.value === bpm()">
+                                {{ (tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm') | translate: { bpm: tempo.value } }}
+                            </option>
                         }
                     </select>
                 </label>
-                <button id="sg-start" type="button" [disabled]="playing()" (click)="start()">Start (4-beat count-in)</button>
+                <button id="sg-start" type="button" [disabled]="playing()" (click)="start()">{{ 'player.start' | translate }}</button>
             </div>
             <app-notation id="sg-notation" />
             <p class="feedback" id="sg-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
-                {{ feedback().text }}
+                @if (feedback().key; as key) {
+                    {{ key | translate: feedback().params }}
+                }
             </p>
             <app-piano-keyboard id="sg-keyboard" [model]="keyboard" [lowMidi]="48" [highMidi]="84" />
         } @else {
-            <p>This song unlocks once you know every note it uses. The learning path teaches them.</p>
-            <button id="sg-back" type="button" (click)="back()">&larr; Back to songs</button>
+            <p>{{ 'songs.lockedSong' | translate }}</p>
+            <button id="sg-back" type="button" (click)="back()">&larr; {{ 'songs.back' | translate }}</button>
         }
     </div>
 } @else {
     <div class="card">
-        <h2>Songs</h2>
-        <p>There is no such song.</p>
-        <button id="sg-back" type="button" (click)="back()">&larr; Back to songs</button>
+        <h2>{{ 'songs.title' | translate }}</h2>
+        <p>{{ 'songs.notFound' | translate }}</p>
+        <button id="sg-back" type="button" (click)="back()">&larr; {{ 'songs.back' | translate }}</button>
     </div>
 }

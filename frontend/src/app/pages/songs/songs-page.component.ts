@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { SongsService } from '../../core/music/songs.service';
 import { SrsService } from '../../core/music/srs.service';
 import { TheoryService } from '../../core/music/theory.service';
@@ -11,6 +12,7 @@ import { ProgressStore } from '../../core/state/progress-store.service';
   templateUrl: './songs-page.component.html',
   styleUrl: './songs-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslatePipe],
 })
 export class SongsPageComponent {
   private readonly router = inject(Router);
@@ -19,6 +21,7 @@ export class SongsPageComponent {
   private readonly theory = inject(TheoryService);
   private readonly library = inject(SongsService);
 
+  /** A song's title and the note names it needs are names: the same in every language. */
   protected readonly songs = computed(() => {
     const progress = this.store.progress();
     const isKnown = (midi: number): boolean => this.srs.isUnlocked(progress[midi]);

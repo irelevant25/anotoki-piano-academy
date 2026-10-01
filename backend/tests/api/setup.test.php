@@ -138,7 +138,7 @@ test('Save: the settings, the tables, the old progress - and the page stays', fu
     $answer = call_form($GLOBALS['site']['base'], '/setup.php', fields(), [], with_cookie());
     assert_match('/<h1>Saved<\/h1>/', $answer['raw']);
     assert_no_match('/<script/', $answer['raw'], 'a finished page has nothing to script');
-    assert_match('/Made the tables \(001_init\.sql\)/', $answer['raw']);
+    assert_match('/Made the tables \(001_init\.sql, 002_/', $answer['raw']);
     assert_match('/Sign-in is off: the app answers this computer only, as IAM user 1\./', $answer['raw']);
     $notes = count(json_decode((string) file_get_contents($GLOBALS['config'] . '/server-data/progress.json'), true));
     $sessions = count(json_decode((string) file_get_contents($GLOBALS['config'] . '/server-data/sessions.json'), true));

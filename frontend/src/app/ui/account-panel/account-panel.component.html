@@ -1,14 +1,15 @@
 @if (visible()) {
     <div class="account-panel" id="account-panel">
         @if (store.unsaved()) {
-            <span class="save-status" id="save-status" title="Some of your progress is not on the server yet. The app keeps trying.">Not saved yet</span>
+            <span class="save-status" id="save-status" [title]="'account.notSavedHint' | translate">{{ 'account.notSaved' | translate }}</span>
         }
-        <span class="account-name" id="account-name">{{ signedIn() ? auth.displayName() : 'Signed out' }}</span>
         @if (signedIn()) {
-            <a class="account-link" id="account-link" [href]="auth.accountUrl()" target="_blank" rel="noopener">My account</a>
-            <button id="sign-out-btn" type="button" [disabled]="signingOut()" (click)="signOut()">Sign out</button>
+            <span class="account-name" id="account-name">{{ auth.displayName() ?? ('account.signedIn' | translate) }}</span>
+            <a class="account-link" id="account-link" [href]="auth.accountUrl()" target="_blank" rel="noopener">{{ 'account.myAccount' | translate }}</a>
+            <button id="sign-out-btn" type="button" [disabled]="signingOut()" (click)="signOut()">{{ 'account.signOut' | translate }}</button>
         } @else {
-            <button id="sign-in-btn" class="btn-primary" type="button" (click)="signIn()">Sign in</button>
+            <span class="account-name" id="account-name">{{ 'account.signedOut' | translate }}</span>
+            <button id="sign-in-btn" class="btn-primary" type="button" (click)="signIn()">{{ 'signIn.button' | translate }}</button>
         }
     </div>
 }

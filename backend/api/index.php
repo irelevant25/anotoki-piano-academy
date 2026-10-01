@@ -10,12 +10,19 @@ declare(strict_types=1);
  * Under PHP's built-in server router.php does the same. Slim routes on the
  * original path, so every route starts with /api/.
  *
- *   routes/public.php     GET /api/health, GET /api/auth/config
- *   routes/progress.php   GET /api/state, PUT /api/progress, PUT /api/path, POST /api/sessions
+ *   routes/public.php         GET /api/health, GET /api/auth/config, GET /api/translations/{code}
+ *   routes/progress.php       GET /api/state, PUT /api/progress, PUT /api/path, POST /api/sessions
+ *   routes/translations.php   the owner's: GET, POST /api/owner/languages,
+ *                             PUT, DELETE /api/owner/languages/{code},
+ *                             GET, PUT /api/owner/translations,
+ *                             GET /api/owner/translations/{code}/export,
+ *                             PUT /api/owner/translations/{code}/import
  *
  * The middleware, outermost first: security headers -> the error handler ->
  * the setup gate (503 not_set_up without config/*.local.php) -> routing -> on
- * the progress routes, the schema check and the person the request acts as.
+ * the progress routes, the schema check and the person the request acts as;
+ * on the app's words, the schema check, and for the owner's routes the person
+ * and then whether they are the owner.
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -46,6 +53,7 @@ function buildPianoApp(): \Slim\App
 
     require __DIR__ . '/routes/public.php';
     require __DIR__ . '/routes/progress.php';
+    require __DIR__ . '/routes/translations.php';
 
     // Added in this order, so they run the other way round.
     $app->add(setupGate());
@@ -55,7 +63,7 @@ function buildPianoApp(): \Slim\App
         $response = $app->getResponseFactory()->createResponse();
 
         if ($exception instanceof ApiError) {
-            return respondError($response, $exception->status, $exception->errorCode, $exception->getMessage(), $exception->headers);
+            return respondError($response, $exception->status, $exception->errorCode, $exception->getMessage(), $exception->headers, $exception->extra);
         }
         if ($exception instanceof HttpNotFoundException) {
             return respondError($response, 404, 'not_found', 'Not found');

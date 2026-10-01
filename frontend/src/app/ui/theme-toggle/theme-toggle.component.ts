@@ -1,7 +1,18 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { ThemeService } from '../../core/theme/theme.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { ThemeMode, ThemeService } from '../../core/theme/theme.service';
 
-const LABELS = { auto: 'Theme: automatic', light: 'Theme: light', dark: 'Theme: dark' } as const;
+/**
+ * What the button says for each mode, as keys written out whole: what it
+ * shows, and what it says to a screen reader - the same, and that pressing
+ * changes it. Two sentences per mode, not one with a tail glued on: where
+ * "(press to change)" stands is the language's to say.
+ */
+const WORDS: Record<ThemeMode, { label: string; spoken: string }> = {
+  auto: { label: 'theme.auto', spoken: 'theme.autoSpoken' },
+  light: { label: 'theme.light', spoken: 'theme.lightSpoken' },
+  dark: { label: 'theme.dark', spoken: 'theme.darkSpoken' },
+};
 
 /** The footer's theme button: automatic (as the system) -> light -> dark. */
 @Component({
@@ -9,9 +20,10 @@ const LABELS = { auto: 'Theme: automatic', light: 'Theme: light', dark: 'Theme: 
   templateUrl: './theme-toggle.component.html',
   styleUrl: './theme-toggle.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslatePipe],
 })
 export class ThemeToggleComponent {
   protected readonly theme = inject(ThemeService);
-  protected readonly label = computed(() => LABELS[this.theme.mode()]);
+  protected readonly words = computed(() => WORDS[this.theme.mode()]);
   protected readonly icon = computed(() => (this.theme.mode() === 'auto' ? '◐' : this.theme.mode() === 'light' ? '☀' : '☾'));
 }

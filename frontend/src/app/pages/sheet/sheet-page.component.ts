@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslatePluralPipe } from '../../core/i18n/translate-plural.pipe';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { MidiService } from '../../core/midi/midi.service';
 import { PathService } from '../../core/music/path.service';
 import { SrsService } from '../../core/music/srs.service';
@@ -24,7 +26,7 @@ const MIN_KNOWN_NOTES = 3;
   templateUrl: './sheet-page.component.html',
   styleUrl: './sheet-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe, TranslatePluralPipe],
 })
 export class SheetPageComponent {
   private readonly midi = inject(MidiService);
@@ -41,10 +43,12 @@ export class SheetPageComponent {
 
   /** The known notes it may use, in a shuffled order - fixed while the page is open. */
   protected readonly knownTreble = this.path.shuffle(this.store.knownNotes().filter((midi) => midi >= 60));
+  /** Note names: the same in every language. */
   protected readonly knownNames = this.knownTreble.map((midi) => this.theory.midiToName(midi)).join(', ');
   protected readonly bpm = signal(80);
   protected readonly playing = signal(false);
-  protected readonly feedback = signal<Feedback>({ text: 'Press Start, then play the notes in order along with the click.', kind: null });
+  /** A key and its values, never a sentence: the template words it. */
+  protected readonly feedback = signal<Feedback>({ key: 'sheet.ready', kind: null });
 
   private player: SequencePlayer | null = null;
 
@@ -64,7 +68,7 @@ export class SheetPageComponent {
       store: this.store,
       notation: staff.notation(),
       keyboard: this.keyboard,
-      feedback: (text, kind = null) => this.feedback.set({ text, kind }),
+      feedback: (key, params, kind = null) => this.feedback.set({ key, params, kind }),
       onFinish: (result) => {
         this.playing.set(false);
         this.store.recordSession({ mode: 'sheet', ...sessionFieldsFromResult(result) }).catch((error) => console.error('Failed to record session', error));
@@ -95,7 +99,7 @@ export class SheetPageComponent {
 
   protected newSheet(): void {
     this.loadNewSheet();
-    this.feedback.set({ text: 'New sheet ready. Press Start when you are.', kind: null });
+    this.feedback.set({ key: 'sheet.newReady', kind: null });
   }
 
   protected chooseTempo(event: Event): void {

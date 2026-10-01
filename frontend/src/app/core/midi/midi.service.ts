@@ -83,11 +83,46 @@ export class PianoMidi extends EventTarget {
   }
 }
 
+/** Whether a piano is connected, and the device's own name when one is. */
+export interface MidiStatus {
+  connected: boolean;
+  /** The device's name as the browser gives it: a name, shown as it is. Null while nothing is connected. */
+  name: string | null;
+}
+
+/**
+ * Why there is no piano, as a kind the header words:
+ *   unsupported  this browser has no Web MIDI
+ *   refused      the browser would not give the devices (the permission was denied, or it failed)
+ *   failed       a device could not be connected
+ */
+export type MidiProblemKind = 'unsupported' | 'refused' | 'failed';
+
+export interface MidiProblem {
+  kind: MidiProblemKind;
+  /**
+   * The browser's own words, or PianoMidi's: English, whatever the page is
+   * in. Shown after the app's own sentence, marked lang="en". Null when there
+   * is nothing more to say than the kind.
+   */
+  detail: string | null;
+}
+
+/** What an error says for itself - or null when it says nothing. */
+function detailOf(error: unknown): string | null {
+  const text = (error instanceof Error ? error.message : String(error)).trim();
+  return text === '' ? null : text;
+}
+
 /**
  * The piano connection the header shows and every view listens to: the
  * status, the devices, the one chosen. It remembers the last device by name,
  * connects it again when it comes back, and lets go of it when it is unplugged
  * or switched off.
+ *
+ * It holds no sentence: the status is whether a piano is connected and its
+ * name, a problem is a kind and a detail, and the header's panel words them in
+ * the language on the page.
  */
 @Injectable({ providedIn: 'root' })
 export class MidiService {
@@ -99,14 +134,12 @@ export class MidiService {
   readonly connectedName = signal<string | null>(null);
   /** The browser has been asked for the devices (so an empty list means there are none). */
   readonly asked = signal(false);
-  /** A sentence instead of "Piano not connected": no Web MIDI, or access refused. */
-  readonly problem = signal<string | null>(null);
+  /** Why there is no piano, when there is more to say than "not connected": no Web MIDI, access refused, a device that would not connect. */
+  readonly problem = signal<MidiProblem | null>(null);
 
-  readonly status = computed(() => {
+  readonly status = computed<MidiStatus>(() => {
     const name = this.connectedName();
-    return name !== null
-      ? { text: `Connected: ${name}`, connected: true }
-      : { text: this.problem() ?? 'Piano not connected', connected: false };
+    return { connected: name !== null, name };
   });
 
   constructor() {
@@ -131,16 +164,22 @@ export class MidiService {
     if (this.supported) {
       void this.refresh();
     } else {
-      this.problem.set('Web MIDI not supported — use Chrome or Edge');
+      this.problem.set({ kind: 'unsupported', detail: null });
     }
   }
 
   /** The ⟳ button: ask the browser for the devices again. */
   async refresh(): Promise<void> {
+    // No Web MIDI here: that is the whole answer, and the header has its own sentence for it.
+    if (!this.supported) {
+      this.problem.set({ kind: 'unsupported', detail: null });
+      this.asked.set(true);
+      return;
+    }
     try {
       this.showDevices(await this.piano.requestAccess());
     } catch (error) {
-      this.problem.set(error instanceof Error ? error.message : String(error));
+      this.problem.set({ kind: 'refused', detail: detailOf(error) });
     } finally {
       this.asked.set(true);
     }
@@ -152,7 +191,7 @@ export class MidiService {
     try {
       this.piano.connect(id);
     } catch (error) {
-      this.problem.set(error instanceof Error ? error.message : String(error));
+      this.problem.set({ kind: 'failed', detail: detailOf(error) });
     }
   }
 
@@ -174,7 +213,7 @@ export class MidiService {
       try {
         this.piano.connect(match.id);
       } catch (error) {
-        this.problem.set(error instanceof Error ? error.message : String(error));
+        this.problem.set({ kind: 'failed', detail: detailOf(error) });
       }
     }
   }

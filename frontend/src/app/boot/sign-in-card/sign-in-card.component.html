@@ -1,8 +1,8 @@
 <div class="card sign-in-card">
-    <h2>Sign in</h2>
-    <p>Sign in with your anotoki account. Your progress is saved to it.</p>
+    <h2>{{ 'signIn.title' | translate }}</h2>
+    <p>{{ 'signIn.text' | translate }}</p>
     @if (why()) {
         <p class="sign-in-error" role="alert">{{ why() }}</p>
     }
-    <button class="btn-primary btn-large" id="sign-in-start" type="button" (click)="signIn()">Sign in</button>
+    <button class="btn-primary btn-large" id="sign-in-start" type="button" (click)="signIn()">{{ 'signIn.button' | translate }}</button>
 </div>

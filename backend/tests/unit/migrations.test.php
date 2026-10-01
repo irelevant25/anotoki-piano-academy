@@ -24,7 +24,7 @@ test('an empty database gets every migration, recorded once', function (): void 
     assert_same(['applied' => migrationFiles(), 'failed' => null, 'error' => null], $result);
     assert_same([], pendingMigrationsReadOnly($pdo));
     assert_same(['applied' => [], 'failed' => null, 'error' => null], applyPendingMigrations($pdo), 'a second run applies nothing');
-    foreach (['users', 'progress', 'path_progress', 'sessions', 'imports'] as $table) {
+    foreach (['users', 'progress', 'path_progress', 'sessions', 'imports', 'languages', 'translation_keys', 'translations'] as $table) {
         assert_true((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "the table $table");
     }
     $pdo = null;
@@ -40,14 +40,17 @@ test('a database from before the engine: its record is read as it is, then renam
     $pdo->exec("INSERT INTO users (id) VALUES (1)");
     $pdo->exec("INSERT INTO progress (user_id, notes) VALUES (1, '{\"60\": {\"midi\": 60}}')");
 
+    // Such a database has 001 and nothing after it: what came later is still to do, 001 is not.
+    $later = array_values(array_diff(migrationFiles(), ['001_init.sql']));
     assert_true(legacyMigrationsTable($pdo));
-    assert_same([], pendingMigrationsReadOnly($pdo), 'read without changing anything');
+    assert_same($later, pendingMigrationsReadOnly($pdo), 'read without changing anything: 001 is known as applied');
     assert_true(legacyMigrationsTable($pdo), 'still as it was');
 
-    assert_same(['applied' => [], 'failed' => null, 'error' => null], applyPendingMigrations($pdo), '001 is not run a second time');
+    assert_same(['applied' => $later, 'failed' => null, 'error' => null], applyPendingMigrations($pdo), '001 is not run a second time');
     assert_false(legacyMigrationsTable($pdo), 'the column is filename now');
-    assert_same(['001_init.sql'], $pdo->query('SELECT filename FROM migrations')->fetchAll(PDO::FETCH_COLUMN));
-    assert_same('2026-09-28 07:20:22+00', (string) $pdo->query('SELECT applied_at FROM migrations')->fetchColumn(), 'when it ran, kept');
+    assert_same(migrationFiles(), $pdo->query('SELECT filename FROM migrations ORDER BY applied_at, filename')->fetchAll(PDO::FETCH_COLUMN));
+    assert_same('2026-09-28 07:20:22+00', (string) $pdo->query("SELECT applied_at FROM migrations WHERE filename = '001_init.sql'")->fetchColumn(), 'when it ran, kept');
+    assert_same([], pendingMigrationsReadOnly($pdo));
     assert_same('{"60": {"midi": 60}}', (string) $pdo->query('SELECT notes::text FROM progress WHERE user_id = 1')->fetchColumn(), 'the progress untouched');
     $pdo = null;
 });

@@ -1,39 +1,53 @@
 @switch (type()) {
     @case ('read') {
-        <p class="lesson-instruction">Play the melody from left to right. No metronome - take your time on each note.</p>
+        <p class="lesson-instruction">{{ 'sequence.read.instruction' | translate }}</p>
     }
     @case ('tempo') {
-        <p class="lesson-instruction">Now play a melody in time. Listen to 4 clicks, then play one note on every click.</p>
+        <p class="lesson-instruction">{{ 'sequence.tempo.instruction' | translate }}</p>
         <div class="controls-row">
             <label>
-                Tempo:
+                {{ 'tempo.label' | translate }}
                 <select data-role="bpm" (change)="chooseTempo($event)">
                     @for (tempo of tempos(); track tempo.value) {
-                        <option [value]="tempo.value" [selected]="tempo.value === bpm()">{{ tempo.label }}</option>
+                        <option [value]="tempo.value" [selected]="tempo.value === bpm()">
+                            {{ (tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm') | translate: { bpm: tempo.value } }}
+                        </option>
                     }
                 </select>
             </label>
-            <button class="btn-primary" data-role="start" type="button" (click)="startInTime()">{{ started() ? 'Restart' : 'Start' }}</button>
+            <button class="btn-primary" data-role="start" type="button" (click)="startInTime()">
+                {{ (started() ? 'sequence.tempo.restart' : 'sequence.tempo.start') | translate }}
+            </button>
         </div>
     }
     @case ('song') {
         <p class="lesson-instruction">
-            <strong>{{ song()?.title }}</strong> — play it with the metronome to finish the step. Want to learn it first? Use a practice run with no clock (it doesn't count).
+            <span>{{ songLine()[0] }}</span>
+            @if (songLine()[2]) {
+                <strong>{{ song()?.title }}</strong>
+            }
+            <span>{{ songLine()[1] }}</span>
         </p>
         <div class="controls-row">
-            <button data-role="practice" type="button" (click)="startPractice()">Practice run (no clock)</button>
+            <button data-role="practice" type="button" (click)="startPractice()">{{ 'sequence.song.practice' | translate }}</button>
             <label>
-                Tempo:
+                {{ 'tempo.label' | translate }}
                 <select data-role="bpm" (change)="chooseTempo($event)">
                     @for (tempo of tempos(); track tempo.value) {
-                        <option [value]="tempo.value" [selected]="tempo.value === bpm()">{{ tempo.label }}</option>
+                        <option [value]="tempo.value" [selected]="tempo.value === bpm()">
+                            {{ (tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm') | translate: { bpm: tempo.value } }}
+                        </option>
                     }
                 </select>
             </label>
-            <button class="btn-primary" data-role="start" type="button" (click)="startInTime()">Play with metronome</button>
+            <button class="btn-primary" data-role="start" type="button" (click)="startInTime()">{{ 'sequence.song.start' | translate }}</button>
         </div>
     }
 }
 <app-notation data-role="notation" />
-<p class="feedback" data-role="feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">{{ feedback().text }}</p>
+<p class="feedback" data-role="feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
+    @if (feedback().key; as key) {
+        {{ key | translate: feedback().params }}
+    }
+</p>
 <app-piano-keyboard data-role="keyboard" [model]="keyboard" [lowMidi]="range().lowMidi" [highMidi]="range().highMidi" />

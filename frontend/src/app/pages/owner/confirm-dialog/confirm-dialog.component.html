@@ -1,0 +1,12 @@
+<dialog #dialog class="confirm" aria-labelledby="ow-confirm-title" aria-describedby="ow-confirm-text" (close)="closed()" (click)="backdropClick($event)">
+    <div class="confirm-body">
+        <h2 id="ow-confirm-title">{{ question()?.title }}</h2>
+        <p id="ow-confirm-text">{{ question()?.message }}</p>
+        <div class="confirm-actions">
+            <button type="button" class="confirm-no" data-answer="no" autofocus (click)="answer(false)">{{ question()?.cancelLabel || "Cancel" }}</button>
+            <button type="button" class="confirm-yes" data-answer="yes" [class.is-danger]="question()?.danger" [class.btn-primary]="!question()?.danger" (click)="answer(true)">
+                {{ question()?.confirmLabel }}
+            </button>
+        </div>
+    </div>
+</dialog>

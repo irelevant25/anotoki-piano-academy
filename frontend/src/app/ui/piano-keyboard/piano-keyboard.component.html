@@ -1,4 +1,4 @@
-<svg class="piano-keyboard" [attr.viewBox]="'0 0 ' + layout().width + ' ' + whiteHeight" role="img" aria-label="On-screen piano keyboard">
+<svg class="piano-keyboard" [attr.viewBox]="'0 0 ' + layout().width + ' ' + whiteHeight" role="img" [attr.aria-label]="'keyboard.label' | translate">
     @for (key of layout().whites; track key.midi) {
         <rect [attr.x]="key.x" y="0" [attr.width]="whiteWidth" [attr.height]="whiteHeight" rx="2" [attr.class]="keyClass(key.midi, 'white')" [attr.data-midi]="key.midi" [attr.data-name]="key.name" />
     }

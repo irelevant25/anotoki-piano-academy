@@ -71,6 +71,12 @@ export interface KeyboardRange {
 export interface Unit {
   /** Persisted in step keys: never rename. */
   id: string;
+  /**
+   * DATA: the English title a lesson's stored session label begins with
+   * ("C, D, E · Drill"). A page shows it only through unitTitle()
+   * (core/i18n/path-words.ts), which translates a title with ordinary words
+   * in it and leaves note letters as they are.
+   */
   title: string;
   newNotes: number[];
   steps: Step[];
@@ -78,10 +84,14 @@ export interface Unit {
   phaseId: string;
 }
 
+/**
+ * A phase of the path. It has no title and no description here: they are the
+ * app's words, in the language on the page - phaseTitle() and
+ * phaseDescription() of core/i18n/path-words.ts, from the id.
+ */
 export interface Phase {
+  /** The key of its words is made from it (path.phase.<id>.title): never rename without a migration. */
   id: string;
-  title: string;
-  description: string;
   comingSoon?: boolean;
   keyboard?: KeyboardRange;
   units: Unit[];

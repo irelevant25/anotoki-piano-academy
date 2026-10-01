@@ -77,6 +77,13 @@ From then on the launcher just starts the app at `http://127.0.0.1:8300`.
   app says so and keeps your finished rounds until you sign in again.
 - **Light and dark**: the theme button at the bottom follows your computer, or
   keeps the one you choose. The version number beside it shows what is new.
+- **English and Slovak**: the language button at the bottom of the page
+  chooses; until you choose, the app follows your browser (or, signed in, your
+  anotoki account). Note names, song titles and your piano's name stay as they
+  are in every language. The app's words live in the database: the owner
+  rewords them in the browser, on the **Translations** and **Languages** pages
+  (in English; linked at the bottom of the page for the owner only - on your
+  own computer that is you, on the hosted site an account with the role ADMIN).
 
 ### Data and privacy
 
@@ -110,6 +117,12 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
+- Translated, not released yet: English and Slovak (informal), 218 keys of
+  the app's own words in the database (migrations 002 and 003), a language
+  chooser, and the owner's Translations and Languages pages. A word with no
+  string shows its key, on purpose. The two migrations reach the owner's
+  database only by the owner's own hand, after a backup (DEV.md, "Releasing
+  the app's words").
 
 ## More
 

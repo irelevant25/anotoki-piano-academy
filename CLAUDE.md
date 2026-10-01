@@ -66,10 +66,29 @@ line in plain words for anything a learner would notice).
 - **Angular components are three files** (`.ts`, `.html`, `.scss`) - never an
   inline template or styles. Standalone, OnPush, signals, zoneless.
 - **PHP**: `declare(strict_types=1)`, camelCase functions by area (`store*`,
-  `transfer*`, `auth*`...), `?` parameters in every query, every query scoped
-  to the request's user id (which only ever comes from the verified token or
-  `local_user_id`). `setup.php` stays parseable by PHP 7.4 (it must be able to
-  say "PHP is too old"); the rest needs 8.2.
+  `transfer*`, `auth*`, `translation*`, `language*`...), `?` parameters in every
+  query, every query **on a person's data** scoped to the request's user id
+  (which only ever comes from the verified token or `local_user_id`). The
+  site's strings are the exception: public to read (`GET /api/translations/{code}`),
+  owner-only to write (`/api/owner/...`, `requireOwner()`). `setup.php` stays
+  parseable by PHP 7.4 (it must be able to say "PHP is too old"); the rest
+  needs 8.2.
+- **The owner** is the one role the backend checks: the IAM role `ADMIN` of
+  this application in mode `iam`, whoever mode `none` lets in on this computer
+  (`requestUser()` in `api/auth.php`). Only the owner changes the app's words;
+  the frontend's `isOwner` only hides what the server refuses anyway.
+- **The app's words live in the database** (`languages`, `translation_keys`,
+  `translations`; migrations 002 and 003) and are edited in the browser, on the
+  owner's Translations and Languages pages (English, not translated). English
+  and Slovak, English the fallback key by key; **Slovak is informal ("ty")**. A
+  page asks by key (`translate` / `translatePlural` pipes, `TranslationService`
+  in `core/i18n/`), and a key with no string **shows the key on purpose**. A
+  new or reworded string is a new migration with the key, its English and its
+  Slovak (003's layout - a test reads the file); state and stored sessions hold
+  keys and ids, never sentences. The shell's English is also kept in code
+  (`core/i18n/kept-english.ts`) for when there is no bundle at all. Note
+  names (C D E F G A B, B in Slovak too), song titles, MIDI device names and
+  the changelog's entries are never translated.
 - **Migrations are the schema**: `backend/migrations/piano_academy/NNN_name.sql`,
   the family's engine (`api/migration_runner.php`). Never edit an applied one.
 - No piano in dev: dispatch `noteon` on `window.pianoMIDI`; read the staff via
@@ -87,6 +106,9 @@ composer start                            # dev API (php -S localhost:8300 route
 php tests/run.php                         # every PHP test, throwaway databases
 php migration.php [--status|--dry-run]    # migrations for the configured database
 php tools/progress.php --export=FILE      # also --import=PATH, --owner=ID
+php tools/translations.php --status       # the keys the frontend asks for against the database's (exit 1 on a gap)
+php tools/translations.php --export sk [FILE]   # also --import sk FILE: one language's strings as flat JSON
+php tests/tools/testdb.php template --fresh     # rebuild the tests' template after editing an unreleased migration
 php tools/build.php                       # the upload -> ../dist/ (builds the frontend too)
 
 # Frontend (from frontend/)

@@ -1,19 +1,24 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
+import { phaseTitle, stepShort, stepTitle, unitTitle } from '../../core/i18n/path-words';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslationParams, TranslationService } from '../../core/i18n/translation.service';
 import { PathStep, StepRecord } from '../../core/music/music.types';
-import { PASS_ACCURACY, PathService } from '../../core/music/path.service';
+import { PASS_ACCURACY, PathService, STEP_TYPES } from '../../core/music/path.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { StepOutcome } from './step-outcome';
 import { DrillStepComponent } from './steps/drill-step.component';
 import { MeetStepComponent } from './steps/meet-step.component';
 import { SequenceStepComponent } from './steps/sequence-step.component';
 
+/** What the result screen shows. Its words are keys (with their values): the template words them. */
 interface ResultView {
   accuracy: number;
   open: boolean;
-  message: string;
+  message: { key: string; params?: TranslationParams };
   lastForNow: boolean;
   next: PathStep | null;
+  /** The key of what the button to the next step says. */
   nextLabel: string;
   isMeet: boolean;
 }
@@ -29,12 +34,13 @@ interface ResultView {
   templateUrl: './lesson-page.component.html',
   styleUrl: './lesson-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MeetStepComponent, DrillStepComponent, SequenceStepComponent],
+  imports: [MeetStepComponent, DrillStepComponent, SequenceStepComponent, TranslatePipe],
 })
 export class LessonPageComponent {
   private readonly router = inject(Router);
   private readonly store = inject(ProgressStore);
-  protected readonly path = inject(PathService);
+  private readonly i18n = inject(TranslationService);
+  private readonly path = inject(PathService);
 
   /** From the address (withComponentInputBinding). */
   readonly unitId = input<string>();
@@ -47,12 +53,25 @@ export class LessonPageComponent {
   });
   /** The step, when it may be played: every step before it passed. */
   protected readonly openStep = computed(() => (this.unlocked() ? this.entry() : null));
+  /**
+   * The line above the heading and the heading, each one sentence of the
+   * app's strings: the phase's, the unit's and the step's names are its
+   * values, found in PathService by the address and worded from their own ids.
+   */
+  protected readonly head = computed(() => {
+    const entry = this.entry();
+    if (!entry) return { tag: '', heading: '' };
+    return {
+      tag: this.i18n.t('lesson.tag', { phase: phaseTitle(this.i18n, entry.phase), number: entry.unit.number }),
+      heading: this.i18n.t('lesson.heading', { unit: unitTitle(this.i18n, entry.unit), step: stepTitle(this.i18n, entry.step.type) }),
+    };
+  });
   protected readonly dots = computed(() => {
     const entry = this.entry();
     if (!entry) return [];
     return entry.unit.steps.map((step) => ({
       id: step.id,
-      short: this.path.stepTypes[step.type].short,
+      short: stepShort(this.i18n, step.type),
       current: step.id === entry.step.id,
       passed: this.path.isStepPassed(this.store.pathProgress(), this.path.stepKey(entry.unit.id, step.id)),
     }));
@@ -97,8 +116,10 @@ export class LessonPageComponent {
     const updated = this.path.recordStepResult(before, key, outcome.accuracy);
     this.store.savePathProgress(updated).catch((error) => console.error('Failed to save path progress', error));
     if (outcome.session) {
+      // The label kept with the session is data, in English whatever the page's language: PathService's own
+      // two values, never t(). Stats words a row from the ids beside it, and shows this only when they are gone.
       this.store
-        .recordSession({ ...outcome.session, mode: 'lesson', label: `${unit.title} · ${this.path.stepTypes[step.type].short}`, unitId: unit.id, stepId: step.id })
+        .recordSession({ ...outcome.session, mode: 'lesson', label: `${unit.title} · ${STEP_TYPES[step.type].short}`, unitId: unit.id, stepId: step.id })
         .catch((error) => console.error('Failed to record session', error));
     }
     const record = this.path.getStepRecord(updated, key);
@@ -114,12 +135,12 @@ export class LessonPageComponent {
     const next = this.path.getStepAfter(entry.key);
     const finishesUnit = open && (!next || next.unit.id !== entry.unit.id);
 
-    let message: string;
-    if (entry.step.type === 'meet') message = 'You met the new notes. Now let\'s see if you can find them without help.';
-    else if (passedNow && finishesUnit) message = `Unit ${entry.unit.number} complete! 🎉`;
-    else if (passedNow) message = 'Step passed - nice work!';
-    else if (wasPassed) message = `Not this time, but your best is ${record?.bestAccuracy ?? accuracy}%, so the path stays open.`;
-    else message = `You need ${PASS_ACCURACY}% to continue. Give it another try - it gets easier every time.`;
+    let message: ResultView['message'];
+    if (entry.step.type === 'meet') message = { key: 'lesson.result.met' };
+    else if (passedNow && finishesUnit) message = { key: 'lesson.result.unitComplete', params: { unit: entry.unit.number } };
+    else if (passedNow) message = { key: 'lesson.result.passed' };
+    else if (wasPassed) message = { key: 'lesson.result.bestKept', params: { best: record?.bestAccuracy ?? accuracy } };
+    else message = { key: 'lesson.result.needed', params: { pass: PASS_ACCURACY } };
 
     return {
       accuracy,
@@ -127,7 +148,7 @@ export class LessonPageComponent {
       message,
       lastForNow: open && !next,
       next: open ? next : null,
-      nextLabel: next && next.unit.id === entry.unit.id ? 'Continue' : 'Next unit',
+      nextLabel: next && next.unit.id === entry.unit.id ? 'lesson.result.continue' : 'lesson.result.nextUnit',
       isMeet: entry.step.type === 'meet',
     };
   }

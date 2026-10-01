@@ -6,7 +6,7 @@
     </div>
 </header>
 
-<nav class="app-nav" id="app-nav" aria-label="Main">
+<nav class="app-nav" id="app-nav" [attr.aria-label]="'nav.label' | translate">
     @for (item of nav; track item.id) {
         @if (item.id === 'trainer') {
             <span class="nav-sep" aria-hidden="true"></span>
@@ -18,15 +18,15 @@
             [class.is-active]="activeNav() === item.id"
             [attr.aria-current]="activeNav() === item.id ? 'page' : null"
             (click)="go(item.path)">
-            {{ item.label }}
+            {{ item.labelKey | translate }}
         </button>
     }
 </nav>
 
 @if (signedOutBanner()) {
     <div class="signed-out-banner" id="signed-out-banner" role="alert">
-        <span>You are signed out, so your progress is not saved.</span>
-        <button class="btn-primary" id="signed-out-sign-in" type="button" (click)="boot.signIn()">Sign in</button>
+        <span>{{ 'account.signedOutBanner' | translate }}</span>
+        <button class="btn-primary" id="signed-out-sign-in" type="button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
     </div>
 }
 
@@ -45,15 +45,19 @@
             <app-load-error />
         }
         @default {
-            <p class="loading">Loading&hellip;</p>
+            <p class="loading">{{ 'common.loading' | translate }}</p>
         }
     }
 </main>
 
 <footer class="app-footer">
     @if (changelog.version(); as version) {
-        <button type="button" class="version" id="app-version" title="What's new" (click)="openChangelog()">Piano Academy v{{ version }}</button>
+        <button type="button" class="version" id="app-version" [title]="'footer.whatsNew' | translate" (click)="openChangelog()">Piano Academy v{{ version }}</button>
     }
+    @if (ownerLink()) {
+        <button type="button" class="footer-link" id="owner-link" (click)="go('/translations')">{{ 'footer.translations' | translate }}</button>
+    }
+    <app-language-switcher />
     <app-theme-toggle />
 </footer>
 

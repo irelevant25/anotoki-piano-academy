@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 
@@ -9,12 +10,18 @@ import { ProgressStore } from '../../core/state/progress-store.service';
  * the IAM's account page (a new tab), Sign out - or, signed out in the middle
  * of practising, "Signed out" and Sign in. "Not saved yet" when some progress
  * has not reached the server; the app keeps trying.
+ *
+ * The name is the person's own and is shown as it is; what stands in for it -
+ * somebody signed in whose token names nobody, and nobody signed in - is
+ * worded here (account.signedIn, account.signedOut): AuthService holds no
+ * sentence.
  */
 @Component({
   selector: 'app-account-panel',
   templateUrl: './account-panel.component.html',
   styleUrl: './account-panel.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [TranslatePipe],
 })
 export class AccountPanelComponent {
   protected readonly auth = inject(AuthService);

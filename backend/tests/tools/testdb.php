@@ -5,11 +5,18 @@ declare(strict_types=1);
 /**
  * The tests' throwaway databases (used by tests/run.php):
  *
- *   php tests/tools/testdb.php template       make or update piano_test_template: its tables
- *   php tests/tools/testdb.php create NAME    a new test database, copied from the template
- *   php tests/tools/testdb.php drop NAME      drop a test database
- *   php tests/tools/testdb.php sweep          drop test databases more than 6 hours old
- *                                             (left behind by a run that was killed)
+ *   php tests/tools/testdb.php template           make or update piano_test_template: its tables
+ *   php tests/tools/testdb.php template --fresh   drop the template and build it again from every migration
+ *   php tests/tools/testdb.php create NAME        a new test database, copied from the template
+ *   php tests/tools/testdb.php drop NAME          drop a test database
+ *   php tests/tools/testdb.php sweep              drop test databases more than 6 hours old
+ *                                                 (left behind by a run that was killed)
+ *
+ * The template only ever gets the migrations it has not seen - as every
+ * database does. So a migration edited after the template applied it (one
+ * still being written; never one that has been released) is not applied
+ * again: --fresh is for exactly that. It is the only thing that drops the
+ * template, so not while tests are running - they copy it.
  *
  * It only ever touches databases whose name starts with piano_test_, on the
  * server named in config/database.local.php.
@@ -44,6 +51,14 @@ function testName(string $name): string
 
 switch ($command) {
     case 'template':
+        if ($name !== '' && $name !== '--fresh') {
+            fwrite(STDERR, "testdb: template takes --fresh and nothing else: $name\n");
+            exit(1);
+        }
+        if ($name === '--fresh') {
+            // The name is the constant above, never an argument: only ever the template.
+            dbServer($server)->exec('DROP DATABASE IF EXISTS "' . TEMPLATE . '" WITH (FORCE)');
+        }
         ensureDatabase($server, TEMPLATE);
         $pdo = dbConnect($server, TEMPLATE);
         $result = applyPendingMigrations($pdo);
@@ -52,7 +67,7 @@ switch ($command) {
             fwrite(STDERR, "testdb: {$result['failed']} failed: {$result['error']}\n");
             exit(1);
         }
-        echo TEMPLATE . ': ' . ($result['applied'] ? 'updated (' . implode(', ', $result['applied']) . ')' : 'up to date') . "\n";
+        echo TEMPLATE . ': ' . ($result['applied'] ? ($name === '--fresh' ? 'built again (' : 'updated (') . implode(', ', $result['applied']) . ')' : 'up to date') . "\n";
         break;
 
     case 'create':
@@ -76,6 +91,6 @@ switch ($command) {
         break;
 
     default:
-        fwrite(STDERR, "usage: php tests/tools/testdb.php template | create NAME | drop NAME | sweep\n");
+        fwrite(STDERR, "usage: php tests/tools/testdb.php template [--fresh] | create NAME | drop NAME | sweep\n");
         exit(1);
 }

@@ -11,7 +11,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                     the vendored verifier (api/anotoki_iam.php, v1.0.1): RS256,
  *                     typ at+jwt, the IAM's published keys, iss, aud, exp. Its
  *                     `sub` is the user id. Who may have a token at all is the
- *                     IAM's decision: the application is "members" only.
+ *                     IAM's decision: the application is "members" only. One
+ *                     role is read here: ADMIN is the site's owner.
  *   auth mode "none"  no login: every request acts as local_user_id. Only for
  *                     the owner's own computer, so it is only honoured under
  *                     PHP's built-in web server and for requests from this
@@ -129,13 +130,27 @@ function noLoginAllowed(string $sapi, string $remoteAddr, string $host, bool $fo
     return !$forwarded && $sapi === 'cli-server' && isLoopback($remoteAddr) && isLocalHostName($host);
 }
 
+/** The IAM role, of this application, that makes somebody the site's owner. */
+const OWNER_ROLE = 'ADMIN';
+
 /**
- * The IAM user id a request acts as, after recording the visit in users.
+ * Who a request acts as, after recording the visit in users: the IAM user id,
+ * and whether that person is the site's owner - the one who may change the
+ * app's own words (api/translations.php).
+ *
+ *   auth mode "none"  the owner's own computer: whoever gets past
+ *                     noLoginAllowed() is the owner, as local_user_id.
+ *   auth mode "iam"   the owner is whoever the IAM gives the role ADMIN of
+ *                     this application - read from the verified token's
+ *                     `roles`, and from nothing else a request carries.
+ *
  * ApiError 401 (no usable token) or 403 (auth mode "none" asked from
  * elsewhere). Why a token was refused goes to the server log, never to the
  * client: to somebody holding a token that did not work, the answer is the same.
+ *
+ * @return array{id: int, owner: bool}
  */
-function requestUserId(Request $request): int
+function requestUser(Request $request): array
 {
     if (authMode() === 'none') {
         if (!noLoginAllowed(PHP_SAPI, requestRemoteAddr($request), $request->getHeaderLine('Host'), wasForwarded($request->getServerParams()))) {
@@ -144,7 +159,7 @@ function requestUserId(Request $request): int
         $id = authLocalUserId();
         usersSeen($id, null);
 
-        return $id;
+        return ['id' => $id, 'owner' => true];
     }
 
     if (!function_exists('openssl_verify')) {
@@ -169,7 +184,13 @@ function requestUserId(Request $request): int
     $name = $claims['preferred_username'] ?? null;
     usersSeen($id, is_string($name) && trim($name) !== '' ? textClip(trim($name), 200) : null);
 
-    return $id;
+    return ['id' => $id, 'owner' => in_array(OWNER_ROLE, anotoki_iam_roles($claims), true)];
+}
+
+/** The IAM user id a request acts as (see requestUser()). */
+function requestUserId(Request $request): int
+{
+    return requestUser($request)['id'];
 }
 
 /**

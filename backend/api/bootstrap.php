@@ -58,3 +58,4 @@ require_once __DIR__ . '/migration_runner.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/store.php';
 require_once __DIR__ . '/transfer.php';
+require_once __DIR__ . '/translations.php';

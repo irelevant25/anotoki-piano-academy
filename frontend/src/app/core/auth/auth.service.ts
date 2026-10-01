@@ -13,7 +13,11 @@ import { type AnotokiAuth, type AnotokiUser, createAuth } from './anotoki-auth';
 
 export type AuthMode = 'none' | 'iam';
 
-/** A sign-in that came back without one: the SDK's error code, and the IAM's own words. */
+/**
+ * A sign-in that came back without one: the SDK's error code, and the IAM's
+ * own English words. The page words the failure from the code
+ * (core/i18n/error-text.ts); `message` is never shown.
+ */
 export interface SignInFailure {
   code: string;
   message: string;
@@ -28,20 +32,6 @@ export class NotSetUpError extends Error {
 
 /** The IAM's redirect URI: a route of this app, registered in the IAM for each origin. */
 export const CALLBACK_PATH = '/auth/callback';
-
-/**
- * What the sign-in card says about a failed sign-in. access_denied is the IAM
- * turning the account away ("This account cannot use Piano Academy") or the
- * person going back from its page ("The sign-in was cancelled") - its own
- * error_description says which, so that is what is shown.
- */
-export function describeSignInFailure(failure: SignInFailure | null): string {
-  if (!failure) return '';
-  if (failure.code === 'access_denied') {
-    return failure.message ? `${failure.message.replace(/\.$/, '')}.` : 'The sign-in was cancelled.';
-  }
-  return `Signing in did not work. Please try again. (${failure.message || failure.code})`;
-}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -60,10 +50,23 @@ export class AuthService {
   /** True when this app needs a login (auth mode 'iam'). */
   readonly usesSignIn = computed(() => this.mode() === 'iam');
   readonly signedIn = computed(() => this.mode() === 'none' || this.authenticated());
-  readonly displayName = computed(() => {
+  /**
+   * The person's own name for the header: the username, else the e-mail
+   * address - theirs, shown as it is. Null when there is none to show: nobody
+   * signed in, or a token that names nobody. What is said then is the account
+   * panel's to word (account.signedIn, account.signedOut): this service holds
+   * no sentence.
+   */
+  readonly displayName = computed<string | null>(() => {
     const user = this.user();
-    return user ? user.preferred_username || user.email || 'Signed in' : 'Signed out';
+    return user ? user.preferred_username || user.email || null : null;
   });
+  /**
+   * May change the app's words (the Translations and Languages pages): on the
+   * owner's own computer, whoever uses it; with sign-in, this application's
+   * ADMIN. It only hides what the server refuses anyway (requireOwner()).
+   */
+  readonly isOwner = computed(() => this.mode() === 'none' || (this.signedIn() && (this.user()?.roles ?? []).includes('ADMIN')));
 
   /**
    * Once per page load, before anything calls the API: reads the backend's
@@ -139,9 +142,15 @@ export class AuthService {
     return this.client ? this.client.refresh() : Promise.resolve(null);
   }
 
-  /** To the IAM, and back to this address when signed in. */
-  signIn(): void {
-    this.client?.login({ returnTo: location.pathname + location.search + location.hash });
+  /**
+   * To the IAM, and back to this address when signed in. `uiLocales` is the
+   * language the app is read in, so the IAM's pages open in the same one. The
+   * caller says it (BootService): this service never asks the translation
+   * service, which needs this one - a circle.
+   */
+  signIn(uiLocales?: string): void {
+    const returnTo = location.pathname + location.search + location.hash;
+    void this.client?.login(uiLocales ? { returnTo, uiLocales } : { returnTo });
   }
 
   /** Signs out everywhere (the IAM ends its session) and lands on this site's start page. */
