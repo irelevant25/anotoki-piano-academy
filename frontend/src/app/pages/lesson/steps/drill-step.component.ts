@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { MidiService, NoteOnDetail } from '../../../core/midi/midi.service';
-import { PathStep, ProgressMap } from '../../../core/music/music.types';
+import { PathStep } from '../../../core/music/music.types';
 import { PathService } from '../../../core/music/path.service';
 import { SrsService } from '../../../core/music/srs.service';
 import { TheoryService } from '../../../core/music/theory.service';
@@ -45,7 +45,6 @@ export class DrillStepComponent {
   protected readonly length = DRILL_LENGTH;
 
   private round: number[] = [];
-  private progress: ProgressMap = {};
   private startedAt = '';
   private waiting = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -62,8 +61,8 @@ export class DrillStepComponent {
 
   private begin(): void {
     const unit = this.entry().unit;
-    this.progress = { ...this.store.progress() };
-    this.round = this.path.buildDrillRound(unit, this.progress, DRILL_LENGTH);
+    // Read, never kept: every answer goes into the store's progress as it is then (updateNote).
+    this.round = this.path.buildDrillRound(unit, this.store.progress(), DRILL_LENGTH);
     this.startedAt = new Date().toISOString();
     this.keyboard.markKnown(this.path.notePoolForUnit(unit.id));
     this.showPrompt();
@@ -82,8 +81,8 @@ export class DrillStepComponent {
     this.waiting = false;
     const target = this.round[this.index()];
     const correct = played === target;
-    this.progress[target] = this.srs.updateNoteState(this.progress[target] ?? this.store.noteState(target), this.srs.gradeAttempt({ correct, timingErrorMs: null }), null);
-    this.store.saveProgress(this.progress).catch((error) => console.error('Failed to save progress', error));
+    const grade = this.srs.gradeAttempt({ correct, timingErrorMs: null });
+    this.store.updateNote(target, (current) => this.srs.updateNoteState(current, grade, null)).catch((error) => console.error('Failed to save progress', error));
 
     this.keyboard.setKeyState(played, correct ? 'correct' : 'incorrect');
     if (correct) {

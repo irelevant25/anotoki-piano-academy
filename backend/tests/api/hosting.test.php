@@ -62,8 +62,16 @@ function form(string $token, string $name, array $extra = []): array
         'token' => $token,
         'db_host' => (string) $server['host'], 'db_port' => (string) $server['port'], 'db_name' => $name,
         'db_user' => (string) $server['user'], 'db_password' => (string) $server['password'],
-        'issuer' => 'https://iam.anotoki.eu', 'client_id' => 'piano-academy', 'owner' => '',
+        'issuer' => 'https://iam.anotoki.eu', 'client_id' => 'piano-academy',
     ];
+}
+
+/** The names of a page's form fields, in order. */
+function field_names(string $html): array
+{
+    preg_match_all('/<input [^>]*name="([a-z_]+)"/', $html, $m);
+
+    return $m[1];
 }
 
 function setup_token(string $dist): string
@@ -81,10 +89,11 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     sort($top);
     assert_same(['.htaccess', '.piano-academy-build', 'api', 'changelog.json', 'config', 'index.html',
         'main-TEST.js', 'media', 'migrations', 'setup.php', 'storage', 'styles-TEST.css', 'theme-boot.js', 'vendor'], $top);
-    foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/anotoki_iam.php', 'api/routes/progress.php', 'api/meddleware/setup.php',
-        'api/translations.php', 'api/routes/translations.php',
+    foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/anotoki_iam.php', 'api/routes/progress.php', 'api/routes/visitor.php', 'api/meddleware/setup.php',
+        'api/translations.php', 'api/routes/admin.php', 'api/database_update.php', 'api/meddleware/auth.php',
+        'api/store.php', 'api/transfer.php', 'api/people.php', 'api/visitors.php', 'api/client_address.php', 'api/after_response.php',
         'config/config.php', 'config/.htaccess', 'migrations/piano_academy/001_init.sql', 'migrations/piano_academy/002_languages_and_translations.sql',
-        'migrations/piano_academy/003_site_strings.sql', 'migrations/.htaccess', 'vendor/autoload.php',
+        'migrations/piano_academy/003_site_strings.sql', 'migrations/piano_academy/004_family_shell.sql', 'migrations/piano_academy/005_visitors.sql', 'migrations/.htaccess', 'vendor/autoload.php',
         'vendor/slim/slim/Slim/App.php', 'vendor/.htaccess', 'storage/.htaccess', 'media/font-TEST.woff2'] as $file) {
         assert_true(in_array($file, $files, true), "$file is in the upload");
     }
@@ -135,8 +144,8 @@ test('the setup page on a real host: the token, the tests, the database - and th
     $token = setup_token($dist);
     assert_match('/^[0-9a-f]{48}$/', $token);
     assert_false(str_contains($first['raw'], $token), 'the token is never shown');
-    assert_no_match('/name="auth_mode"/', $first['raw'], 'no choice of sign-in: a host always signs in through the IAM');
-    assert_no_match('/import_old/', $first['raw'], 'no old progress files on a host');
+    assert_same(['token', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password', 'issuer', 'client_id'], field_names($first['raw']), 'the token, the database and the IAM - nothing else');
+    assert_no_match('/auth_mode|import_old|name="owner"|type="file"|Your progress|IAM user id/', $first['raw']);
 
     // Test connection, only with the token
     assert_same(403, site_form($site, '/setup.php?test=database', form('wrong', $database))['status']);
@@ -159,10 +168,13 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_match('/The setup page has deleted itself/', $done['raw']);
     assert_no_match('/<script/', $done['raw'], 'no script to ask the deleted file for');
 
-    $auth = require "$dist/config/auth.local.php";
-    assert_same('iam', $auth['mode'], 'a hosted site signs in through the IAM');
-    assert_same('https://iam.anotoki.eu', $auth['issuer']);
-    assert_same('storage/cache', $auth['cache_dir']);
+    assert_match('/Every anotoki account holds the MEMBER role here and can use it; the IAM\'s page for this application says whether signing in is required and which roles may sign in\. The IAM\'s administrators are its administrators \(ADMIN\), and the IAM gives the EDITOR role to whoever may reword its words\./', $done['raw']);
+    assert_same(['issuer' => 'https://iam.anotoki.eu', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], require "$dist/config/auth.local.php", 'the IAM, and nothing else');
+    assert_false(is_file("$dist/config/visitors.local.php"), 'setup never writes the optional visitors settings');
+    // The site would now ask the live IAM whether it requires sign-in: no test
+    // does. Its answer is given as a file instead (the settings are otherwise
+    // the ones just written).
+    file_put_contents("$dist/config/auth.local.php", '<?php return ' . var_export(test_offline_auth((require "$dist/config/auth.local.php") + ['application_file' => test_application_file()]), true) . ";\n");
     assert_same($database, (require "$dist/config/database.local.php")['name']);
     assert_true(is_file("$dist/storage/installed.lock"), 'the lock');
     assert_false(is_file("$dist/setup.php"), 'the setup page deleted itself');
@@ -174,9 +186,11 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_no_match('/Install Piano Academy|name="token"/', $gone['raw'], 'no setup page any more');
 
     // the site itself, through api/index.php
-    assert_same(['mode' => 'iam', 'issuer' => 'https://iam.anotoki.eu', 'clientId' => 'piano-academy'], site($site, 'GET', '/api/auth/config')['body']);
+    assert_same(['issuer' => 'https://iam.anotoki.eu', 'clientId' => 'piano-academy', 'loginRequired' => true], site($site, 'GET', '/api/auth/config')['body']);
+    assert_same([], glob("$dist/storage/cache/anotoki-iam-application-*") ?: [], 'the live IAM was not asked: nothing of its answer kept');
     assert_same(401, site($site, 'GET', '/api/state')['status'], 'nobody gets in without a token');
-    assert_same(['ok' => true, 'auth' => 'iam', 'database' => $database, 'pending' => []], site($site, 'GET', '/api/health')['body']);
+    assert_same(401, site($site, 'GET', '/api/admin/migrations')['status'], 'nor into the admin panel');
+    assert_same(['ok' => true, 'database' => $database, 'pending' => []], site($site, 'GET', '/api/health')['body']);
     assert_match('/<title>Piano Academy<\/title>/', site($site, 'GET', '/')['raw'], 'the app');
 
     // uploaded again by mistake: refuses, and deletes itself again
@@ -187,30 +201,35 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_same([], server_problems($site));
 });
 
-test('the setup page with a progress file: your progress arrives in your account', function (): void {
+test('run again on the host for an update: nothing saved is shown, a blank password keeps the saved one, and an owner or a file sent along is nobody\'s business', function (): void {
     [, , $dist] = build();
-    $database = test_empty_db('moved');
+    $database = test_empty_db('again');
     $site = serve($dist);
     site($site, 'GET', '/setup.php');
-    $token = setup_token($dist);
-    $export = json_encode([
-        'format' => 'piano-academy-export', 'version' => 1, 'exportedAt' => '2026-09-28T10:00:00.000Z', 'userId' => 1,
-        'progress' => ['60' => ['midi' => 60, 'status' => 'review'], '62' => ['midi' => 62, 'status' => 'learning']],
-        'path' => ['steps' => ['rh-1/meet' => ['attempts' => 1, 'bestAccuracy' => 100]]],
-        'sessions' => [['mode' => 'trainer', 'attempts' => 12, 'correct' => 10, 'accuracy' => 83, 'id' => '1788962769050-k65d2n', 'recordedAt' => '2026-09-09T14:06:09.050Z']],
-    ]);
+    $done = site_form($site, '/setup.php', form(setup_token($dist), $database));
+    assert_match('/<h1>Installed<\/h1>/', $done['raw']);
 
-    $noOwner = site_form($site, '/setup.php', form($token, $database), ['export' => ['my-progress.json', $export]]);
-    assert_match('/enter your IAM user id too/', $noOwner['raw'], 'a file needs the id it goes to');
-    $junk = site_form($site, '/setup.php', form($token, $database, ['owner' => '7']), ['export' => ['junk.json', '{"hello": 1}']]);
-    assert_match('/not a progress export/', $junk['raw']);
-    assert_false(is_file("$dist/config/database.local.php"), 'nothing written for a bad file');
+    // A later version with a new migration: the lock goes, setup.php is uploaded again.
+    unlink("$dist/storage/installed.lock");
+    copy(TEST_BACKEND . '/setup.php', "$dist/setup.php");
+    $page = site($site, 'GET', '/setup.php');
+    assert_match('/<h1>Install Piano Academy<\/h1>/', $page['raw']);
+    assert_match('/This copy is set up already/', $page['raw']);
+    assert_false(str_contains($page['raw'], $database), 'the saved database is not shown to whoever opens the page');
+    assert_false(str_contains($page['raw'], 'iam.anotoki.eu"'), 'nor the saved IAM');
+    assert_match('/id="db_name" name="db_name" type="text" value="anotoki_piano"/', $page['raw'], 'the default instead');
+    assert_match('/id="db_host" name="db_host" type="text" value="localhost"/', $page['raw']);
 
-    $done = site_form($site, '/setup.php', form($token, $database, ['owner' => '7']), ['export' => ['my-progress.json', $export]]);
-    assert_match('/Brought your progress into IAM user 7: 2 notes, 1 path steps, 1 sessions\./', $done['raw']);
+    // An owner's id and a progress file, as the old page took them: let through to nothing.
+    $export = json_encode(['format' => 'piano-academy-export', 'version' => 1, 'userId' => 7, 'progress' => ['60' => ['midi' => 60]], 'path' => ['steps' => new stdClass()], 'sessions' => []]);
+    $again = site_form($site, '/setup.php', form(setup_token($dist), $database, ['db_password' => '', 'owner' => '7', 'auth_mode' => 'none', 'local_user_id' => '7']), ['export' => ['my-progress.json', $export]]);
+    assert_match('/<h1>Installed<\/h1>/', $again['raw'], 'a blank password keeps the saved one');
+    assert_match('/The tables were up to date/', $again['raw']);
+    assert_no_match('/Brought|progress into|IAM user 7/', $again['raw']);
+    assert_same(['issuer' => 'https://iam.anotoki.eu', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], require "$dist/config/auth.local.php", 'no mode, no owner');
     $pdo = dbConnect(machineDatabaseSettings(), $database);
-    assert_same('7', (string) $pdo->query('SELECT user_id FROM progress')->fetchColumn());
-    assert_same('1788962769050-k65d2n', (string) $pdo->query('SELECT id FROM sessions')->fetchColumn());
-    assert_same(7, (require "$dist/config/auth.local.php")['local_user_id']);
+    assert_same([0, 0], [(int) $pdo->query('SELECT count(*) FROM progress')->fetchColumn(), (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn()], 'nobody\'s progress, nobody made');
     $pdo = null;
+    assert_false(is_file("$dist/setup.php"), 'gone again');
+    assert_same([], server_problems($site));
 });

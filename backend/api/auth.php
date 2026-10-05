@@ -5,38 +5,86 @@ declare(strict_types=1);
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
- * Who a request acts as.
+ * Who a request comes from: the access token of the anotoki IAM, checked here
+ * with the vendored SDK (api/anotoki_iam.php, v1.1.0) - RS256, typ at+jwt,
+ * the IAM's published keys, iss, aud, exp. Its `sub` is the user id, its
+ * `roles` this application's roles for them:
  *
- *   auth mode "iam"   the access token from the anotoki IAM, checked here with
- *                     the vendored verifier (api/anotoki_iam.php, v1.0.1): RS256,
- *                     typ at+jwt, the IAM's published keys, iss, aud, exp. Its
- *                     `sub` is the user id. Who may have a token at all is the
- *                     IAM's decision: the application is "members" only. One
- *                     role is read here: ADMIN is the site's owner.
- *   auth mode "none"  no login: every request acts as local_user_id. Only for
- *                     the owner's own computer, so it is only honoured under
- *                     PHP's built-in web server and for requests from this
- *                     computer; a hosted site (Apache) never runs without the IAM.
+ *   MEMBER   every anotoki account holds it, in every application: an
+ *            ordinary learner - no check here needs it or refuses it
+ *   EDITOR   rewords the app's words (the Translations page, a language's
+ *            strings as a file and back)
+ *   ADMIN    all of that, and adds, changes and deletes languages, applies a
+ *            database update, and sees and deletes people's data
  *
- * The mode is the installation's setting (config/auth.local.php) - never
- * anything a request says.
+ * Anybody else signed in learns, with their own progress. The IAM decides who
+ * may sign in here (the roles of this application that may sign in - MEMBER
+ * among them; taking a person's MEMBER away refuses their next sign-in and
+ * refresh, while the access token they hold verifies until it runs out, a few
+ * minutes). Roles are granted in the IAM's admin panel, and taking one away
+ * reaches this app within one token's lifetime. There is no login of the
+ * app's own and no configured owner - a person is only ever who a verified
+ * token says.
+ *
+ * Only the Bearer scheme is a sign-in: a request whose Authorization header
+ * is `Bearer ...` (with or without a token after it) is that person or a 401,
+ * never anything else. Any other scheme - `Basic ...`, which a host behind a
+ * password file sends with every request - says nothing about who is using
+ * the app, and counts as no header at all.
+ *
+ * Whether the app requires sign-in is the IAM's switch for this application
+ * (authLoginRequired(): the SDK's reader, kept for a minute in cache_dir,
+ * true - required - whenever nothing better is known), relayed to the browser
+ * by GET /api/auth/config.
+ *
+ * Who a request is, in this order - for every route that reads a person's
+ * progress or saves it (requireOwner() in meddleware/auth.php - with the
+ * move at sign-in, POST /api/visitor/move, the only reader of a visitor key):
+ *
+ *   1. An Authorization header of the Bearer scheme (with or without a token
+ *      after it): that person, or 401 - a token that does not verify never
+ *      falls back to anything, and the visitor key is not even read.
+ *   2. Else, when the IAM says sign-in is required: 401 sign_in_required. A
+ *      visitor key sent along is never looked up, counted or swept early.
+ *   3. Else an X-Visitor-Key: that visitor (api/visitors.php) - a users row
+ *      of this app's own with a negative id, no name and no role; a key
+ *      nobody has, or one whose row went while the request was on its way
+ *      (swept, or moved into an account at sign-in): 401 visitor_unknown.
+ *   4. Else nobody: GET /api/state answers the empty state, and a first save
+ *      makes a visitor (in the save's own transaction, within the limits).
+ *
+ * A visitor never passes requireUser() or requireRole() (signedInUser()
+ * refuses one): never the admin panel, the own progress file, or anybody
+ * else's data.
  */
 
-/** 'none' only when the settings say exactly that; anything else is 'iam', which needs a login. */
-function authMode(): string
-{
-    return (authSettings()['mode'] ?? null) === 'none' ? 'none' : 'iam';
-}
+const ROLE_ADMIN = 'ADMIN';
+const ROLE_EDITOR = 'EDITOR';
 
-/** The owner's IAM user id, which auth mode "none" acts as. */
-function authLocalUserId(): int
+/** The roles that may use the admin panel: reword the app's words. */
+const ROLES_STAFF = [ROLE_ADMIN, ROLE_EDITOR];
+
+/** Who a request comes from, once the token is checked. */
+final class SiteUser
 {
-    $id = authSettings()['local_user_id'] ?? null;
-    if (!(is_int($id) || (is_string($id) && ctype_digit($id))) || (int) $id < 1) {
-        throw new RuntimeException('local_user_id in config/auth.local.php must be an IAM user id (a whole number, 1 or more).');
+    /**
+     * @param string[] $roles
+     * @param bool     $visitor somebody practising without signing in (api/visitors.php): a negative id,
+     *                          no name, no role - never somebody a token says
+     */
+    public function __construct(
+        public readonly int $id,
+        public readonly ?string $name,
+        public readonly array $roles,
+        public readonly bool $visitor = false,
+    ) {
     }
 
-    return (int) $id;
+    /** Has any one of $roles. */
+    public function has(string ...$roles): bool
+    {
+        return array_intersect($roles, $this->roles) !== [];
+    }
 }
 
 /** A path from the settings: relative ones are relative to backend/. */
@@ -45,7 +93,7 @@ function settingsPath(string $path): string
     return preg_match('~^([A-Za-z]:)?[\\\\/]~', $path) ? $path : PIANO_BACKEND . '/' . $path;
 }
 
-/** The verifier's settings, from ours. */
+/** The SDK's settings, from ours. */
 function authIamConfig(): array
 {
     $auth = authSettings();
@@ -54,23 +102,60 @@ function authIamConfig(): array
         'client_id' => (string) $auth['client_id'],
         'cache_dir' => settingsPath((string) $auth['cache_dir']),
     ];
-    // The tests' own key set, instead of downloading the IAM's.
-    if (is_string($auth['jwks_file'] ?? null) && $auth['jwks_file'] !== '') {
-        $config['jwks_file'] = $auth['jwks_file'];
+    // The tests' own key set, instead of downloading the IAM's; and the IAM's
+    // answer about this application as a file, instead of asking it.
+    foreach (['jwks_file', 'application_file'] as $key) {
+        if (is_string($auth[$key] ?? null) && $auth[$key] !== '') {
+            $config[$key] = $auth[$key];
+        }
+    }
+    // How long that answer is kept (60 s) and waited for (2 s): the SDK's
+    // defaults unless a setting says otherwise (a browser check that switches
+    // sign-in mid-run keeps it for a second).
+    foreach (['application_ttl', 'application_timeout'] as $key) {
+        if (is_int($auth[$key] ?? null) && $auth[$key] > 0) {
+            $config[$key] = $auth[$key];
+        }
     }
 
     return $config;
 }
 
-/** What the browser needs to sign in: GET /api/auth/config. */
+/**
+ * Whether this app requires sign-in: the IAM's switch for it, read by the
+ * SDK (anotoki_iam_login_required()) - asked at most once a minute (single
+ * flight: while one request asks, the others use the last answer), kept in
+ * cache_dir, and true whenever nothing better is known: an IAM out of reach
+ * with no answer ever read, an unknown or switched-off application (404), an
+ * answer that is not about this application. Only a request without a token
+ * asks; a signed-in one never waits on it.
+ */
+function authLoginRequired(): bool
+{
+    $required = anotoki_iam_login_required(authIamConfig(), $reason);
+    // Once per failed ask: the SDK then waits a minute before the next one.
+    if ($reason === 'stale' || $reason === 'never_read') {
+        error_log('[auth] the IAM did not say whether sign-in is required (' . $reason . '): '
+            . ($required ? 'required' : 'not required, as last read'));
+    }
+
+    return $required;
+}
+
+/**
+ * What the browser needs to sign in: GET /api/auth/config - the IAM, this
+ * app's client id there, and whether the app requires sign-in (relayed, so
+ * the browser never asks the IAM for it).
+ */
 function authPublicConfig(): array
 {
-    if (authMode() === 'none') {
-        return ['mode' => 'none'];
-    }
     $auth = authSettings();
 
-    return ['mode' => 'iam', 'issuer' => rtrim((string) $auth['issuer'], '/'), 'clientId' => (string) $auth['client_id']];
+    return [
+        'issuer' => rtrim((string) $auth['issuer'], '/'),
+        'clientId' => (string) $auth['client_id'],
+        'loginRequired' => authLoginRequired(),
+    ];
 }
 
 /** 127.0.0.1 and the like, ::1, and the IPv4-mapped form of 127.x. */
@@ -117,59 +202,46 @@ function wasForwarded(array $server): bool
 }
 
 /**
- * May a request go without a login - auth mode "none", or setup.php without
- * its token? Only under PHP's built-in web server (php -S, which the
- * launchers bind to 127.0.0.1), only for a request from this computer that no
- * proxy relayed, and only when the browser asked for this computer by name: a
- * page elsewhere that points its own host name at 127.0.0.1 (DNS rebinding)
- * would otherwise read and change the owner's progress. Under Apache - a
+ * Is this the developer's own computer asking - setup.php without its token?
+ * Only under PHP's built-in web server (php -S), only for a request from this
+ * computer that no proxy relayed, and only when the browser asked for this
+ * computer by name: a page elsewhere that points its own host name at
+ * 127.0.0.1 (DNS rebinding) would otherwise drive the setup. Under Apache - a
  * hosted site - never: behind a proxy every request looks local.
  */
-function noLoginAllowed(string $sapi, string $remoteAddr, string $host, bool $forwarded = false): bool
+function isThisComputer(string $sapi, string $remoteAddr, string $host, bool $forwarded = false): bool
 {
     return !$forwarded && $sapi === 'cli-server' && isLoopback($remoteAddr) && isLocalHostName($host);
 }
 
-/** The IAM role, of this application, that makes somebody the site's owner. */
-const OWNER_ROLE = 'ADMIN';
-
 /**
- * Who a request acts as, after recording the visit in users: the IAM user id,
- * and whether that person is the site's owner - the one who may change the
- * app's own words (api/translations.php).
- *
- *   auth mode "none"  the owner's own computer: whoever gets past
- *                     noLoginAllowed() is the owner, as local_user_id.
- *   auth mode "iam"   the owner is whoever the IAM gives the role ADMIN of
- *                     this application - read from the verified token's
- *                     `roles`, and from nothing else a request carries.
- *
- * ApiError 401 (no usable token) or 403 (auth mode "none" asked from
- * elsewhere). Why a token was refused goes to the server log, never to the
- * client: to somebody holding a token that did not work, the answer is the same.
- *
- * @return array{id: int, owner: bool}
+ * The person a request comes from, after recording the visit in users - or
+ * null when it sends no Bearer header at all. A Bearer header that is there
+ * must hold a token that checks out: ApiError 401 otherwise, whatever the
+ * route - it never counts as nobody, and never as somebody without a role.
+ * Another scheme (`Basic ...`, from a host behind a password file) is no
+ * sign-in and counts as no header. Why a token was refused goes to the
+ * server log, never to the client: to somebody holding a token that did not
+ * work, the answer is the same.
  */
-function requestUser(Request $request): array
+function requestUser(Request $request): ?SiteUser
 {
-    if (authMode() === 'none') {
-        if (!noLoginAllowed(PHP_SAPI, requestRemoteAddr($request), $request->getHeaderLine('Host'), wasForwarded($request->getServerParams()))) {
-            throw new ApiError(403, 'local_only', 'Sign-in is switched off in this copy of the app, so it only answers the computer it runs on.');
-        }
-        $id = authLocalUserId();
-        usersSeen($id, null);
+    $header = $request->getHeaderLine('Authorization');
+    // Apache under CGI/FastCGI may hand the header over only as
+    // REDIRECT_HTTP_AUTHORIZATION: the SDK reads that too.
+    $header = $header !== '' ? $header : (string) anotoki_iam_authorization_header();
+    if (!anotoki_iam_sent_bearer($header)) {
+        return null;
+    }
 
-        return ['id' => $id, 'owner' => true];
+    $token = anotoki_iam_bearer_token($header);
+    if ($token === null) {
+        // "Bearer" with nothing after it: somebody meant to sign in, and did not.
+        throw new ApiError(401, 'sign_in_required', 'Please sign in.', ['WWW-Authenticate' => 'Bearer realm="piano-academy"']);
     }
 
     if (!function_exists('openssl_verify')) {
         throw new RuntimeException('Signing in needs PHP\'s openssl extension, and this PHP has none.');
-    }
-
-    $header = $request->getHeaderLine('Authorization');
-    $token = anotoki_iam_bearer_token($header !== '' ? $header : anotoki_iam_authorization_header());
-    if ($token === null) {
-        throw new ApiError(401, 'sign_in_required', 'Please sign in.', ['WWW-Authenticate' => 'Bearer realm="piano-academy"']);
     }
 
     $claims = anotoki_iam_verify_access_token($token, authIamConfig(), $reason);
@@ -182,25 +254,25 @@ function requestUser(Request $request): array
 
     $id = (int) anotoki_iam_user_id($claims);
     $name = $claims['preferred_username'] ?? null;
-    usersSeen($id, is_string($name) && trim($name) !== '' ? textClip(trim($name), 200) : null);
+    $name = is_string($name) && trim($name) !== '' ? textClip(trim($name), 200) : null;
+    usersSeen($id, $name);
 
-    return ['id' => $id, 'owner' => in_array(OWNER_ROLE, anotoki_iam_roles($claims), true)];
-}
-
-/** The IAM user id a request acts as (see requestUser()). */
-function requestUserId(Request $request): int
-{
-    return requestUser($request)['id'];
+    return new SiteUser($id, $name, anotoki_iam_roles($claims));
 }
 
 /**
- * Keeps the users row of a request's user: made on the first visit, the
+ * Keeps the users row of a request's person: made on the first visit, the
  * username refreshed from the token when it changes, last_seen_at at most
- * every five minutes (not on every key press's save). A null username (auth
- * mode "none") leaves the stored one alone.
+ * every five minutes (not on every key press's save). A null username - a
+ * token without one, or the command line bringing in an export - leaves the
+ * stored one alone.
  */
 function usersSeen(int $id, ?string $username): void
 {
+    if ($id < 1) {
+        // An IAM user id is 1 or more; a negative id is a visitor's, written only by api/visitors.php.
+        throw new LogicException("usersSeen() is for a person, and $id is no IAM user id.");
+    }
     if ($username === null) {
         dbExec(
             "INSERT INTO users (id) VALUES (?)

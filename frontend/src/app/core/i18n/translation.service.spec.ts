@@ -113,13 +113,13 @@ describe('TranslationService', () => {
       return defer(() => from(server(decodeURIComponent(url.replace('/api/translations/', '')))));
     },
   };
-  const hosted = signal(true);
+  /** The SDK's session is live: a user it holds counts only then. */
+  const live = signal(true);
   const user = signal<{ locale: string | null } | null>(null);
   let listeners: (() => void)[] = [];
   const auth = {
-    usesSignIn: hosted,
     user,
-    signedIn: () => !hosted() || user() !== null,
+    signedIn: () => live() && user() !== null,
     onAuthChange: (listener: () => void) => {
       listeners.push(listener);
       return () => undefined;
@@ -143,7 +143,7 @@ describe('TranslationService', () => {
     history.replaceState(null, '', '/');
     server.mockReset().mockImplementation(answer);
     asked.length = 0;
-    hosted.set(true);
+    live.set(true);
     user.set(null);
     listeners = [];
     warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -270,10 +270,10 @@ describe('TranslationService', () => {
       expect(service().language()).toBe('sk');
     });
 
-    it('takes the token’s locale only where people sign in: on the owner’s own computer there is no token to read', async () => {
+    it('takes the token’s locale only from somebody signed in: a session that ended has no token to read', async () => {
       browser.mockReturnValue(['en']);
-      hosted.set(false);
-      // Nothing the SDK could hold counts without sign-in - not even a user somebody left behind.
+      live.set(false);
+      // Nothing the SDK could hold counts while nobody is signed in - not even a user somebody left behind.
       user.set({ locale: 'sk' });
       await service().init(true);
 
@@ -351,12 +351,12 @@ describe('TranslationService', () => {
       }
     });
 
-    it('holds the language, the languages and the strings - the English the server sends beside another language is accepted and not kept', async () => {
+    it('holds the language, the languages and the strings - and the English the server sends beside another language, which the admin panel reads', async () => {
       browser.mockReturnValue(['sk']);
       await service().init(true);
 
       expect(service().language()).toBe('sk');
-      expect(JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null')).toEqual(SK_BUNDLE);
+      expect(JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null')).toEqual(SK_ANSWER);
 
       // And a bundle that comes without it is a bundle all the same.
       TestBed.resetTestingModule();
@@ -594,6 +594,51 @@ describe('TranslationService', () => {
     });
   });
 
+  describe('the admin panel: English whatever the learner chose', () => {
+    it('reads every key in English under /admin, and the learner\'s language again outside it - the choice untouched', async () => {
+      browser.mockReturnValue(['sk']);
+      await service().init(true);
+      TestBed.tick();
+      expect(service().t('common.close')).toBe('Zavrieť');
+      expect(document.documentElement.lang).toBe('sk');
+
+      for (const address of ['/admin', '/admin/translations', '/admin/people?x=1', '/admin#top']) {
+        service().navigated(address);
+        TestBed.tick();
+        expect(service().inAdmin(), address).toBe(true);
+        expect(service().effectiveLanguage(), address).toBe('en');
+        expect(service().t('common.close'), address).toBe('Close');
+        expect(service().plural('home.due', 2), address).toBe('2 notes are due for review.');
+        expect(service().locale(), address).toBe('en-GB');
+        expect(document.documentElement.lang, address).toBe('en');
+      }
+      expect(service().language()).toBe('sk');
+
+      for (const address of ['/', '/stats', '/administrator', '/songs/admin']) {
+        service().navigated(address);
+        TestBed.tick();
+        expect(service().inAdmin(), address).toBe(false);
+        expect(service().t('common.close'), address).toBe('Zavrieť');
+        expect(document.documentElement.lang, address).toBe('sk');
+      }
+    });
+
+    it('an English page is English there too; a cached bundle from before English was kept beside it reads its own', async () => {
+      await service().init(true);
+      service().navigated('/admin/translations');
+      expect(service().t('common.close')).toBe('Close');
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ providers });
+      localStorage.setItem(CACHE_KEY, JSON.stringify(SK_BUNDLE));
+      browser.mockReturnValue(['sk']);
+      server.mockReset().mockRejectedValue(OFFLINE);
+      await service().init(true);
+      service().navigated('/admin/translations');
+      expect(service().t('common.close')).toBe('Zavrieť');
+    });
+  });
+
   describe('asking again: a page that started without its strings heals at the next navigation', () => {
     /** A start with no cache and a server out of reach: both attempts fail, and the page has no bundle. */
     async function startWithout(): Promise<void> {
@@ -744,6 +789,30 @@ describe('TranslationService', () => {
       await settled();
       expect(server).toHaveBeenCalledTimes(2);
       expect(service().ready()).toBe(false);
+    });
+
+    it('asks again from reload() on - once an ADMIN applied what was pending and the app started in place - and at each navigation while that fails', async () => {
+      vi.useFakeTimers();
+      server.mockRejectedValue(PENDING_MIGRATION);
+      const starting = service().init(true);
+      await vi.advanceTimersByTimeAsync(RETRY_WAIT_MS);
+      await starting;
+      vi.useRealTimers();
+      server.mockClear();
+
+      // BootService.resumeAfterUpdate(): the database is current now, but this answer is lost.
+      server.mockRejectedValue(OFFLINE);
+      await service().reload();
+      expect(server).toHaveBeenCalledTimes(1);
+      expect(service().ready()).toBe(false);
+
+      // So the next click asks again, and the strings come.
+      server.mockImplementation(answer);
+      service().navigated();
+      await settled();
+      expect(server).toHaveBeenCalledTimes(2);
+      expect(service().ready()).toBe(true);
+      expect(service().t('common.close')).toBe('Close');
     });
   });
 
@@ -944,7 +1013,7 @@ describe('TranslationService: the request itself', () => {
     localStorage.clear();
     sessionStorage.clear();
     vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['sk-SK']);
-    const auth = { usesSignIn: () => false, user: () => null, signedIn: () => true, onAuthChange: () => () => undefined };
+    const auth = { user: () => null, signedIn: () => false, onAuthChange: () => () => undefined };
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: auth }] });
     const http = TestBed.inject(HttpTestingController);
     const i18n = TestBed.inject(TranslationService);

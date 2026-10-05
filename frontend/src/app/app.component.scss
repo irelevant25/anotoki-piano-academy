@@ -4,57 +4,6 @@
   min-height: 100vh;
 }
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.9rem 1.25rem;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.header-tools {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem 1.25rem;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.app-nav {
-  display: flex;
-  gap: 0.4rem;
-  padding: 0.6rem 1.25rem;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-
-.nav-btn {
-  background: transparent;
-  border: 1px solid transparent;
-}
-
-.nav-btn.is-active {
-  background: var(--panel-alt);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.nav-sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 0.2rem 0.4rem;
-  background: var(--border);
-}
-
 .signed-out-banner {
   display: flex;
   align-items: center;
@@ -65,6 +14,38 @@
   background: var(--panel-alt);
   border-bottom: 1px solid var(--warn);
   color: var(--warn);
+}
+
+// The progress was replaced or deleted somewhere else, and this page loaded it again.
+.changed-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1.25rem;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--accent);
+}
+
+// Practising without signing in (Learn and Stats): how long the progress is kept here, and Sign in.
+.visitor-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 1.25rem;
+  background: var(--panel-alt);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.92rem;
+}
+
+.visitor-notice span,
+.signed-out-banner span,
+.changed-banner span {
+  max-width: 60rem;
 }
 
 .view-root {
@@ -90,27 +71,26 @@
   font-size: 0.85rem;
 }
 
-.version,
-.footer-link {
+.version {
   background: transparent;
   border-color: transparent;
   color: var(--text-dim);
   font-size: 0.85rem;
 }
 
-.version:hover,
-.footer-link:hover {
+.version:hover {
   color: var(--accent);
 }
 
 @media (max-width: 600px) {
-  .app-header,
-  .app-nav {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-
   .view-root {
     padding: 1rem;
+  }
+
+  .visitor-notice,
+  .signed-out-banner,
+  .changed-banner {
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }

@@ -26,6 +26,39 @@ require TEST_BACKEND . '/tools/translation_keys.php';
 /** The five tables of 001: each person's progress. No translation migration may touch them. */
 const PROGRESS_TABLES = ['users', 'progress', 'path_progress', 'sessions', 'imports'];
 
+/**
+ * The one exception, by name: 004 (the family's, which also writes strings)
+ * gives users a column - the generation of each person's progress
+ * (api/store.php) - in one statement. The checks here pass over exactly that
+ * statement and that column; tests/unit/migrations.test.php holds 004 to
+ * adding it and nothing else.
+ */
+const PROGRESS_GENERATION_COLUMN = 'progress_generation';
+const PROGRESS_GENERATION_STATEMENT = '/\bALTER\s+TABLE\s+users\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+progress_generation\s+BIGINT\s+NOT\s+NULL\s+DEFAULT\s+nextval\(\'\'\)\s*;/i';
+
+/**
+ * The other exception, by name: 005 (visitors, which also writes their
+ * strings) - its schema part, statement by statement as sql_code() leaves
+ * them (each must be there once): a sequence, users.visitor_key_hash, the
+ * check on users.id rewritten (001's users_id_check makes way for
+ * users_kind_check), two indexes on users, and the table visitor_starts with
+ * its two. The checks here pass over exactly these, and without_visitors()
+ * over exactly what they make; tests/unit/migrations.test.php holds 005 to
+ * making that and nothing else.
+ */
+const VISITORS_STATEMENTS = [
+    '/\bCREATE\s+SEQUENCE\s+IF\s+NOT\s+EXISTS\s+visitor_ids\s+AS\s+BIGINT\s+INCREMENT\s+BY\s+-1\s+MAXVALUE\s+-1\s+START\s+WITH\s+-1\s*;/i',
+    '/\bALTER\s+TABLE\s+users\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+visitor_key_hash\s+CHAR\(64\)\s*;/i',
+    '/\bALTER\s+TABLE\s+users\s+DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+users_id_check\s*;/i',
+    '/\bALTER\s+TABLE\s+users\s+DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+users_kind_check\s*;/i',
+    '/\bALTER\s+TABLE\s+users\s+ADD\s+CONSTRAINT\s+users_kind_check\s+CHECK\s*\([^;]*\)\s*;/i',
+    '/\bCREATE\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+users_visitor_key_hash\s+ON\s+users\s*\(visitor_key_hash\)\s*;/i',
+    '/\bCREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+users_visitors_by_last_seen\s+ON\s+users\s*\(last_seen_at\)\s+WHERE\s+id\s*<\s*0\s*;/i',
+    '/\bCREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+visitor_starts\s*\([^;]*\)\s*;/i',
+    '/\bCREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+visitor_starts_by_address\s+ON\s+visitor_starts\s*\(address,\s*started_at\)\s*;/i',
+    '/\bCREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+visitor_starts_by_time\s+ON\s+visitor_starts\s*\(started_at\)\s*;/i',
+];
+
 /** The three tables the translation migrations make and fill. */
 const TRANSLATION_TABLES = ['languages', 'translation_keys', 'translations'];
 
@@ -180,21 +213,50 @@ function sql_code(string $sql): string
     );
 }
 
-/** Everything of the five progress tables in a database: their rows, columns, constraints and indexes. */
+/**
+ * Everything of the five progress tables in a database: their rows, columns,
+ * constraints and indexes - but users.progress_generation, the one column
+ * 004 adds (PROGRESS_GENERATION_COLUMN).
+ */
 function progress_tables_as_they_are(PDO $pdo): array
 {
     $list = "'" . implode("', '", PROGRESS_TABLES) . "'";
     $all = static fn(string $sql): array => $pdo->query($sql)->fetchAll();
     $state = [
         'columns' => $all("SELECT table_name, column_name, data_type, is_nullable, column_default FROM information_schema.columns
-                            WHERE table_schema = current_schema() AND table_name IN ($list) ORDER BY table_name, ordinal_position"),
+                            WHERE table_schema = current_schema() AND table_name IN ($list)
+                              AND NOT (table_name = 'users' AND column_name = '" . PROGRESS_GENERATION_COLUMN . "')
+                            ORDER BY table_name, ordinal_position"),
+        // (PostgreSQL 18 lists a NOT NULL as a constraint: the column's own is passed over with it.)
         'constraints' => $all("SELECT conrelid::regclass::text AS on_table, conname, pg_get_constraintdef(oid) AS definition FROM pg_constraint
-                                WHERE conrelid::regclass::text IN ($list) ORDER BY 1, 2"),
+                                WHERE conrelid::regclass::text IN ($list)
+                                  AND pg_get_constraintdef(oid) <> 'NOT NULL " . PROGRESS_GENERATION_COLUMN . "' ORDER BY 1, 2"),
         'indexes' => $all("SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename IN ($list) ORDER BY 1, 2"),
     ];
     foreach (PROGRESS_TABLES as $table) {
-        $state["rows of $table"] = $all("SELECT to_jsonb(t)::text AS row FROM \"$table\" t ORDER BY 1");
+        $state["rows of $table"] = $all("SELECT (to_jsonb(t) - '" . PROGRESS_GENERATION_COLUMN . "')::text AS row FROM \"$table\" t ORDER BY 1");
     }
+
+    return $state;
+}
+
+/**
+ * A state of progress_tables_as_they_are() without what 005 makes for
+ * visitors (VISITORS_STATEMENTS): the column, the check on users.id (001's
+ * and 005's), the two indexes on users. The rows keep everything else.
+ */
+function without_visitors(array $state): array
+{
+    $state['columns'] = array_values(array_filter($state['columns'], static fn(array $column): bool => !($column['table_name'] === 'users' && $column['column_name'] === 'visitor_key_hash')));
+    $state['constraints'] = array_values(array_filter($state['constraints'], static fn(array $constraint): bool => !in_array($constraint['conname'], ['users_id_check', 'users_kind_check'], true)));
+    $state['indexes'] = array_values(array_filter($state['indexes'], static fn(array $index): bool => !in_array($index['indexname'], ['users_visitor_key_hash', 'users_visitors_by_last_seen'], true)));
+    $state['rows of users'] = array_map(static function (array $row): array {
+        $values = json_decode($row['row'], true);
+        unset($values['visitor_key_hash']);
+        ksort($values);
+
+        return ['row' => json_encode($values)];
+    }, $state['rows of users']);
 
     return $state;
 }
@@ -347,6 +409,18 @@ test('the migrations of this work make and fill only their own three tables - by
 
     foreach ($files as $file) {
         $code = sql_code(migration_sql($file));
+        // 004's column on users, and that statement alone (PROGRESS_GENERATION_STATEMENT).
+        if (str_starts_with($file, '004_')) {
+            $code = (string) preg_replace(PROGRESS_GENERATION_STATEMENT, ' ', $code, -1, $passed);
+            assert_same(1, $passed, "$file adds users.progress_generation in the one statement this test passes over");
+        }
+        // 005's visitors, and those statements alone (VISITORS_STATEMENTS).
+        if (str_starts_with($file, '005_')) {
+            foreach (VISITORS_STATEMENTS as $statement) {
+                $code = (string) preg_replace($statement, ' ', $code, -1, $passed);
+                assert_same(1, $passed, "$file: one statement of its visitors this test passes over, $statement");
+            }
+        }
 
         // Every table a statement names is one of the three - but for the one reference to users (id).
         preg_match_all('/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|ALTER\s+TABLE(?:\s+IF\s+EXISTS)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|CREATE\s+(?:UNIQUE\s+)?INDEX\s+\w+\s+ON)\s+("?\w+"?)/i', (string) preg_replace('/\bON\s+(?:UPDATE|DELETE)\s+(?:CASCADE|SET\s+NULL|SET\s+DEFAULT|RESTRICT|NO\s+ACTION)\b/i', ' ', $code), $written);
@@ -403,12 +477,14 @@ test('the migrations of this work leave everybody\'s progress exactly as it was 
         applyMigration($pdo, MIGRATIONS_ALIAS, $file);
         $applied[] = $file;
         if (in_array($file, $held, true)) {
-            assert_same($was, progress_tables_as_they_are($pdo), "$file changed a table of 001, or a row in one");
+            // 005 makes visitors (VISITORS_STATEMENTS): everything else of 001 as it was.
+            $now = progress_tables_as_they_are($pdo);
+            assert_same(str_starts_with($file, '005_') ? without_visitors($was) : $was, str_starts_with($file, '005_') ? without_visitors($now) : $now, "$file changed a table of 001, or a row in one");
         }
     }
     assert_same([], array_values(array_diff($held, $applied)), 'each of them was applied');
     if ($held === array_values(array_diff(migrationFiles(), ['001_init.sql']))) {
-        assert_same($before, progress_tables_as_they_are($pdo), 'and after all of them the progress is what it was');
+        assert_same(without_visitors($before), without_visitors(progress_tables_as_they_are($pdo)), 'and after all of them the progress is what it was');
     }
     foreach (TRANSLATION_TABLES as $table) {
         assert_true((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "the table $table");

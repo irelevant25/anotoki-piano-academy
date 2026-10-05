@@ -3,32 +3,57 @@
 declare(strict_types=1);
 
 /**
- * Your data outside the database, and back in:
+ * One person's data as a file, and back:
  *
- *   the old files   server/data/progress.json, sessions.json (and path.json),
- *                   which the first version of the app kept before it had a
- *                   database. setup.php imports them once, into the owner's
- *                   account (local_user_id). They are only ever read: they
- *                   stay in git as the history from before the database.
- *   an export       one person's data as one JSON file (php tools/progress.php
- *                   --export), to move it to another database - the hosted
- *                   site's setup page takes one.
- *   a new owner     all of one person's data moved to another IAM user id
- *                   (php tools/progress.php --owner=ID).
+ *   an export    one person's note progress, path progress and sessions as one
+ *                JSON document ('piano-academy-export', version 1) - to keep a
+ *                copy, or to take it to another database. Each signed-in
+ *                person downloads their own (GET /api/me/export) and brings
+ *                one back into their own account (POST /api/me/import); an
+ *                operator does it for anybody (php tools/progress.php).
+ *   a move       all of one person's data to another IAM user id (php
+ *                tools/progress.php --move), for an operator.
+ *
+ * An import goes into an account without progress, or replaces what is there
+ * when that is asked for - never a mix of the two. It takes the person's users
+ * row for its transaction (FOR UPDATE: two imports, or an import and a save,
+ * take turns) and starts a new generation of their progress, so a tab that
+ * loaded the old one cannot write it back (api/store.php).
+ *
+ * The files the first version of the app kept (server/data/) are gone from
+ * the repository (git keeps them); nothing here reads a folder of them any
+ * more. The imports table that recorded their one-time import stays in the
+ * schema, written by nothing.
  */
 
 const EXPORT_FORMAT = 'piano-academy-export';
 
-/** The imports row of the one-time import of server/data/. */
-const IMPORT_SERVER_DATA = 'server-data';
-
 /**
- * Where the old progress files are: server/data/ at the top of the repository,
- * beside backend/. (With the tests' settings, the copy in their folder.)
+ * The largest export the app makes, and the largest it takes back - one
+ * number, so a file the app gave somebody always fits through its import. An
+ * export that would be larger is refused (409 export_too_large) rather than
+ * handed out to fail later; the operator's tools/progress.php has no limit.
+ * 5 MiB is some ten thousand rounds, and stays under PHP's usual
+ * post_max_size (8M).
  */
-function serverDataDir(): string
+const EXPORT_LIMIT = 5 * 1024 * 1024;
+
+/** A file that is not a Piano Academy export at all. */
+function transferNotAnExport(): ApiError
 {
-    return usingTestConfig() ? configDir() . '/server-data' : dirname(PIANO_BACKEND) . '/server/data';
+    return new ApiError(422, 'not_an_export', 'That is not a Piano Academy export (php tools/progress.php --export writes one, and so does the app\'s own export).');
+}
+
+/** An export with a part that is not what it should be: nothing of it is taken. */
+function transferInvalidExport(string $why): ApiError
+{
+    return new ApiError(422, 'invalid_export', $why);
+}
+
+/** The refusal of an import into an account that has progress, without asking to replace it. */
+function transferHasProgress(array $counts): ApiError
+{
+    return new ApiError(409, 'has_progress', 'This account already has progress, so nothing was imported. Ask for it to be replaced to put the file\'s in its place.', [], ['current' => $counts]);
 }
 
 /** A JSON file with its objects kept as objects; throws, naming the file, on anything that is not JSON. */
@@ -45,63 +70,65 @@ function transferJsonFile(string $file): mixed
     }
 }
 
-/**
- * What $path holds, ready to import: a folder with the old files (each one
- * optional), or an export file. A progress or path document that is not one
- * stops everything - better nothing than half. A session that does not pass
- * the checks of POST /api/sessions is left out and listed in 'problems'.
- *
- * @return array{progress: ?stdClass, path: ?stdClass, sessions: array, problems: string[], from: string}
- */
-function transferRead(string $path): array
+/** An export file, read and checked: what transferReadExport() makes of it. */
+function transferReadFile(string $file): array
 {
-    $from = str_replace('\\', '/', $path);
-    $data = ['progress' => null, 'path' => null, 'sessions' => [], 'problems' => [], 'from' => $from];
-    $item = 'sessions.json item';
-
-    if (is_dir($path)) {
-        $files = [];
-        foreach (['progress', 'sessions', 'path'] as $name) {
-            $file = "$path/$name.json";
-            $files[$name] = is_file($file) ? transferJsonFile($file) : null;
-        }
-        [$progress, $sessions, $pathDocument] = [$files['progress'], $files['sessions'], $files['path']];
-    } elseif (is_file($path)) {
-        $export = transferJsonFile($path);
-        if (!($export instanceof stdClass) || ($export->format ?? null) !== EXPORT_FORMAT) {
-            throw new RuntimeException('That file is not a Piano Academy export (php tools/progress.php --export writes one).');
-        }
-        [$progress, $sessions, $pathDocument] = [$export->progress ?? null, $export->sessions ?? null, $export->path ?? null];
-        $item = 'session';
-    } else {
-        throw new RuntimeException("There is no file or folder $from");
+    if (!is_file($file)) {
+        throw new RuntimeException('There is no file ' . str_replace('\\', '/', $file));
     }
+
+    return transferReadExport(transferJsonFile($file), str_replace('\\', '/', $file));
+}
+
+/**
+ * An export document (decoded with its objects as objects), ready to import.
+ * Something that is not an export at all is 422 not_an_export; a version
+ * this app cannot read, or a progress or path document that is not one, is
+ * 422 invalid_export and stops everything - better nothing than half. A
+ * session that does not pass the checks of POST /api/sessions is left out,
+ * counted in 'leftOut' and said in 'problems'. The userId inside is not read:
+ * an export goes into whichever account it is imported into.
+ *
+ * @return array{progress: ?stdClass, path: ?stdClass, sessions: array, problems: string[], leftOut: int, from: string}
+ */
+function transferReadExport(mixed $export, string $from = 'the export'): array
+{
+    if (!($export instanceof stdClass) || ($export->format ?? null) !== EXPORT_FORMAT) {
+        throw transferNotAnExport();
+    }
+    $version = $export->version ?? null;
+    if ($version !== 1) {
+        throw transferInvalidExport("$from was written by another version of Piano Academy (" . (is_int($version) ? "version $version" : 'no version') . '), which this one cannot read.');
+    }
+    [$progress, $sessions, $pathDocument] = [$export->progress ?? null, $export->sessions ?? null, $export->path ?? null];
+    $data = ['progress' => null, 'path' => null, 'sessions' => [], 'problems' => [], 'leftOut' => 0, 'from' => $from];
 
     if ($progress !== null) {
         try {
             $data['progress'] = storeCheckProgress($progress);
         } catch (ApiError $e) {
-            throw new RuntimeException("$from: the note progress is not a progress document ({$e->getMessage()})");
+            throw transferInvalidExport("$from: the note progress is not a progress document ({$e->getMessage()})");
         }
     }
     if ($pathDocument !== null) {
         try {
             $data['path'] = storeCheckPath($pathDocument);
         } catch (ApiError $e) {
-            throw new RuntimeException("$from: the learning-path progress is not a path document ({$e->getMessage()})");
+            throw transferInvalidExport("$from: the learning-path progress is not a path document ({$e->getMessage()})");
         }
     }
     if ($sessions !== null && !is_array($sessions)) {
-        throw new RuntimeException("$from: the sessions are not a list");
+        throw transferInvalidExport("$from: the sessions are not a list");
     }
 
     $ids = [];
     foreach (array_values($sessions ?? []) as $i => $session) {
-        $where = "$item " . ($i + 1);
+        $where = 'session ' . ($i + 1);
         try {
             $clean = storeCleanSession($session);
         } catch (ApiError $e) {
             $data['problems'][] = "$where: {$e->getMessage()}";
+            $data['leftOut']++;
             continue;
         }
         // The id and time it was stored with: the browser shows and sorts by them.
@@ -128,80 +155,91 @@ function transferRead(string $path): array
 }
 
 /**
- * Puts data from transferRead() into one person's account, in one
- * transaction - and only into an account without any data yet, so nothing is
- * ever overwritten or counted twice.
+ * What data from transferReadExport() holds, counted as storeProgressCounts()
+ * counts an account.
  *
  * @return array{notes: int, steps: int, sessions: int}
  */
-function transferImport(int $userId, array $data): array
+function transferCounts(array $data): array
 {
-    return dbTx(static function () use ($userId, $data): array {
-        if (storeHasData($userId)) {
-            throw new RuntimeException("User $userId already has progress; nothing was imported.");
-        }
-        usersSeen($userId, null);
-
-        $counts = ['notes' => 0, 'steps' => 0, 'sessions' => 0];
-        if ($data['progress'] !== null) {
-            storeSaveProgress($userId, $data['progress']);
-            $counts['notes'] = count(get_object_vars($data['progress']));
-        }
-        if ($data['path'] !== null) {
-            storeSavePath($userId, $data['path']);
-            $counts['steps'] = count(get_object_vars($data['path']->steps));
-        }
-        foreach ($data['sessions'] as $session) {
-            dbExec(
-                'INSERT INTO sessions (user_id, id, recorded_at, data) VALUES (?, ?, ?::timestamptz, ?::jsonb)',
-                [$userId, $session['id'], $session['recordedAt'], jsonText($session['data'])]
-            );
-            $counts['sessions']++;
-        }
-
-        return $counts;
-    });
-}
-
-/** Has the one-time import of server/data/ happened in this database? */
-function serverDataImported(): bool
-{
-    return (bool) dbValue('SELECT EXISTS (SELECT 1 FROM imports WHERE source = ?)', [IMPORT_SERVER_DATA]);
-}
-
-/** The record of that import, or null: when, into whom, how much. */
-function serverDataImport(): ?array
-{
-    $row = dbOne('SELECT user_id, imported_at, summary::text AS summary FROM imports WHERE source = ?', [IMPORT_SERVER_DATA]);
-
-    return $row === null ? null : ['user' => (int) $row['user_id'], 'at' => (string) $row['imported_at']] + (json_decode((string) $row['summary'], true) ?: []);
+    return [
+        'notes' => $data['progress'] === null ? 0 : count(get_object_vars($data['progress'])),
+        'steps' => $data['path'] === null ? 0 : count(get_object_vars($data['path']->steps)),
+        'sessions' => count($data['sessions']),
+    ];
 }
 
 /**
- * The one-time import of the old files in $dir (server/data/) into the
- * owner's account: once, and only while that account has no data.
- * Returns what was imported, or ['skipped' => why not].
+ * What an import of $data would do to this person's account, without doing
+ * it (POST /api/me/import?dryRun=true): what is there now, what the file
+ * brings, how many of its sessions would be left out, and whether replacing
+ * has to be asked for.
+ *
+ * @return array{dryRun: true, hasProgress: bool, current: array, incoming: array, leftOut: int}
  */
-function transferImportServerData(string $dir, int $userId): array
+function transferPreview(int $userId, array $data): array
 {
-    if (serverDataImported()) {
-        return ['skipped' => 'already imported'];
-    }
-    // before reading any file: an account with data needs none of them
-    if (storeHasData($userId)) {
-        return ['skipped' => "user $userId already has progress"];
-    }
+    $current = storeProgressCounts($userId);
 
-    $data = transferRead($dir);
-    if ($data['progress'] === null && $data['path'] === null && !$data['sessions'] && !$data['problems']) {
-        return ['skipped' => 'no progress files in ' . str_replace('\\', '/', $dir)];
-    }
+    return [
+        'dryRun' => true,
+        'hasProgress' => storeCountsHaveProgress($current),
+        'current' => $current,
+        'incoming' => transferCounts($data),
+        'leftOut' => $data['leftOut'] ?? 0,
+    ];
+}
 
-    return dbTx(static function () use ($data, $userId): array {
-        $summary = transferImport($userId, $data) + ['user' => $userId, 'from' => 'server/data', 'problems' => $data['problems']];
-        dbExec('INSERT INTO imports (source, user_id, summary) VALUES (?, ?, ?::jsonb)', [IMPORT_SERVER_DATA, $userId, jsonText($summary)]);
+/**
+ * Puts data from transferReadExport() into one person's account, in one
+ * transaction: into an account without progress - or, with $replace, in the
+ * place of the progress it has (its notes, path and sessions go first). Never
+ * a mix of the two, so nothing is counted twice. An account with progress and
+ * no $replace: 409 has_progress, and nothing changes.
+ *
+ * The person's users row is taken first (FOR UPDATE) and held to the end:
+ * two imports into one account, or an import and a save, take turns - the
+ * second sees what the first left. The import ends with a new generation of
+ * the person's progress (api/store.php), which it answers.
+ *
+ * @return array{notes: int, steps: int, sessions: int, replaced: bool, generation: int}
+ */
+function transferImport(int $userId, array $data, bool $replace = false): array
+{
+    return dbTx(static function () use ($userId, $data, $replace): array {
+        usersSeen($userId, null);
+        storeLockGeneration($userId);
 
-        return $summary;
+        $current = storeProgressCounts($userId);
+        $had = storeCountsHaveProgress($current);
+        if ($had && !$replace) {
+            throw transferHasProgress($current);
+        }
+        // Empty documents too: what comes in stands alone.
+        dbExec('DELETE FROM sessions WHERE user_id = ?', [$userId]);
+        dbExec('DELETE FROM progress WHERE user_id = ?', [$userId]);
+        dbExec('DELETE FROM path_progress WHERE user_id = ?', [$userId]);
+
+        if ($data['progress'] !== null) {
+            storeSaveProgress($userId, $data['progress']);
+        }
+        if ($data['path'] !== null) {
+            storeSavePath($userId, $data['path']);
+        }
+        // A few hundred rows to a statement: an export near EXPORT_LIMIT holds thousands.
+        foreach (array_chunk($data['sessions'], 500) as $chunk) {
+            $params = [];
+            foreach ($chunk as $session) {
+                array_push($params, $userId, $session['id'], $session['recordedAt'], jsonText($session['data']));
+            }
+            dbExec(
+                'INSERT INTO sessions (user_id, id, recorded_at, data) VALUES '
+                . implode(', ', array_fill(0, count($chunk), '(?, ?, ?::timestamptz, ?::jsonb)')),
+                $params
+            );
+        }
+
+        return transferCounts($data) + ['replaced' => $had, 'generation' => storeNewGeneration($userId)];
     });
 }
 
@@ -222,11 +260,26 @@ function transferExport(int $userId): array
 }
 
 /**
+ * One person's own export as the app hands it out (GET /api/me/export): the
+ * JSON text - or 409 export_too_large when it would not fit through the
+ * import (EXPORT_LIMIT), rather than a file that could never come back.
+ */
+function transferExportJson(int $userId): string
+{
+    $json = jsonText(transferExport($userId));
+    if (strlen($json) > EXPORT_LIMIT) {
+        throw new ApiError(409, 'export_too_large', 'Your progress is too large for one file the app could bring back in. Ask the site\'s administrator to export it for you.', [], ['limit' => EXPORT_LIMIT]);
+    }
+
+    return $json;
+}
+
+/**
  * Moves all of one person's data - note progress, path progress, sessions,
- * the record of the one-time import - to another IAM user id: the users row
- * changes its id and the foreign keys follow (ON UPDATE CASCADE). The new id
- * must not have data of its own; an empty users row it may have (somebody who
- * signed in once and did nothing) is replaced.
+ * the strings they reworded - to another IAM user id: the users row changes
+ * its id and the foreign keys follow (ON UPDATE CASCADE). The new id must not
+ * have data of its own; an empty users row it may have (somebody who signed in
+ * once and did nothing) is replaced.
  *
  * @return array{moved: bool, notes?: int, sessions?: int}
  */

@@ -1,5 +1,25 @@
 [
   {
+    "version": "0.2",
+    "date": "2026-10-04",
+    "changes": {
+      "added": [
+        "Your progress file: at the end of Stats you can download your progress as a file, and bring it back from one - on another computer, for example. If you already have progress, the app asks before it replaces it",
+        "Piano Academy in Slovak: choose the language with the button at the top of the page",
+        "For administrators: the menu's \"Admin panel\" opens the admin panel - Translations, Languages, People, and Migrations: the database's updates, waiting and applied, and a button to apply them, even while the app waits for one",
+        "If Piano Academy lets you practise without signing in, your progress is kept for this browser for 30 days after your last visit - and when you sign in, it comes with you into your account"
+      ],
+      "updated": [
+        "You always sign in with your anotoki account now, on your own computer too: open any page, and the app takes you to the sign-in and back to that page",
+        "One bar at the top of every page, as on the other anotoki sites: Learn, Note Trainer, Sheet Practice, Songs and Stats, then your piano, the language, the theme and your menu. On a phone or a small window they are behind the menu button",
+        "Your piano is a small button in the bar - a green dot when it is connected. Press it to choose the device, connect or look for devices again",
+        "\"Not saved yet\" now shows in the bar (on a phone, as a dot on the menu button), and signing out asks first if some of your progress could not be saved",
+        "If your progress was replaced or deleted somewhere else (another tab or another computer), the page loads it again and tells you - also in the middle of a round - so an old page never saves over it"
+      ],
+      "fixed": []
+    }
+  },
+  {
     "version": "0.1",
     "date": "2026-09-29",
     "changes": {

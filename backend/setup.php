@@ -3,44 +3,47 @@
 declare(strict_types=1);
 
 /**
- * setup.php - sets Piano Academy up: the database connection, how people sign
- * in, the tables, and - if you like - the progress you had before. It is the
- * one way config/database.local.php and config/auth.local.php are written, on
- * your own computer as on the live site. Open it in a browser: /setup.php.
+ * setup.php - sets Piano Academy up: the database connection, the anotoki IAM
+ * everybody signs in through, and the tables. It is the one way
+ * config/database.local.php and config/auth.local.php are written, on your
+ * own computer as on the live site. Open it in a browser: /setup.php.
  *
  * TWO WAYS IT RUNS
  *
- *   On your own computer   PHP's built-in server (the launchers, or php -S),
+ *   On your own computer   PHP's built-in server (composer start, or php -S),
  *                          asked from this computer by a local name
  *                          (localhost, 127.0.0.1). No token - but the form
  *                          carries a nonce from a cookie, so another page open
  *                          in the browser cannot submit it for you. It stays
  *                          where it is and can be run again any time: it shows
  *                          what is saved (never a password), and saving again
- *                          applies what is new. It offers sign-in off (auth
- *                          mode "none": this computer only, no login) and the
- *                          one-time import of the old progress in server/data/.
+ *                          applies what is new.
  *
  *   On a real host         Anybody can reach this page, so before it does
  *                          anything it asks for a token it writes into
  *                          storage/setup-token.php - only somebody with FTP
- *                          access can read that file. Sign-in is always through
- *                          the IAM there. An export of your progress can come
- *                          along (php tools/progress.php --export). When it is
- *                          done it writes storage/installed.lock, which stops
- *                          it running again, and deletes the token and itself.
- *                          A later version with a new migration: delete the
- *                          lock, upload setup.php again, and run it once more.
+ *                          access can read that file. It shows nothing of what
+ *                          is saved. When it is done it writes
+ *                          storage/installed.lock, which stops it running
+ *                          again, and deletes the token and itself. A later
+ *                          version with a new migration: delete the lock,
+ *                          upload setup.php again, and run it once more - or
+ *                          an administrator applies it in the app (the admin
+ *                          panel's Migrations page).
+ *
+ * It asks for the database and the IAM, and nothing else: who may administer
+ * the app is the IAM's roles (ADMIN, EDITOR), and each person brings their own
+ * progress in the app.
  *
  * "Test connection" tries the database, and the IAM's discovery document
  * ({issuer}/.well-known/openid-configuration), with what is typed in - without
- * saving anything.
+ * saving anything. Save applies the migrations under the same lock as php
+ * migration.php and the app's own update (api/database_update.php).
  *
  * This one file stays readable by PHP 7.4, so a host with an old PHP gets a
  * sentence saying so rather than a blank page.
  */
 
-const SETUP_EXPORT_LIMIT = 5242880; // 5 MB
 const SETUP_NONCE_COOKIE = 'piano_setup_nonce';
 
 header('Content-Type: text/html; charset=utf-8');
@@ -78,9 +81,8 @@ function setupPage(string $heading, string $body, string $tone = 'plain', bool $
         . 'h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:24px 0 2px}'
         . 'p,li{color:var(--muted)}label{display:block;margin:12px 0 5px;font-weight:600;font-size:.9rem}'
         . '.row{display:flex;gap:12px;flex-wrap:wrap}.row>div{flex:1;min-width:140px}'
-        . 'input[type=text],input[type=password],input[type=file]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font:inherit}'
+        . 'input[type=text],input[type=password]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font:inherit}'
         . 'input:focus{outline:2px solid var(--accent);outline-offset:1px}'
-        . '.choice{display:flex;gap:9px;align-items:flex-start;font-weight:400;margin:10px 0 0}.choice input{margin:4px 0 0}'
         . 'button{font:600 .95rem system-ui,sans-serif;border-radius:8px;cursor:pointer;padding:9px 14px}'
         . 'button.primary{margin-top:24px;width:100%;padding:11px;border:0;background:var(--accent);color:#fff;font-size:1rem}'
         . 'button.test{margin-top:12px;background:transparent;color:var(--ink);border:1px solid var(--line)}'
@@ -116,14 +118,12 @@ if (($_GET['asset'] ?? '') === 'js') {
 document.querySelectorAll('button[data-test]').forEach((button) => {
   button.addEventListener('click', async () => {
     const out = document.getElementById(button.dataset.result);
-    const data = new FormData(button.form);
-    data.delete('export');
     out.textContent = 'Testing…';
     out.className = 'test-result';
     button.disabled = true;
     try {
       const response = await fetch('setup.php?test=' + encodeURIComponent(button.dataset.test), {
-        method: 'POST', body: data, credentials: 'same-origin',
+        method: 'POST', body: new FormData(button.form), credentials: 'same-origin',
       });
       const answer = await response.json();
       out.textContent = answer.message;
@@ -136,16 +136,6 @@ document.querySelectorAll('button[data-test]').forEach((button) => {
     }
   });
 });
-
-// The IAM's fields matter only when signing in through it.
-const modes = document.querySelectorAll('input[name="auth_mode"]');
-const iamFields = document.getElementById('iam-fields');
-function showIamFields() {
-  const chosen = document.querySelector('input[name="auth_mode"]:checked');
-  if (iamFields && chosen) iamFields.hidden = chosen.value !== 'iam';
-}
-modes.forEach((radio) => radio.addEventListener('change', showIamFields));
-showIamFields();
 JS;
     exit;
 }
@@ -176,7 +166,7 @@ $tokenFile = $storage . '/setup-token.php';
 $method = (string) ($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
 // On this computer (see the top of this file) there is no token to ask for.
-$local = noLoginAllowed(PHP_SAPI, (string) ($_SERVER['REMOTE_ADDR'] ?? ''), (string) ($_SERVER['HTTP_HOST'] ?? ''), wasForwarded($_SERVER));
+$local = isThisComputer(PHP_SAPI, (string) ($_SERVER['REMOTE_ADDR'] ?? ''), (string) ($_SERVER['HTTP_HOST'] ?? ''), wasForwarded($_SERVER));
 $test = (string) ($_GET['test'] ?? '');
 
 // ── A real host that is set up: the lock is the guard, whatever became of this file ──
@@ -190,7 +180,8 @@ if (!$local && is_file($lockFile)) {
         . ($gone
             ? '<p class="ok">The setup page has deleted itself.</p>'
             : '<p class="err">Delete <code>setup.php</code> and <code>storage/setup-token.php</code> by hand: the host did not let the setup page do it.</p>')
-        . '<p class="small">To run it again on purpose (a new version with a database update): delete the lock, upload setup.php again, and open it.</p>', 'good');
+        . '<p class="small">To run it again on purpose (a new version with a database update): delete the lock, upload setup.php again, and open it. '
+        . 'Or sign in as an administrator and apply the update in the app (Admin -> Database).</p>', 'good');
 }
 
 /**
@@ -245,7 +236,9 @@ if ($local) {
     }
 }
 if (!$local) {
-    $token = (string) setupToken($tokenFile);
+    // Null when the file is gone - deleted by the install that just finished,
+    // say - and then no token at all is the right one.
+    $token = setupToken($tokenFile);
 }
 
 /** Is this POST from you: the right token (a host) or nonce (this computer)? */
@@ -264,7 +257,7 @@ function setupProofOk(bool $local, ?string $token, ?string $nonce): bool
         return $nonce !== null && isset($_COOKIE[SETUP_NONCE_COOKIE]) && hash_equals((string) $_COOKIE[SETUP_NONCE_COOKIE], $sent);
     }
 
-    return $token !== null && hash_equals($token, trim((string) ($_POST['token'] ?? '')));
+    return $token !== null && $token !== '' && hash_equals($token, trim((string) ($_POST['token'] ?? '')));
 }
 
 // ── What is saved already, and what the form says ─────────────────────────────
@@ -273,18 +266,19 @@ $saved = localSettings(true);
 $savedDb = is_array($saved['database']) ? $saved['database'] : [];
 $savedAuth = is_array($saved['auth']) ? $saved['auth'] : [];
 
+// A development computer starts from what is saved, or the development values.
+// A real host is asked for its own - and shows nothing of what is saved to a
+// visitor who has not given the token (the setup is run again there for an
+// update): a blank password keeps the saved one all the same.
+$shown = $local ? ['db' => $savedDb, 'auth' => $savedAuth] : ['db' => [], 'auth' => []];
 $form = [
-    'db_host' => (string) ($savedDb['host'] ?? '127.0.0.1'),
-    'db_port' => (string) ($savedDb['port'] ?? '5432'),
-    'db_name' => (string) ($savedDb['name'] ?? 'piano_academy'),
-    'db_user' => (string) ($savedDb['user'] ?? 'postgres'),
-    'auth_mode' => $local ? (($savedAuth['mode'] ?? 'none') === 'iam' ? 'iam' : 'none') : 'iam',
-    'issuer' => (string) ($savedAuth['issuer'] ?? 'http://localhost:4300'),
-    'client_id' => (string) ($savedAuth['client_id'] ?? 'piano-academy'),
-    'local_user_id' => (string) ($savedAuth['local_user_id'] ?? '1'),
-    'owner' => '',
+    'db_host' => (string) ($shown['db']['host'] ?? ($local ? '127.0.0.1' : 'localhost')),
+    'db_port' => (string) ($shown['db']['port'] ?? '5432'),
+    'db_name' => (string) ($shown['db']['name'] ?? 'anotoki_piano'),
+    'db_user' => (string) ($shown['db']['user'] ?? ($local ? 'postgres' : '')),
+    'issuer' => (string) ($shown['auth']['issuer'] ?? ($local ? 'http://localhost:4300' : '')),
+    'client_id' => (string) ($shown['auth']['client_id'] ?? 'piano-academy'),
 ];
-$importOld = true;
 
 if ($method === 'POST') {
     foreach (array_keys($form) as $key) {
@@ -292,11 +286,7 @@ if ($method === 'POST') {
             $form[$key] = trim($_POST[$key]);
         }
     }
-    if (!$local) {
-        $form['auth_mode'] = 'iam';
-    }
     $form['issuer'] = rtrim($form['issuer'], '/');
-    $importOld = isset($_POST['import_old']);
 }
 
 /** The database fields as settings - the saved password when none is typed. */
@@ -371,7 +361,7 @@ if ($test !== '') {
         if ($problem !== null) {
             setupJson(false, $problem);
         }
-        $result = setupTestIam($form['issuer']);
+        $result = setupTestIam($form['issuer'], $form['client_id']);
         setupJson($result[0], $result[1]);
     }
 
@@ -379,7 +369,8 @@ if ($test !== '') {
 }
 
 /**
- * Connects the way the app will, and says what it found. Shared hosting often
+ * Connects the way the app will, and says what it found - in the anotoki
+ * family's words, the same on every site's setup page. Shared hosting often
  * lets the user into its own database only, so that is tried first; the
  * server's maintenance database second, to say whether Save can create it.
  *
@@ -429,7 +420,7 @@ function setupShortError(string $message): string
  *
  * @return array{0: bool, 1: string}
  */
-function setupTestIam(string $issuer): array
+function setupTestIam(string $issuer, string $clientId): array
 {
     $body = anotoki_iam_http_get($issuer . '/.well-known/openid-configuration', 5);
     if ($body === null) {
@@ -450,20 +441,15 @@ function setupTestIam(string $issuer): array
         return [false, 'The IAM answers, but its signing keys (' . $discovery['jwks_uri'] . ') do not.'];
     }
 
-    return [true, 'Found the IAM at ' . $issuer . ' with ' . $count . ' signing key' . ($count === 1 ? '' : 's') . '.'];
+    return [true, 'Found the IAM at ' . $issuer . ' with ' . $count . ' signing key' . ($count === 1 ? '' : 's') . '. Make sure it knows this app as "' . $clientId . '".'];
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
 
 $errors = [];
 
-if ($method === 'POST' && !$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
-    // PHP drops the whole form when it is larger than post_max_size.
-    $errors[] = 'The form was larger than this server takes (PHP\'s post_max_size). Try again without the progress file, or with a smaller one.';
-} elseif ($method === 'POST') {
+if ($method === 'POST') {
     $db = setupDatabaseFromForm($form, $savedDb);
-    $upload = $_FILES['export'] ?? null;
-    $hasExport = !$local && is_array($upload) && ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
 
     if (!setupProofOk($local, $token, $nonce)) {
         $errors[] = $local ? 'This page was out of date. It is fresh now: check the fields and press Save again.' : 'That is not the token from storage/setup-token.php.';
@@ -472,39 +458,23 @@ if ($method === 'POST' && !$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0
     if ($problem !== null) {
         $errors[] = $problem;
     }
-    if ($form['auth_mode'] === 'iam') {
-        $problem = setupIamProblem($form['issuer'], $form['client_id']);
-        if ($problem !== null) {
-            $errors[] = $problem;
-        }
-    }
-    if ($local && (!ctype_digit($form['local_user_id']) || (int) $form['local_user_id'] < 1 || strlen($form['local_user_id']) > 18)) {
-        $errors[] = 'Your IAM user id is a whole number from 1 (1 when you are not sure).';
-    }
-    if (!$local && $form['owner'] !== '' && (!ctype_digit($form['owner']) || (int) $form['owner'] < 1 || strlen($form['owner']) > 18)) {
-        $errors[] = 'Your IAM user id is a whole number (the IAM admin console shows it under Users).';
-    }
-    if ($hasExport && $form['owner'] === '') {
-        $errors[] = 'To bring your progress here, enter your IAM user id too.';
+    $problem = setupIamProblem($form['issuer'], $form['client_id']);
+    if ($problem !== null) {
+        $errors[] = $problem;
     }
 
-    // The progress file is checked before anything is written.
-    $import = null;
-    if ($hasExport && !$errors) {
-        if (($upload['error'] ?? null) !== UPLOAD_ERR_OK || !is_uploaded_file((string) $upload['tmp_name'])) {
-            $errors[] = 'The progress file did not arrive. It may be larger than this server allows; try again.';
-        } elseif ((int) $upload['size'] > SETUP_EXPORT_LIMIT) {
-            $errors[] = 'The progress file is too large.';
-        } else {
-            try {
-                $import = transferRead((string) $upload['tmp_name']);
-            } catch (Throwable $e) {
-                $errors[] = 'That file is not a progress export from Piano Academy (php tools/progress.php --export makes one).';
-            }
+    // A real host: one install at a time, and none once the lock is there - a
+    // second request that started before the first one locked must not write
+    // its settings after it. The flock is let go when the request ends.
+    if (!$errors && !$local) {
+        $guard = @fopen($storage . '/setup.flock', 'c');
+        if ($guard === false || !flock($guard, LOCK_EX | LOCK_NB) || is_file($lockFile)) {
+            $errors[] = 'Another setup is running, or this site has just been set up. Reload the page.';
         }
     }
 
-    // The database, as the app will use it: made if it may be, then its tables.
+    // The database, as the app will use it: made if it may be, then its tables -
+    // under the lock every database update takes (api/database_update.php).
     if (!$errors) {
         try {
             try {
@@ -514,7 +484,12 @@ if ($method === 'POST' && !$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0
                 // the one made in the hosting panel is what the connection finds.
             }
             $pdo = dbConnect($db);
-            $migrated = applyPendingMigrations($pdo);
+            $migrated = databaseUpdateLocked($pdo, static function () use ($pdo): array {
+                return applyPendingMigrations($pdo);
+            });
+            if ($migrated === null) {
+                throw new RuntimeException('Another database update is running (php migration.php, or an administrator in the app). Wait a moment and press Save again.');
+            }
             if ($migrated['failed'] !== null) {
                 throw new RuntimeException('The database update ' . $migrated['failed'] . ' failed: ' . $migrated['error']);
             }
@@ -527,61 +502,29 @@ if ($method === 'POST' && !$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0
     }
 
     if (!$errors) {
-        $log = [];
         try {
             writeLocalConfig('database', $db);
-            $auth = [
-                'mode' => $form['auth_mode'],
-                'issuer' => $form['issuer'],
-                'client_id' => $form['client_id'],
-                'local_user_id' => $local ? (int) $form['local_user_id'] : ($form['owner'] !== '' ? (int) $form['owner'] : (int) ($savedAuth['local_user_id'] ?? 1)),
-                'cache_dir' => 'storage/cache',
-            ];
-            writeLocalConfig('auth', $auth);
+            // Exactly these three: a file from before (with a sign-in mode and
+            // an owner's id) loses them on this save.
+            writeLocalConfig('auth', ['issuer' => $form['issuer'], 'client_id' => $form['client_id'], 'cache_dir' => 'storage/cache']);
             if (!is_dir(storageDir() . '/cache')) {
                 @mkdir(storageDir() . '/cache', 0775, true);
             }
-            $log[] = 'Saved the database connection and sign-in in config/database.local.php and config/auth.local.php.';
-            $log[] = $migrated['applied'] ? 'Made the tables (' . implode(', ', $migrated['applied']) . ').' : 'The tables were up to date.';
-            $log[] = $auth['mode'] === 'none'
-                ? 'Sign-in is off: the app answers this computer only, as IAM user ' . $auth['local_user_id'] . '.'
-                : 'People sign in through the IAM at ' . $auth['issuer'] . '.';
-
-            if ($local && $importOld && is_dir(serverDataDir())) {
-                $result = transferImportServerData(serverDataDir(), (int) $auth['local_user_id']);
-                if (isset($result['skipped'])) {
-                    $log[] = $result['skipped'] === 'already imported'
-                        ? 'Your old progress from server/data/ was brought in before; it is not brought in twice.'
-                        : 'The old progress from server/data/ was not brought in: ' . $result['skipped'] . '.';
-                } else {
-                    $log[] = "Brought in your old progress from server/data/: {$result['notes']} notes, {$result['steps']} path steps, {$result['sessions']} sessions. The files themselves are unchanged.";
-                    foreach ($result['problems'] as $line) {
-                        $log[] = 'Left out: ' . $line;
-                    }
-                }
-            }
-
-            if ($import !== null) {
-                $owner = (int) $form['owner'];
-                if (storeHasData($owner)) {
-                    $log[] = "IAM user $owner already has progress here, so the file was not brought in.";
-                } else {
-                    $counts = transferImport($owner, $import);
-                    $log[] = "Brought your progress into IAM user $owner: {$counts['notes']} notes, {$counts['steps']} path steps, {$counts['sessions']} sessions.";
-                    foreach ($import['problems'] as $line) {
-                        $log[] = 'Left out: ' . $line;
-                    }
-                }
-            }
-
+            $log = [
+                'Saved the database connection and the IAM in config/database.local.php and config/auth.local.php.',
+                $migrated['applied'] ? 'Made the tables (' . implode(', ', $migrated['applied']) . ').' : 'The tables were up to date.',
+                'People sign in through the IAM at ' . $form['issuer'] . ', where this app is "' . $form['client_id'] . '". '
+                    . 'Who may reword its words (EDITOR) and administer it (ADMIN) is set there, in the admin panel.',
+            ];
             $steps = '<ul>' . implode('', array_map(static function (string $line): string {
                 return '<li>' . h($line) . '</li>';
             }, $log)) . '</ul>';
 
             if ($local) {
                 setupPage('Saved', $steps
-                    . '<div class="actions"><a href="/">Open Piano Academy</a><a href="setup.php">Back to the setup</a></div>'
-                    . '<p class="small">This page stays: open it again any time to change the settings or apply a database update.</p>', 'good');
+                    . '<div class="actions"><a href="http://localhost:4500/">Open Piano Academy (http://localhost:4500)</a><a href="/">Open it here</a><a href="setup.php">Back to the setup</a></div>'
+                    . '<p class="small">Sign in at http://localhost:4500 (npm start in frontend/): that is the address the IAM knows for this app. '
+                    . 'This page stays: open it again any time to change the settings or apply a database update.</p>', 'good');
             }
 
             // A real host: the lock first, so the setup refuses to run again even if deleting it fails.
@@ -595,7 +538,9 @@ if ($method === 'POST' && !$_POST && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0
                     ? '<p class="ok">The setup page has deleted itself.</p>'
                     : '<p class="err">Delete <code>setup.php</code> and <code>storage/setup-token.php</code> by hand now'
                         . ($locked ? '' : ' - and <code>storage/installed.lock</code> could not be written, so the setup would run again') . '.</p>')
-                . '<p>Open the site and sign in with your anotoki account. Only accounts with a role in Piano Academy (in the IAM admin console) can sign in.</p>'
+                . '<p>Open the site and sign in with your anotoki account. Every anotoki account holds the MEMBER role here and can use it; '
+                . 'the IAM\'s page for this application says whether signing in is required and which roles may sign in. The IAM\'s '
+                . 'administrators are its administrators (ADMIN), and the IAM gives the EDITOR role to whoever may reword its words.</p>'
                 . ($https ? '' : '<p class="err">Put the site on HTTPS: the browser only lets a page use the piano (Web MIDI) over HTTPS.</p>'), 'good');
         } catch (Throwable $e) {
             $errors[] = 'The setup stopped: ' . $e->getMessage();
@@ -615,42 +560,17 @@ $testButton = static function (string $test, string $label): string {
 };
 
 $passwordSaved = isset($savedDb['password']) && is_string($savedDb['password']) && $savedDb['password'] !== '';
-$oldProgress = $local && is_dir(serverDataDir()) && glob(serverDataDir() . '/*.json');
 $status = $saved['problem'] === null
-    ? '<div class="note">This copy is set up' . ($local ? '' : ' already') . '. Saving again keeps your progress and applies any database update.</div>'
-    : ($saved['database'] !== null || $saved['auth'] !== null ? '<div class="err">The saved settings are not complete: ' . h((string) $saved['problem']) . '</div>' : '');
+    ? '<div class="note">This copy is set up' . ($local ? '' : ' already') . '. Saving again keeps everybody\'s progress and applies any database update.</div>'
+    : ($saved['database'] !== null || $saved['auth'] !== null
+        ? '<div class="err">The saved settings are not complete' . ($local ? ': ' . h((string) $saved['problem']) : '.') . '</div>'
+        : '');
 
 $intro = $local
-    ? '<p>This sets Piano Academy up on this computer: the database, and whether people sign in. You can come back to it any time.</p>'
+    ? '<p>This sets Piano Academy up on this computer: the database and sign-in through the anotoki IAM. You can come back to it any time.</p>'
     : '<p>This sets the site up: the database connection, sign-in through the anotoki IAM, and the tables. Do it once.</p>'
         . '<div class="note">A token was written to <code>storage/setup-token.php</code> on the server. Open that file with your FTP program, '
         . 'copy the token, and paste it below. That is how the setup knows it is you.</div>';
-
-$signIn = $local
-    ? '<label class="choice"><input type="radio" name="auth_mode" value="none"' . ($form['auth_mode'] === 'none' ? ' checked' : '') . '>'
-        . '<span><strong>No sign-in</strong> - this computer only, and it keeps your progress. (What you want on your own computer.)</span></label>'
-        . '<label class="choice"><input type="radio" name="auth_mode" value="iam"' . ($form['auth_mode'] === 'iam' ? ' checked' : '') . '>'
-        . '<span><strong>Sign in through the anotoki IAM</strong> - for trying sign-in while developing.</span></label>'
-        . $field('local_user_id', 'Your IAM user id', 'text', 'inputmode="numeric" required')
-        . '<p class="small">Without sign-in the app acts as this user; 1 unless the IAM admin console shows you another id.</p>'
-        . '<div id="iam-fields">'
-    : '<div id="iam-fields">';
-$signIn .= $field('issuer', 'IAM address', 'text', 'required')
-    . '<p class="small">http://localhost:4300 on a development machine; https://iam.anotoki.eu for the live site.</p>'
-    . $field('client_id', 'Client id of this app in the IAM', 'text', 'required')
-    . $testButton('iam', 'Test the IAM')
-    . '</div>';
-
-$progress = $local
-    ? ($oldProgress
-        ? '<h2>Your old progress</h2><label class="choice"><input type="checkbox" name="import_old"' . ($importOld ? ' checked' : '') . '>'
-            . '<span>Bring in the progress from before the database (<code>server/data/</code>) - once, into your account, if it is not there yet. The files stay as they are.</span></label>'
-        : '')
-    : '<h2>Your progress (optional)</h2>'
-        . '<p class="small">To bring the progress from your own computer: run <code>php tools/progress.php --export=my-progress.json</code> in its backend/ folder, '
-        . 'choose that file here, and enter your IAM user id (the IAM admin console shows it under Users).</p>'
-        . $field('owner', 'Your IAM user id', 'text', 'inputmode="numeric"')
-        . '<label for="export">Progress file</label><input id="export" name="export" type="file" accept=".json,application/json">';
 
 setupPage(
     $local ? 'Set up Piano Academy' : 'Install Piano Academy',
@@ -658,7 +578,7 @@ setupPage(
     . implode('', array_map(static function (string $error): string {
         return '<div class="err">' . h($error) . '</div>';
     }, $errors))
-    . '<form method="post" action="setup.php" enctype="multipart/form-data" autocomplete="off">'
+    . '<form method="post" action="setup.php" autocomplete="off">'
     . ($local ? '<input type="hidden" name="nonce" value="' . h((string) $nonce) . '">' : $field('token', 'Setup token', 'password', 'required'))
     . '<h2>Database (PostgreSQL)</h2>'
     . '<div class="row"><div>' . $field('db_host', 'Server', 'text', 'required') . '</div><div>'
@@ -667,8 +587,11 @@ setupPage(
     . '<div class="row"><div>' . $field('db_user', 'User', 'text', 'required') . '</div><div>'
     . $field('db_password', 'Password', 'password', $passwordSaved ? 'placeholder="saved - leave empty to keep it"' : '') . '</div></div>'
     . $testButton('database', 'Test the database')
-    . '<h2>Sign-in</h2>' . $signIn
-    . $progress
+    . '<h2>Sign-in: the anotoki IAM</h2>'
+    . $field('issuer', 'IAM address', 'text', 'required')
+    . '<p class="small">http://localhost:4300 on a development machine; https://iam.anotoki.eu for the live site.</p>'
+    . $field('client_id', 'Client id of this app in the IAM', 'text', 'required')
+    . $testButton('iam', 'Test the IAM')
     . '<button class="primary" type="submit">' . ($local ? 'Save' : 'Install') . '</button>'
     . '</form>',
     'plain',

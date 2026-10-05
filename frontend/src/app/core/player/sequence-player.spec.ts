@@ -43,10 +43,9 @@ describe('SequencePlayer', () => {
     keyboard = new KeyboardModel();
     const progress: ProgressMap = {};
     const store: PlayerStore = {
-      progress: () => progress,
-      noteState: (m: number): NoteState => progress[m] ?? srs.createInitialNoteState(m),
-      saveProgress: (p: ProgressMap) => {
-        saved.push({ ...p });
+      updateNote: (m: number, change: (current: NoteState) => NoteState) => {
+        progress[m] = change(progress[m] ?? srs.createInitialNoteState(m));
+        saved.push({ ...progress });
         return Promise.resolve();
       },
     };

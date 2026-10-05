@@ -6,11 +6,14 @@ import { TranslationService } from '../../core/i18n/translation.service';
 import { BootService } from '../../core/state/boot.service';
 
 /**
- * Signed out (auth mode "iam"): sign in with the anotoki account. After a
- * sign-in that came back without one, it says so - worded from the failure's
- * code, in the language on the page, never in the IAM's or the SDK's own
- * English: one sentence for access_denied (the IAM turned the account away,
- * or the person went back), and one with the code for anything else.
+ * Drawn only after a sign-in that came back without one, or could not start
+ * (a signed-out visitor is otherwise sent straight to the IAM by the sign-in
+ * guard): sign in with the anotoki account, and why the last try did not
+ * work - worded from the failure's code, in the language on the page, never
+ * in the IAM's or the SDK's own English: one sentence for access_denied (the
+ * IAM turned the account away, or the person went back), one for a browser
+ * that refuses the site's storage (storage_unavailable), and one with the
+ * code for anything else.
  */
 @Component({
   selector: 'app-sign-in-card',
@@ -31,6 +34,6 @@ export class SignInCardComponent {
   });
 
   protected signIn(): void {
-    this.boot.signIn();
+    void this.boot.signIn();
   }
 }

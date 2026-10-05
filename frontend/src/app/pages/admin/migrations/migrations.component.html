@@ -1,0 +1,98 @@
+<section class="admin-page" lang="en">
+    <header class="page-head">
+        <div>
+            <h2>Migrations</h2>
+            <p class="lead">The database schema is what these files build. Back the database up before applying anything (pg_dump).</p>
+        </div>
+        <button
+            type="button"
+            class="btn-primary"
+            id="migrations-apply"
+            [disabled]="applying() || !status() || status()!.pending.length === 0"
+            [attr.aria-busy]="applying() ? 'true' : null"
+            (click)="apply()"
+        >
+            {{ applying() ? "Applying…" : "Apply pending" }}
+        </button>
+    </header>
+
+    @if (result(); as r) {
+        @if (r.failed) {
+            <div class="alert is-bad" id="migrations-result" role="alert">
+                <p class="alert-head">Stopped at {{ r.failed }}</p>
+                <p>
+                    @if (r.applied.length) {
+                        Applied first: {{ r.applied.join(", ") }}.
+                    } @else {
+                        Nothing was applied.
+                    }
+                    The failed file was rolled back as a whole.
+                </p>
+                @if (r.error) {
+                    <pre class="error"><code>{{ r.error }}</code></pre>
+                }
+            </div>
+        } @else if (r.applied.length) {
+            <div class="alert is-good" id="migrations-result" role="status">
+                <p class="alert-head">Up to date</p>
+                <p>Applied: {{ r.applied.join(", ") }}.</p>
+            </div>
+        } @else {
+            <div class="alert" id="migrations-result" role="status">
+                <p>There was nothing to apply.</p>
+            </div>
+        }
+    }
+    @if (applyError(); as message) {
+        <div class="alert is-bad" id="migrations-refused" role="alert">
+            <p>{{ message }}</p>
+        </div>
+    }
+
+    @if (loadError(); as message) {
+        <div class="problem" role="alert">
+            <p><strong>The migrations could not be read.</strong> {{ message }}</p>
+            <button type="button" (click)="load()">Try again</button>
+        </div>
+    } @else if (status(); as now) {
+        <p class="database">Database: <code id="migrations-database">{{ now.database }}</code></p>
+        <div class="columns">
+            <div class="card files-card" id="migrations-pending">
+                <h3>Pending</h3>
+                @if (now.pending.length === 0) {
+                    <p class="empty"><strong>Nothing pending</strong> - the database is up to date with the files.</p>
+                } @else {
+                    <p class="sub">In the order they will run.</p>
+                    <ol class="files">
+                        @for (item of now.pending; track item.name) {
+                            <li>
+                                <code>{{ item.name }}</code>
+                                <span class="badge">pending</span>
+                            </li>
+                        }
+                    </ol>
+                }
+            </div>
+            <div class="card files-card" id="migrations-applied">
+                <h3>Applied</h3>
+                @if (now.applied.length === 0) {
+                    <p class="empty"><strong>Nothing applied yet.</strong></p>
+                } @else {
+                    <p class="sub">{{ now.applied.length === 1 ? "1 file" : now.applied.length + " files" }}</p>
+                    <ol class="files">
+                        @for (item of now.applied; track item.name) {
+                            <li>
+                                <code>{{ item.name }}</code>
+                                <span class="when">{{ item.applied_at ?? "" }}</span>
+                            </li>
+                        }
+                    </ol>
+                }
+            </div>
+        </div>
+    } @else {
+        <p class="loading">Loading…</p>
+    }
+
+    <app-confirm-dialog name="migrations-confirm" />
+</section>

@@ -47,7 +47,7 @@ export class ThemeService {
     writeStorage(THEME_KEY, mode === 'auto' ? null : mode);
   }
 
-  /** auto -> light -> dark -> auto: what the footer's button does. */
+  /** auto -> light -> dark -> auto: what the top bar's theme button does. */
   cycle(): void {
     const order: ThemeMode[] = ['auto', 'light', 'dark'];
     this.set(order[(order.indexOf(this.mode()) + 1) % order.length]);

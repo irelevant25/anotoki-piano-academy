@@ -81,7 +81,7 @@ class TestTranslationService extends TranslationService {
  */
 export function provideTestTranslations(values: Record<string, string> = {}, bundle: TestBundle = {}): Provider[] {
   const whole: WholeTestBundle = {
-    bundle: { language: bundle.language ?? FALLBACK_LANGUAGE, languages: bundle.languages ?? TEST_LANGUAGES, values },
+    bundle: { language: bundle.language ?? FALLBACK_LANGUAGE, languages: bundle.languages ?? TEST_LANGUAGES, values, ...(bundle.english ? { english: bundle.english } : {}) },
     english: bundle.english ?? null,
   };
   return [

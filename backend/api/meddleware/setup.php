@@ -12,7 +12,7 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
  * Without config/database.local.php and config/auth.local.php (see
  * config/config.php) every request is answered 503 {code: "not_set_up"}, with
  * the address of the setup page. The frontend shows its "not set up yet" page
- * on that code; the launchers open the setup page on it.
+ * on that code.
  */
 function setupGate(): callable
 {
@@ -43,13 +43,16 @@ function notSetUpMessage(): string
  * Middleware: the database has every migration this code expects. The app
  * starts with GET /api/state, so that is where a database behind the code is
  * noticed - before anything is read from, or saved into, tables that are not
- * there yet. setup.php (or php migration.php) applies what is pending.
+ * there yet. The answer says `update: true`, so the frontend can tell "needs
+ * an update" from "not set up": setup.php, php migration.php or an
+ * administrator (the admin panel's Migrations page: POST /api/admin/migrations/apply)
+ * applies what is pending.
  */
 function requireCurrentSchema(): callable
 {
     return function (Request $request, RequestHandler $handler): Response {
         if (pendingMigrationsReadOnly(db()) !== []) {
-            return respondError(new \Slim\Psr7\Response(), 503, 'not_set_up', 'The database needs an update. Open /setup.php to apply it.', [], ['setup' => '/setup.php']);
+            return respondError(new \Slim\Psr7\Response(), 503, 'not_set_up', 'The database needs an update. Open /setup.php to apply it.', [], ['setup' => '/setup.php', 'update' => true]);
         }
 
         return $handler->handle($request);

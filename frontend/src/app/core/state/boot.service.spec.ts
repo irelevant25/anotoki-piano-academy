@@ -1,7 +1,10 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { ApiService, VISITOR_OWNER } from '../api/api.service';
+import { authInterceptor } from '../auth/auth.interceptor';
 import { AuthService, NotSetUpError } from '../auth/auth.service';
+import { VISITOR_KEY_HEADER, VISITOR_STORAGE_KEY, VisitorKey } from '../auth/visitor-key';
 import { RETRY_WAIT_MS, TranslationService } from '../i18n/translation.service';
 import { provideTestTranslations } from '../testing/test-translations';
 import { BootService } from './boot.service';
@@ -12,15 +15,55 @@ const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve,
 /** Any request for the app's strings. */
 const forStrings = (request: { url: string }): boolean => request.url.startsWith('/api/translations/');
 
+/**
+ * AuthService as far as the start uses it: the sign-in settings read (or the
+ * error they fail with), and who is signed in. The real one would load the
+ * IAM's SDK; what it does with /api/auth/config is its own spec's.
+ */
+function standInAuth() {
+  const auth = {
+    /** What reading the sign-in settings throws: nothing, NotSetUpError, or anything else. */
+    failing: null as unknown,
+    person: '7' as string | null,
+    admin: false,
+    /** The IAM's switch as the settings said it (true: a sign-in is required). */
+    required: true,
+    /** The sign-in listeners BootService added (onAuthChange). */
+    listeners: [] as (() => void)[],
+    init: vi.fn(async () => {
+      if (auth.failing) throw auth.failing;
+    }),
+    signedIn: () => auth.person !== null,
+    loginRequired: () => auth.required,
+    requireSignInNow: vi.fn(() => {
+      auth.required = true;
+    }),
+    userKey: () => auth.person,
+    user: () => null,
+    isAdmin: () => auth.admin,
+    accessToken: vi.fn(async () => (auth.person !== null ? 'token-7' : null)),
+    refreshToken: vi.fn(async () => null),
+    onAuthChange: (listener: () => void) => {
+      auth.listeners.push(listener);
+      return () => undefined;
+    },
+    signIn: vi.fn(async (_returnTo?: string, _uiLocales?: string) => true),
+    signOut: vi.fn(),
+  };
+  return auth;
+}
+
 describe('BootService', () => {
   let boot: BootService;
   let http: HttpTestingController;
   let store: ProgressStore;
+  let auth: ReturnType<typeof standInAuth>;
 
   beforeEach(() => {
     localStorage.clear();
+    auth = standInAuth();
     // The strings are there already and cost no request (the stand-in): these cases are about the sign-in and the progress.
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations()] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), { provide: AuthService, useValue: auth }] });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(ProgressStore);
@@ -29,27 +72,22 @@ describe('BootService', () => {
   afterEach(() => http.verify());
 
   it('an app that is not set up says so, and loads nothing', async () => {
-    const started = boot.start();
-    await settle();
-    http.expectOne('/api/auth/config').flush(
-      { error: 'Piano Academy is not set up yet.', code: 'not_set_up', setup: '/setup.php', detail: 'config/database.local.php is missing.' },
-      { status: 503, statusText: 'Service Unavailable' },
-    );
-    await started;
+    auth.failing = new NotSetUpError('config/database.local.php is missing.');
+    await boot.start();
     expect(boot.status()).toBe('not-set-up');
     expect(boot.notSetUpDetail()).toBe('config/database.local.php is missing.');
+    expect(boot.needsUpdate()).toBe(false);
     http.expectNone('/api/state');
   });
 
-  it('without sign-in it loads the progress and runs - repaired where it has to be', async () => {
+  it('signed in, it loads the progress and runs - repaired where it has to be', async () => {
     const started = boot.start();
-    await settle();
-    http.expectOne('/api/auth/config').flush({ mode: 'none' });
     await settle();
     http.expectOne('/api/state').flush({
       progress: { 60: { midi: 60, status: 'mastered', repetitions: 6, intervalHours: 938, easeFactor: 2.5, updatedAt: '2026-09-09T14:08:49.446Z' } },
       sessions: [],
       path: { steps: {} },
+      generation: 3,
     });
     await started;
     expect(boot.status()).toBe('ready');
@@ -57,11 +95,18 @@ describe('BootService', () => {
     expect(store.progress()['60']).toMatchObject({ status: 'review', repetitions: 2 });
   });
 
+  it('nobody signed in: no progress is asked for, and the status says so - the sign-in guard goes on from there', async () => {
+    auth.person = null;
+    await boot.start();
+    expect(boot.status()).toBe('sign-in');
+    http.expectNone('/api/state');
+    // The start itself sends nobody anywhere: that is the routes' guard's (core/auth/sign-in.guard.ts).
+    expect(auth.signIn).not.toHaveBeenCalled();
+  });
+
   it('a failed load stops the app: it never runs on empty progress', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const started = boot.start();
-    await settle();
-    http.expectOne('/api/auth/config').flush({ mode: 'none' });
     await settle();
     http.expectOne('/api/state').flush({ error: 'boom', code: 'server_error' }, { status: 500, statusText: 'Server Error' });
     await started;
@@ -70,55 +115,99 @@ describe('BootService', () => {
     consoleError.mockRestore();
   });
 
-  it('a database behind the code sends the learner to the setup page too', async () => {
+  it('a database behind the code sends the learner to the setup page too - and knows it is only behind', async () => {
     const started = boot.start();
     await settle();
-    http.expectOne('/api/auth/config').flush({ mode: 'none' });
-    await settle();
-    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up' }, { status: 503, statusText: 'Unavailable' });
+    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
     await started;
+    expect(boot.status()).toBe('not-set-up');
+    expect(boot.needsUpdate()).toBe(true);
+  });
+
+  it('behind, an ADMIN has the Migrations page alone - and once it applied what was pending, the app starts where it stands', async () => {
+    auth.admin = true;
+    const started = boot.start();
+    await settle();
+    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
+    await started;
+    expect(boot.onlyMigrations()).toBe(true);
+    const reload = vi.spyOn(TestBed.inject(TranslationService), 'reload');
+
+    // Still behind (a migration failed): nothing changes.
+    let resumed = boot.resumeAfterUpdate();
+    await settle();
+    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
+    await resumed;
+    expect([boot.status(), boot.onlyMigrations()]).toEqual(['not-set-up', true]);
+    expect(reload).not.toHaveBeenCalled();
+
+    resumed = boot.resumeAfterUpdate();
+    await settle();
+    http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} }, generation: 4 });
+    await resumed;
+    expect([boot.status(), boot.needsUpdate(), boot.onlyMigrations()]).toEqual(['ready', false, false]);
+    expect(store.loaded()).toBe(true);
+    // The strings again: the start's request for them got 503.
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    // Running: asks nothing.
+    await boot.resumeAfterUpdate();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('behind, anybody but an ADMIN has the card alone, and nothing resumes for them', async () => {
+    const started = boot.start();
+    await settle();
+    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
+    await started;
+    expect(boot.onlyMigrations()).toBe(false);
+    await boot.resumeAfterUpdate();
     expect(boot.status()).toBe('not-set-up');
   });
 
   it('an API that cannot be reached is the error card', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const started = boot.start();
-    await settle();
-    http.expectOne('/api/auth/config').error(new ProgressEvent('error'));
-    await started;
+    auth.failing = new Error('offline');
+    await boot.start();
     expect(boot.status()).toBe('load-error');
     consoleError.mockRestore();
+  });
+
+  it('before signing out: says whether anything would be lost, after one more try', async () => {
+    const started = boot.start();
+    await settle();
+    http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} }, generation: 3 });
+    await started;
+
+    expect(await boot.settleBeforeSignOut()).toBe(false);
+
+    store.progressFailed.set(true);
+    const asking = boot.settleBeforeSignOut();
+    await settle();
+    http.expectOne('/api/progress').flush({ error: 'down', code: 'database_unavailable' }, { status: 503, statusText: 'Unavailable' });
+    expect(await asking).toBe(true);
+
+    boot.signOut();
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('BootService: where the language comes into the start', () => {
   const order: string[] = [];
-  /** What the sign-in settings answer: nothing (they were read), or the error they fail with. */
-  let failing: unknown = null;
-  let signedIn = false;
-  const auth = {
-    init: vi.fn(async () => {
-      order.push('auth');
-      if (failing) throw failing;
-    }),
-    signedIn: () => signedIn,
-    usesSignIn: () => true,
-    userKey: () => (signedIn ? '7' : null),
-    user: () => null,
-    onAuthChange: () => () => undefined,
-    signIn: vi.fn(),
-  };
+  let auth: ReturnType<typeof standInAuth>;
   let boot: BootService;
   let statusAtInit: string | null = null;
 
   beforeEach(() => {
     localStorage.clear();
     order.length = 0;
-    failing = null;
-    signedIn = false;
     statusAtInit = null;
-    auth.init.mockClear();
-    auth.signIn.mockClear();
+    auth = standInAuth();
+    auth.person = null;
+    auth.init.mockImplementation(async () => {
+      order.push('auth');
+      if (auth.failing) throw auth.failing;
+    });
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations({}, { language: 'sk' }), { provide: AuthService, useValue: auth }],
     });
@@ -134,7 +223,7 @@ describe('BootService: where the language comes into the start', () => {
     vi.restoreAllMocks();
   });
 
-  it('gets the strings once the sign-in settings are read, and before anybody is asked to sign in: the sign-in card has them', async () => {
+  it('gets the strings once the sign-in settings are read, and before anybody is sent to sign in: the sign-in card has them', async () => {
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:true']);
     // Nothing was drawn meanwhile: the card comes after the strings.
@@ -143,7 +232,7 @@ describe('BootService: where the language comes into the start', () => {
   });
 
   it('asks for nothing when the app is not set up: only what the browser kept, before the card is shown', async () => {
-    failing = new NotSetUpError('config/auth.local.php is missing.');
+    auth.failing = new NotSetUpError('config/auth.local.php is missing.');
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:false']);
     expect(statusAtInit).toBe('loading');
@@ -152,16 +241,16 @@ describe('BootService: where the language comes into the start', () => {
 
   it('asks for nothing when the backend cannot be reached either', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    failing = new Error('offline');
+    auth.failing = new Error('offline');
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:false']);
     expect(boot.status()).toBe('load-error');
     consoleError.mockRestore();
   });
 
-  it('signs in with the language the app is read in, so the IAM’s pages open in the same one', () => {
-    boot.signIn();
-    expect(auth.signIn.mock.calls).toEqual([['sk']]);
+  it('signs in with the language the app is read in, so the IAM’s pages open in the same one - and back to this address', async () => {
+    await boot.signIn();
+    expect(auth.signIn.mock.calls).toEqual([[undefined, 'sk']]);
   });
 });
 
@@ -169,12 +258,14 @@ describe('BootService with the real translation service', () => {
   let boot: BootService;
   let http: HttpTestingController;
   let i18n: TranslationService;
+  let auth: ReturnType<typeof standInAuth>;
 
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
     vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['sk-SK', 'en']);
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    auth = standInAuth();
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: auth }] });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     i18n = TestBed.inject(TranslationService);
@@ -187,10 +278,8 @@ describe('BootService with the real translation service', () => {
   });
 
   it('asks for no strings when the sign-in settings cannot be read: the shell is worded from the English kept in code', async () => {
-    const started = boot.start();
-    await settle();
-    http.expectOne('/api/auth/config').flush({ error: 'Piano Academy is not set up yet.', code: 'not_set_up', setup: '/setup.php' }, { status: 503, statusText: 'Service Unavailable' });
-    await started;
+    auth.failing = new NotSetUpError();
+    await boot.start();
     await settle();
 
     expect(boot.status()).toBe('not-set-up');
@@ -202,10 +291,8 @@ describe('BootService with the real translation service', () => {
 
   it('asks for no strings when the backend cannot be reached at all', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const started = boot.start();
-    await settle();
-    http.expectOne('/api/auth/config').error(new ProgressEvent('error'));
-    await started;
+    auth.failing = new Error('offline');
+    await boot.start();
     await settle();
 
     expect(boot.status()).toBe('load-error');
@@ -217,8 +304,6 @@ describe('BootService with the real translation service', () => {
   it('goes on to the progress when the strings cannot be had: a bundle that fails is no bundle, not a stopped app', async () => {
     const started = boot.start();
     await settle();
-    http.expectOne('/api/auth/config').flush({ mode: 'none' });
-    await settle();
 
     // The strings come first - and the progress is not asked for while they are out.
     http.expectNone('/api/state');
@@ -229,7 +314,7 @@ describe('BootService with the real translation service', () => {
     http.expectOne('/api/translations/sk-sk').error(new ProgressEvent('error'));
     await settle();
 
-    http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} } });
+    http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} }, generation: 1 });
     await started;
     expect(boot.status()).toBe('ready');
     expect(i18n.ready()).toBe(false);
@@ -238,8 +323,6 @@ describe('BootService with the real translation service', () => {
 
   it('starts with its strings when they come, in the language the browser asks for - and only then loads the progress', async () => {
     const started = boot.start();
-    await settle();
-    http.expectOne('/api/auth/config').flush({ mode: 'none' });
     await settle();
 
     http.expectNone('/api/state');
@@ -253,7 +336,7 @@ describe('BootService with the real translation service', () => {
       english: { 'title.learn': 'Learn' },
     });
     await settle();
-    http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} } });
+    http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} }, generation: 1 });
     await started;
 
     expect(boot.status()).toBe('ready');
@@ -261,9 +344,303 @@ describe('BootService with the real translation service', () => {
     expect(i18n.t('title.learn')).toBe('Učenie');
   });
 
+  it('started in place after an ADMIN applied what was pending, it asks for the strings the 503 kept from it', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    auth.admin = true;
+    const behind = { error: 'The database needs an update.', code: 'not_set_up', update: true };
+    const started = boot.start();
+    await settle();
+    http.expectOne('/api/translations/sk-sk').flush(behind, { status: 503, statusText: 'Service Unavailable' });
+    await new Promise((resolve) => setTimeout(resolve, RETRY_WAIT_MS + 50));
+    http.expectOne('/api/translations/sk-sk').flush(behind, { status: 503, statusText: 'Service Unavailable' });
+    await settle();
+    http.expectOne('/api/state').flush(behind, { status: 503, statusText: 'Service Unavailable' });
+    await started;
+    expect([boot.onlyMigrations(), i18n.ready()]).toEqual([true, false]);
+
+    // The Migrations page applied it: the app starts where it stands - and its strings come.
+    const resumed = boot.resumeAfterUpdate();
+    await settle();
+    http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} }, generation: 2 });
+    await resumed;
+    await settle();
+    http.expectOne('/api/translations/sk-sk').flush({
+      language: 'sk',
+      languages: [
+        { code: 'en', name: 'English', nativeName: 'English' },
+        { code: 'sk', name: 'Slovak', nativeName: 'Slovenčina' },
+      ],
+      values: { 'title.learn': 'Učenie' },
+      english: { 'title.learn': 'Learn' },
+    });
+    await settle();
+    expect(boot.status()).toBe('ready');
+    expect(i18n.ready()).toBe(true);
+    expect(i18n.t('title.learn')).toBe('Učenie');
+    consoleError.mockRestore();
+  });
+
   it('signs in without naming a language while there are no strings: the kept English is nobody’s choice', async () => {
-    const signIn = vi.spyOn(TestBed.inject(AuthService), 'signIn').mockImplementation(() => undefined);
-    boot.signIn();
-    expect(signIn.mock.calls).toEqual([[undefined]]);
+    await boot.signIn();
+    expect(auth.signIn.mock.calls).toEqual([[undefined, undefined]]);
+  });
+});
+
+describe('BootService: visitors, and the move at a sign-in', () => {
+  const KEY = 'k'.repeat(43);
+  const STATE = { progress: {}, sessions: [], path: { steps: {} } };
+  const VISITOR_OUTBOX = 'piano-learning:unsaved-sessions:' + VISITOR_OWNER;
+  const PERSON_OUTBOX = 'piano-learning:unsaved-sessions:7';
+  const moved = (more: object = {}) => ({ found: true, notes: { moved: 2, kept: 0 }, steps: { moved: 1, merged: 0, kept: 0 }, sessions: 3, generation: 12, ...more });
+
+  let boot: BootService;
+  let http: HttpTestingController;
+  let store: ProgressStore;
+  let api: ApiService;
+  let auth: ReturnType<typeof standInAuth>;
+
+  /** Builds the app around the stand-in IAM, as it is when the page loads. */
+  function start(): void {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(withInterceptors([authInterceptor])), provideHttpClientTesting(), provideTestTranslations(), { provide: AuthService, useValue: auth }],
+    });
+    boot = TestBed.inject(BootService);
+    http = TestBed.inject(HttpTestingController);
+    store = TestBed.inject(ProgressStore);
+    api = TestBed.inject(ApiService);
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    auth = standInAuth();
+  });
+
+  afterEach(() => {
+    http.verify();
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  describe('nobody signed in, no sign-in required: a visitor', () => {
+    beforeEach(() => {
+      auth.person = null;
+      auth.required = false;
+      start();
+    });
+
+    it('with no key yet: nobody’s progress - empty, generation 0 - and the app runs, for a visitor', async () => {
+      const started = boot.start();
+      await settle();
+      const asked = http.expectOne('/api/state');
+      expect(asked.request.headers.has(VISITOR_KEY_HEADER)).toBe(false);
+      expect(asked.request.headers.has('Authorization')).toBe(false);
+      asked.flush({ ...STATE, generation: 0 });
+      await started;
+      expect([boot.status(), boot.visiting(), api.dataOwner(), store.loaded()]).toEqual(['ready', true, VISITOR_OWNER, true]);
+      expect(auth.signIn).not.toHaveBeenCalled();
+
+      // The first save names nobody's 0 - and makes the visitor.
+      const saved = store.updateNote(60, (note) => note);
+      await settle();
+      const put = http.expectOne('/api/progress');
+      expect(put.request.headers.get('Progress-Generation')).toBe('0');
+      put.flush(null, { status: 204, statusText: 'No Content', headers: { [VISITOR_KEY_HEADER]: KEY, 'Progress-Generation': '31' } });
+      await saved;
+      expect(TestBed.inject(VisitorKey).current()).toBe(KEY);
+    });
+
+    it('with a key: the visitor’s own progress', async () => {
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
+      const started = boot.start();
+      await settle();
+      const asked = http.expectOne('/api/state');
+      expect(asked.request.headers.get(VISITOR_KEY_HEADER)).toBe(KEY);
+      asked.flush({ ...STATE, generation: 31 });
+      await started;
+      expect(boot.status()).toBe('ready');
+    });
+
+    it('a key the server no longer knows is forgotten - lost, said once - and the visitor starts again as nobody', async () => {
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
+      const started = boot.start();
+      await settle();
+      http.expectOne('/api/state').flush({ error: 'gone', code: 'visitor_unknown' }, { status: 401, statusText: 'Unauthorized' });
+      await settle();
+      const again = http.expectOne('/api/state');
+      expect(again.request.headers.has(VISITOR_KEY_HEADER)).toBe(false);
+      again.flush({ ...STATE, generation: 0 });
+      await started;
+      expect(boot.status()).toBe('ready');
+      expect(TestBed.inject(VisitorKey).lost()).toBe(true);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
+    });
+
+    it('a sign-in required meanwhile (the API said so): the sign-in status - and the key is KEPT for the move', async () => {
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
+      const started = boot.start();
+      await settle();
+      http.expectOne('/api/state').flush({ error: 'Sign in.', code: 'sign_in_required' }, { status: 401, statusText: 'Unauthorized' });
+      await started;
+      expect([boot.status(), boot.visiting(), auth.loginRequired()]).toEqual(['sign-in', false, true]);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
+    });
+
+    it('a sign-in that came back refused leaves a visitor a visitor (the page says why)', async () => {
+      const started = boot.start();
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 0 });
+      await started;
+      expect(boot.status()).toBe('ready');
+    });
+
+    it('signing in from a visitor’s page waits for the saves on their way first, as signing out does', async () => {
+      const started = boot.start();
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 0 });
+      await started;
+      const settling = vi.spyOn(store, 'settle').mockResolvedValue();
+      await boot.signIn();
+      expect(settling).toHaveBeenCalledTimes(1);
+      expect(settling.mock.invocationCallOrder[0]).toBeLessThan(auth.signIn.mock.invocationCallOrder[0]);
+    });
+  });
+
+  it('a sign-in required from the start: the sign-in status, nothing asked for - and a key held is left alone', async () => {
+    auth.person = null;
+    start();
+    localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
+    await boot.start();
+    expect([boot.status(), boot.visiting()]).toEqual(['sign-in', false]);
+    http.expectNone('/api/state');
+    expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
+  });
+
+  describe('signed in, with a visitor key held', () => {
+    beforeEach(() => {
+      start();
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
+    });
+
+    /** The move's request, once it is out. */
+    async function theMove() {
+      // Twice: a move asked again waits out its Retry-After (a timer) first.
+      await settle();
+      await settle();
+      const move = http.expectOne('/api/visitor/move');
+      http.expectNone('/api/state');
+      return move;
+    }
+
+    it('moves what the visitor kept first - the token and the key in one request - then loads the person’s progress, which holds it', async () => {
+      const started = boot.start();
+      const move = await theMove();
+      expect(move.request.method).toBe('POST');
+      expect(move.request.headers.get('Authorization')).toBe('Bearer token-7');
+      expect(move.request.headers.get(VISITOR_KEY_HEADER)).toBe(KEY);
+      move.flush(moved({ notes: { moved: 2, kept: 1 } }));
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+      await started;
+
+      expect(boot.status()).toBe('ready');
+      expect(boot.visitorMoved()).toEqual({ kept: true });
+      expect(boot.visitorNotMoved()).toBe(false);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
+    });
+
+    it('says nothing when another tab moved it already (found: false) - and forgets the key all the same', async () => {
+      const started = boot.start();
+      (await theMove()).flush({ found: false, notes: { moved: 0, kept: 0 }, steps: { moved: 0, merged: 0, kept: 0 }, sessions: 0, generation: null });
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+      await started;
+      expect([boot.visitorMoved(), boot.visitorNotMoved()]).toEqual([null, false]);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
+    });
+
+    it('a move held up for a moment (503 visitor_move_retry) is asked once more after its Retry-After', async () => {
+      const started = boot.start();
+      (await theMove()).flush({ error: 'busy', code: 'visitor_move_retry' }, { status: 503, statusText: 'Unavailable', headers: { 'Retry-After': '0' } });
+      (await theMove()).flush(moved());
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+      await started;
+      expect(boot.visitorMoved()).toEqual({ kept: false });
+    });
+
+    it('a move that does not happen keeps the key - out of sight, never lost - says so, and the app runs on the person’s progress', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const started = boot.start();
+      (await theMove()).flush({ error: 'busy', code: 'visitor_move_retry' }, { status: 503, statusText: 'Unavailable', headers: { 'Retry-After': '0' } });
+      (await theMove()).flush({ error: 'busy', code: 'visitor_move_retry' }, { status: 503, statusText: 'Unavailable', headers: { 'Retry-After': '0' } });
+      await settle();
+      http.expectNone('/api/visitor/move');
+      http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+      await started;
+      expect([boot.status(), boot.visitorMoved(), boot.visitorNotMoved()]).toEqual(['ready', null, true]);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
+      expect(consoleError).toHaveBeenCalled();
+    });
+
+    it('a server error or no answer at all: the same, without waiting', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const started = boot.start();
+      (await theMove()).error(new ProgressEvent('error'));
+      await settle();
+      http.expectNone('/api/visitor/move');
+      http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+      await started;
+      expect(boot.visitorNotMoved()).toBe(true);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
+    });
+
+    it('a key that is no key (422) is forgotten: nothing to move, now or later', async () => {
+      const started = boot.start();
+      (await theMove()).flush({ error: 'bad key', code: 'invalid', field: 'visitor_key' }, { status: 422, statusText: 'Unprocessable Content' });
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+      await started;
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
+      expect(boot.visitorNotMoved()).toBe(false);
+    });
+
+    it('signed in again in the middle of practising (another tab visited meanwhile): moved then, and the progress loaded again', async () => {
+      localStorage.removeItem(VISITOR_STORAGE_KEY);
+      const started = boot.start();
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+      await started;
+
+      localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
+      for (const listener of auth.listeners) listener();
+      (await theMove()).flush(moved());
+      await settle();
+      http.expectOne('/api/state').flush({ ...STATE, generation: 13 });
+      await settle();
+      expect(boot.visitorMoved()).toEqual({ kept: false });
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
+    });
+  });
+
+  it('every signed-in start takes on the rounds a visitor of this browser left in its outbox - keys and all - whoever moved the rest', async () => {
+    start();
+    const waiting = { key: 'round-1', session: { mode: 'trainer', attempts: 3, correct: 3, accuracy: 100 }, queuedAt: '2026-10-05T08:00:00.000Z' };
+    localStorage.setItem(VISITOR_OUTBOX, JSON.stringify([waiting]));
+    const started = boot.start();
+    await settle();
+    // No key held: no move - only the outbox.
+    http.expectNone('/api/visitor/move');
+    http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
+    await started;
+    await settle();
+
+    const round = http.expectOne('/api/sessions');
+    expect(round.request.headers.get('Idempotency-Key')).toBe('round-1');
+    expect(round.request.headers.get('Authorization')).toBe('Bearer token-7');
+    expect(localStorage.getItem(VISITOR_OUTBOX)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(PERSON_OUTBOX)!)).toEqual([waiting]);
+    round.flush({ id: '1-a', recordedAt: '2026-10-05T08:00:00.000Z', mode: 'trainer', attempts: 3, correct: 3, accuracy: 100 }, { status: 200, statusText: 'OK' });
+    await settle();
+    expect(localStorage.getItem(PERSON_OUTBOX)).toBeNull();
   });
 });

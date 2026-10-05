@@ -5,8 +5,8 @@ import { TranslationService } from '../../core/i18n/translation.service';
 import { TEST_LANGUAGES, provideTestTranslations } from '../../core/testing/test-translations';
 import { LanguageSwitcherComponent } from './language-switcher.component';
 
-const ENGLISH = { 'language.button': 'Language: {name}', 'language.notLoaded': 'The language could not be loaded. Please try again.' };
-const SLOVAK = { 'language.button': 'Jazyk: {name}', 'language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.' };
+const ENGLISH = { 'language.button': 'Language: {name} ({code})', 'language.notLoaded': 'The language could not be loaded. Please try again.' };
+const SLOVAK = { 'language.button': 'Jazyk: {name} ({code})', 'language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.' };
 
 describe('LanguageSwitcherComponent', () => {
   let fixture: ComponentFixture<LanguageSwitcherComponent>;
@@ -36,13 +36,15 @@ describe('LanguageSwitcherComponent', () => {
     localStorage.clear();
   });
 
-  it('is one button: the code in capitals, named with the language as its speakers write it', () => {
+  it('is one button: the code in capitals, named with the language as its speakers write it - and with the code it shows', () => {
     expect(host.hidden).toBe(false);
     expect(host.querySelectorAll('button')).toHaveLength(1);
     expect(button().textContent?.trim()).toBe('SK');
-    expect(button().getAttribute('aria-label')).toBe('Jazyk: Slovenčina');
+    expect(button().getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
     expect(button().getAttribute('aria-haspopup')).toBe('menu');
     expect(button().getAttribute('aria-expanded')).toBe('false');
+    // Label in name (WCAG 2.5.3): a voice user says what they see - "click SK".
+    expect(button().getAttribute('aria-label')).toContain(button().textContent?.trim() ?? '-');
   });
 
   it('opens a menu of the languages on offer, each in its own name and saying which language that is', async () => {
@@ -145,7 +147,7 @@ describe('LanguageSwitcherComponent', () => {
     expect(TestBed.inject(TranslationService).language()).toBe('en');
     expect(localStorage.getItem('piano-academy:language')).toBe('en');
     expect(button().textContent?.trim()).toBe('EN');
-    expect(button().getAttribute('aria-label')).toBe('Language: English');
+    expect(button().getAttribute('aria-label')).toBe('Language: English (EN)');
     expect(items()).toEqual([]);
     expect(note()).toBeNull();
   });
@@ -222,7 +224,7 @@ describe('LanguageSwitcherComponent with nothing to choose between', () => {
   afterEach(() => localStorage.clear());
 
   it('is not drawn while only one language is on offer', async () => {
-    TestBed.configureTestingModule({ providers: [provideTestTranslations({ 'language.button': 'Language: {name}' }, { languages: [TEST_LANGUAGES[0]] })] });
+    TestBed.configureTestingModule({ providers: [provideTestTranslations({ 'language.button': 'Language: {name} ({code})' }, { languages: [TEST_LANGUAGES[0]] })] });
     const fixture = TestBed.createComponent(LanguageSwitcherComponent);
     await fixture.whenStable();
 
@@ -235,7 +237,7 @@ describe('LanguageSwitcherComponent with nothing to choose between', () => {
     localStorage.clear();
     sessionStorage.clear();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const auth = { usesSignIn: () => false, user: () => null, signedIn: () => true, onAuthChange: () => () => undefined };
+    const auth = { user: () => null, signedIn: () => false, onAuthChange: () => () => undefined };
     // The real service, with no bundle: the app is not set up, so nothing was asked for.
     TestBed.configureTestingModule({
       providers: [

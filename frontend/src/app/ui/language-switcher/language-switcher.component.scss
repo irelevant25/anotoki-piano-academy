@@ -4,17 +4,22 @@
   flex: none;
 }
 
-// Beside the theme button in the footer, and as quiet as it is.
+// Round, beside the theme button in the top bar, and as quiet as it is.
 .switcher {
-  min-width: 2.6rem;
-  font-size: 0.85rem;
-  font-weight: 600;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
-  background: transparent;
+  background: var(--panel);
   color: var(--text-dim);
 }
 
 .switcher:hover {
+  background: var(--panel-alt);
   color: var(--text);
 }
 
@@ -27,20 +32,21 @@
   opacity: 0.6;
 }
 
-// The button stands at the bottom of the page, so the menu opens upward,
-// centred on the button and never wider than the screen. --shift is what the
-// component moves it by when the button stands too near the screen's edge.
+// The button stands in the top bar, so the menu opens downward, centred on
+// the button and never wider than the screen. --shift is what the component
+// moves it by when the button stands too near the screen's edge.
 .menu,
 .note {
   position: absolute;
-  bottom: calc(100% + 0.5rem);
+  top: calc(100% + 0.5rem);
   left: 50%;
   transform: translateX(calc(-50% + var(--shift, 0px)));
   z-index: 40;
   max-width: calc(100vw - 2rem);
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
 }
 
 .menu {

@@ -1,12 +1,36 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpContextToken, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
+import { VISITOR_KEY_HEADER, VisitorKey } from '../auth/visitor-key';
 import { LanguageChanges, NewLanguage, OwnerLanguage, TranslationChanges, TranslationGrid } from '../i18n/translation.model';
+import { visitorRefusalKey } from '../i18n/visitor-words';
 import { AppState, PathProgress, ProgressMap, Session, SessionInput } from '../music/music.types';
+import { writeStorage } from '../util/storage';
 
-// The backend's API. Every call carries the access token in auth mode 'iam'
-// (auth.interceptor.ts), and none of it without sign-in.
+// The backend's API. Every call goes through here, for the owner of the data
+// the page loaded (setDataOwner()), and says as it is ISSUED whom it is for -
+// a person's or a visitor's (ISSUED_AS, an HttpContext token the auth
+// interceptor reads) - from that owner, never from whether a token happens to
+// be there when it leaves:
+//  - A person's page (the owner is their IAM user id): the person's access
+//    token (auth.interceptor.ts). Signed out meanwhile (the IAM session ended,
+//    a sign-out in another tab), nothing is sent: 401 sign_in_required here,
+//    whatever the IAM's switch says - a person's data never goes out as a
+//    visitor's, and never makes one. Signed in as somebody else: 409, wrongUser.
+//  - A visitor's page (the owner is VISITOR_OWNER: nobody signed in, and the
+//    IAM said no sign-in is required): the visitor key, if this browser holds
+//    one (core/auth/visitor-key.ts) - only the state and the three saves; the
+//    own file and the admin panel are a person's (refused here, 401, not
+//    sent). Nobody's state is generation 0, and the first save of somebody
+//    without a key makes the visitor (backend/api/visitors.php): its answer
+//    brings the key and the visitor's first generation. A progress PUT, a path
+//    PUT and a round's POST at the end of a round would make three visitors,
+//    so the first save without a key is the one "maker" and the others wait
+//    for it, then go with the key and the generation it brought (a maker that
+//    failed: the next one makes). A sign-in required meanwhile (the API said
+//    so - AuthService.requireSignInNow()): nothing more is sent, the key is
+//    kept for the next sign-in's move (moveVisitor()).
 //
 // Saves are fire-and-forget during play, so a failed one must not be lost:
 //  - A finished session goes into an outbox (localStorage, one per user)
@@ -16,11 +40,75 @@ import { AppState, PathProgress, ProgressMap, Session, SessionInput } from '../m
 //    (retrySessions()), also after a reload or the next sign-in. Its
 //    Idempotency-Key makes the server store it once, however often it arrives.
 //  - Progress and path are whole documents: the next save carries the latest
-//    state anyway, and ProgressStore retries a failed one.
+//    state anyway, and ProgressStore retries a failed one. Each save names the
+//    generation of the progress the page loaded (the Progress-Generation
+//    header, from GET /api/state): after an import or an administrator's
+//    delete the server refuses it (409 progress_changed) instead of writing
+//    the old documents back - ProgressStore then loads the progress again.
 //  - Nothing is ever sent for another user than the one the page loaded:
 //    after a sign-out or an account switch in another tab, calls stop.
+//  - A visitor's refusals that sending again cannot fix soon (413 too_large,
+//    422 visitor_limit, 429 too_many_visitors) are kept in `visitorRefusal`
+//    for the page to word; after a 429 no new visitor is asked for before its
+//    Retry-After (refused here meanwhile, with the time left).
 
 const OUTBOX_PREFIX = 'piano-learning:unsaved-sessions:';
+
+/** The header a save of a whole document names its generation in (the backend's GENERATION_HEADER). */
+export const GENERATION_HEADER = 'Progress-Generation';
+
+/** Whom a request is for, decided as it is issued: a signed-in person, or a visitor. */
+export type Caller = 'person' | 'visitor';
+
+/** Set on every request this service issues (the auth interceptor reads it; null: one it did not issue). */
+export const ISSUED_AS = new HttpContextToken<Caller | null>(() => null);
+
+/** The move after a sign-in: the one person's request that carries the visitor key (it sets the header itself). */
+export const CARRIES_VISITOR_KEY = new HttpContextToken<boolean>(() => false);
+
+/** The data owner of a visitor's page - never an IAM user id (those are numbers). */
+export const VISITOR_OWNER = 'visitor';
+
+/** How long no new visitor is asked for after a 429 without a Retry-After the page could read. */
+const MAKER_PAUSE_MS = 60_000;
+
+/** The saves that make a visitor when they are sent without a key. */
+const MAKING_WRITES = new Set(['PUT /api/progress', 'PUT /api/path', 'POST /api/sessions']);
+
+/**
+ * POST /api/visitor/move: what the move after a sign-in did. `found` false:
+ * the server knows no such visitor (moved in another tab, or swept) -
+ * nothing to say. Notes the account had already stay the account's (`kept`);
+ * a path step both had is merged (`merged`); `kept` there too when the merge
+ * would have been too large. `generation`: the person's progress after it, or
+ * null when nothing was found.
+ */
+export interface VisitorMove {
+  found: boolean;
+  notes: { moved: number; kept: number };
+  steps: { moved: number; merged: number; kept: number };
+  sessions: number;
+  generation: number | null;
+}
+
+/** The own file, the admin panel: a person's calls. */
+const AS_PERSON: Call = { asPerson: true };
+
+/** How a call is issued: its headers (a function: worked out only when it is sent), a person's only, the move's key. */
+interface Call {
+  headers?: Record<string, string> | (() => Record<string, string>);
+  /** The own file, the admin panel, the move: never a visitor's (refused here, 401, nothing sent). */
+  asPerson?: boolean;
+  /** The move: a person's request with the visitor key the call set itself. */
+  carriesKey?: boolean;
+}
+
+/**
+ * The largest progress file, both ways: what GET /api/me/export hands out and
+ * what POST /api/me/import takes (the backend's EXPORT_LIMIT, 5 MiB). A file
+ * over it is refused here, before it is sent.
+ */
+export const EXPORT_LIMIT = 5 * 1024 * 1024;
 
 /**
  * A call that did not work: the HTTP status (0 = no answer), the server's
@@ -28,9 +116,12 @@ const OUTBOX_PREFIX = 'piano-learning:unsaved-sessions:';
  *
  * `details` is the answer's body when it is an object: the server's own
  * English sentence (`error`) and, for a string that was refused, the key and
- * the language it is about (`key`, `language`). Only the owner's two pages
- * read it - they are English; a learner's page words a failure itself and
- * never shows the server's sentence.
+ * the language it is about (`key`, `language`). Only the admin pages read the
+ * sentence - they are English; a learner's page words a failure itself, from
+ * the code, and never shows the server's sentence.
+ *
+ * `retryAfterMs`: the answer's Retry-After (seconds) in milliseconds, when it
+ * had one.
  */
 export class ApiError extends Error {
   constructor(
@@ -39,13 +130,107 @@ export class ApiError extends Error {
     readonly code: string | null = null,
     readonly wrongUser = false,
     readonly details: Record<string, unknown> | null = null,
+    readonly retryAfterMs: number | null = null,
   ) {
     super(message);
   }
 }
 
+/** Nobody signed in for a person's call - refused here, nothing sent (the API would say the same). */
+function notSignedIn(): ApiError {
+  return new ApiError('Not signed in', 401, 'sign_in_required');
+}
+
+/** A Retry-After of seconds, in milliseconds (an HTTP date is not read). */
+function retryAfter(value: string | null | undefined): number | null {
+  if (value === null || value === undefined || value.trim() === '') return null;
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds >= 0 ? Math.round(seconds * 1000) : null;
+}
+
+/** Counts of one person's progress: notes with a state, steps of the path, rounds played. */
+export interface ProgressCounts {
+  notes: number;
+  steps: number;
+  sessions: number;
+}
+
+/** POST /api/me/import?dryRun=true: what an import would do - nothing is written. */
+export interface ImportPreview {
+  dryRun: true;
+  /** The account has progress: bringing the file in replaces it, and is asked for. */
+  hasProgress: boolean;
+  current: ProgressCounts;
+  incoming: ProgressCounts;
+  /** Rounds in the file the server will not take (they are left out). */
+  leftOut: number;
+}
+
+/** POST /api/me/import: what came in. */
+export interface ImportResult extends ProgressCounts {
+  replaced: boolean;
+  generation: number;
+  leftOut: number;
+}
+
+/** GET /api/me/export: the file, and the name to save it under. */
+export interface ProgressFile {
+  name: string;
+  text: string;
+}
+
+/** One person on the People page (ADMIN): who, when, and how much the app keeps of them. */
+export interface Person extends ProgressCounts {
+  id: number;
+  /** Their IAM username as the tokens last named it; null when none ever did (a CLI import). */
+  username: string | null;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+/**
+ * GET /api/admin/people (ADMIN): the people who signed in, and the visitors -
+ * people practising without signing in, while the IAM does not require it -
+ * only counted, with their rounds: never listed, never deleted by hand (they
+ * go 30 days after their last visit).
+ */
+export interface PeopleList {
+  people: Person[];
+  visitors: { count: number; sessions: number };
+}
+
+/**
+ * GET /api/admin/migrations (ADMIN; the IAM's shape): the files applied, in
+ * the order they ran, with when ("YYYY-MM-DD HH:MM", the server's clock), and
+ * the ones pending, in the order they will run.
+ */
+export interface MigrationsStatus {
+  database: string;
+  applied: { name: string; applied_at: string | null }[];
+  pending: { name: string }[];
+}
+
+/**
+ * POST /api/admin/migrations/apply (ADMIN): what was applied, and the file it
+ * stopped at (rolled back whole) with what PostgreSQL said (the statement's
+ * number and first lines too), as the IAM's answer has it.
+ */
+export interface MigrationsApplyResult {
+  applied: string[];
+  failed: string | null;
+  error: string | null;
+}
+
 /** An answer's body as `details`: a plain object - not a list, not a text, not the browser's own error for "no answer". */
 function bodyDetails(body: unknown): Record<string, unknown> | null {
+  if (typeof body === 'string') {
+    // A call that asked for text (the progress file) gets its refusal as text: the API's JSON all the same.
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return null;
+    }
+  }
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
   const kind: unknown = Object.getPrototypeOf(body);
   return kind === Object.prototype || kind === null ? (body as Record<string, unknown>) : null;
@@ -75,76 +260,291 @@ function isRefused(error: unknown): boolean {
   return error instanceof ApiError && [400, 413, 415, 422].includes(error.status);
 }
 
+/**
+ * The progress was replaced or deleted after this page loaded it (409
+ * progress_changed - also the local one when the page holds no generation to
+ * name): sending the documents again can never work; the page has to load the
+ * progress again. Not a 428 generation_required: this app never sends a save
+ * without the header, so a 428 means something between the browser and the
+ * server dropped it - a failed save ("Not saved yet"), not a change elsewhere.
+ */
+export function isProgressChanged(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409 && error.code === 'progress_changed';
+}
+
+/** The name the server gave a file (Content-Disposition), when it gave a plain one. */
+function fileName(disposition: string | null): string | null {
+  const found = /filename="([A-Za-z0-9._-]+)"/.exec(disposition ?? '');
+  return found ? found[1] : null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly visitorKey = inject(VisitorKey);
 
-  /** userKey() when the page loaded its state. */
-  private owner: string | null = null;
+  /** userKey() when the page loaded its state - or VISITOR_OWNER on a visitor's page. */
+  private readonly _owner = signal<string | null>(null);
+  /**
+   * The generation of the progress the page loaded (GET /api/state); every
+   * whole-document save names it. 0: nobody's (a visitor's page before the
+   * first save made the visitor).
+   */
+  private generation: number | null = null;
+  /** The visitor's first save on its way (a "maker", sent without a key): the other saves wait for it. */
+  private making: Promise<unknown> | null = null;
+  /** No new visitor is asked for before this time (after a 429 too_many_visitors). */
+  private makersPausedUntil = 0;
   /** Used when localStorage refuses. */
   private readonly memoryOutbox = new Map<string, OutboxEntry[]>();
   /** Outbox entry key -> the recordSession() promise waiting on it. */
   private readonly waiters = new Map<string, Waiter>();
   private flushing: Promise<void> | null = null;
+  /** The browser refused its storage for the outbox: what waits lives in this page only. */
+  private outboxInMemory = false;
   private onSaved: (session: Session) => void = () => {};
 
   /** How many finished sessions are not on the server yet. */
   readonly unsavedSessions = signal(0);
+  /**
+   * Whose data this page loaded: userKey() then, VISITOR_OWNER on a visitor's
+   * page, or null (nothing loaded). Every later call must be for the same.
+   */
+  readonly dataOwner = this._owner.asReadonly();
+  /**
+   * The key of the words for the last refused save of a visitor's that
+   * sending again cannot fix soon (VISITOR_WORDS.full: 413 too_large, 422
+   * visitor_limit; VISITOR_WORDS.busy: 429 too_many_visitors) - null again
+   * once a visitor's save gets through. The page words it.
+   */
+  readonly visitorRefusal = signal<string | null>(null);
 
   constructor() {
     // Another tab may send (or queue) a session of the same person: the count
     // follows the outbox wherever it changes.
     globalThis.addEventListener?.('storage', (event: StorageEvent) => {
-      if (this.owner !== null && event.key === this.outboxKey()) {
+      if (this._owner() !== null && event.key === this.outboxKey()) {
         this.unsavedSessions.set(this.loadOutbox().length);
       }
     });
   }
 
-  /** Whose data this page loaded; every later call must be for the same user. */
+  /** Whose data this page loaded (a person's userKey(), or VISITOR_OWNER); every later call must be for the same. */
   setDataOwner(key: string | null): void {
-    this.owner = key;
-    this.unsavedSessions.set(this.owner === null ? 0 : this.loadOutbox().length);
+    this._owner.set(key);
+    this.unsavedSessions.set(key === null ? 0 : this.loadOutbox().length);
   }
 
-  private async request<T>(method: string, url: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  /**
+   * Whom a call of this page is for, now - or why it is not sent at all: a
+   * person's page whose person is signed out (401, whatever the IAM's switch
+   * says: never a visitor's instead) or is somebody else now (409
+   * wrongUser); a visitor's page that somebody signed in on meanwhile (409
+   * wrongUser - the page loads again), or where a sign-in is required now,
+   * or a person's call on it (401).
+   */
+  private gate(asPerson = false): Caller {
+    const owner = this._owner();
     const current = this.auth.userKey();
-    if (this.owner === null || current !== this.owner) {
-      // Signed out (the IAM session ended), or signed in as somebody else in another tab.
-      throw current === null
-        ? new ApiError('Not signed in', 401)
-        : new ApiError('Signed in as somebody else', 409, null, true);
+    if (owner === VISITOR_OWNER) {
+      if (current !== null) throw new ApiError('Signed in as somebody else', 409, null, true);
+      if (asPerson || this.auth.loginRequired()) throw notSignedIn();
+      return 'visitor';
     }
+    if (owner === null || current !== owner) {
+      // Signed out (the IAM session ended), or signed in as somebody else in another tab.
+      throw current === null ? notSignedIn() : new ApiError('Signed in as somebody else', 409, null, true);
+    }
+    return 'person';
+  }
+
+  private failed(method: string, url: string, error: unknown): unknown {
+    if (error instanceof HttpErrorResponse) {
+      const details = bodyDetails(error.error);
+      const code = typeof details?.['code'] === 'string' ? details['code'] : null;
+      return new ApiError(`${method} ${url} failed: ${error.status}`, error.status, code, false, details, retryAfter(error.headers?.get('Retry-After')));
+    }
+    return error;
+  }
+
+  /** A call: who it is for is decided here, as it is issued - before anything waits or is sent. */
+  private request<T>(method: string, url: string, body?: unknown, call: Call = {}): Promise<T> {
+    let caller: Caller;
     try {
-      return await firstValueFrom(this.http.request<T>(method, url, { body, headers }));
+      caller = this.gate(call.asPerson);
     } catch (error) {
-      if (error instanceof HttpErrorResponse) {
-        const details = bodyDetails(error.error);
-        const code = typeof details?.['code'] === 'string' ? details['code'] : null;
-        throw new ApiError(`${method} ${url} failed: ${error.status}`, error.status, code, false, details);
-      }
-      throw error;
+      return Promise.reject(error);
+    }
+    return caller === 'visitor' && MAKING_WRITES.has(`${method} ${url}`) ? this.visitorSave<T>(method, url, body, call) : this.send<T>(method, url, body, call, caller);
+  }
+
+  /** A visitor's save: one without a key at a time (see the top of this file). */
+  private async visitorSave<T>(method: string, url: string, body: unknown, call: Call): Promise<T> {
+    let caller = this.gate(call.asPerson);
+    while (this.making) {
+      await this.making.catch(() => undefined);
+      caller = this.gate(call.asPerson);
+    }
+    if (this.visitorKey.current() !== null) {
+      return this.send<T>(method, url, body, call, caller);
+    }
+    const left = this.makersPausedUntil - Date.now();
+    if (left > 0) {
+      throw new ApiError(`${method} ${url}: no new visitor yet`, 429, 'too_many_visitors', false, null, left);
+    }
+    const made = this.send<T>(method, url, body, call, caller);
+    this.making = made;
+    // Registered before any waiter's: when they wake, the maker is gone (and the first of them may make).
+    const done = (): void => {
+      if (this.making === made) this.making = null;
+    };
+    made.then(done, done);
+    return made;
+  }
+
+  private async send<T>(method: string, url: string, body: unknown, call: Call, caller: Caller): Promise<T> {
+    try {
+      // Worked out now, after any wait: a save names the generation the page holds when it leaves.
+      const headers = typeof call.headers === 'function' ? call.headers() : (call.headers ?? {});
+      const context = new HttpContext().set(ISSUED_AS, caller).set(CARRIES_VISITOR_KEY, call.carriesKey === true);
+      return await firstValueFrom(
+        this.http.request<T>(method, url, { body, headers, context, observe: 'response' }).pipe(
+          map((response) => {
+            if (caller === 'visitor' && method !== 'GET') this.visitorSaved(response);
+            return response.body as T;
+          }),
+        ),
+      );
+    } catch (error) {
+      const failure = this.failed(method, url, error);
+      if (caller === 'visitor') this.visitorRefused(failure);
+      throw failure;
     }
   }
 
-  fetchState(): Promise<AppState> {
-    return this.request<AppState>('GET', '/api/state');
+  /** A visitor's save got through: a refusal before it is over; the answer that made the visitor names its generation. */
+  private visitorSaved(response: HttpResponse<unknown>): void {
+    this.visitorRefusal.set(null);
+    const generation = Number(response.headers.get(GENERATION_HEADER));
+    // Only over nobody's 0: a page that loaded a visitor's progress keeps the generation it loaded.
+    if (this.generation === 0 && Number.isSafeInteger(generation) && generation > 0) this.generation = generation;
+  }
+
+  /** A visitor's save refused: kept for the page to word; after a 429 no new visitor is asked for until its Retry-After. */
+  private visitorRefused(failure: unknown): void {
+    if (!(failure instanceof ApiError)) return;
+    const words = visitorRefusalKey(failure.status, failure.code ?? undefined);
+    if (words !== null) this.visitorRefusal.set(words);
+    if (failure.status === 429 && failure.code === 'too_many_visitors') {
+      this.makersPausedUntil = Date.now() + (failure.retryAfterMs ?? MAKER_PAUSE_MS);
+    }
+  }
+
+  /** A call whose answer is text, with its headers: the progress file (a person's). */
+  private async requestText(method: string, url: string): Promise<HttpResponse<string>> {
+    const caller = this.gate(true);
+    try {
+      return await firstValueFrom(this.http.request(method, url, { observe: 'response', responseType: 'text', context: new HttpContext().set(ISSUED_AS, caller) }));
+    } catch (error) {
+      throw this.failed(method, url, error);
+    }
+  }
+
+  /**
+   * The progress of the page's owner, and the generation it is of - kept here
+   * for the saves. A visitor's page without a key gets nobody's: empty, at
+   * generation 0, which only the first save (the one that makes the visitor)
+   * names.
+   */
+  async fetchState(): Promise<AppState> {
+    const asVisitor = this._owner() === VISITOR_OWNER;
+    const state = await this.request<AppState & { generation?: unknown }>('GET', '/api/state');
+    const generation = state.generation;
+    this.generation = typeof generation === 'number' && Number.isSafeInteger(generation) && (generation > 0 || (asVisitor && generation === 0)) ? generation : null;
+    return { progress: state.progress, sessions: state.sessions, path: state.path };
+  }
+
+  /** The header of a whole-document save; without a generation the save is not sent at all (it could only be refused). */
+  private generationHeader(url: string): Record<string, string> {
+    this.gate(); // nobody signed in, or somebody else, before anything about the generation
+    if (this.generation === null) {
+      throw new ApiError(`PUT ${url}: no generation of the progress to name`, 409, 'progress_changed');
+    }
+    return { [GENERATION_HEADER]: String(this.generation) };
   }
 
   async saveProgress(progress: ProgressMap): Promise<void> {
-    await this.request('PUT', '/api/progress', progress);
+    await this.request('PUT', '/api/progress', progress, { headers: () => this.generationHeader('/api/progress') });
   }
 
   async savePath(path: PathProgress): Promise<void> {
-    await this.request('PUT', '/api/path', path);
+    await this.request('PUT', '/api/path', path, { headers: () => this.generationHeader('/api/path') });
   }
 
-  // --- the app's own words: the owner's two pages (the server lets nobody else in) ---
+  // --- a visitor's progress at a sign-in ---
+
+  /**
+   * POST /api/visitor/move: what this browser's visitor kept (`key`) becomes
+   * the signed-in person's - the token and the key in one request, whatever
+   * the IAM's switch says. ApiError 503 `visitor_move_retry` (Retry-After),
+   * 422 for a key that is no key, 401 for nobody signed in.
+   */
+  moveVisitor(key: string): Promise<VisitorMove> {
+    return this.request<VisitorMove>('POST', '/api/visitor/move', null, { headers: { [VISITOR_KEY_HEADER]: key }, asPerson: true, carriesKey: true });
+  }
+
+  /**
+   * The rounds another owner of this browser left in its outbox - a visitor's,
+   * after a sign-in - become this page's owner's, keeping their
+   * Idempotency-Keys (a round the visitor already stored was moved with its
+   * key, so sending it again stores nothing twice). Answers how many came.
+   */
+  adoptOutbox(from: string): number {
+    const owner = this._owner();
+    if (owner === null || owner === from) return 0;
+    const theirs = this.loadOutbox(OUTBOX_PREFIX + from);
+    if (!theirs.length) return 0;
+    const mine = this.loadOutbox();
+    const known = new Set(mine.map((entry) => entry.key));
+    this.storeOutbox([...mine, ...theirs.filter((entry) => !known.has(entry.key))]);
+    this.memoryOutbox.delete(OUTBOX_PREFIX + from);
+    writeStorage(OUTBOX_PREFIX + from, null);
+    return theirs.length;
+  }
+
+  // --- the person's own progress file ---
+
+  /** GET /api/me/export: the file (as it came) and its name. ApiError 409 `export_too_large`. */
+  async exportMyProgress(): Promise<ProgressFile> {
+    const answer = await this.requestText('GET', '/api/me/export');
+    const today = new Date().toISOString().slice(0, 10);
+    return { name: fileName(answer.headers.get('Content-Disposition')) ?? `piano-academy-progress-${today}.json`, text: answer.body ?? '' };
+  }
+
+  /**
+   * What bringing `text` (a progress file, as it was read) in would do -
+   * nothing is written. ApiError 422 `not_an_export` / `invalid_export`, 413
+   * `too_large`.
+   */
+  previewImport(text: string): Promise<ImportPreview> {
+    return this.request<ImportPreview>('POST', '/api/me/import?dryRun=true', text, { headers: { 'Content-Type': 'application/json' }, asPerson: true });
+  }
+
+  /**
+   * Brings a progress file in: into an account with no progress - or, with
+   * `replace` (only after the person said so), in the place of the progress
+   * there. ApiError 409 `has_progress` (nothing written), 422, 413.
+   */
+  importMyProgress(text: string, replace: boolean): Promise<ImportResult> {
+    return this.request<ImportResult>('POST', replace ? '/api/me/import?replace=true' : '/api/me/import', text, { headers: { 'Content-Type': 'application/json' }, asPerson: true });
+  }
+
+  // --- the admin panel: the app's words (EDITOR or ADMIN; the languages' writes ADMIN) ---
 
   /** Every language, the hidden ones too. */
   async languages(): Promise<OwnerLanguage[]> {
-    return (await this.request<{ languages: OwnerLanguage[] }>('GET', '/api/owner/languages')).languages;
+    return (await this.request<{ languages: OwnerLanguage[] }>('GET', '/api/admin/languages', undefined, AS_PERSON)).languages;
   }
 
   /**
@@ -154,51 +554,74 @@ export class ApiService {
    * ApiError 409 `language_exists`, 422 `invalid_language` or `too_many_languages`.
    */
   async createLanguage(language: NewLanguage & { enabled: boolean }): Promise<OwnerLanguage> {
-    return (await this.request<{ language: OwnerLanguage }>('POST', '/api/owner/languages', language)).language;
+    return (await this.request<{ language: OwnerLanguage }>('POST', '/api/admin/languages', language, AS_PERSON)).language;
   }
 
   /** Its names, its place, whether it is offered. ApiError 409 `fallback_language` for switching English off. */
   async updateLanguage(code: string, changes: LanguageChanges): Promise<OwnerLanguage> {
-    return (await this.request<{ language: OwnerLanguage }>('PUT', `/api/owner/languages/${encodeURIComponent(code)}`, changes)).language;
+    return (await this.request<{ language: OwnerLanguage }>('PUT', `/api/admin/languages/${encodeURIComponent(code)}`, changes, AS_PERSON)).language;
   }
 
   /** Its strings go with it. ApiError 409 `fallback_language` for English, `seeded_language` for a language the app is released in. */
   async deleteLanguage(code: string): Promise<void> {
-    await this.request('DELETE', `/api/owner/languages/${encodeURIComponent(code)}`);
+    await this.request('DELETE', `/api/admin/languages/${encodeURIComponent(code)}`, undefined, AS_PERSON);
   }
 
   /** Every key with its string in every language. */
   translationGrid(): Promise<TranslationGrid> {
-    return this.request<TranslationGrid>('GET', '/api/owner/translations');
+    return this.request<TranslationGrid>('GET', '/api/admin/translations', undefined, AS_PERSON);
   }
 
   /** Saves the cells that changed, all or none; answers the grid as it is now, other people's changes included. */
   saveTranslations(values: TranslationChanges): Promise<TranslationGrid> {
-    return this.request<TranslationGrid>('PUT', '/api/owner/translations', { values });
+    return this.request<TranslationGrid>('PUT', '/api/admin/translations', { values }, AS_PERSON);
   }
 
   /** One language's own strings as a flat {key: text} map - not merged with English. */
   exportTranslations(code: string): Promise<Record<string, string>> {
-    return this.request<Record<string, string>>('GET', `/api/owner/translations/${encodeURIComponent(code)}/export`);
+    return this.request<Record<string, string>>('GET', `/api/admin/translations/${encodeURIComponent(code)}/export`, undefined, AS_PERSON);
   }
 
   /** The way back: a flat {key: text} map, checked like a save; unknown keys are refused, blank values skipped. */
   importTranslations(code: string, values: Record<string, string>): Promise<TranslationGrid> {
-    return this.request<TranslationGrid>('PUT', `/api/owner/translations/${encodeURIComponent(code)}/import`, values);
+    return this.request<TranslationGrid>('PUT', `/api/admin/translations/${encodeURIComponent(code)}/import`, values, AS_PERSON);
+  }
+
+  // --- the admin panel: ADMIN alone ---
+
+  /** Everybody who signed in, the most recently seen first - and how many visitors there are, with their rounds. */
+  async people(): Promise<PeopleList> {
+    const list = await this.request<Partial<PeopleList>>('GET', '/api/admin/people', undefined, AS_PERSON);
+    return { people: list.people ?? [], visitors: list.visitors ?? { count: 0, sessions: 0 } };
+  }
+
+  /** Everything the app keeps of one person goes. ApiError 404 `not_found`. */
+  async deletePerson(id: number): Promise<void> {
+    await this.request('DELETE', `/api/admin/people/${encodeURIComponent(String(id))}`, undefined, AS_PERSON);
+  }
+
+  /** What the database has and lacks - also while it is behind the code. */
+  migrations(): Promise<MigrationsStatus> {
+    return this.request<MigrationsStatus>('GET', '/api/admin/migrations', undefined, AS_PERSON);
+  }
+
+  /** Applies every pending migration, in order. ApiError 409 `busy` while another update runs. */
+  applyMigrations(): Promise<MigrationsApplyResult> {
+    return this.request<MigrationsApplyResult>('POST', '/api/admin/migrations/apply', undefined, AS_PERSON);
   }
 
   // --- the session outbox ---
 
   private outboxKey(): string {
-    return OUTBOX_PREFIX + this.owner;
+    return OUTBOX_PREFIX + this._owner();
   }
 
-  private loadOutbox(): OutboxEntry[] {
+  private loadOutbox(key = this.outboxKey()): OutboxEntry[] {
     try {
-      const list = JSON.parse(localStorage.getItem(this.outboxKey()) || '[]');
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
       return Array.isArray(list) ? list : [];
     } catch {
-      return this.memoryOutbox.get(this.outboxKey()) ?? [];
+      return this.memoryOutbox.get(key) ?? [];
     }
   }
 
@@ -207,10 +630,17 @@ export class ApiService {
     try {
       if (list.length) localStorage.setItem(this.outboxKey(), JSON.stringify(list));
       else localStorage.removeItem(this.outboxKey());
+      this.outboxInMemory = false;
     } catch {
       // kept in memory until the page closes
+      this.outboxInMemory = list.length > 0;
     }
     this.unsavedSessions.set(list.length);
+  }
+
+  /** Is what waits in the outbox kept by the browser (and so sent after the next sign-in, or a reload)? */
+  outboxKept(): boolean {
+    return !this.outboxInMemory;
   }
 
   /**
@@ -232,7 +662,7 @@ export class ApiService {
    * empty; rejects while something still waits.
    */
   retrySessions(): Promise<void> {
-    if (this.owner === null) return Promise.resolve();
+    if (this._owner() === null) return Promise.resolve();
     if (this.flushing) return this.flushing;
     this.flushing = (async () => {
       try {
@@ -242,7 +672,7 @@ export class ApiService {
           const waiter = this.waiters.get(entry.key);
           let saved: Session;
           try {
-            saved = await this.request<Session>('POST', '/api/sessions', entry.session, { 'Idempotency-Key': entry.key });
+            saved = await this.request<Session>('POST', '/api/sessions', entry.session, { headers: { 'Idempotency-Key': entry.key } });
           } catch (error) {
             if (!isRefused(error)) throw error;
             console.error('The server refused a session; it is dropped.', entry.session, error);

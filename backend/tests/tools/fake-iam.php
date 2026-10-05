@@ -3,20 +3,33 @@
  * A stand-in for the anotoki IAM, for the tests and for browser checks only:
  * just enough OpenID Connect for the browser SDK and the PHP verifier -
  * discovery, the key set, authorize (signs the configured person in at once),
- * token (authorization code with PKCE, refresh with rotation), logout, revoke.
+ * token (authorization code with PKCE, refresh with rotation), logout, revoke -
+ * and the public answer about an application (whether its site requires
+ * sign-in, which the SDK's anotoki_iam_login_required() reads).
  * Its tokens are signed with the tests' own key. Never point a real site at it.
  *
- *   FAKE_IAM_DIR=<folder> FAKE_IAM_ISSUER=http://127.0.0.1:8397 php -S 127.0.0.1:8397 tests/tools/fake-iam.php
+ *   FAKE_IAM_DIR=<folder> FAKE_IAM_ISSUER=http://127.0.0.1:8597 php -S 127.0.0.1:8597 tests/tools/fake-iam.php
+ *
+ * (tests/tools/testenv.php's default --issuer is that address. The PHP tests
+ * start it on a free port of their own: tests/api/auth.test.php,
+ * tests/api/setup.test.php.)
  *
  * <folder>/key.json    { kid, private_pem, jwks } - anotoki_iam_test_keypair()
  * <folder>/state.json  who signs in and how the IAM behaves; POST /_test/state
  *                      merges JSON into it:
- *   user      { id, username, roles, locale? }   who authorize signs in; locale is the
+ *   user      { id, username, roles, locale? }   who authorize signs in (owner, MEMBER
+ *             and ADMIN); roles are this application's - every account holds MEMBER:
+ *             MEMBER, plus ADMIN or EDITOR - MEMBER alone: a learner; locale is the
  *             language their account is set to - the token's `locale` claim (en)
  *   ttl       seconds an access token lives (600)
- *   down      true: every OIDC endpoint answers 503 (the IAM unreachable)
+ *   login_required       what GET /api/public/applications/{client_id} says: whether the
+ *                        site requires sign-in (true)
+ *   application_missing  true: that address answers 404 - an unknown or switched-off application
+ *   application_name     the name it gives there (Test site)
+ *   down      true: every endpoint but the key set answers 503 (the IAM unreachable)
  *   refuse    true: refreshing answers invalid_grant (the IAM session ended)
- *   deny      true: authorize answers access_denied (no role in the application),
+ *   deny      true: authorize answers access_denied (the person said no, or the IAM
+ *             refused them),
  *             with deny_description as its error_description
  */
 
@@ -36,8 +49,9 @@ function fake_state(string $dir): array
 {
     $state = is_file("$dir/state.json") ? json_decode((string) file_get_contents("$dir/state.json"), true) : null;
     return (is_array($state) ? $state : []) + [
-        'user' => ['id' => 1, 'username' => 'owner', 'roles' => ['ADMIN']],
+        'user' => ['id' => 1, 'username' => 'owner', 'roles' => ['MEMBER', 'ADMIN']],
         'ttl' => 600, 'down' => false, 'refuse' => false, 'deny' => false, 'deny_description' => 'No access to this application',
+        'login_required' => true, 'application_missing' => false,
         'codes' => [], 'refresh' => [], 'log' => [],
     ];
 }
@@ -109,6 +123,25 @@ if ($path === '/_test/state') {
 if ($state['down'] && $path !== '/.well-known/jwks.json') {
     fake_save($dir, $state);
     return fake_json(503, ['error' => 'temporarily_unavailable'], $origin);
+}
+
+// The IAM's public answer about an application: whether its site requires sign-in
+// (anotoki_iam_login_required() in the SDK reads it). Answered for any client id;
+// `down` above makes it 503 like everything else.
+if ($method === 'GET' && preg_match('#^/api/public/applications/([a-z0-9][a-z0-9-]{1,63})$#', $path, $m)) {
+    fake_save($dir, $state);
+    if ($state['application_missing']) {
+        return fake_json(404, ['error' => 'not_found']);
+    }
+    http_response_code(200);
+    header('Content-Type: application/json');
+    header('Cache-Control: public, max-age=60');
+    echo json_encode([
+        'client_id' => $m[1],
+        'name' => (string) ($state['application_name'] ?? 'Test site'),
+        'login_required' => (bool) $state['login_required'],
+    ], JSON_UNESCAPED_SLASHES);
+    return true;
 }
 
 switch ($path) {

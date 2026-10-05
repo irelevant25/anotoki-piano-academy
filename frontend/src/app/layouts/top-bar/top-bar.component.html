@@ -1,0 +1,168 @@
+<header class="topbar" [class.is-phone]="phone()">
+    <div class="topbar-inner">
+        @if (inAdmin()) {
+            <app-brand [size]="32" [showName]="!phone()" [area]="phone() ? 'admin panel' : 'Piano Academy - admin panel'" link="/admin" linkLabel="anotoki Piano Academy - admin panel" />
+        } @else {
+            <app-brand [size]="32" [showName]="!phone()" [area]="(phone() ? 'brand.short' : 'brand.area') | translate" link="/" [linkLabel]="'topbar.home' | translate" />
+        }
+
+        @if (!phone() && links().length) {
+            <nav class="topbar-nav" id="topbar-nav" [attr.aria-label]="'nav.label' | translate">
+                @for (link of links(); track link.path) {
+                    <a class="topbar-link" [routerLink]="link.path" [class.is-active]="inSection(link)" [attr.aria-current]="isPage(link) ? 'page' : null">
+                        {{ link.key ? (link.key | translate) : link.english }}
+                    </a>
+                }
+            </nav>
+        }
+
+        <div class="topbar-actions">
+            @if (store.unsaved() && !phone()) {
+                <span class="save-status" id="save-status" [title]="'account.notSavedHint' | translate">{{ 'account.notSaved' | translate }}</span>
+            }
+            @if (!inAdmin()) {
+                <app-midi-panel [compact]="phone()" />
+                <app-language-switcher />
+            }
+            <app-theme-toggle />
+
+            @if (phone()) {
+                @if (phoneMenu()) {
+                    <div class="phone-menu">
+                        <button
+                            #phoneButton
+                            type="button"
+                            class="menu-button"
+                            id="topbar-menu-button"
+                            aria-haspopup="menu"
+                            [attr.aria-expanded]="openMenu() === 'phone'"
+                            aria-controls="topbar-menu"
+                            [attr.aria-label]="'topbar.phoneMenu' | translate"
+                            [attr.aria-describedby]="store.unsaved() ? 'topbar-unsaved' : null"
+                            (click)="toggleMenu('phone')">
+                            <app-icon [name]="openMenu() === 'phone' ? 'x' : 'menu'" [size]="20" />
+                            @if (store.unsaved()) {
+                                <span class="unsaved-dot" id="topbar-unsaved-dot" aria-hidden="true"></span>
+                                <span class="visually-hidden" id="topbar-unsaved">{{ 'account.notSaved' | translate }}</span>
+                            }
+                        </button>
+
+                        @if (openMenu() === "phone") {
+                            <div #menu id="topbar-menu" class="menu" role="menu" [attr.aria-label]="'topbar.phoneMenu' | translate" (keydown)="onMenuKeydown($event)">
+                                @if (store.unsaved()) {
+                                    <div class="menu-note" id="topbar-menu-unsaved" role="none">
+                                        <strong>{{ 'account.notSaved' | translate }}</strong>
+                                        <span>{{ 'account.notSavedHint' | translate }}</span>
+                                    </div>
+                                }
+                                @for (link of links(); track link.path) {
+                                    <a
+                                        role="menuitem"
+                                        class="menu-item menu-link"
+                                        [routerLink]="link.path"
+                                        [class.is-active]="inSection(link)"
+                                        [attr.aria-current]="isPage(link) ? 'page' : null"
+                                        (click)="closeMenu(false)">
+                                        {{ link.key ? (link.key | translate) : link.english }}
+                                    </a>
+                                }
+                                @if (links().length && (auth.signedIn() || offerSignIn())) {
+                                    <div class="menu-sep" role="separator"></div>
+                                }
+                                @if (auth.signedIn()) {
+                                    <ng-container [ngTemplateOutlet]="accountItems" />
+                                } @else if (offerSignIn()) {
+                                    <button role="menuitem" type="button" class="menu-item" id="topbar-sign-in-item" (click)="signIn()">
+                                        <app-icon name="logIn" [size]="17" />
+                                        {{ "signIn.button" | translate }}
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            } @else if (auth.signedIn()) {
+                <div class="user-menu">
+                    <button
+                        #accountButton
+                        type="button"
+                        class="user-button"
+                        id="topbar-user-button"
+                        aria-haspopup="menu"
+                        [attr.aria-expanded]="openMenu() === 'account'"
+                        aria-controls="user-menu"
+                        [attr.aria-label]="'topbar.menuButton' | translate: { name: name() }"
+                        (click)="toggleMenu('account')">
+                        <span class="avatar" aria-hidden="true">{{ initial() }}</span>
+                        <span class="user-name" id="account-name">{{ name() }}</span>
+                        <app-icon name="chevronDown" [size]="16" />
+                    </button>
+
+                    @if (openMenu() === "account") {
+                        <div #menu id="user-menu" class="menu" role="menu" [attr.aria-label]="'topbar.menu' | translate" (keydown)="onMenuKeydown($event)">
+                            @if (store.unsaved()) {
+                                <div class="menu-note" role="none">
+                                    <strong>{{ 'account.notSaved' | translate }}</strong>
+                                    <span>{{ 'account.notSavedHint' | translate }}</span>
+                                </div>
+                            }
+                            <ng-container [ngTemplateOutlet]="accountItems" />
+                        </div>
+                    }
+                </div>
+            } @else if (offerSignIn()) {
+                <button type="button" class="btn-primary sign-in" id="sign-in-btn" (click)="signIn()">
+                    <app-icon name="logIn" [size]="16" />
+                    {{ "signIn.button" | translate }}
+                </button>
+            }
+        </div>
+    </div>
+</header>
+
+<!-- Asked on Sign out when some progress would be lost - drawn while closed, in the learner's words. -->
+<app-confirm-dialog name="sign-out-confirm" [words]="signOutWords()" />
+
+<!-- The person's menu: on its own button on a desktop, after the links in the phone's menu. -->
+<ng-template #accountItems>
+    <div class="menu-head" role="none">
+        <span class="menu-name">{{ name() }}</span>
+        @if (email(); as address) {
+            <span class="menu-email">{{ address }}</span>
+        }
+        @if (auth.isAdmin()) {
+            <span class="menu-role" id="topbar-role">{{ "topbar.roleAdmin" | translate }}</span>
+        } @else if (auth.isStaff()) {
+            <span class="menu-role" id="topbar-role">{{ "topbar.roleEditor" | translate }}</span>
+        }
+    </div>
+    @if (accountUrl(); as url) {
+        <a role="menuitem" class="menu-item" id="account-link" [href]="url" target="_blank" rel="noopener" (click)="closeMenu(false)">
+            <app-icon name="user" [size]="17" />
+            {{ "topbar.account" | translate }}
+            <app-icon class="menu-external" name="externalLink" [size]="14" />
+        </a>
+    }
+    @if (auth.isStaff()) {
+        @if (inAdmin()) {
+            <a role="menuitem" class="menu-item" id="topbar-back" routerLink="/" (click)="closeMenu(false)">
+                <app-icon name="arrowLeft" [size]="17" />
+                Back to Piano Academy
+            </a>
+        } @else {
+            <a role="menuitem" class="menu-item" id="admin-link" routerLink="/admin" (click)="closeMenu(false)">
+                <app-icon name="shield" [size]="17" />
+                {{ "topbar.admin" | translate }}
+            </a>
+        }
+    }
+    <div class="menu-sep" role="separator"></div>
+    <button role="menuitem" type="button" class="menu-item" id="sign-out-btn" [disabled]="signingOut()" [attr.aria-busy]="signingOut() ? 'true' : null" (click)="signOut()">
+        @if (signingOut()) {
+            <app-spinner size="sm" />
+        } @else {
+            <app-icon name="logOut" [size]="17" />
+        }
+        {{ "account.signOut" | translate }}
+    </button>
+</ng-template>

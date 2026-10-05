@@ -70,6 +70,24 @@ describe('PathService', () => {
     expect(path.getStepAfter('rh-1/song')?.key).toBe('rh-2/meet');
   });
 
+  it('a step passed out of order - as the move at sign-in can bring one - unlocks nothing past the first step not passed', () => {
+    // The server's move (api/visitors.php visitorMove()) adds a visitor's steps the account lacks: the
+    // account may then hold a later step passed while an earlier one is not. The path opens up to the
+    // first step not passed, and no further.
+    const progress = path.recordStepResult(
+      path.recordStepResult(path.createInitialPathProgress(), 'rh-1/meet', 100),
+      'rh-2/drill',
+      95,
+    );
+    expect(path.isStepPassed(progress, 'rh-2/drill')).toBe(true);
+    expect(path.getNextStep(progress)?.key).toBe('rh-1/drill');
+    expect(path.isStepUnlocked(progress, 'rh-1/drill')).toBe(true);
+    expect(path.isStepUnlocked(progress, 'rh-1/read')).toBe(false);
+    expect(path.isStepUnlocked(progress, 'rh-2/read')).toBe(false);
+    expect(path.isStepUnlocked(progress, 'rh-2/drill')).toBe(false);
+    expect(path.getUnitStatus(progress, path.phases[0].units[1])).toBe('locked');
+  });
+
   it('gives each unit the notes of its phase so far', () => {
     expect(path.notePoolForUnit('rh-1')).toEqual([60, 62, 64]);
     expect(path.notePoolForUnit('rh-3')).toEqual([60, 62, 64, 65, 67]);

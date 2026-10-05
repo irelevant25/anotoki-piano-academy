@@ -118,6 +118,12 @@ export function pickLanguage(candidates: readonly LanguageCandidate[], offered: 
  * and only then, a key is answered from the English kept in code
  * (kept-english.ts).
  *
+ * The admin panel (/admin) is English whatever the learner chose: while the
+ * address is there, `effectiveLanguage` is English and every string comes
+ * from English's own (the bundle's `english`) - so what both areas share,
+ * the top bar first, reads English there with no case of its own. The
+ * learner's choice stays as it was, for the way back.
+ *
  * Keys are never built from the address, from the IAM's answer, from a stored
  * session or from anything a person typed - run-time keys come from closed
  * sets (dynamic-keys.ts). And state holds keys, kinds and params, never a
@@ -147,6 +153,9 @@ export class TranslationService {
   private readonly _languages = signal<SiteLanguage[]>([]);
   /** The chosen language's strings, English merged underneath. Null: no bundle yet. Maps, so `has('constructor')` is false. */
   private readonly _values = signal<ReadonlyMap<string, string> | null>(null);
+  /** English's own strings - what the admin panel reads. Null with no bundle, or a cached one from before it was kept. */
+  private readonly _english = signal<ReadonlyMap<string, string> | null>(null);
+  private readonly _inAdmin = signal(false);
 
   /**
    * The language on the page. A plain signal: it changes only once the bundle
@@ -160,9 +169,13 @@ export class TranslationService {
   readonly languages = this._languages.asReadonly();
   /** A bundle is in memory - from the cache or from the server. */
   readonly ready = computed(() => this._values() !== null);
+  /** The address is in the admin panel (/admin), which is English. */
+  readonly inAdmin = this._inAdmin.asReadonly();
+  /** The language actually on the page: English in the admin panel, the learner's everywhere else. */
+  readonly effectiveLanguage = computed(() => (this._inAdmin() ? FALLBACK_LANGUAGE : this._language()));
   /** What `Intl` is given for dates in the language on the page. */
   readonly locale = computed(() => {
-    const code = this._language();
+    const code = this.effectiveLanguage();
     return Object.hasOwn(LOCALES, code) ? LOCALES[code] : code;
   });
 
@@ -181,7 +194,9 @@ export class TranslationService {
    * the server has answered that it is not set up (a migration is pending):
    * the app shows its "not set up yet" card, and after the setup the page is
    * loaded again - asking at the first page's navigation would only have
-   * made a third request of a first visit.
+   * made a third request of a first visit. True again with reload(): an
+   * ADMIN's Apply on the Migrations page starts the app without a page load
+   * (BootService.resumeAfterUpdate()), and from then on the server is asked.
    */
   private _asking = false;
   /**
@@ -202,9 +217,9 @@ export class TranslationService {
   private _watching = false;
 
   constructor() {
-    // Honest for a screen reader: <html lang> is the language the strings on the page are in.
+    // Honest for a screen reader: <html lang> is the language the strings on the page are in - English in the admin panel.
     effect(() => {
-      this._document.documentElement.lang = this._language();
+      this._document.documentElement.lang = this.effectiveLanguage();
     });
   }
 
@@ -269,13 +284,15 @@ export class TranslationService {
    * nothing else; the kept English only while there is none.
    */
   private _string(key: string): string | undefined {
-    const value = this._values()?.get(key);
+    // The admin panel reads English; a cached bundle from before English was kept beside it has only its own.
+    const strings = this._inAdmin() ? (this._english() ?? this._values()) : this._values();
+    const value = strings?.get(key);
     return value !== undefined ? value : !this.ready() && Object.hasOwn(KEPT_ENGLISH, key) ? KEPT_ENGLISH[key] : undefined;
   }
 
   /** The key of the family's form for a number; the family's `.other` when the language's form has no string. */
   private _form(key: string, count: number): string {
-    const form = `${key}.${pluralRules(this._language()).select(count)}`;
+    const form = `${key}.${pluralRules(this.effectiveLanguage()).select(count)}`;
     return this._string(form) !== undefined ? form : `${key}.other`;
   }
 
@@ -337,12 +354,16 @@ export class TranslationService {
 
   /**
    * The strings again, from the server: for whoever has just changed them, or
-   * the languages on offer (the owner's Translations and Languages pages,
-   * after a save). Asks for the bundle of the language on the page and settles
-   * against the list that comes with it - so a language hidden or offered a
-   * moment ago is followed - then puts the answer in force and in the cache.
-   * Never rejects; when the server cannot be had, the page stays as it is -
-   * and, being known to be behind, asks again at the next navigation.
+   * the languages on offer (the admin panel's Translations and Languages
+   * pages, after a save), and for an app just started in place after the
+   * pending migrations were applied (BootService.resumeAfterUpdate(): the
+   * start's request got 503, so there is no bundle, or the cached one from
+   * before the update). Asks for the bundle of the language on the page and
+   * settles against the list that comes with it - so a language hidden or
+   * offered a moment ago is followed - then puts the answer in force and in
+   * the cache. Never rejects; when the server cannot be had, the page stays
+   * as it is - and, being known to be behind, asks again at the next
+   * navigation (after a 503 at the start too: reload() asks on purpose).
    *
    * Not init(): that one is the start - it takes `?lang=` out of the address
    * and starts from the cache.
@@ -351,6 +372,8 @@ export class TranslationService {
     try {
       // What is in memory is no longer known to be what the server has.
       this._fresh = false;
+      // Asked on purpose: a 503 at the start (a migration was pending) no longer stops the navigations' asking.
+      this._asking = true;
       await this._again();
     } catch (error) {
       console.error('[i18n] the strings could not be read again', error);
@@ -366,8 +389,15 @@ export class TranslationService {
    * page heals by itself at the next click, and a server that stays down is
    * asked no more often than somebody clicks. Nothing is asked where the start
    * itself asked nothing (init(false)).
+   *
+   * `url`, the address navigated to, says whether the page is in the admin
+   * panel (English).
    */
-  navigated(): void {
+  navigated(url?: string): void {
+    if (url !== undefined) {
+      const path = url.split(/[?#]/)[0];
+      this._inAdmin.set(path === '/admin' || path.startsWith('/admin/'));
+    }
     if (this._started && this._asking && !this._fresh && this._out === 0) {
       void this._again().catch((error: unknown) => console.error('[i18n] the strings could not be asked for again', error));
     }
@@ -548,11 +578,12 @@ export class TranslationService {
    */
   private _use(bundle: TranslationBundle, keep = true): void {
     this._values.set(new Map(Object.entries(bundle.values)));
+    this._english.set(bundle.language === FALLBACK_LANGUAGE ? this._values() : bundle.english ? new Map(Object.entries(bundle.english)) : null);
     this._languages.set(bundle.languages);
     this._language.set(bundle.language);
     this._fresh = keep;
     if (keep) {
-      writeStorage(CACHE_KEY, JSON.stringify({ language: bundle.language, languages: bundle.languages, values: bundle.values }));
+      writeStorage(CACHE_KEY, JSON.stringify({ language: bundle.language, languages: bundle.languages, values: bundle.values, ...(bundle.english ? { english: bundle.english } : {}) }));
     }
   }
 
@@ -636,9 +667,9 @@ export class TranslationService {
     });
   }
 
-  /** Only where people sign in: on the owner's own computer there is no token, and nothing to read a locale from. */
+  /** The signed-in person's token's locale; nobody signed in has none (not even a user the SDK left behind). */
   private _tokenLocale(): string | null {
-    return this._auth.usesSignIn() && this._auth.signedIn() ? languageCode(this._auth.user()?.locale) : null;
+    return this._auth.signedIn() ? languageCode(this._auth.user()?.locale) : null;
   }
 
   /**
@@ -740,7 +771,8 @@ function stringsFrom(raw: unknown): Record<string, string> | null {
  * A bundle, from the server or from the cache, only when it is one: a language
  * code, the offered languages (strings, and the bundle's own among them) and a
  * flat map of strings. The `english` the server sends beside another language
- * is not asked for and not kept: nothing here reads it.
+ * is kept when it is a map of strings (the admin panel reads it), and passed
+ * over when it is not - the page's own strings are what matter.
  */
 function bundleFrom(raw: unknown): TranslationBundle | null {
   if (!isPlainObject(raw) || !Array.isArray(raw['languages'])) {
@@ -765,7 +797,8 @@ function bundleFrom(raw: unknown): TranslationBundle | null {
   if (!values || !languages.some((entry) => entry.code === language)) {
     return null;
   }
-  return { language, languages, values };
+  const english = language === FALLBACK_LANGUAGE ? null : stringsFrom(raw['english']);
+  return english ? { language, languages, values, english } : { language, languages, values };
 }
 
 /** sessionStorage that never throws - what core/util/storage.ts is for localStorage. */

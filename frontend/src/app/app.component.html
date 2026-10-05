@@ -1,51 +1,100 @@
-<header class="app-header">
-    <h1><span aria-hidden="true">🎹</span> Piano Academy</h1>
-    <div class="header-tools">
-        <app-midi-panel />
-        <app-account-panel />
-    </div>
-</header>
-
-<nav class="app-nav" id="app-nav" [attr.aria-label]="'nav.label' | translate">
-    @for (item of nav; track item.id) {
-        @if (item.id === 'trainer') {
-            <span class="nav-sep" aria-hidden="true"></span>
-        }
-        <button
-            type="button"
-            class="nav-btn"
-            [attr.data-view]="item.id"
-            [class.is-active]="activeNav() === item.id"
-            [attr.aria-current]="activeNav() === item.id ? 'page' : null"
-            (click)="go(item.path)">
-            {{ item.labelKey | translate }}
-        </button>
-    }
-</nav>
+<app-top-bar />
 
 @if (signedOutBanner()) {
     <div class="signed-out-banner" id="signed-out-banner" role="alert">
         <span>{{ 'account.signedOutBanner' | translate }}</span>
+        @if (signInWhy()) {
+            <span class="signed-out-why" id="signed-out-why">{{ signInWhy() }}</span>
+        }
         <button class="btn-primary" id="signed-out-sign-in" type="button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
     </div>
 }
 
+<!-- A visitor's notes (practising without signing in: core/i18n/visitor-words.ts), then the notes after a sign-in that moved a visitor's progress. -->
+@if (visitorSignInNow()) {
+    <div class="signed-out-banner" id="visitor-sign-in-now" role="alert">
+        <span>{{ words.signInNow | translate }}</span>
+        <button class="btn-primary" id="visitor-sign-in-now-button" type="button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+    </div>
+}
+
+@if (visitorSignInWhy()) {
+    <div class="signed-out-banner" id="visitor-sign-in-why" role="alert">
+        <span>{{ visitorSignInWhy() }}</span>
+        <button type="button" id="visitor-sign-in-why-close" (click)="closeVisitorSignInWhy()">{{ words.close | translate }}</button>
+    </div>
+}
+
+@if (visitorRefusal(); as refusal) {
+    <div class="signed-out-banner" id="visitor-refused" role="alert">
+        <span>{{ refusal | translate }}</span>
+        @if (!visitorSignInNow()) {
+            <button class="btn-primary" id="visitor-refused-sign-in" type="button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+        }
+    </div>
+}
+
+@if (visitorLost()) {
+    <div class="changed-banner" id="visitor-lost" role="status">
+        <span>{{ words.lost | translate: { days: keepDays } }}</span>
+        <button type="button" id="visitor-lost-close" (click)="visitorKey.lost.set(false)">{{ words.close | translate }}</button>
+    </div>
+}
+
+@if (boot.visitorMoved(); as moved) {
+    <div class="changed-banner" id="visitor-moved" role="status">
+        <span>{{ words.moved | translate }}</span>
+        @if (moved.kept) {
+            <span id="visitor-kept">{{ words.kept | translate }}</span>
+        }
+        <button type="button" id="visitor-moved-close" (click)="boot.visitorMoved.set(null)">{{ words.close | translate }}</button>
+    </div>
+}
+
+@if (boot.visitorNotMoved()) {
+    <div class="changed-banner" id="visitor-not-moved" role="status">
+        <span>{{ words.notMoved | translate }}</span>
+        <button type="button" id="visitor-not-moved-close" (click)="boot.visitorNotMoved.set(false)">{{ words.close | translate }}</button>
+    </div>
+}
+
+@if (store.changedElsewhere()) {
+    <div class="changed-banner" id="progress-changed" role="status">
+        <span>{{ 'progressChanged.text' | translate }}</span>
+        <button type="button" id="progress-changed-close" (click)="store.changedElsewhere.set(false)">{{ 'progressChanged.close' | translate }}</button>
+    </div>
+}
+
+@if (visitorNotice()) {
+    <div class="visitor-notice" id="visitor-notice" role="note">
+        <span>{{ words.notice | translate: { days: keepDays } }}</span>
+        <button class="btn-primary" id="visitor-notice-sign-in" type="button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+    </div>
+}
+
 <main id="view-root" class="view-root">
-    @switch (boot.status()) {
-        @case ('ready') {
-            <router-outlet />
-        }
-        @case ('sign-in') {
-            <app-sign-in-card />
-        }
-        @case ('not-set-up') {
-            <app-not-set-up />
-        }
-        @case ('load-error') {
-            <app-load-error />
-        }
-        @default {
-            <p class="loading">{{ 'common.loading' | translate }}</p>
+    @if (pageShown()) {
+        <!-- One outlet for both: the Migrations page an ADMIN applies from while the database is behind stays as the app starts. -->
+        <router-outlet />
+    } @else {
+        @switch (boot.status()) {
+            @case ('sign-in') {
+                <!-- Nobody signed in: the sign-in guard is on its way to the IAM - the card only after a sign-in that came back without one, or could not start. -->
+                @if (signInFailed()) {
+                    <app-sign-in-card />
+                } @else {
+                    <p class="loading">{{ 'common.loading' | translate }}</p>
+                }
+            }
+            @case ('not-set-up') {
+                <app-not-set-up />
+            }
+            @case ('load-error') {
+                <app-load-error />
+            }
+            @default {
+                <p class="loading">{{ 'common.loading' | translate }}</p>
+            }
         }
     }
 </main>
@@ -54,11 +103,6 @@
     @if (changelog.version(); as version) {
         <button type="button" class="version" id="app-version" [title]="'footer.whatsNew' | translate" (click)="openChangelog()">Piano Academy v{{ version }}</button>
     }
-    @if (ownerLink()) {
-        <button type="button" class="footer-link" id="owner-link" (click)="go('/translations')">{{ 'footer.translations' | translate }}</button>
-    }
-    <app-language-switcher />
-    <app-theme-toggle />
 </footer>
 
 <app-changelog-dialog />

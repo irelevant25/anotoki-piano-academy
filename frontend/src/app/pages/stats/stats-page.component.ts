@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { AuthService } from '../../core/auth/auth.service';
 import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
 import { stepShort, unitTitle } from '../../core/i18n/path-words';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -7,9 +8,11 @@ import { Session, SessionMode } from '../../core/music/music.types';
 import { PathService } from '../../core/music/path.service';
 import { SongsService } from '../../core/music/songs.service';
 import { TheoryService } from '../../core/music/theory.service';
+import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { KeyboardModel } from '../../ui/piano-keyboard/keyboard-model';
 import { PianoKeyboardComponent } from '../../ui/piano-keyboard/piano-keyboard.component';
+import { OwnProgressComponent } from './own-progress/own-progress.component';
 
 /** A calendar day in the learner's own time zone (the times are stored in UTC). */
 export function localDayKey(date: Date): string {
@@ -81,13 +84,18 @@ interface RecentRow {
   timingMs: number | null;
 }
 
-/** Stats: the tiles, a keyboard heatmap of each note's mastery, and the recent sessions. */
+/**
+ * Stats: the tiles, a keyboard heatmap of each note's mastery, the recent
+ * sessions - and the learner's own progress file (OwnProgressComponent), for
+ * somebody signed in: a visitor (practising without signing in) has no file
+ * of their own, and is offered the sign-in in its place (ownProgress.visitor).
+ */
 @Component({
   selector: 'app-stats-page',
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe],
+  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe, OwnProgressComponent],
 })
 export class StatsPageComponent {
   private readonly store = inject(ProgressStore);
@@ -95,6 +103,8 @@ export class StatsPageComponent {
   private readonly path = inject(PathService);
   private readonly songs = inject(SongsService);
   private readonly i18n = inject(TranslationService);
+  private readonly boot = inject(BootService);
+  protected readonly signedIn = inject(AuthService).signedIn;
 
   protected readonly keyboard = new KeyboardModel();
   protected readonly curriculumLength = this.theory.curriculum.length;
@@ -150,6 +160,11 @@ export class StatsPageComponent {
   }
 
   /** What a lesson's or a song's session was of: found in the app by its ids, or else as stored. */
+  /** To the IAM and back (a visitor's progress comes along: BootService moves it). */
+  protected signIn(): void {
+    void this.boot.signIn();
+  }
+
   private named(session: Session): { name: string; stored: boolean } {
     if (session.mode === 'lesson') {
       const found = this.path.findStep(session.unitId, session.stepId);

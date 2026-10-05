@@ -9,17 +9,19 @@ let lastId = 0;
 const SCREEN_EDGE = 8;
 
 /**
- * The language the app is read in: one small button in the footer with the
+ * The language the app is read in: one round button in the top bar with the
  * current language's code ("SK"), opening a menu of the languages on offer,
  * each under the name its own speakers give it.
  *
  * A menu button - arrow keys between the items, Escape and a click outside to
  * close - with `menuitemradio` items, because it is one choice out of a few.
  * Each item says which language its own name is in (`lang`), so a screen
- * reader pronounces "Slovenčina" as Slovak. The menu opens upward: the button
- * stands at the bottom of the page. It stands centred over the button, moved
- * sideways by as much as it takes to be wholly on the screen - on a phone the
- * button can stand right at the edge.
+ * reader pronounces "Slovenčina" as Slovak. The menu opens downward, under
+ * the button, centred on it and moved sideways by as much as it takes to be
+ * wholly on the screen - on a phone the button stands near the edge. Tab and
+ * Shift+Tab close it with the focus on the button (the top bar's rule: with
+ * no zone the menu is removed only at the next render, and the browser's Tab
+ * would land on an item about to go - then on <body>).
  *
  * Drawn only while more than one language is on offer - so not at all while
  * the app has no strings from the server (the list comes with the bundle).
@@ -148,7 +150,8 @@ export class LanguageSwitcherComponent {
     } else if (event.key === 'End') {
       next = items.length - 1;
     } else if (event.key === 'Tab') {
-      this.close(false);
+      event.preventDefault();
+      this.close(true);
       return;
     }
     if (next >= 0) {
@@ -158,8 +161,8 @@ export class LanguageSwitcherComponent {
   }
 
   /**
-   * The menu and the note stand centred over the button, and on a phone the
-   * button can stand at the right edge of the footer: half of what is drawn
+   * The menu and the note stand centred under the button, and on a phone the
+   * button stands near the right edge of the bar: half of what is drawn
    * would then be off the screen, and the page would scroll sideways. So it
    * is measured once it is drawn and moved by what it takes (the styles'
    * `--shift`) - the right edge first, and never past the left one.

@@ -1,0 +1,148 @@
+<section class="admin-page" lang="en">
+    <header class="page-head">
+        <div>
+            <h2>Languages</h2>
+            <p class="lead">The languages the app can be read in. A new one reads in English until its strings are written, key by key. This page stays English.</p>
+        </div>
+    </header>
+
+    @if (loadError(); as message) {
+        <div class="problem" role="alert">
+            <p><strong>The languages could not be loaded.</strong> {{ message }}</p>
+            <button type="button" (click)="load()">Try again</button>
+        </div>
+    } @else if (!loaded()) {
+        <p class="loading" role="status">Loading the languages…</p>
+    } @else {
+        <ul class="list">
+            @for (language of languages(); track language.code) {
+                <li class="language" [class.is-hidden]="!language.enabled" [id]="'ow-language-' + language.code">
+                    <div class="head">
+                        <code class="code">{{ language.code }}</code>
+                        <strong class="name">{{ language.name }}</strong>
+                        <span class="native" [attr.lang]="language.code">{{ language.nativeName }}</span>
+                        @if (language.code === fallback) {
+                            <span class="chip">Fallback</span>
+                        } @else if (language.seeded) {
+                            <span class="chip">Released with the app</span>
+                        }
+                    </div>
+
+                    <div class="fields">
+                        <label class="field">
+                            <span class="field-label">Name in English</span>
+                            <input class="field-input" type="text" autocomplete="off" maxlength="50" [value]="draft(language).name" (input)="edit(language, { name: text($event) })" />
+                        </label>
+                        <label class="field">
+                            <span class="field-label">Name as its speakers write it</span>
+                            <input class="field-input" type="text" autocomplete="off" maxlength="50" [value]="draft(language).nativeName" (input)="edit(language, { nativeName: text($event) })" />
+                            <span class="field-hint">What the chooser shows</span>
+                        </label>
+                        <label class="field">
+                            <span class="field-label">Order</span>
+                            <input class="field-input" type="number" inputmode="numeric" min="0" max="1000" [value]="draft(language).sortOrder" (input)="edit(language, { sortOrder: text($event) })" />
+                            <span class="field-hint">The lowest comes first</span>
+                        </label>
+                    </div>
+
+                    <div class="foot">
+                        <div class="offered">
+                            <label class="check">
+                                <input
+                                    type="checkbox"
+                                    [checked]="language.enabled"
+                                    [disabled]="language.code === fallback || (switching() !== null && switching() !== language.code)"
+                                    [attr.aria-busy]="switching() === language.code ? 'true' : null"
+                                    (change)="setOffered(language, ticked($event))" />
+                                <span class="check-label">{{ language.enabled ? "Offered" : "Hidden" }}</span>
+                            </label>
+                            <span class="field-hint">{{ offeredHint(language) }}</span>
+                        </div>
+
+                        <div class="actions">
+                            @if (isChanged(language)) {
+                                <button type="button" [disabled]="saving() === language.code" (click)="undo(language)">Undo</button>
+                            }
+                            <button
+                                type="button"
+                                class="btn-primary"
+                                [disabled]="!isChanged(language) || (saving() !== null && saving() !== language.code)"
+                                [attr.aria-busy]="saving() === language.code ? 'true' : null"
+                                (click)="save(language)">
+                                Save
+                            </button>
+                            @if (!language.seeded) {
+                                <button type="button" class="delete" [disabled]="deleting() === language.code" (click)="remove(language)">Delete</button>
+                            }
+                        </div>
+                    </div>
+
+                    @if (errorOf(language); as message) {
+                        <p class="field-error" role="alert">{{ message }}</p>
+                    }
+                </li>
+            }
+        </ul>
+
+        <form class="card add" id="ow-add-language" (submit)="$event.preventDefault(); add()">
+            <h3>Add a language</h3>
+            <p class="lead">It goes after the ones there are, and reads in English until its strings are written on the Translations page.</p>
+            <div class="add-fields">
+                <label class="field">
+                    <span class="field-label">Code</span>
+                    <input
+                        class="field-input"
+                        type="text"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        placeholder="cs"
+                        maxlength="5"
+                        [value]="newCode()"
+                        [attr.aria-invalid]="newCodeError() ? 'true' : null"
+                        (input)="newCode.set(text($event))" />
+                    @if (newCodeError(); as message) {
+                        <span class="field-error" role="alert">{{ message }}</span>
+                    } @else {
+                        <span class="field-hint">Two small letters: cs, de, pt-br</span>
+                    }
+                </label>
+                <label class="field">
+                    <span class="field-label">Name in English</span>
+                    <input class="field-input" type="text" autocomplete="off" placeholder="Czech" maxlength="50" [value]="newName()" (input)="newName.set(text($event))" />
+                </label>
+                <label class="field">
+                    <span class="field-label">Name as its speakers write it</span>
+                    <input class="field-input" type="text" autocomplete="off" placeholder="Čeština" maxlength="50" [value]="newNativeName()" (input)="newNativeName.set(text($event))" />
+                </label>
+            </div>
+            <div class="offered">
+                <label class="check">
+                    <input type="checkbox" [checked]="newOffered()" [disabled]="adding()" (change)="newOffered.set(ticked($event))" />
+                    <span class="check-label">Offer it to readers right away</span>
+                </label>
+                <span class="field-hint">A new language starts hidden - write its strings, then offer it.</span>
+            </div>
+            <div class="add-actions">
+                <button type="submit" class="btn-primary" [disabled]="!canAdd() || newCodeError() !== null" [attr.aria-busy]="adding() ? 'true' : null">Add the language</button>
+            </div>
+            @if (addError(); as message) {
+                <p class="field-error add-error" role="alert">{{ message }}</p>
+            }
+        </form>
+
+        <div class="bar" [class.is-changed]="unsaved() > 0">
+            <p class="bar-state" id="ow-status" role="status">
+                @if (happened(); as message) {
+                    <span class="bar-done">{{ message }}</span>
+                }
+                @if (unsaved()) {
+                    <span class="bar-unsaved">{{ unsaved() === 1 ? "1 language has" : unsaved() + " languages have" }} changes not saved yet</span>
+                } @else if (!happened()) {
+                    <span class="bar-done">Everything is saved</span>
+                }
+            </p>
+        </div>
+    }
+
+    <app-confirm-dialog />
+</section>

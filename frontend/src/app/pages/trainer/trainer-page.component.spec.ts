@@ -1,12 +1,16 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { MockInstance } from 'vitest';
+import { ApiService, GENERATION_HEADER } from '../../core/api/api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { MidiService, PianoMidi } from '../../core/midi/midi.service';
 import { NoteState, ProgressMap } from '../../core/music/music.types';
 import { SrsService } from '../../core/music/srs.service';
 import { TheoryService } from '../../core/music/theory.service';
-import { ProgressStore } from '../../core/state/progress-store.service';
+import { PROGRESS_REPLACED_PREFIX, ProgressStore } from '../../core/state/progress-store.service';
 import { provideTestTranslations } from '../../core/testing/test-translations';
 import { NotationComponent } from '../../ui/notation/notation.component';
 import { TrainerPageComponent } from './trainer-page.component';
@@ -64,7 +68,7 @@ describe('Note Trainer: what it says is a key, worded on the page', () => {
               progress,
               knownNotes: signal<number[]>([]),
               noteState: (midi: number): NoteState => progress()[midi] ?? srs.createInitialNoteState(midi),
-              saveProgress: () => Promise.resolve(),
+              updateNote: () => Promise.resolve(),
               recordSession: () => Promise.resolve({}),
             };
           },
@@ -132,5 +136,72 @@ describe('Note Trainer: what it says is a key, worded on the page', () => {
     expect(host.querySelector('#tr-progress')).toBeNull();
     expect(text('p.tag')).toBe('Hraj ďalej · správne: 0');
     expect(text('#tr-correct')).toBe('0');
+  });
+});
+
+describe('Note Trainer: a round keeps no copy of the progress', () => {
+  const settle = async (): Promise<void> => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  };
+
+  it('an answer after the progress was replaced in the middle of the round sends none of the old notes', async () => {
+    const piano = new PianoMidi();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }),
+        { provide: AuthService, useValue: { userKey: () => '5' } },
+        { provide: MidiService, useValue: { piano } },
+      ],
+    });
+    TestBed.overrideComponent(TrainerPageComponent, { remove: { imports: [NotationComponent] }, add: { imports: [NoStaffComponent] } });
+    const http = TestBed.inject(HttpTestingController);
+    const api = TestBed.inject(ApiService);
+    const store = TestBed.inject(ProgressStore);
+    const srs = TestBed.inject(SrsService);
+    const theory = TestBed.inject(TheoryService);
+    const note = (midi: number): NoteState => ({ ...srs.createInitialNoteState(midi), status: 'review' });
+    const OLD = ['60', '62', '64', '65'];
+
+    // The page as BootService leaves it: the progress of before, generation 1.
+    api.setDataOwner('5');
+    const loading = api.fetchState();
+    http.expectOne('/api/state').flush({ progress: Object.fromEntries(OLD.map((m) => [m, note(+m)])), sessions: [], path: { steps: {} }, generation: 1 });
+    store.load(await loading);
+
+    const fixture = TestBed.createComponent(TrainerPageComponent);
+    const host: HTMLElement = fixture.nativeElement;
+    await fixture.whenStable();
+    const target = (): number => theory.nameToMidi(host.querySelector('#tr-name')?.textContent?.trim() ?? '');
+    const press = (midi: number): void => {
+      piano.dispatchEvent(new CustomEvent('noteon', { detail: { midi, velocity: 90, timestamp: performance.now() } }));
+    };
+
+    // The first answer of the round: the old notes go, as they should (they are this person's progress now).
+    press(target());
+    await settle();
+    const first = http.expectOne('/api/progress');
+    expect(Object.keys(first.request.body)).toEqual(expect.arrayContaining(OLD));
+    first.flush(null, { status: 204, statusText: 'No Content' });
+
+    // Another tab brings back a file in the middle of this round: this tab loads it.
+    globalThis.dispatchEvent(new StorageEvent('storage', { key: PROGRESS_REPLACED_PREFIX + '5', newValue: 'x' }));
+    await settle();
+    http.expectOne('/api/state').flush({ progress: { 72: note(72) }, sessions: [], path: { steps: {} }, generation: 2 });
+    await settle();
+
+    // The next prompt of the same round, and an answer to it.
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    await fixture.whenStable();
+    const second = target();
+    press(second);
+    await settle();
+    const put = http.expectOne('/api/progress');
+    expect(put.request.headers.get(GENERATION_HEADER)).toBe('2');
+    expect(Object.keys(put.request.body).sort()).toEqual([...new Set(['72', String(second)])].sort());
+    put.flush(null, { status: 204, statusText: 'No Content' });
+    http.verify();
+    fixture.destroy();
   });
 });

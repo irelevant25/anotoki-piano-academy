@@ -7,10 +7,12 @@ import { SignInCardComponent } from './sign-in-card.component';
 const ENGLISH = {
   'signIn.notCompleted': 'Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.',
   'signIn.failed': 'Signing in did not work. Please try again. ({code})',
+  'signIn.storageUnavailable': 'This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.',
 };
 const SLOVAK = {
   'signIn.notCompleted': 'Prihlásenie sa nedokončilo. Ak to nebol tvoj zámer, tento účet možno nemá k Piano Academy prístup.',
   'signIn.failed': 'Prihlásenie sa nepodarilo. Skús to znova. ({code})',
+  'signIn.storageUnavailable': 'Tento prehliadač nedovolil aplikácii zapamätať si prebiehajúce prihlásenie. Povoľ tejto stránke ukladať údaje a skús to znova.',
 };
 
 describe('SignInCardComponent: a sign-in that came back without one', () => {
@@ -52,6 +54,12 @@ describe('SignInCardComponent: a sign-in that came back without one', () => {
     auth.signInFailure.set({ code: '', message: 'Something went wrong at the IAM' });
     await fixture.whenStable();
     expect(why()).toBe('Prihlásenie sa nepodarilo. Skús to znova. (unknown)');
+  });
+
+  it('says what to do when the sign-in could not even start: the browser refused the site its storage', async () => {
+    auth.signInFailure.set({ code: 'storage_unavailable', message: 'This browser will not let the site remember the sign-in in progress' });
+    await fixture.whenStable();
+    expect(why()).toBe('Tento prehliadač nedovolil aplikácii zapamätať si prebiehajúce prihlásenie. Povoľ tejto stránke ukladať údaje a skús to znova.');
   });
 
   it('follows the language of the page', async () => {

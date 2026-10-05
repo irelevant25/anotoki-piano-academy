@@ -28,10 +28,10 @@ declare(strict_types=1);
  *   vendor/          Slim and its dependencies (the host cannot run composer)
  *   storage/         empty; PHP writes the IAM key cache, the setup token and lock
  *
- * Left out: every *.local.php (your settings), your progress (server/data/),
- * router.php, migration.php and tools/ (for computers with a shell - this
- * build, the progress tool, and the strings' command line and key scan: on the
- * host the strings are edited in the browser), the tests, and composer.json
+ * Left out: every *.local.php (your settings), router.php, migration.php and
+ * tools/ (for computers with a shell - this build, the progress tool, and the
+ * strings' command line and key scan: on the host the strings are edited in
+ * the browser), the tests, and composer.json
  * and composer.lock - vendor/ loads itself, and in the web root they would
  * hand anybody the list of every dependency and its version.
  * DEV.md ("Deploying") has the rest.
@@ -113,7 +113,7 @@ $realOut = resolvedPath($out);
 if (strcasecmp($realOut, $realRepository) === 0 || stripos($realRepository . '/', $realOut . '/') === 0) {
     fail("--out=$out would hold the repository itself.");
 }
-foreach (['backend', 'frontend', 'server', '.git', '.claude'] as $inside) {
+foreach (['backend', 'frontend', 'docs', '.git', '.claude'] as $inside) {
     if (stripos($realOut . '/', "$realRepository/$inside/") === 0) {
         fail("--out=$out is inside the repository's $inside/.");
     }

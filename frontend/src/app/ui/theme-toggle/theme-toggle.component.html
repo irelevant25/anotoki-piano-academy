@@ -1,4 +1,3 @@
 <button type="button" class="theme-toggle" id="theme-toggle" [attr.aria-label]="words().spoken | translate" [title]="words().label | translate" (click)="theme.cycle()">
-    <span aria-hidden="true">{{ icon() }}</span>
-    {{ words().label | translate }}
+    <app-icon [name]="icon()" [size]="19" />
 </button>

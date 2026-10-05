@@ -10,24 +10,52 @@ declare(strict_types=1);
  *
  *   database.local.php   the PostgreSQL connection
  *
- *       return ['host' => '127.0.0.1', 'port' => 5432, 'name' => 'piano_academy',
+ *       return ['host' => '127.0.0.1', 'port' => 5432, 'name' => 'anotoki_piano',
  *               'user' => 'postgres', 'password' => '...'];
  *
- *   auth.local.php       who a request acts as
+ *   auth.local.php       the anotoki IAM everybody signs in through
  *
  *       return [
- *           'mode' => 'none',                    // 'none': no login, this computer only - or 'iam'
  *           'issuer' => 'http://localhost:4300', // the anotoki IAM (https://iam.anotoki.eu on the live site)
  *           'client_id' => 'piano-academy',      // this app's name in the IAM
- *           'local_user_id' => 1,                // the owner's IAM user id; auth mode "none" acts as them
- *           'cache_dir' => 'storage/cache',      // the IAM's signing keys are cached here (relative to backend/)
+ *           'cache_dir' => 'storage/cache',      // the IAM's signing keys, and its answer whether this app
+ *                                                // requires sign-in, are kept here (relative to backend/) -
+ *                                                // a folder of this app's own: that answer opens it to visitors
  *       ];
+ *
+ *   Any other key is passed over: a file from before sign-in became the IAM
+ *   only (with 'mode' and 'local_user_id') still works, and signs in through
+ *   the IAM it names - whatever its 'mode' said. Setup never writes more; the
+ *   tests and the browser check may add the SDK's 'jwks_file' and
+ *   'application_file' (the IAM's key set and answer as files),
+ *   'application_ttl' and 'application_timeout' (api/auth.php authIamConfig()).
  *
  * There is nothing to fall back on. Without both files, or with one that does
  * not say what it must, the API answers every request 503 {code: "not_set_up"}
  * pointing at /setup.php, and the frontend shows a "not set up yet" page. A
  * default in a committed file would be a way for the app to run somewhere with
  * settings nobody chose there - which is exactly what this is here to stop.
+ *
+ * A third file is optional, and never written by setup.php (git ignores it
+ * too): visitors.local.php - the limits on practising without signing in,
+ * and the proxies whose word on a client's address is believed
+ * (api/visitors.php, api/client_address.php). Without it, or with one that
+ * cannot be read, the defaults hold; it is never a reason for "not set up":
+ *
+ *       return [
+ *           'client_address' => [
+ *               'trusted_proxies' => [],                   // e.g. Cloudflare's ranges, when the site is behind its proxy
+ *               'client_ip_header' => 'CF-Connecting-IP',  // the header such a proxy writes the address into
+ *           ],
+ *           'visitors' => [
+ *               'max_visitors' => 500,             // visitors at once; a full site refuses new ones only
+ *               'new_per_hour_per_address' => 10,  // new visitors an hour from one address (an IPv6 /64)
+ *               'new_per_hour' => 60,              // new visitors an hour in all
+ *               'max_sessions' => 1000,            // rounds one visitor keeps
+ *               'document_max_bytes' => 131072,    // the largest progress or path a visitor saves
+ *               'move_lock_timeout_ms' => 5000,    // how long the move at sign-in waits for a row another request holds
+ *           ],
+ *       ];
  *
  * The tests run against throwaway databases with settings of their own:
  * PIANO_TEST_CONFIG names a folder holding the same two files, and it is only
@@ -142,23 +170,13 @@ function databaseSettingsProblem(array $values): ?string
     return null;
 }
 
-/** What an auth.local.php must hold for its mode, or null when it holds it. */
+/**
+ * What an auth.local.php must hold, or null when it holds it: the IAM's
+ * address, this app's client id there, and where its keys are cached. Nothing
+ * else is read (see the top of this file).
+ */
 function authSettingsProblem(array $values): ?string
 {
-    if (!is_string($values['mode'] ?? null) || $values['mode'] === '') {
-        return 'config/auth.local.php needs the sign-in mode: "none" or "iam".';
-    }
-
-    if (($values['mode'] ?? null) === 'none') {
-        $id = $values['local_user_id'] ?? null;
-        if (!(is_int($id) || (is_string($id) && ctype_digit($id))) || (int) $id < 1) {
-            return 'config/auth.local.php needs local_user_id, the owner\'s IAM user id (1 or more).';
-        }
-        return null;
-    }
-
-    // Anything but exactly "none" signs in through the IAM - so a typo in the
-    // mode asks for a login rather than switching it off.
     $issuer = $values['issuer'] ?? null;
     if (!is_string($issuer) || !preg_match('~^https?://[^/\s]+~i', $issuer)) {
         return 'config/auth.local.php needs the IAM\'s address (issuer).';
@@ -193,6 +211,33 @@ function authSettings(): array
     }
 
     return $settings['auth'];
+}
+
+/**
+ * The optional visitors.local.php (see the top of this file): the array it
+ * returns, or [] when there is none or it cannot be read - then every
+ * default holds. Read once per request, again with $reload. What each value
+ * may be is checked where it is used (visitorLimit(), clientAddress()).
+ */
+function visitorSettings(bool $reload = false): array
+{
+    static $settings = null;
+
+    if ($settings !== null && !$reload) {
+        return $settings;
+    }
+    $file = localConfigFile('visitors');
+    if (!is_file($file)) {
+        return $settings = [];
+    }
+    try {
+        $values = require $file;
+    } catch (Throwable $e) {
+        error_log('[config] config/visitors.local.php cannot be read, so the defaults hold: ' . $e->getMessage());
+        $values = [];
+    }
+
+    return $settings = is_array($values) ? $values : [];
 }
 
 /**

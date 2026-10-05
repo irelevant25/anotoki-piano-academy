@@ -16,8 +16,8 @@ export interface SiteLanguage {
 /**
  * GET /api/translations/{code}: the strings of one language with English
  * merged underneath, and the languages on offer. The server also sends
- * English itself beside another language (`english`); nothing here reads
- * English beside the page's language, so it is accepted and not kept.
+ * English itself beside another language (`english`): what the admin panel
+ * reads, which is English whatever the learner chose (the top bar there).
  */
 export interface TranslationBundle {
   /**
@@ -28,6 +28,8 @@ export interface TranslationBundle {
   language: string;
   languages: SiteLanguage[];
   values: Record<string, string>;
+  /** English's own strings, beside another language; left out when `language` is English (`values` are). */
+  english?: Record<string, string>;
 }
 
 /** A language as the owner's pages see it: the hidden ones too. */

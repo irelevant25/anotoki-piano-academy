@@ -38,8 +38,9 @@ function dbConnect(array $settings, ?string $name = null, bool $persistent = fal
         PDO::ATTR_PERSISTENT => $persistent,
     ]);
     // A pooled connection may still hold a transaction its last request died
-    // in; ROLLBACK ends it (and is only a notice when there is none).
-    $pdo->exec(($persistent ? 'ROLLBACK; ' : '') . "SET TIME ZONE 'UTC'");
+    // in, or a database update's lock (api/database_update.php): ROLLBACK ends
+    // the one (and is only a notice when there is none), the unlock the other.
+    $pdo->exec(($persistent ? 'ROLLBACK; SELECT pg_advisory_unlock_all(); ' : '') . "SET TIME ZONE 'UTC'");
 
     return $pdo;
 }

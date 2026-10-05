@@ -156,7 +156,7 @@ describe('Lesson steps: instructions and feedback are keys, worded on the page',
             return {
               progress,
               noteState: (midi: number): NoteState => progress()[midi] ?? srs.createInitialNoteState(midi),
-              saveProgress: () => Promise.resolve(),
+              updateNote: () => Promise.resolve(),
             };
           },
         },

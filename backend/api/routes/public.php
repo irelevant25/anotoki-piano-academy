@@ -8,11 +8,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /**
  * The routes anybody may call:
  *
- *   GET /api/health               is the API up - and, asked from this computer, which
- *                                 database it uses and whether it needs an update (the
- *                                 launchers and the tests read that)
- *   GET /api/auth/config          how the browser signs in: {mode: "none"} or
- *                                 {mode: "iam", issuer, clientId}
+ *   GET /api/health               is the API up: {ok} - and, asked from this computer,
+ *                                 which database it uses and the migrations it still
+ *                                 needs: {ok, database, pending} (the tests read that)
+ *   GET /api/auth/config          how the browser signs in through the anotoki IAM, and
+ *                                 whether the IAM says this app requires sign-in:
+ *                                 {issuer, clientId, loginRequired} (authLoginRequired():
+ *                                 the IAM's switch, kept a minute, true when unknown)
  *   GET /api/translations/{code}  the app's own words in a language, with the
  *                                 languages on offer (see api/translations.php):
  *                                 {language, languages, values, english?}; "sk-sk" is
@@ -22,7 +24,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 
 $app->get('/api/health', function (Request $request, Response $response): Response {
-    $health = ['ok' => true, 'auth' => authMode()];
+    $health = ['ok' => true];
 
     if (isLoopback(requestRemoteAddr($request))) {
         $health['database'] = dbName();
@@ -37,10 +39,10 @@ $app->get('/api/auth/config', function (Request $request, Response $response): R
 });
 
 // No middleware for who is asking, on purpose: the words are the same for
-// everybody, and the sign-in card needs them before anybody has signed in. So
-// a token - even one that would not check out - is not looked at, and in auth
-// mode "none" this one route also answers a request from elsewhere: public
-// words, nothing of anybody's. The only route under /api/translations/.
+// everybody, and the sign-in card and the boot pages need them before anybody
+// has signed in. So a token - even one that would not check out - is not
+// looked at: public words, nothing of anybody's. The only route under
+// /api/translations/.
 //
 // The schema is checked, though: on a database the code is ahead of, the
 // tables may not be there yet, and that is "not set up" (503 not_set_up), not

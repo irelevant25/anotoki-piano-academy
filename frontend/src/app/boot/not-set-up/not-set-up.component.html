@@ -6,4 +6,11 @@
     }
     <a class="btn-primary btn-large button-link" href="/setup.php">{{ 'boot.notSetUp.open' | translate }}</a>
     <p class="tag">{{ 'boot.notSetUp.after' | translate }}</p>
+    @if (boot.onlyMigrations()) {
+        <!-- For an administrator only, and English as the admin panel is: the database is behind the code. -->
+        <div class="admin-update" id="not-set-up-update" lang="en">
+            <p>You are an administrator of Piano Academy: the database has migrations pending. See them and apply them on the Migrations page of the admin panel. Make a backup (pg_dump) first.</p>
+            <a class="button-link" id="open-migrations" routerLink="/admin/migrations">Open Migrations</a>
+        </div>
+    }
 </div>

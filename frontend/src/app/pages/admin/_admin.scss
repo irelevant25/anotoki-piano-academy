@@ -1,0 +1,138 @@
+// What the admin panel's pages share: the page's frame, a text box, the lines
+// that say what went wrong, and the bar that stays in view. Colours are the
+// tokens of styles.scss only, so both pages are right in light and in dark.
+// (What only one page uses is in that page's own file: each component's
+// styles are held under the build's budget.)
+
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+
+  h2 {
+    margin: 0 0 0.35rem;
+  }
+}
+
+.lead {
+  margin: 0;
+  max-width: 44rem;
+  color: var(--text-dim);
+}
+
+.loading {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+// Something did not work: said in a box with the way on beside it.
+.problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--bad);
+  border-radius: 10px;
+  background: var(--panel);
+
+  p {
+    flex: 1 1 16rem;
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.field-error {
+  margin: 0;
+  color: var(--bad);
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+// A text or number box - the look of the app's select.
+.field-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-alt);
+  color: var(--text);
+  // 16px: iOS zooms the page into any field smaller than that.
+  font: inherit;
+  font-size: 1rem;
+
+  &:hover {
+    border-color: var(--text-dim);
+  }
+
+  &:focus-visible {
+    border-color: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  &::placeholder {
+    color: var(--text-dim);
+    opacity: 1;
+  }
+}
+
+// In reach wherever the page is scrolled to: what is not saved, and what became of a save.
+.bar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  border: 1px solid var(--text-dim);
+  border-radius: 10px;
+  background: var(--panel);
+
+  &.is-changed {
+    border-color: var(--warn);
+  }
+
+  // The strip between the bar and the window's edge: the page's colour, so no
+  // line of a row shows through under the bar.
+  &::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: -1px;
+    left: -1px;
+    height: 0.8rem;
+    margin-top: 1px;
+    background: var(--bg);
+  }
+}
+
+.bar-state {
+  flex: 1 1 12rem;
+  margin: 0;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.is-changed .bar-state {
+  color: var(--text);
+}

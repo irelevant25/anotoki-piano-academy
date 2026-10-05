@@ -1,0 +1,595 @@
+# Decisions
+
+Why things are the way they are. Read the reason before undoing one.
+
+## 2026-10-05 - the visitor's words (visitors, stage E)
+
+What somebody practising without signing in reads, and what a person reads
+after a sign-in that brought a visitor's progress along - all the shell's
+(`app.component`), keys of migration 005 (`core/i18n/visitor-words.ts`),
+English kept in code too (`kept-english.ts`), Slovak informal.
+
+**The notice only on Learn and Stats.** "Your progress is kept for this
+browser for 30 days after your last visit. Sign in to keep it in your
+account." with Sign in, under the bar - on `/` and `/stats`, never on a
+practice screen (a lesson, the Note Trainer, Sheet Practice, Songs), whose
+staff and keyboard need the room and the attention. The bar's Sign in is
+there on every page anyway. The notice stands while sign-in is not
+required; when the API says it is required meanwhile
+(`AuthService.requireSignInNow()`), `visitor.signInNow` (an alert, with Sign
+in) takes its place on every page - the visitor's saves wait for it, their
+key is kept, and the sign-in moves what it holds.
+
+**Notes that need no answer are closable; the others go by themselves.**
+`visitor.lost`, `visitor.moved` (+ `visitor.kept`), `visitor.notMoved` and a
+refused sign-in have a Close; `visitor.full` / `visitor.busy` stand while
+`ApiService.visitorRefusal` holds them (it clears after a visitor's save
+gets through) and offer Sign in, the way out of both.
+
+**A refused sign-in is worded for a visitor too.** The signed-out banner
+(a person whose sign-in ran out) is not a visitor's, so a sign-in the IAM
+turned away (`access_denied`, e.g. MEMBER taken away) or one that could not
+start is said in a note of its own, in the sign-in card's words
+(`error-text.ts`) - never swallowed; the visitor stays on their page.
+
+**After a lost key, no "changed elsewhere".** A 401 `visitor_unknown` (swept
+after 30 days, or moved by a sign-in in another tab) forgets the key and
+says `visitor.lost`; the page's next save then goes as nobody's with the
+visitor's old generation and is refused (409 `progress_changed`).
+`ProgressStore` loads nobody's progress, as for any 409, but does not set
+`changedElsewhere` on a visitor's page while `VisitorKey.lost` is true:
+"replaced by a file brought back in another tab, or by an administrator"
+would be wrong, and the loss is already said once. Any other 409 on a
+visitor's page (a second tab's maker first) is said as before.
+
+**Stats offers the sign-in in place of the progress file** for anybody not
+signed in (a visitor, or a person whose sign-in ran out): a progress file is
+an account's (the own file's routes are `requireUser()`), and its card would
+only answer "signed out". **People** counts the visitors in a line under the
+list (`{count, sessions}`), English as the whole admin panel, never as rows:
+they have no name and go by themselves.
+
+**What's new**: one line in 0.2's entry (the visitors ship with 005, which
+ships with 0.2).
+
+**The browser check proves the one maker for real**: the visitor's first
+save is held at the network while a lesson's drill issues its notes, its
+path and its round; exactly one save goes without the key and exactly one
+visitor row is made.
+
+## 2026-10-05 - visitors in the browser (stage D: who a request is, the key, the move)
+
+The frontend serves visitors while the IAM says no sign-in is required
+(`AuthService.loginRequired`, from `/api/auth/config`; only an explicit
+`false` - anything else, or an older backend that does not say it, requires
+one).
+
+**Who a request is, decided when it is issued.** `ApiService` decides it from
+the page's data owner - a person's IAM id, or `VISITOR_OWNER` on a visitor's
+page - and carries it on the request (`ISSUED_AS`, an `HttpContext` token);
+the interceptor reads it. Never from whether a token happens to be there when
+the request leaves: the build analyzer's interceptor did that (`if (!token)
+asVisitor`), and a person whose refresh had failed (the IAM session ended,
+their MEMBER taken away) then sent their round as a visitor - with a key held
+it landed in the visitor's row; with none, the server saw nobody's save and
+MADE a visitor out of the person's round. The server cannot tell these apart,
+so only the browser can stop it: a person's request with no token is never
+sent (401 `sign_in_required` locally - the round waits in the outbox, the
+signed-out handling takes over), and a person's page whose person signed out
+is refused in `ApiService` before anything (401, whatever the switch says -
+never "signed in as somebody else", never a visitor's). The key goes only on
+a visitor's request, and a key in a person's answer is never kept. The move
+is the one request that carries both (`CARRIES_VISITOR_KEY`). The own file,
+the admin panel and the move are a person's: on a visitor's page they are
+refused before they are sent.
+
+**The key is kept while a sign-in is required** (the family's design 4.3;
+section 2's "forgets" was corrected). The interceptor stops sending it, a 401
+`sign_in_required` only tells `AuthService.requireSignInNow()` - so the next
+sign-in still moves the visitor's progress, and the switch turned off again
+within 30 days brings it back. Only a 401 `visitor_unknown` forgets it, and
+only while the stored key is still the one that was sent (another tab may
+have a new one).
+
+**One maker.** The end of a round sends a progress PUT, a path PUT and the
+round at once; for somebody without a key each would make a visitor of its
+own. So the first save without a key is the maker and the others wait for it
+(`ApiService`), then go with the key and the generation its answer brought;
+a maker that failed leaves no key, and the next one makes. Nobody's state is
+generation 0, which only a maker names.
+
+**The move before the state.** Signed in with a key held, `BootService` moves
+the visitor first and loads the person's state after - so the page holds the
+merge and its generation. Answered, found or not (another tab's move is no
+error), the key goes; 422 forgets it; a 503 `visitor_move_retry` with a
+Retry-After of a few seconds is waited out once; otherwise (no answer, a
+5xx) the key stays and the next sign-in or page load asks again - the
+visitor's progress is out of sight meanwhile, never lost (`visitorNotMoved`,
+for the page to say). A sign-in that comes back in the middle of practising
+moves too (the sign-in listener - `VisitorKey` knows only `AuthService`, so
+there is no injection circle).
+
+**The visitor's outbox on every signed-in start.** Rounds a visitor of this
+browser left in its outbox become the person's whether or not this tab made
+the move (`ApiService.adoptOutbox()`): another tab may have moved the rest,
+or the key may have been forgotten. Their Idempotency-Keys stop doubles (a
+round the visitor already stored was moved with its key; the server answers
+the stored one). They are rounds played in this browser, as the move's are.
+
+**A visitor's refusals that sending again cannot fix soon** are not sent for
+ever: a 413 (a document larger than a visitor's may be) is "Not saved yet"
+and goes again only with the next change; a 422 `visitor_limit` drops the
+round (as every 422); after a 429 `too_many_visitors` no new visitor is asked
+for before its Retry-After (refused locally meanwhile, with the time left),
+and the store tries again then, not every 15 s. `ApiService.visitorRefusal`
+holds the key of the words for the page.
+
+**The guards.** A learner page lets a visitor through (`BootService.visiting`
+and no sign-in required); a person whose sign-in ended in the middle of
+practising is no visitor - their page holds their progress - and goes by the
+IAM as before. The admin panel has its own guard (`adminSignInGuard`): a
+sign-in whatever the switch. Signing in from a visitor's page waits for the
+saves on their way first (`BootService.beforeSignIn()`), as signing out does.
+
+The visitor's words on the page followed in stage E (the entry "the
+visitor's words").
+
+## 2026-10-05 - the move at sign-in (visitors, stage C)
+
+The owner: "when they register the data could transfer". `POST
+/api/visitor/move` takes the person's token and the visitor's key - the one
+place the two meet - and works whatever the IAM's switch says (switching
+sign-in on stops a key from being somebody, not from being handed in with a
+token).
+
+**The person's data stays where both have the same thing** (the family's
+rule), and nothing the visitor practised is lost where the person had
+nothing:
+
+- **Notes**: a note the person has stays byte for byte; the visitor's others
+  are added. Choosing between two SRS states means comparing schedules -
+  domain logic, which lives in the frontend only - and "the newer wins" could
+  roll a well-learned note back to a beginner's state.
+- **Path steps are merged per step** (the critique's option, adopted by the
+  coordinator): `bestAccuracy` the larger, `attempts` added, `passedAt` the
+  earlier, `lastAccuracy` / `updatedAt` from the newer. A step is passed by
+  its best (`path.service.ts`), so a pass is never lost - keeping the
+  person's record whole would drop a visitor's pass of a step the person had
+  tried and failed. A step record is a tally, not a schedule: merging it needs
+  no SRS judgement. A later step passed out of order unlocks nothing (the path
+  opens up to the first step not passed; `path.service.spec.ts` pins it), so
+  the union is safe with today's unlock rule.
+- **Rounds**: every one moves, with its id, Idempotency-Key and time - so the
+  browser's outbox, posting a visitor's round again as the person's, gets
+  the stored one back, not a second row.
+
+**Merged documents are size-checked** (the critique): a note's value is any
+object, so 128 keys do not bound the bytes; a merged notes or path document
+over `BODY_LIMIT` would make every later whole-document save of the person's
+a 413. Such a merge is not made: the person's document stays, the visitor's
+count as `kept`. Far beyond real use, and tested with padded documents.
+
+**The answer counts what happened**: `notes: {moved, kept}` (kept: notes the
+person had, or all of the visitor's when the merge was too large), `steps:
+{moved, merged, kept}` (merged: steps both had; kept: only when the merge was
+too large), `sessions` (rounds moved) and the person's `generation`. The page
+says `visitor.moved`, and `visitor.kept` ("where your account already had
+progress, it was kept") when any of notes.kept, steps.merged or steps.kept is
+above 0 - a merged step keeps the account's pass and best.
+
+**One transaction, the visitor's row first, then the person's**, with a
+`lock_timeout` (`move_lock_timeout_ms`, 5 s): a save of either side waits or
+is refused, and a visitor's save that waited finds its row gone (401
+`visitor_unknown`). A lock not had in time, a deadlock, a serialization
+failure or a round that collided with one the person was adding: 503
+`visitor_move_retry` with `Retry-After: 2`, nothing moved - the browser asks
+again. A key nobody has (another tab moved it, the sweep) is `{found: false}`,
+so the move is safe to repeat. When the person's notes or path changed they
+get a new generation: their other tabs load the merge instead of saving the
+old documents over it. Rounds alone need none. All SQL with `?` parameters
+(native prepares: no repeated named ones), `jsonb_exists()` rather than the
+`?` operator.
+
+## 2026-10-05 - visitors while sign-in is not required (stage B: the backend)
+
+The owner: "The visitors will have automatically created account with role
+visitors or something like that with all data there. Its just they can lose
+their data because they are not stored via credentials. But when they
+register the data could transfer." The family's pattern is the build
+analyzer's visitor accounts, with its critique built in from the start.
+
+**A visitor is a users row of the app's own** - "the role visitor" the owner
+speaks of is that mark, never an IAM role: a negative id from the sequence
+`visitor_ids` (an IAM id is always 1 or more, so the two never meet), no
+name, and the SHA-256 of a key (`users.visitor_key_hash`, migration 005).
+001's `CHECK (id > 0)` makes way for `users_kind_check`: a negative id has a
+key's hash, a positive one never, 0 is nobody's. Every store function is the
+same for a visitor: the id is the only thing that differs, so the isolation
+is the same.
+
+**The key is the server's.** 32 random bytes, base64url, handed out once in
+the `X-Visitor-Key` header of the answer to the save that made the visitor
+(with `Cache-Control: no-store`), never in a body, an address or a log; the
+browser sends it back in the same header. Only `requireOwner()` reads it
+(and the move at sign-in, behind a token - stage C, below), and only after
+two questions: a Bearer header is that person or a 401 (a token
+that does not verify never falls back to the key); sign-in required is a 401
+`sign_in_required` without the key being looked up, counted or seen. A key
+nobody has, or whose row went during the request (the sweep, a move at a
+sign-in in another tab), is 401 `visitor_unknown` - never a 500.
+
+**Made on the first save, in that save's transaction.** A page view never
+makes a visitor (`GET /api/state` answers nobody the empty state). The first
+`PUT /api/progress`, `PUT /api/path` or `POST /api/sessions` checks its body,
+then makes the visitor inside its own transaction: a save that fails or is
+refused makes nobody and counts nothing (the analyzer's "unmake" and "give
+back", for free). Its whole-document save names **generation 0** - what
+nobody's state said - and its answer carries the new row's generation beside
+the key; a second tab that later sends the key with 0 is refused 409 and
+loads the visitor's progress, as an old tab of a person's is.
+
+**Limits, and why these.** New visitors an hour per counted address (10: an
+IPv4 address, an IPv6 /64 - one household is handed a whole /64), an hour in
+all (60), at once (500 - a full site refuses new visitors only, existing ones
+go on), a visitor's rounds (1000) and the size of a visitor's progress or path
+(128 KiB - a whole progress and three hundred path steps fit twice over; a
+person's limit is the app's 256 KiB). Counted in `visitor_starts` under an
+advisory lock, so two at once count exactly; the rows are kept an hour. The
+counted address is REMOTE_ADDR unless that is a proxy `config/visitors.local.php`
+trusts - then its header, read from the right; `X-Forwarded-For` is never
+believed on its own (anybody can write it). Behind Cloudflare's proxy the
+owner lists Cloudflare's ranges there. `visitors.local.php` is optional,
+gitignored and never written by setup: no setting is needed for the defaults.
+At worst 500 visitors x (2 x 128 KiB + 1000 rounds) is a few hundred MB, and
+reaching 500 takes at least eight hours at 60 an hour - the People page's
+visitors line is where to watch it, and the file lowers the limits.
+
+**The sweep keeps the notice's promise.** Visitors unseen for 30 days go with
+everything of theirs; there is no early sweep of visitors with little
+progress (the notice says 30 days after the last visit). It runs after
+somebody's answer (at most once an hour by `storage/visitors-swept`, and at
+once after a visitor is made), with `ignore_user_abort`, 20 visitors a batch
+(`FOR UPDATE SKIP LOCKED` - a visitor another request holds waits for the next
+sweep), 2 s a statement and 5 s in all, every table of a person's data emptied
+first (`STORE_PERSON_TABLES`, the list `peopleDelete()` uses too - one left
+out would make a batch fail every time), and the counted addresses of an hour
+ago pruned. A failure is logged ("[after] ...") and never fails the request.
+Where PHP cannot close the connection first (mod_php) the person waits for it
+- bounded by those 5 s, and in practice a few milliseconds.
+
+**A visitor never passes the checks that mean "a verified token".**
+`signedInUser()` refuses a visitor `SiteUser`, so `requireUser()` and
+`requireRole()` refuse one however they are stacked: no own progress file
+(`/api/me/...`), no admin panel, no role. People lists people only and counts
+the visitors on a line of their own; a visitor goes by the sweep, never from
+that page.
+
+**While 005 waits**, the routes with a schema check answer what they always
+do (503 `not_set_up`, `update: true`); `POST /api/sessions`, which has none,
+answers a visitor's round - or one that would make a visitor - 503
+`visitors_unavailable`, never a 500.
+
+**005 holds when it runs again.** Its gates check what is there, never that a
+table is empty, so they hold over a database with visitors; its descriptions
+avoid the words 004's gate refuses; and the browser check's "database
+behind" tour now takes 005 - the newest - off the record and applies it again
+(`tests/unit/migrations.test.php` runs 004 and 005 again over visitors too).
+
+The frontend followed: stage D (the entry above) and E (the visitor's words).
+
+## 2026-10-05 - sign-in per site, MEMBER for everyone (stage A: the switch)
+
+The owner: "I would like to be able to setup if log in is required for a
+specific project and also what roles can log in to a specific project. The
+default role for users should be member. Every user needs to have a role."
+The IAM (its migration 010) gives every application a "Sign-in required"
+switch and a checklist of the roles that may sign in, and every account
+MEMBER in every application again.
+
+**The switch is the IAM's, read by the SDK, never by code of our own.** The
+vendored `api/anotoki_iam.php` is the IAM's PHP SDK 1.1.0, byte for byte;
+`authLoginRequired()` only wraps `anotoki_iam_login_required()` (and logs a
+failed ask). The rule is the family's: `GET
+{issuer}/api/public/applications/piano-academy`; a 200 about this app is kept
+a minute; a 404 (an unknown or switched-off application) is "required", kept
+the same way; anything else - no answer, a 5xx, a proxy's page, an answer
+about another app - is the last answer, or **required when none was ever
+read** (fail closed). One request asks while the others use the last answer
+(single flight), with its own 2 s timeout; only a request without a token
+asks. The kept answer is in `cache_dir`, a folder of this app's own: in a
+shared temp folder anybody on the host could open the app to visitors.
+`GET /api/auth/config` relays it (`loginRequired`), so the browser never asks
+the IAM. Until the IAM serves the route (its 010) it answers 404: required -
+today's behaviour, so the order of the uploads does not matter.
+
+**Only the Bearer scheme is a sign-in.** `Authorization: Bearer` (with or
+without a token) is that person or a 401; `Basic ...` - what a host behind a
+password file sends with every request - says nothing about who is using the
+app and counts as no header. This matters once visitors come: a Bearer header
+that does not verify must never fall back to being a visitor.
+
+**MEMBER is an ordinary learner.** Every account holds it; no check needs it
+or refuses it. Taking a person's MEMBER away in the IAM refuses their next
+sign-in and refresh (when MEMBER is a role that may sign in here), while the
+access token they hold verifies until it runs out - minutes. With sign-in not
+required they could still use the app as a visitor: blocking stops signing
+in, not visiting; to keep somebody out entirely, require sign-in.
+
+**No test asks a real IAM.** The tests give the IAM's answer as a file
+(`application_file`, the SDK's seam) or point the app at the stand-in IAM on
+this computer, which serves the public route (`login_required`,
+`application_missing`); `tests/lib.php` refuses settings that would ask
+anything else (`test_offline_auth()`), and `unit/auth` pins it. The hosted
+site's settings in `api/hosting` (written by setup.php, naming
+`https://iam.anotoki.eu`) get the answer as a file before the site is asked.
+
+## 2026-10-04 - the anotoki family, made one way
+
+The owner set every anotoki site up afresh and asked for them to work one way
+(the frame is the same for the IAM, the survey, Japanese Academy, the build
+analyzer and this app).
+
+**The IAM is the only way in.** "There is no need from project to support no
+iam alternative/version of the projects." The "no sign-in" mode (auth mode
+`none`, which acted as a configured `local_user_id` on the owner's computer)
+is gone from the backend, its settings, the setup page and the tests. Who a
+request is comes only from a verified IAM token. The tests sign in through the
+tests' own tokens and the stand-in IAM (`backend/tests/tools/fake-iam.php`).
+
+**Every account may use the app; who administers it is a role.** The IAM's
+access for `piano-academy` is "everyone". There is no configured owner any
+more: EDITOR rewords the app's words; ADMIN does that and also adds and
+deletes languages, applies database updates and deletes a person's data. The roles are checked on whole route groups (`requireRole()` in
+`api/routes/admin.php`), so a route added to a group cannot forget its check.
+The old MEMBER role means nothing here. (Reversed on 2026-10-05, below:
+MEMBER is back, every account holds it, and it is an ordinary learner.)
+
+**A token that is sent must check out.** A present-but-bad token is a 401 on
+every route that reads one - never treated as nobody, never as a person
+without a role. The public routes (health, the sign-in settings, a language's
+strings) read no token at all: the sign-in card needs its words before anybody
+is signed in.
+
+**An old settings file keeps working.** `auth.local.php` keeps its name (the
+survey's is `iam.local.php`; renaming would have made the owner's installation
+"not set up"), and any key but `issuer`, `client_id`, `cache_dir` is passed
+over - so the owner's file with `mode` and `local_user_id` signs in through the
+IAM it names. The next Save on the setup page writes the three keys only.
+
+**The setup page asks for the database and the IAM, nothing else.** No
+sign-in mode, no IAM user id, no old-progress import, no export upload. New
+setups default to the database `anotoki_piano` on port 5432; the owner's own
+database keeps its name, `anotoki_piano_academy`. "Test connection" answers in
+the family's words (the survey's). On a host the page shows nothing that is
+saved (a blank password keeps the saved one).
+
+**One update at a time.** The setup page, `php migration.php` and an
+administrator's update in the app take the same advisory lock before applying
+migrations; the second is told another update is running. An administrator can
+bring a database that is behind up to date from the app (the admin panel's
+Migrations page, `/api/admin/migrations`), so a host does not need the setup
+page re-uploaded for every migration.
+
+**The old progress and the launchers are gone (git keeps them).** `server/data/`
+(the progress from before the database - the owner let it go rather than
+bring it in) and `start.ps1` / `start.sh` are deleted, by the owner's
+decision. The root holds only `.claude/`, `.gitignore`, `CLAUDE.md`,
+`README.md`, `DEV.md`, `backend/`, `frontend/`, `docs/`. The app is used through
+`npm start` on `http://localhost:4500` - the address the IAM knows for it.
+`tools/progress.php` stays for an operator: `--user` always given, `--move`
+instead of `--owner`.
+
+**The imports table stays.** It recorded the one-time import of `server/data/`;
+nothing writes it now, and dropping it would gain nothing and edit history.
+
+**Each person exports and imports their own progress.** "The import/export the
+users data should be available for every user." Any signed-in person downloads
+their own progress as a file (`GET /api/me/export`, the same
+`piano-academy-export` the operator's `tools/progress.php` writes) and brings a
+file back into their own account (`POST /api/me/import`). The `userId` inside a
+file is never read: a file goes into whoever imports it, so it can move between
+accounts and databases.
+
+**An import replaces, after a question - it never merges.** Into an account
+without progress it simply goes in; into one with progress it is refused
+(`409 has_progress`) unless the page asks again with `?replace=true` after the
+person said yes, and then the old notes, path and sessions go first, in the same
+transaction. Merging two progress documents would need the SRS logic, which is
+the browser's alone. A dry run (`?dryRun=true`) answers what an import would do,
+so the question can name the numbers. Empty documents count as no progress.
+
+**One size limit for both ways.** `EXPORT_LIMIT` (5 MiB - some ten thousand
+rounds, and under PHP's usual 8M `post_max_size`) is the import's body limit and
+the largest export the app hands out: an export that would be larger is refused
+(`409 export_too_large`) rather than handed out to fail on its way back. The
+operator's tool has no limit.
+
+**A generation of each person's progress, not a revision of every save.** The
+browser saves whole documents, so a tab still open on the progress from before
+an import - or from before an administrator deleted it - would write the old
+progress back with its next save. The survey's editor answers the same problem
+with a revision that every save raises; here that would make one tab's two
+chains of saves (progress and path, sent side by side) and two tabs learning at
+once refuse each other all day, and there is no "merge" to offer. So the number
+moves only when the whole progress is replaced or deleted: `GET /api/state`
+hands it out, every `PUT /api/progress` / `PUT /api/path` names it
+(`Progress-Generation`), and a save to an old one is `409 progress_changed` -
+nothing saved, the tab loads again (`ProgressStore`: it never retries the old
+documents, and tells the learner why). Between two ordinary tabs the last save still wins, as before.
+The numbers come from one sequence, never reused, so a deleted person whose
+next request makes a new users row cannot match a number an old tab holds. A
+session is added, never written over anything, so `POST /api/sessions` checks
+no generation: a round played in an old tab is a round played.
+
+**Imports, saves and deletes of one person take turns.** Each takes the
+person's users row first (`SELECT ... FOR UPDATE`) and holds it to the end of
+its transaction: a second import sees the first's progress (`409
+has_progress`), a save sees the new generation (`409 progress_changed`), and
+nothing is ever half one and half the other. "Has progress" is asked once
+before the transaction (the usual refusal, at no cost) and again under the lock.
+
+**An administrator deletes a person whole.** `DELETE /api/admin/people/{id}`
+(ADMIN alone) deletes their notes, path, sessions, an `imports` row and their
+users row - not only "the progress", since the users row holds their name too.
+A string they reworded stays, by nobody. They may come back: their next visit
+starts empty. The People list is the only read across people in the app.
+
+**The generation is migration 004's schema part.** One sequence and one column
+with a default on `users`, additive and gated. 004 also holds every string of
+this work - the own-progress card, the sign-out question, the top bar - and
+retires the three keys the bar took the place of (`footer.translations`,
+`account.myAccount`, `account.signedOut`), with the descriptions that told of
+the old header and footer rewritten. It is finished; the owner applies it at
+the hand-over, after a `pg_dump` (on the host: upload, apply at once, then the
+IAM's 007), not before.
+
+**Every page sends a signed-out visitor to the IAM - the card only after a
+failure.** "The iam, japanese, piano and survey should require login at
+minimum": opening any page while signed out goes straight to the IAM and back
+to that page (`core/auth/sign-in.guard.ts`, the survey's guard ported:
+`canActivateChild` on the learner's pages, `canActivate` on `/admin`). The
+sign-in card stays only for a sign-in that came back refused or cancelled, or
+could not start (a browser that refuses the site's storage): sent back to the
+IAM then, the browser would go round for ever. While the app cannot run (not
+set up, out of reach) the guard sends nobody anywhere - the boot cards are
+drawn without a sign-in. The mid-session "signed out" banner stays: the page
+the learner is on keeps what it has until they choose to sign in again (the
+browser asks before a page with an unsaved save is left).
+
+**The admin panel is `/admin`, English, split by role.** The owner's two pages
+became the admin panel's (`pages/admin/`, `layouts/admin-layout/`):
+Translations for the staff (EDITOR or ADMIN); Languages, People and Migrations
+for ADMIN alone (`adminGuard` sends anybody else to Translations). The old
+addresses `/translations` and `/languages` redirect there. Everything there
+is English, as the owner's pages were, and only hides what the server refuses
+anyway.
+
+**The family's Migrations page, and "Admin panel" (the owner, 2026-10-04).**
+Every anotoki site has the IAM's Migrations page in its admin panel, ADMIN
+only: Pending (in the order they will run), Applied (with when), "Apply
+pending" after a question - the files in order, each in its own transaction,
+stopping at the first that fails, which is named and rolled back whole. Piano's
+Database page became it (`/admin/migrations`, `/api/admin/migrations` and
+`/apply`; the old page's address redirects, its API routes are gone - nothing
+outside the app used them); the lock stays. While
+the database is behind, no page runs on it - but this one: the not-set-up card
+links an ADMIN to it, the shell draws it in place of the card, and once nothing
+is pending the app starts where it stands (no reload, so the page still says
+what it applied; the strings are asked for again then, as they were refused
+with 503 at the start). And the area is called **admin panel** wherever it is named,
+as on every site of the family: "Admin panel" / "Administrátorský panel" in the
+person's menu (004, unapplied, changed in place), "Piano Academy - admin panel"
+beside the mark ("admin panel" on a phone), "... · Admin panel · Piano Academy"
+in the tab.
+
+**A failed migration shows PostgreSQL's own words (the owner, 2026-10-04).**
+Under "Stopped at <file>" the Migrations page shows what the database said -
+the statement's number, the error and the statement's first lines - in a box,
+as the IAM's page does, on this computer and on the host alike. Until then it
+said only "PostgreSQL refused it. What it said is in the server's log." The
+apply route is ADMIN only, the error says what to fix, and on a host with only
+FTP the server's log is hard to reach. It is logged too. Nothing else changes:
+no other answer carries a database's error. (A failure is still answered 200,
+not the IAM's 500: the page reads both the same, and nothing else calls it.)
+
+**A refused save is settled by loading again, and the other tabs are told.**
+On `409 progress_changed` the store stops that save for good, loads the
+progress again (the new generation with it) and the shell says why ("replaced
+or deleted somewhere else"). The frontend never sends a save without a
+generation, so the server's `428` cannot come from it (a spec holds that); one
+that comes all the same (a proxy or the host dropping the header) is kept as a
+failed save - "Not saved yet", the sign-out question - never taken for a
+change elsewhere, which would throw every note away unsaid.
+After an import - or an administrator deleting their own progress - the tab
+writes a marker to `localStorage` (`piano-academy:progress-replaced:<id>`), and
+the person's other tabs load the progress at once instead of waiting for
+their next save to be refused.
+
+**A round keeps no copy of the progress (stage 5).** The review found the
+Note Trainer, the drill step and the sequence player taking a copy of the
+note progress when a round started and saving that copy whole after every
+answer: after a reload (another tab's import, a 409) the copy - the old
+progress - went out under the new generation, and the server took it. Of the
+two ways out - the pages drop their copy and start a fresh round when the
+store reloads, or the store takes one note at a time - the second was chosen:
+one place (`ProgressStore.updateNote()`) instead of three pages and every
+page to come; a round goes on undisturbed; and the answer is built on the
+note as the store holds it at that moment, the imported one included. There
+is no "save this whole map" any more, so a page cannot bring the bug back.
+
+**The own progress file asks twice before it replaces.** Bring back a file:
+the size is checked in the browser (nothing over `EXPORT_LIMIT` is sent), a
+file is refused while a save is waiting, then the server's dry run shows what
+is saved now and what the file brings - nothing written. Bringing it in is a
+second press; over existing progress a question names that it is replaced,
+never mixed. Every refusal is worded from its code; the server's sentence is
+never shown to a learner.
+
+**Signing out asks only when it would lose something.** Sign out first lets
+what is waiting arrive (a failed save goes once more, with a spinner on the
+button). If progress or the path still did not get through - they live in the
+page only - or finished rounds could not be kept by the browser, the learner
+is asked in their language before the IAM ends the session. Rounds in the
+outbox are kept for the next sign-in and are no reason to ask.
+
+**One top bar, the family's - five sections, and Piano's own fold.** "All
+other should have same top menu bar structure": the survey's bar, rebuilt in
+Piano's tokens (`layouts/top-bar`). The five sections stay (Learn, Note
+Trainer, Sheet Practice, Songs, Stats - the trainer is one of the app's
+modes). With the real labels the widest row is 1237 px (Slovak, "Not saved
+yet" showing, a device name at its widest; 1174 with "No piano"), measured by
+the browser check's `--measure`; so `PHONE_BAR_MAX` is 1240, not the
+survey's 760, and above it only the person's name gives way (it shows from
+1441 px). On a phone the brand is "Piano" (`brand.short`: "anotoki Piano
+Academy" does not fit at 360 px beside the piano, the language, the theme and
+the menu button).
+
+**The piano is an app widget in the bar.** A dot (green: connected) and the
+device's name - "No piano" without one, the dot alone on a phone; the button
+opens a box with the state, the devices, Connect and Rescan. A disclosure,
+not a menu (it holds a list and buttons): the focus goes to the list, Escape
+gives it back to the button, and the box stays inside a 360 px screen.
+
+**"Not saved yet": a pill on a desktop, a dot on a phone.** The pill stands
+beside the piano; on a phone a dot on the menu button (said to a screen
+reader through `aria-describedby`), and the sentence is the menu's first
+line.
+
+**Every control's name holds what it shows (stage 5).** WCAG 2.5.3 (label
+in name), added to the family's bar spec: a voice user says what they see.
+The language button shows "SK" and is named "Jazyk: Slovenčina (SK)"
+(`language.button` gets `{code}`; 004 rewords 003's string only where it
+is still 003's); the piano's button starts with its label ("No piano: Piano
+not connected"); the brand link is "anotoki Piano Academy: Learn". The
+browser check compares each control's drawn words with its name.
+
+**A sign-in that cannot start mid-practice says why (stage 5).** With the app
+running, the bar's and the banner's Sign in go through the SDK; when the
+browser refuses the storage the sign-in in progress is kept in, nothing
+would happen at all. Piano has no toast: the signed-out banner adds the
+sign-in card's sentence for that failure. Before the app runs a signed-out
+visitor has no menu button on a narrow screen either - its menu would hold
+nothing.
+
+**The admin panel's bar is English.** Under `/admin` `TranslationService`
+answers every key from English's own strings (the bundle's `english`,
+`effectiveLanguage`), as the survey's does, and the bar shows the admin
+sections (English literals, the admin panel being English) with no chooser and
+no piano; the learner's choice stays for the way back. The admin layout's
+own section nav and the footer's admin link went into the bar.
+
+**The footer keeps the version.** "Piano Academy v0.2" opens What's new; the
+language and the theme moved into the bar.
+
+**Version 0.2, with its entry.** The owner decided builders add a changelog
+entry in plain words and the version (only `frontend/package.json`'s version
+line - the owner edits that file too): sign-in always, the own progress file,
+the one bar, the pages in Slovak (they shipped without an entry). The 0.1
+entry's "no sign-in on your own computer" is history and stays as written.
+
+**A browser check in the repository.** `.claude/skills/check-in-browser`
+(the survey's idea, Piano's tours): headless Edge through `playwright-core`
+(kept outside the repository, in `<temp>/pw`), the stand-in IAM, a throwaway
+`piano_test_browser_<port>` database, ports 8590 and 8597 (others when they
+are taken). It checks by bounding boxes, not by eye alone - and its
+screenshots are looked at.

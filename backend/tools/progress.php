@@ -3,22 +3,25 @@
 declare(strict_types=1);
 
 /**
- * Your progress as a file, and back - on a computer with a shell (the live
- * site's setup page takes an export instead).
+ * One person's progress as a file, and back - for an operator on a computer
+ * with a shell (each person exports and imports their own in the app).
  *
- *   php tools/progress.php --export=FILE [--user=ID]
- *                          one person's progress as a file (yours unless --user):
- *                          to keep a copy, or to take it to the hosted site
- *   php tools/progress.php --import=PATH [--user=ID]
- *                          progress into an account that has none yet (yours
- *                          unless --user): an export, or a folder with the old
- *                          progress.json / sessions.json / path.json
- *   php tools/progress.php --owner=ID
- *                          you are IAM user ID: your progress moves there, and
- *                          config/auth.local.php remembers it (local_user_id)
+ *   php tools/progress.php --export=FILE --user=ID
+ *                          IAM user ID's progress as a file: to keep a copy,
+ *                          or to take it to another database
+ *   php tools/progress.php --import=FILE --user=ID [--replace]
+ *                          an export into IAM user ID's account, which must
+ *                          have no progress yet - or, with --replace, in the
+ *                          place of the progress it has (the userId in the
+ *                          file is not read)
+ *   php tools/progress.php --move=FROM --to=TO
+ *                          all of IAM user FROM's progress moves to IAM user
+ *                          TO, who must have none (somebody who signed in
+ *                          once under another id, say)
  *
- * "Yours" is local_user_id in config/auth.local.php. The files in server/data/
- * are only ever read: nothing here writes into that folder or deletes progress.
+ * --user is always given: there is no "yours" here - who a person is, is
+ * their IAM user id (the IAM's admin panel shows it under Users). Nothing
+ * here deletes anybody's progress but --replace, which is asked for by name.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -39,11 +42,11 @@ function say(string $line): void
     fwrite(STDOUT, $line . PHP_EOL);
 }
 
-/** An IAM user id from an option, or the owner's. */
-function userOption(array $options, string $name = 'user'): int
+/** An IAM user id from an option, which must be there. */
+function userOption(array $options, string $name): int
 {
     if (!isset($options[$name])) {
-        return authLocalUserId();
+        stop("--$name is needed: an IAM user id (the IAM admin panel shows it under Users).");
     }
     $id = (string) $options[$name];
     if (!ctype_digit($id) || (int) $id < 1 || strlen($id) > 18) {
@@ -53,10 +56,12 @@ function userOption(array $options, string $name = 'user'): int
     return (int) $id;
 }
 
-$options = getopt('', ['export:', 'import:', 'owner:', 'user:']);
+$options = getopt('', ['export:', 'import:', 'move:', 'to:', 'user:', 'replace']);
 
-if (!isset($options['export']) && !isset($options['import']) && !isset($options['owner'])) {
-    echo file_get_contents(__FILE__, false, null, 0, 1200);
+if (!isset($options['export']) && !isset($options['import']) && !isset($options['move'])) {
+    // What this file's comment says, to its end.
+    $text = (string) file_get_contents(__FILE__);
+    echo substr($text, 0, (int) strpos($text, ' */') + 3) . PHP_EOL;
     exit(1);
 }
 
@@ -70,24 +75,21 @@ try {
         stop('The database needs an update first: php migration.php');
     }
 
-    if (isset($options['owner'])) {
-        $from = authLocalUserId();
-        $to = userOption($options, 'owner');
+    if (isset($options['move'])) {
+        $from = userOption($options, 'move');
+        $to = userOption($options, 'to');
         $moved = transferReassign($from, $to);
         say($moved['moved']
-            ? "Moved your progress from IAM user $from to IAM user $to: {$moved['notes']} notes, {$moved['sessions']} sessions."
+            ? "Moved the progress of IAM user $from to IAM user $to: {$moved['notes']} notes, {$moved['sessions']} sessions."
             : "Nothing to move: IAM user $from has no progress here.");
-        if ($from !== $to) {
-            writeLocalConfig('auth', ['local_user_id' => $to] + authSettings());
-            say("Saved in config/auth.local.php: you are IAM user $to.");
-        }
     }
 
     if (isset($options['import'])) {
-        $userId = userOption($options);
-        $data = transferRead((string) $options['import']);
-        $counts = transferImport($userId, $data);
-        say("Imported into IAM user $userId: {$counts['notes']} notes, {$counts['steps']} path steps, {$counts['sessions']} sessions.");
+        $userId = userOption($options, 'user');
+        $data = transferReadFile((string) $options['import']);
+        $counts = transferImport($userId, $data, isset($options['replace']));
+        say(($counts['replaced'] ? "Replaced the progress of IAM user $userId with the file's" : "Imported into IAM user $userId")
+            . ": {$counts['notes']} notes, {$counts['steps']} path steps, {$counts['sessions']} sessions.");
         foreach ($data['problems'] as $line) {
             say("  left out: $line");
         }
@@ -96,15 +98,10 @@ try {
     // After the rest, so an export holds what the database holds now.
     if (isset($options['export'])) {
         $file = (string) $options['export'];
-        $real = realpath(dirname($file));
-        $serverData = realpath(dirname(PIANO_BACKEND) . '/server/data');
-        if ($real !== false && $serverData !== false && str_starts_with(str_replace('\\', '/', $real) . '/', str_replace('\\', '/', $serverData) . '/')) {
-            stop('Not into server/data/: those files are the history from before the database.');
-        }
         if (file_exists($file)) {
             stop("$file exists already. Choose another name.");
         }
-        $userId = userOption($options);
+        $userId = userOption($options, 'user');
         $export = transferExport($userId);
         if (@file_put_contents($file, json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n") === false) {
             stop("Cannot write $file");

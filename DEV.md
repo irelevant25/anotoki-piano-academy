@@ -11,7 +11,7 @@ for the hosting.
 | PostgreSQL | 13+ | a local server, and a login that may create databases (the setup and the tests make theirs) |
 | Node.js | 22.12+ | with npm, for the Angular app (`frontend/.nvmrc` pins 22.15.0) |
 | A browser | Chrome or Edge | Web MIDI; a USB-MIDI keyboard is optional (see *Testing without a piano*) |
-| The anotoki IAM | - | only to try signing in: `../anotoki-iam`, its own DEV.md |
+| The anotoki IAM | - | everybody signs in through it, here too: `../anotoki-iam`, its own DEV.md |
 
 `backend/vendor/` is committed (the hosting cannot run Composer), so Composer
 is only needed to change PHP dependencies. `frontend/.npmrc` sets
@@ -20,10 +20,9 @@ peers otherwise.
 
 ## First setup
 
-Everything that belongs to one installation - the database connection, how
-people sign in, the IAM's address and this app's client id there, the owner's
-IAM user id, the key cache - lives in `backend/config/database.local.php` and
-`backend/config/auth.local.php`. They are gitignored and **required**: without
+Everything that belongs to one installation - the database connection, the
+IAM's address and this app's client id there, the key cache - lives in
+`backend/config/database.local.php` and `backend/config/auth.local.php`. They are gitignored and **required**: without
 them the API answers every request `503 {code: "not_set_up"}`, and the app shows
 "Piano Academy is not set up yet" with a link to the setup page. Nothing falls
 back to a committed default. The setup page writes them.
@@ -41,23 +40,21 @@ setup: no token (a nonce in a cookie keeps other pages from submitting it), and
 it stays - open it again whenever a setting changes. It shows what is saved,
 never a password; a password left empty keeps the saved one.
 
-- **Database**: the server, port, database name (`piano_academy`), user and
-  password. **Test the database** tries them without saving.
-- **Sign-in**: **No sign-in** (auth mode `none`) for your own copy - every
-  request acts as *Your IAM user id* (1 unless the IAM shows you another), and
-  only this computer is answered. Or **the anotoki IAM** (auth mode `iam`):
-  its address, `http://localhost:4300` on a development machine, and the client
-  id `piano-academy`. **Test the IAM** fetches
-  `{address}/.well-known/openid-configuration` and its keys.
-- **Your old progress**: bring in `server/data/` once, into your account.
+- **Database**: the server, port (5432), database name (`anotoki_piano` for a
+  new setup; the owner's own is `anotoki_piano_academy`), user and password.
+  **Test the database** tries them without saving, and says what Save would do
+  in the family's words ("it is empty - Save makes the tables", "N update(s) to
+  apply", "does not exist yet - Save creates it", "Cannot connect: ...").
+- **Sign-in: the anotoki IAM**: its address, `http://localhost:4300` on a
+  development machine, and the client id `piano-academy`. **Test the IAM**
+  fetches `{address}/.well-known/openid-configuration` and its keys.
 
-**Save** creates the database if it is missing, applies the migrations, writes
-the two files and does the import.
-
-`start.ps1` / `start.sh` do all this for the owner's own copy: they build the
-frontend once, serve it from the backend at `http://127.0.0.1:8300` (PIANO_PORT
-changes the port), bring the database up to date, and open the setup page the
-first time.
+That is all it asks: who administers the app is the IAM's roles, not a
+setting. **Save** creates the database if it is missing, applies the
+migrations (under the same lock as `php migration.php` and an administrator's
+update in the app) and writes the two files - `auth.local.php` as exactly
+`issuer`, `client_id`, `cache_dir` (an older file's `mode` and
+`local_user_id` go; until then they are passed over).
 
 ### 2. The frontend
 
@@ -75,11 +72,11 @@ The app is at **http://localhost:4500**, the setup page at
 Run the IAM (`../anotoki-iam`: its backend on `:8100`, its pages on
 `http://localhost:4300` - see its DEV.md). It registers Piano Academy
 for `http://localhost:4500`: the redirect URI `/auth/callback` (a route of this
-app), and `/` after signing out. On the setup page choose the IAM, with the
-address `http://localhost:4300`, and **Save**. Sign in at
-`http://localhost:4500`; only accounts with a role in Piano Academy (the IAM's
-admin console) get in, and only the role ADMIN sees and may use the
-Translations and Languages pages.
+app), and `/` after signing out - so sign in at `http://localhost:4500`, not
+on the backend's own address. Every anotoki account gets in and learns; the
+IAM's admin panel gives the roles: **EDITOR** rewords the app's words,
+**ADMIN** also keeps the languages and applies database updates (IAM
+migration 007 makes every IAM administrator ADMIN here).
 
 ## Day to day
 
@@ -87,15 +84,15 @@ Translations and Languages pages.
 | --- | --- | --- |
 | API and setup page | `cd backend && composer start` | `http://localhost:8300` |
 | The app | `cd frontend && npm start` | `http://localhost:4500` |
-| The owner's copy | `start.ps1` / `start.sh` | `http://127.0.0.1:8300` |
+| The IAM | `../anotoki-iam` (its DEV.md) | `http://localhost:4300` |
 
 Command-line tools in `backend/`, all reading the same settings:
 
 ```bash
-php migration.php [--status|--dry-run]          # apply pending migrations (setup.php does too)
-php tools/progress.php --export=FILE [--user=ID] # one person's progress as a file
-php tools/progress.php --import=PATH [--user=ID] # into an account that has none: an export, or a folder of old files
-php tools/progress.php --owner=ID                # you are IAM user ID: your progress moves there
+php migration.php [--status|--dry-run]          # apply pending migrations (setup.php does too; one at a time)
+php tools/progress.php --export=FILE --user=ID   # one person's progress as a file
+php tools/progress.php --import=FILE --user=ID   # an export into an account that has none (--replace: in place of what it has)
+php tools/progress.php --move=FROM --to=TO       # all of one IAM user's progress to another id
 php tools/translations.php --status              # the keys the frontend asks for against the database's
 php tools/translations.php --export sk [FILE]    # one language's strings as flat JSON (to the screen without FILE)
 php tools/translations.php --import sk FILE      # and back in, checked as a save in the browser is
@@ -111,10 +108,10 @@ Never edit an applied migration; add the next number.
 What the app says is in the database, in English and Slovak (informal, "ty"),
 English the fallback: the tables `languages`, `translation_keys` and
 `translations` (migration 002), the keys and their first strings (003). The
-owner rewords them in the browser - **Translations** and **Languages**, linked
-at the bottom of the page for the owner (on your own computer, you; on the
-hosted site, an account with the role ADMIN of Piano Academy in the IAM). A
-key with no string shows as the key itself, on purpose.
+staff reword them in the browser, in the admin panel (`/admin`, English) -
+**Translations** (EDITOR or ADMIN of Piano Academy in the IAM) and
+**Languages** (adding, changing and deleting a language: ADMIN). A key with
+no string shows as the key itself, on purpose.
 
 - `tools/translations.php --status` scans `frontend/src/app` for the keys it
   asks for (`tools/translation_keys.php`: quoted literals of a key's shape,
@@ -127,7 +124,7 @@ key with no string shows as the key itself, on purpose.
 - **A new string** is a new migration in 003's layout (a test reads it as
   text): the key with a description, its English, its Slovak, and a closing
   gate. A string the shell shows while there are no strings at all (the
-  header, the nav, the cards) also goes into
+  top bar, the cards) also goes into
   `frontend/src/app/core/i18n/kept-english.ts`, letter for letter.
 - While a migration is not released it may still change: after editing it,
   `php tests/tools/testdb.php template --fresh` builds the tests' template
@@ -145,13 +142,24 @@ npm test                           # the unit tests (Vitest)
 npm run build                      # the production build
 ```
 
+The frontend's specs need no server: `HttpTestingController` answers the API,
+stand-ins stand for the IAM's SDK, `provideTestTranslations()` gives a page its
+strings. `frontend/README.md` lists what they cover.
+
 The backend tests start the real router under PHP's built-in server (and the
 upload, without a router, as a host would run it), each file against a
 throwaway `piano_test_*` database copied from `piano_test_template`, with
 settings of its own in a temp folder (`PIANO_TEST_CONFIG`, honoured only for
 `piano_test_` databases). They borrow only the PostgreSQL server and user from
 this machine's `config/database.local.php`, so run the setup once first. They
-never touch `piano_academy` or `server/data/` (the import tests use copies).
+never touch the owner's database. Sign-in is always the IAM's: tokens the
+tests sign with their own key (`test_token($id, $roles)`; no roles is a
+learner, and so is MEMBER), and the stand-in IAM `tests/tools/fake-iam.php`
+for a whole sign-in and the IAM's "Sign-in required" switch. No test asks a
+real IAM: the switch's answer is a file (`application_file`), or the
+stand-in answers it; `tests/lib.php` refuses anything else.
+One test fails on a CRLF checkout (`unit/config`, the `.gitignore` line
+match) - environmental.
 To run them under a second PHP - the hosting's version - call that binary
 instead of `php`: `run.php` starts each file with the PHP it runs under.
 `php tests/tools/testdb.php template --fresh` drops and rebuilds the template
@@ -163,16 +171,59 @@ A throwaway copy of the app, for trying things in a browser:
 ```bash
 cd backend
 php tests/tools/testdb.php template       # the empty database it is copied from (run.php keeps it current)
-php tests/tools/testenv.php storage/manual --db=piano_test_manual --auth=none
-PIANO_TEST_CONFIG=storage/manual php -S 127.0.0.1:8399 router.php
+php tests/tools/testenv.php storage/manual --db=piano_test_manual   # its IAM: the stand-in on :8597
+PIANO_TEST_CONFIG=storage/manual php -S 127.0.0.1:8590 router.php
 # afterwards: php tests/tools/testdb.php drop piano_test_manual
 ```
 
 (`storage/` is gitignored - the folder holds a copy of the database password.)
 
-For sign-in, the stand-in IAM `tests/tools/fake-iam.php` (never the real one) -
-its header says how to run it; `--auth=iam --issuer=http://127.0.0.1:8397` points
-the throwaway copy at it.
+Sign in through the stand-in IAM `tests/tools/fake-iam.php` (never the real
+one): its header says how to run it on `:8597` (`--issuer=` points the
+throwaway copy at another address); `POST /_test/state` with
+`{"user": {"id": 1, "username": "ada", "roles": ["MEMBER", "ADMIN"]}}` sets who signs in
+and with which roles (`["MEMBER"]`: a learner - every account holds MEMBER), and
+`{"login_required": false}` what the IAM says about the app's "Sign-in required"
+(`{"application_missing": true}`: a 404). The app keeps that answer a minute in
+the folder's `cache/`; `testenv.php ... --application-ttl=1` keeps it a second.
+Throwaway servers go on 8590-8599.
+
+With `login_required` false the throwaway copy keeps visitors' progress
+(`api/visitors.php`): a save without a token makes a visitor and answers its
+key in `X-Visitor-Key` - e.g. `curl -i -X PUT -H 'Content-Type: application/json'
+-H 'Progress-Generation: 0' -d '{"60":{}}' http://127.0.0.1:8590/api/progress`,
+then `-H 'X-Visitor-Key: <key>'` on `GET /api/state`; with a token too,
+`POST /api/visitor/move` moves it into that person's account. The built app
+on that copy does the same in the browser: with the switch off it opens
+without the IAM, keeps the key in localStorage (`piano-academy:visitor`) and
+moves it at the next sign-in; the notice under the bar on Learn and Stats
+says how long the progress is kept, and the shell says what came with a
+sign-in. To try the switch mid-session there, give the copy a short memory
+of the IAM's answer (`testenv.php ... --application-ttl=1`, as the browser
+check does). The limits and the trusted proxies: an optional
+`<folder>/visitors.local.php` (`config/config.php` shows its shape); visitors
+unseen 30 days are swept after an answer (the marker is the folder's
+`storage/visitors-swept`).
+
+### The browser check
+
+The app in a real browser, signed in through the stand-in IAM, on a
+throwaway database - committed, and run after anything a page shows changes
+(the skill `.claude/skills/check-in-browser/` says what it covers):
+
+```bash
+# from the repository's root; PHP: the 8.2+ binary (Git Bash's `php` may be older)
+PHP=/path/to/php node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure]
+```
+
+It builds the frontend, makes `piano_test_browser_<port>` from the tests'
+template, starts the stand-in IAM on 8597 and the built app on 8590
+(`SITE_PORT` / `IAM_PORT` when another check holds them), drives headless
+Edge (`BROWSER=chrome` for Chrome) through `playwright-core` - installed once
+into `<temp>/pw`, never into `frontend/` - and stops and drops everything at
+the end, also when a check fails. `--keep` keeps the screenshots (the path
+is printed): look at them. `--measure` prints what the top bar's row needs
+in English and Slovak - how `PHONE_BAR_MAX` was chosen.
 
 ### Testing without a piano
 
@@ -210,18 +261,21 @@ No settings file, no progress, no tests or tools.
    points at). PHP must be able to write into `config/` and `storage/`.
 3. Open `https://piano.anotoki.eu/setup.php`. On a real host it asks for a
    token it wrote into `storage/setup-token.php` - read it with your FTP
-   program. Enter the database, the IAM (`https://iam.anotoki.eu`, client id
-   `piano-academy`), and - to bring your progress along - an export from your
-   own computer (`php tools/progress.php --export=my-progress.json`) with your
-   IAM user id (the IAM admin console shows it under Users). **Install** writes
-   the settings, makes the tables, writes `storage/installed.lock`, and deletes
-   the token and itself.
+   program. Enter the database and the IAM (`https://iam.anotoki.eu`, client id
+   `piano-academy`). **Install** writes the settings, makes the tables, writes
+   `storage/installed.lock`, and deletes the token and itself.
 4. Sign in on the site.
 
 **Later versions**: build and upload again (the settings and the lock stay). A
-version with a new migration needs the setup page once more: delete
+version with a new migration: sign in as an administrator and apply it in the
+app (the admin panel's **Migrations** page, `/admin/migrations`: what is
+pending and applied, and "Apply pending" - while the database is behind it is
+the one page that runs for an administrator, and the "not set up yet" card
+links to it) - or run the setup page once more: delete
 `storage/installed.lock`, and open `/setup.php` (the upload carries it) with the
-same details - it applies what is missing and keeps everybody's progress.
+same details. Either applies what is missing and keeps everybody's progress;
+on a host the setup page shows nothing that is saved (a blank password keeps
+the saved one).
 
 ### Releasing the app's words
 
@@ -229,36 +283,56 @@ The translation migrations (002 the tables, 003 the strings; later ones the
 same way) touch nobody's progress - a test holds them to it. They reach a
 database only with a released version, by the owner's own hand.
 
-1. **The dump comes first** - on your own computer before `start.ps1` /
-   `start.sh`, not after: the launcher applies pending migrations by itself
-   as it starts (its step 4, "Bringing the database up to date"), with no
-   pause. In `backend/`, with the server, port and user of
+1. **The dump comes first**, before anything applies the migration. In
+   `backend/`, with the server, port and user of
    `config/database.local.php` (`pg_dump` asks for the password; on Windows it
    is in `C:\Program Files\PostgreSQL\<version>\bin\`; make
    `storage/backups/` first if it is missing - `storage/` is gitignored):
 
    ```bash
-   pg_dump --host=localhost --port=5432 --username=postgres --format=custom --file=storage/backups/piano_academy-before-update.dump piano_academy
+   pg_dump --host=localhost --port=5432 --username=postgres --format=custom --file=storage/backups/anotoki_piano_academy-before-update.dump anotoki_piano_academy
    ```
 
-   To go back: `pg_restore --host=localhost --port=5432 --username=postgres --clean --if-exists --dbname=piano_academy storage/backups/piano_academy-before-update.dump`.
+   To go back: `pg_restore --host=localhost --port=5432 --username=postgres --clean --if-exists --dbname=anotoki_piano_academy storage/backups/anotoki_piano_academy-before-update.dump`.
 2. **The encoding**: `SHOW server_encoding;` must answer `UTF8` on your
    database and on the host's (psql, or the hosting panel's database tool).
    002 refuses anything else with a sentence saying so; such a database has to
    be made again with the encoding UTF8.
-3. **Your own computer**: the launcher's next start applies the migrations -
-   or `/setup.php` with your database entered, or `php migration.php`.
-   If one fails, the launcher stops with "The database could not be brought
-   up to date": its hint about PostgreSQL not running is then wrong - the
-   lines above it name the file and the error. A file is applied all or
-   nothing, and the earlier version starts again on the same database (an
-   applied migration the code does not know stops nothing).
+3. **Your own computer**: `/setup.php` with your database entered (Save), or
+   `php migration.php`, or an administrator's update in the app. If one
+   fails, it names the file and the error (the app's update: the server log
+   has the error). A file is applied all or nothing, and the earlier version
+   starts again on the same database (an applied migration the code does not
+   know stops nothing).
 4. **The host**: in the browser, export both languages first (Translations,
-   each language's export) - your rewordings, kept. Then upload, delete
-   `storage/installed.lock` and run `/setup.php` **at once**: until it has
-   run, every visitor sees "Piano Academy is not set up yet". So the strings
-   of a release are collected into **one** migration - every migration means
-   this re-run.
+   each language's export) - your rewordings, kept. Then upload and apply the
+   migration **at once** - as an ADMIN, "Apply pending" on the admin panel's
+   Migrations page (the "not set up yet" card links to it), or delete
+   `storage/installed.lock` and run `/setup.php`: until then every visitor
+   sees "Piano Academy is not set up yet". So the strings of a release are
+   collected into **one** migration.
+
+**Version 0.2 (the anotoki family's work, migration 004)**: 004 is applied
+in the owner's database on this computer (2026-10-05). On the host in this
+order: upload the build, apply 004 at once (as above), then the IAM's
+migrations (007 ... 010: EDITOR; MEMBER for every account again, and the
+per-site "Sign-in required" switch and "Roles that may sign in").
+
+**Visitors (migration 005, 2026-10-05, not applied anywhere yet)**: the owner
+applies it at the hand-over, after a `pg_dump` - on this computer by Save on
+`/setup.php`, `php migration.php` or "Apply pending" on the Migrations page;
+on the host: upload the build, apply 005 at once (until then the app says
+"not set up yet"), then the IAM's migrations. It changes no row of anybody's
+(it rewrites the check on `users.id` so a negative id is a visitor's; every
+row there passes). Then, only if wanted, switch Piano Academy's "Sign-in
+required" off in the IAM's admin panel. On the host check once that the
+`X-Visitor-Key` header reaches PHP (Apache passes `X-*` headers; a save
+without a token answers one). Behind Cloudflare's proxy, put
+`config/visitors.local.php` on the host by FTP (never written by setup) with
+Cloudflare's IP ranges as `client_address.trusted_proxies` - otherwise every
+visitor is counted by Cloudflare's address and the hourly limit per address
+fills for everybody at once. Watch the People page's visitors line; the same
+file lowers the limits (`max_visitors`, `new_per_hour`, ...).
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
@@ -270,22 +344,29 @@ shell also goes into `core/i18n/kept-english.ts`.
 
 If a whole site answers "500 Internal Server Error" after an upload, the host
 may not allow a line of `.htaccess` (`Options -Indexes` or `CGIPassAuth`):
-remove that line. If you gave the wrong IAM user id: in the hosting panel's
-database tool run `UPDATE users SET id = <right id> WHERE id = <wrong id>;` -
-all of that person's data moves with it (delete an empty row of the right id
-first, if there is one).
+remove that line. To move a person's progress to another IAM user id, on a
+computer with a shell: `php tools/progress.php --move=FROM --to=TO`; on the
+host, in the hosting panel's database tool, `UPDATE users SET id = <to> WHERE
+id = <from>;` - all of that person's data moves with it (delete an empty row
+of the new id first, if there is one).
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
 | --- | --- |
-| "Piano Academy is not set up yet"; the API answers 503 `not_set_up` | The setup page has not run, a `config/*.local.php` is missing - or the database needs an update (`php migration.php`, or the setup page). |
+| "Piano Academy is not set up yet"; the API answers 503 `not_set_up` | The setup page has not run, a `config/*.local.php` is missing - or, with `update: true`, the database needs an update (`php migration.php`, the setup page, or an administrator in the app). |
 | The setup page asks for a token on this computer | It was not asked as `localhost` / `127.0.0.1` straight from PHP's built-in server: a LAN address, another name, or a proxy that adds forwarding headers makes it a real host's install. |
-| 403 "Sign-in is switched off in this copy" | Auth mode `none` answers only this computer, by a local name, never through a proxy. |
+| 403 `forbidden` on `/api/admin/...` | The account has no role of Piano Academy in the IAM (EDITOR for the words, ADMIN for languages and the database) - or the token was issued before the role was given: sign in again. |
+| 409 `busy` / "Another database update is running" | The setup page, `php migration.php` and the app's update take one lock: wait for the other to finish. |
+| 428 `generation_required` on `PUT /api/progress` or `/api/path` | Something saves without `Progress-Generation` - never this frontend (it sends no save without one): an old build in the browser's cache, or a script of your own. Load the page again. The app shows it as "Not saved yet": when every save gets it, something between the browser and PHP drops the header - let `Progress-Generation` through. |
+| 409 `progress_changed` on a save, and the note "Your progress was replaced or deleted somewhere else" | Right: the progress was imported in another tab (or on another computer) or deleted by an administrator since this page loaded it. The page has loaded it again; nothing old was saved over it. |
+| Opening the app goes straight to the IAM | Right: every page signs in first. After a refused or cancelled sign-in the app shows its sign-in card instead, with the reason. |
+| `/admin/languages`, `/people` or `/migrations` opens Translations | The account is an EDITOR, not an ADMIN, of Piano Academy (or the token is from before the role: sign in again). |
+| 409 `export_too_large` | The person's progress is over `EXPORT_LIMIT` (5 MiB): export it with `php tools/progress.php --export`, which has no limit. |
 | The app loads but every call fails | The backend on :8300 is not running, or was started without `router.php`. |
 | Signing in bounces back with an error | The IAM does not know this address: use `http://localhost:4500`, which it registers for Piano Academy. |
 | "Your sign-in has run out" on every request | The issuer in `config/auth.local.php` is not exactly the IAM's address, or the backend cannot reach `{issuer}/.well-known/jwks.json`. |
 | The piano is not offered | Not Chrome or Edge, or not a secure page (`https://`, or `http://localhost` / `127.0.0.1`), or the browser was not allowed to use MIDI devices. |
 | `tests/run.php` stops before any test | No `config/database.local.php` to borrow the PostgreSQL server from: run the setup first. |
-| The launcher stops: "The database could not be brought up to date" | A migration failed (the lines above name the file and the error) - or PostgreSQL is not running. On a failed migration the hint about PostgreSQL is wrong; restore the dump or start the earlier version, which runs on the same database. A database that is not UTF8 is refused by 002 with a sentence saying so. |
+| "The database update ... failed" | A migration failed (`php migration.php` and the setup page name the file and the error; the Migrations page names the file and shows the error, word for word). Restore the dump or start the earlier version, which runs on the same database. A database that is not UTF8 is refused by 002 with a sentence saying so. |
 | A word on the page looks like `home.title` | That key has no string in the database: a migration is missing, or the key is new. `php tools/translations.php --status` names it. |

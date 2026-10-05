@@ -3,7 +3,6 @@ import { Router } from '@angular/router';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { MidiService, NoteOnDetail } from '../../core/midi/midi.service';
-import { ProgressMap } from '../../core/music/music.types';
 import { PathService } from '../../core/music/path.service';
 import { SrsService } from '../../core/music/srs.service';
 import { TheoryService } from '../../core/music/theory.service';
@@ -60,7 +59,6 @@ export class TrainerPageComponent {
   protected readonly correctSoFar = computed(() => this.i18n.around('trainer.correctSoFar', 'count'));
 
   private round: number[] = [];
-  private progress: ProgressMap = {};
   private startedAt = '';
   private awaitingAnswer = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -80,8 +78,8 @@ export class TrainerPageComponent {
   protected newRound(): void {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
-    this.progress = { ...this.store.progress() };
-    const queue = this.srs.pickPracticeQueue(this.progress, this.theory.curriculum, { count: 8 });
+    // Read, never kept: every answer goes into the store's progress as it is then (updateNote).
+    const queue = this.srs.pickPracticeQueue(this.store.progress(), this.theory.curriculum, { count: 8 });
     this.round = [];
     while (this.round.length < ROUND_LENGTH) this.round.push(...this.path.shuffle(queue));
     this.round = this.round.slice(0, ROUND_LENGTH);
@@ -110,7 +108,8 @@ export class TrainerPageComponent {
 
     const target = this.round[this.index()];
     const correct = played === target;
-    this.progress[target] = this.srs.updateNoteState(this.progress[target] ?? this.store.noteState(target), this.srs.gradeAttempt({ correct, timingErrorMs: null }), null);
+    const grade = this.srs.gradeAttempt({ correct, timingErrorMs: null });
+    this.store.updateNote(target, (current) => this.srs.updateNoteState(current, grade, null)).catch((error) => console.error('Failed to save progress', error));
 
     this.keyboard.setKeyState(played, correct ? 'correct' : 'incorrect');
     if (!correct) this.keyboard.setKeyState(target, 'target');
@@ -120,8 +119,6 @@ export class TrainerPageComponent {
     } else {
       this.feedback.set({ key: 'trainer.wrong', params: { played: this.theory.midiToName(played), target: this.theory.midiToName(target) }, kind: 'incorrect' });
     }
-
-    this.store.saveProgress(this.progress).catch((error) => console.error('Failed to save progress', error));
 
     this.timer = setTimeout(() => {
       this.timer = null;

@@ -6,17 +6,21 @@ declare(strict_types=1);
  * A throwaway copy of the app to try things on by hand or in a browser - its
  * own piano_test_ database and settings folder, never your data:
  *
- *   php tests/tools/testenv.php FOLDER [--db=piano_test_manual] [--auth=none|iam] [--issuer=URL] [--jwks=FILE] [--user=ID]
+ *   php tests/tools/testenv.php FOLDER [--db=piano_test_manual] [--issuer=URL] [--jwks=FILE] [--application-ttl=SECONDS]
  *
  * makes the database (a copy of piano_test_template; php tests/run.php keeps
  * that up to date) unless it exists, and writes FOLDER/database.local.php and
  * FOLDER/auth.local.php. Then serve it:
  *
- *   PIANO_TEST_CONFIG=FOLDER php -S 127.0.0.1:8399 router.php
+ *   PIANO_TEST_CONFIG=FOLDER php -S 127.0.0.1:8590 router.php
  *
  * and drop it afterwards: php tests/tools/testdb.php drop piano_test_manual.
- * --auth=iam signs in through --issuer (the stand-in IAM, tests/tools/fake-iam.php,
- * never the real one); --jwks gives it a key set on disk instead.
+ * The IAM is --issuer: the stand-in, tests/tools/fake-iam.php (its header says
+ * how to run it), never the real one; --jwks gives it a key set on disk
+ * instead of the one it would download. The app asks that IAM whether it
+ * requires sign-in (the stand-in's `login_required`) and keeps the answer a
+ * minute in FOLDER/cache; --application-ttl keeps it shorter (a check that
+ * switches sign-in mid-run).
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -28,14 +32,17 @@ if (PHP_SAPI !== 'cli') {
 $folder = '';
 $options = [];
 foreach (array_slice($argv, 1) as $argument) {
-    if (preg_match('/^--(db|auth|issuer|jwks|user)=(.*)$/', $argument, $m)) {
+    if (preg_match('/^--(db|issuer|jwks|application-ttl)=(.*)$/', $argument, $m)) {
         $options[$m[1]] = $m[2];
     } elseif ($folder === '' && !str_starts_with($argument, '--')) {
         $folder = $argument;
+    } else {
+        fwrite(STDERR, "testenv: what is $argument? (There is no --auth or --user any more: everybody signs in through the IAM.)\n");
+        exit(1);
     }
 }
 if ($folder === '') {
-    fwrite(STDERR, "usage: php tests/tools/testenv.php FOLDER [--db=piano_test_manual] [--auth=none|iam] [--issuer=URL] [--jwks=FILE] [--user=ID]\n");
+    fwrite(STDERR, "usage: php tests/tools/testenv.php FOLDER [--db=piano_test_manual] [--issuer=URL] [--jwks=FILE] [--application-ttl=SECONDS]\n");
     exit(1);
 }
 
@@ -66,15 +73,20 @@ if (!is_dir($folder) && !mkdir($folder, 0777, true)) {
     exit(1);
 }
 $auth = [
-    'mode' => ($options['auth'] ?? 'none') === 'iam' ? 'iam' : 'none',
-    'issuer' => rtrim((string) ($options['issuer'] ?? 'http://127.0.0.1:8397'), '/'),
+    'issuer' => rtrim((string) ($options['issuer'] ?? 'http://127.0.0.1:8597'), '/'),
     'client_id' => 'piano-academy',
-    'local_user_id' => (int) ($options['user'] ?? 1),
     'cache_dir' => rtrim(str_replace('\\', '/', $folder), '/') . '/cache',
 ];
 if (isset($options['jwks'])) {
     $auth['jwks_file'] = (string) $options['jwks'];
 }
+if (isset($options['application-ttl'])) {
+    if (!preg_match('/^[1-9][0-9]{0,4}$/D', $options['application-ttl'])) {
+        fwrite(STDERR, "testenv: --application-ttl is a number of seconds\n");
+        exit(1);
+    }
+    $auth['application_ttl'] = (int) $options['application-ttl'];
+}
 file_put_contents("$folder/database.local.php", '<?php return ' . var_export(['name' => $database] + $server, true) . ";\n");
 file_put_contents("$folder/auth.local.php", '<?php return ' . var_export($auth, true) . ";\n");
-echo "settings in $folder (auth mode {$auth['mode']}, database $database)\n";
+echo "settings in $folder (IAM {$auth['issuer']}, database $database)\n";

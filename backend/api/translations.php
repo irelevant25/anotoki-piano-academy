@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 /**
  * The app's own words, in the languages it speaks: the languages, the strings
- * a page asks for by key, and the grid the owner edits them in. (Note names,
+ * a page asks for by key, and the grid the staff edit them in. (Note names,
  * song titles and device names are not here: they are not translated.)
  *
  * These tables are the site's, not one person's - the one thing in this
  * backend that is not keyed by a user id. Anybody reads the words (the
- * bundle); only the owner writes them (requireOwner() in the routes). A user
+ * bundle); only the staff write them - EDITOR or ADMIN, and adding or deleting
+ * a language is ADMIN's (requireRole() on the groups of routes/admin.php). A user
  * id appears in one place: who last reworded a string (translations.updated_by),
  * which is the request's person and nothing a body says. Nothing here reads
  * or writes any other table.
@@ -72,7 +73,7 @@ function languageInvalid(string $message): ApiError
     return new ApiError(422, 'invalid_language', $message);
 }
 
-/** A language as the owner's pages read it. */
+/** A language as the admin panel's pages read it. */
 function languageJson(array $row): array
 {
     return [
@@ -133,7 +134,7 @@ function languageName(mixed $value, string $what): string
 /**
  * A new language, {code, name, nativeName, enabled?}: after the ones there
  * are, and offered at once unless `enabled` says false - then it is there for
- * its strings to be written, and people are offered it when the owner
+ * its strings to be written, and people are offered it when an administrator
  * switches it on. It has no strings yet, so until then it would read in
  * English.
  *
@@ -403,7 +404,7 @@ function translationsNotModified(string $ifNoneMatch, string $etag): bool
     return false;
 }
 
-// ── The owner's grid ────────────────────────────────────────────────────────
+// ── The admin panel's grid ───────────────────────────────────────────────────
 
 /**
  * Every key with its strings in every language, and the languages:
@@ -598,8 +599,8 @@ function translationsCheck(mixed $values, array $keys, array $languages, array $
  * none of it. A string sent as it already is stays as it was - with who wrote
  * it and when. Two people changing the same string: the last save is kept.
  *
- * $userId is who is saving - the request's person: the verified token's, or
- * local_user_id on the owner's own computer - or null for the command line.
+ * $userId is who is saving - the request's person, the verified token's - or
+ * null for the command line.
  */
 function translationsSave(mixed $values, ?int $userId): void
 {

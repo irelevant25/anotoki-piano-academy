@@ -6,6 +6,9 @@ import { TranslationService } from './i18n/translation.service';
 /** The app's name: a name, so it is written here and never translated. */
 const APP_NAME = 'Piano Academy';
 
+/** What the admin panel's pages say between their own title and the app's name (English, as they are). */
+const ADMIN_PANEL = 'Admin panel';
+
 /** A route's title that is a translation key: `title.learn`, `title.signingIn`. */
 const TITLE_KEY = /^title\.[A-Za-z0-9]+$/;
 
@@ -14,8 +17,9 @@ const TITLE_KEY = /^title\.[A-Za-z0-9]+$/;
  * start of it.
  *
  * A route's `title` is a translation key (`title.learn` ... `title.signingIn`)
- * on the pages a learner sees, and plain English on the owner's two pages
- * ('Translations', 'Languages'), which are English; either works here. The
+ * on the pages a learner sees, and plain English on the admin panel's pages
+ * ('Translations', 'Migrations'), which are English; either works here -
+ * and those say so: "Migrations · Admin panel · Piano Academy". The
  * title follows the language: switching it renames the tab without a
  * navigation. While no bundle is in memory the key is worded from the kept
  * English, as the rest of the shell; with one, a key that has no string shows
@@ -33,6 +37,8 @@ export class PianoTitleStrategy extends TitleStrategy {
 
   /** The current route's title as the route wrote it: a key, or English. Undefined: the route has none. */
   private readonly _page = signal<string | undefined>(undefined);
+  /** The page is in the admin panel (/admin). */
+  private readonly _admin = signal(false);
 
   constructor() {
     super();
@@ -42,13 +48,16 @@ export class PianoTitleStrategy extends TitleStrategy {
         this._title.setTitle(APP_NAME);
         return;
       }
-      this._title.setTitle(`${TITLE_KEY.test(page) ? this._i18n.t(page) : page} · ${APP_NAME}`);
+      const own = TITLE_KEY.test(page) ? this._i18n.t(page) : page;
+      this._title.setTitle(this._admin() ? `${own} · ${ADMIN_PANEL} · ${APP_NAME}` : `${own} · ${APP_NAME}`);
     });
   }
 
   /** After every navigation. */
   override updateTitle(snapshot: RouterStateSnapshot): void {
-    this._i18n.navigated();
+    this._i18n.navigated(snapshot.url);
+    const path = snapshot.url.split(/[?#]/)[0];
+    this._admin.set(path === '/admin' || path.startsWith('/admin/'));
     this._page.set(this.buildTitle(snapshot));
   }
 }

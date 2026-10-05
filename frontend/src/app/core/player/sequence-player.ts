@@ -2,7 +2,7 @@ import type { StaveNote } from 'vexflow/bravura';
 import type { KeyboardModel } from '../../ui/piano-keyboard/keyboard-model';
 import { Metronome } from '../audio/metronome';
 import type { NoteOnDetail, PianoMidi } from '../midi/midi.service';
-import type { NoteState, ProgressMap, SessionInput } from '../music/music.types';
+import type { NoteState, SessionInput } from '../music/music.types';
 import type { SrsService } from '../music/srs.service';
 import type { TheoryService } from '../music/theory.service';
 import type { Notation, SequenceNote } from '../notation/notation';
@@ -49,11 +49,9 @@ export interface PlayerResult {
   endedAt: string;
 }
 
-/** What the player needs of ProgressStore. */
+/** What the player needs of ProgressStore: one note's answer into the store's progress as it is then - never a copy kept for a round. */
 export interface PlayerStore {
-  progress(): ProgressMap;
-  noteState(midi: number): NoteState;
-  saveProgress(progress: ProgressMap): Promise<void>;
+  updateNote(midi: number, change: (current: NoteState) => NoteState): Promise<void>;
 }
 
 export interface SequencePlayerOptions {
@@ -86,7 +84,6 @@ export class SequencePlayer {
   private correct = 0;
   private timingErrors: number[] = [];
   private missesOnCurrent = 0;
-  private progress: ProgressMap = {};
   private startedAt = '';
   private beatMs = 0;
   /** When each note's click is due (performance.now() time) - the browser tests read these. */
@@ -118,7 +115,6 @@ export class SequencePlayer {
     this.correct = 0;
     this.timingErrors = [];
     this.missesOnCurrent = 0;
-    this.progress = { ...this.options.store.progress() };
     this.startedAt = new Date().toISOString();
     // Like window.pianoMIDI: lets the devtools and the browser tests read expectedTimes.
     (globalThis as { pianoPlayer?: SequencePlayer }).pianoPlayer = this;
@@ -253,8 +249,7 @@ export class SequencePlayer {
   /** The grade into the SRS, and the save on its way - never awaited, so the next press is graded at once. */
   private updateSrs(target: number, grade: number, timingErrorMs: number | null): void {
     const { srs, store } = this.options;
-    this.progress[target] = srs.updateNoteState(this.progress[target] ?? store.noteState(target), grade, timingErrorMs);
-    store.saveProgress(this.progress).catch((error) => console.error('Failed to save progress', error));
+    store.updateNote(target, (current) => srs.updateNoteState(current, grade, timingErrorMs)).catch((error) => console.error('Failed to save progress', error));
   }
 
   private advance(): void {

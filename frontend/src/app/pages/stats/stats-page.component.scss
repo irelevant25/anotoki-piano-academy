@@ -39,3 +39,17 @@ th {
   color: var(--text-dim);
   font-weight: 500;
 }
+
+// In the place of the progress file's card, for somebody not signed in: the sentence and its button.
+.own-progress-visitor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  flex-wrap: wrap;
+}
+
+.own-progress-visitor p {
+  margin: 0;
+  flex: 1 1 16rem;
+}

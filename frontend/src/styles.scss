@@ -5,7 +5,7 @@
 /// Colours exist only as custom properties, and both palettes define the same
 /// names - so no component can reach for a colour one theme lacks. Light is
 /// written onto :root, so a page without data-theme is a complete light page.
-/// Dark applies through data-theme="dark" (the footer's theme button, or
+/// Dark applies through data-theme="dark" (the top bar's theme button, or
 /// public/theme-boot.js before the app loads), and through the system
 /// setting for as long as nothing has said "light". The dark palette is the
 /// app's original look.
@@ -30,6 +30,13 @@
   --warn: #9a6512;
   --continue-glow: rgb(31 111 209 / 10%);
   --backdrop: rgb(20 22 28 / 45%);
+  // The top bar: the section the page is in, and the menus that float over the page.
+  --accent-soft: #e3eefc;
+  --accent-soft-text: #1858a8;
+  --shadow-lg: 0 12px 32px rgb(20 22 28 / 14%);
+  // The anotoki mark (a dark navy picture) in the bar (ui/brand): the family's
+  // soft shadow; in the dark a light halo, or it sinks into the bar.
+  --mark-shadow: drop-shadow(0 2px 6px rgb(0 0 0 / 18%));
 
   --key-white: #ffffff;
   --key-black: #1a1c22;
@@ -68,6 +75,10 @@
   --warn: #e5b95a;
   --continue-glow: rgb(90 169 255 / 14%);
   --backdrop: rgb(4 6 10 / 70%);
+  --accent-soft: #1f3048;
+  --accent-soft-text: #9ccbff;
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 50%);
+  --mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%));
 
   --key-white: #f4f4f4;
   --key-black: #1a1c22;
@@ -90,6 +101,9 @@
 
 :root {
   @include palette-light;
+
+  // The top bar's height (layouts/top-bar), which its menus' height is measured against.
+  --topbar-height: 60px;
 
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }

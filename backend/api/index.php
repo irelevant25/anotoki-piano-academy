@@ -12,17 +12,29 @@ declare(strict_types=1);
  *
  *   routes/public.php         GET /api/health, GET /api/auth/config, GET /api/translations/{code}
  *   routes/progress.php       GET /api/state, PUT /api/progress, PUT /api/path, POST /api/sessions
- *   routes/translations.php   the owner's: GET, POST /api/owner/languages,
- *                             PUT, DELETE /api/owner/languages/{code},
- *                             GET, PUT /api/owner/translations,
- *                             GET /api/owner/translations/{code}/export,
- *                             PUT /api/owner/translations/{code}/import
+ *                             (a person's or - when the IAM says sign-in is not required - a
+ *                             visitor's, api/visitors.php), GET /api/me/export, POST /api/me/import
+ *   routes/visitor.php        POST /api/visitor/move: at sign-in, this browser's visitor's progress
+ *                             into the person's account (the token and the key)
+ *   routes/admin.php          the admin panel's, by role - EDITOR or ADMIN:
+ *                             GET /api/admin/languages, GET, PUT /api/admin/translations,
+ *                             GET /api/admin/translations/{code}/export,
+ *                             PUT /api/admin/translations/{code}/import;
+ *                             ADMIN: POST /api/admin/languages,
+ *                             PUT, DELETE /api/admin/languages/{code},
+ *                             GET /api/admin/people, DELETE /api/admin/people/{id},
+ *                             GET /api/admin/migrations, POST /api/admin/migrations/apply
  *
  * The middleware, outermost first: security headers -> the error handler ->
  * the setup gate (503 not_set_up without config/*.local.php) -> routing -> on
- * the progress routes, the schema check and the person the request acts as;
- * on the app's words, the schema check, and for the owner's routes the person
- * and then whether they are the owner.
+ * the progress routes, the schema check (but for POST /api/sessions) and the
+ * person or visitor the request comes from (meddleware/auth.php); on the move, the schema check and
+ * the person; on the app's words, the schema check; on the admin
+ * routes, the schema check (but for the migrations' own) and then the person
+ * and their role, on each group.
+ *
+ * After the answer is written, the work a request queued for then
+ * (api/after_response.php: the sweep of visitors unseen for 30 days).
  */
 
 require_once __DIR__ . '/bootstrap.php';
@@ -53,7 +65,8 @@ function buildPianoApp(): \Slim\App
 
     require __DIR__ . '/routes/public.php';
     require __DIR__ . '/routes/progress.php';
-    require __DIR__ . '/routes/translations.php';
+    require __DIR__ . '/routes/visitor.php';
+    require __DIR__ . '/routes/admin.php';
 
     // Added in this order, so they run the other way round.
     $app->add(setupGate());
@@ -93,4 +106,5 @@ function buildPianoApp(): \Slim\App
 // The tests build the app themselves; nothing is served while they load this file.
 if (!defined('PIANO_NO_RUN')) {
     buildPianoApp()->run();
+    afterResponseRun();
 }

@@ -1,11 +1,18 @@
-import { signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { MockInstance } from 'vitest';
+import { AuthService } from '../../core/auth/auth.service';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { ProgressMap, Session } from '../../core/music/music.types';
+import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { provideTestTranslations } from '../../core/testing/test-translations';
+import { OwnProgressComponent } from './own-progress/own-progress.component';
 import { StatsPageComponent, computeStreak, localDayKey, practiceMinutes } from './stats-page.component';
+
+/** The own progress file's card has a spec of its own (own-progress.component.spec.ts): here it stands empty. */
+@Component({ selector: 'app-own-progress', changeDetection: ChangeDetectionStrategy.OnPush, template: '' })
+class OwnProgressStandIn {}
 
 function session(startedAt: string, endedAt?: string): Session {
   return { id: startedAt, recordedAt: endedAt ?? startedAt, mode: 'trainer', startedAt, endedAt };
@@ -71,6 +78,8 @@ const ENGLISH: Record<string, string> = {
   'path.step.read.short': 'Read',
   'path.step.tempo.short': 'In time',
   'path.step.song.short': 'Song',
+  'ownProgress.visitor': 'Sign in to save your progress to a file, or to bring it back from one.',
+  'signIn.button': 'Sign in',
 };
 
 const SLOVAK: Record<string, string> = {
@@ -91,6 +100,8 @@ const SLOVAK: Record<string, string> = {
   'path.step.read.short': 'Čítanie',
   'path.step.tempo.short': 'V rytme',
   'path.step.song.short': 'Skladba',
+  'ownProgress.visitor': 'Prihlás sa a môžeš si postup uložiť do súboru alebo ho zo súboru obnoviť.',
+  'signIn.button': 'Prihlásiť sa',
 };
 
 describe('Stats: the page in the language of the reader', () => {
@@ -99,6 +110,7 @@ describe('Stats: the page in the language of the reader', () => {
   let warn: MockInstance;
   const sessions = signal<Session[]>([]);
   const progress = signal<ProgressMap>({});
+  const boot = { signIn: vi.fn(async () => undefined) };
 
   /** "Recent sessions", line by line: [when, mode, score, accuracy, timing] as the page reads. */
   const rows = (): string[][] =>
@@ -111,14 +123,19 @@ describe('Stats: the page in the language of the reader', () => {
     });
   const tile = (index: number): string => (host.querySelectorAll('.stat-tile .value')[index].textContent ?? '').trim();
 
-  async function show(list: Session[], language: 'en' | 'sk' = 'sk'): Promise<void> {
+  async function show(list: Session[], language: 'en' | 'sk' = 'sk', signedIn = true): Promise<void> {
     sessions.set(list);
     TestBed.configureTestingModule({
       providers: [
         language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH),
         { provide: ProgressStore, useValue: { progress, sessions, knownNotes: signal<number[]>([]) } },
+        { provide: BootService, useValue: boot },
       ],
     });
+    TestBed.overrideComponent(StatsPageComponent, { remove: { imports: [OwnProgressComponent] }, add: { imports: [OwnProgressStandIn] } });
+    const auth = TestBed.inject(AuthService);
+    (auth as unknown as { authenticated: { set(value: boolean): void } }).authenticated.set(signedIn);
+    auth.user.set(signedIn ? { sub: '7', preferred_username: 'mia', email: null, email_verified: true, locale: null, roles: ['MEMBER'] } : null);
     fixture = TestBed.createComponent(StatsPageComponent);
     host = fixture.nativeElement;
     await fixture.whenStable();
@@ -235,6 +252,25 @@ describe('Stats: the page in the language of the reader', () => {
       '80%',
       '90ms',
     ]);
+  });
+
+  it('has the progress file’s card for somebody signed in - and, for a visitor, the sign-in in its place', async () => {
+    await show([], 'sk');
+    expect(host.querySelector('app-own-progress')).not.toBeNull();
+    expect(host.querySelector('#own-progress-visitor')).toBeNull();
+
+    TestBed.resetTestingModule();
+    boot.signIn.mockClear();
+    await show([], 'sk', false);
+    expect(host.querySelector('app-own-progress')).toBeNull();
+    expect(host.querySelector('#own-progress-visitor p')?.textContent).toBe('Prihlás sa a môžeš si postup uložiť do súboru alebo ho zo súboru obnoviť.');
+    const button = host.querySelector<HTMLButtonElement>('#own-progress-sign-in')!;
+    expect(button.textContent).toBe('Prihlásiť sa');
+    button.click();
+    expect(boot.signIn).toHaveBeenCalledTimes(1);
+    // The rest of the page is the visitor's progress, as anybody's.
+    expect(host.querySelector('h2')?.textContent?.trim()).toBe('Tvoj postup');
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('has a dash for the accuracy before the first answer, and a sentence where the table would be', async () => {

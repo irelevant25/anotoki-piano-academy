@@ -18,7 +18,7 @@ const ROUTES = [
   { path: '', title: 'title.learn', component: TestPageComponent },
   { path: 'trainer', title: 'title.trainer', component: TestPageComponent },
   { path: 'stats', title: 'title.stats', component: TestPageComponent },
-  { path: 'translations', title: 'Translations', component: TestPageComponent },
+  { path: 'admin/translations', title: 'Translations', component: TestPageComponent },
   { path: 'untitled', component: TestPageComponent },
 ];
 
@@ -50,9 +50,9 @@ describe('PianoTitleStrategy', () => {
     expect(title()).toBe('Learn · Piano Academy');
   });
 
-  it('writes any other title as it is: the owner’s pages are English', async () => {
-    await TestBed.inject(Router).navigateByUrl('/translations');
-    expect(title()).toBe('Translations · Piano Academy');
+  it('writes any other title as it is - the admin panel’s pages are English - and says they are the admin panel’s', async () => {
+    await TestBed.inject(Router).navigateByUrl('/admin/translations');
+    expect(title()).toBe('Translations · Admin panel · Piano Academy');
   });
 
   it('shows a key that has no string as the key - with a bundle in memory', async () => {
@@ -78,7 +78,7 @@ describe('PianoTitleStrategy', () => {
 
 describe('PianoTitleStrategy with no strings at all', () => {
   // The app is not set up: nothing was asked for, and a first visit has nothing kept either.
-  const auth = { usesSignIn: () => false, user: () => null, signedIn: () => false, onAuthChange: () => () => undefined };
+  const auth = { user: () => null, signedIn: () => false, onAuthChange: () => () => undefined };
   const http = { get: vi.fn() };
 
   beforeEach(() => {
@@ -102,8 +102,8 @@ describe('PianoTitleStrategy with no strings at all', () => {
     expect(title()).toBe('Learn · Piano Academy');
     await TestBed.inject(Router).navigateByUrl('/trainer');
     expect(title()).toBe('Note Trainer · Piano Academy');
-    await TestBed.inject(Router).navigateByUrl('/translations');
-    expect(title()).toBe('Translations · Piano Academy');
+    await TestBed.inject(Router).navigateByUrl('/admin/translations');
+    expect(title()).toBe('Translations · Admin panel · Piano Academy');
 
     expect(warn).not.toHaveBeenCalled();
     expect(http.get).not.toHaveBeenCalled();

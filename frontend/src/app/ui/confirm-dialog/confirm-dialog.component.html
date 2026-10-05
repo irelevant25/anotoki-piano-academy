@@ -1,0 +1,12 @@
+<dialog #dialog class="confirm" [attr.aria-labelledby]="name() + '-title'" [attr.aria-describedby]="name() + '-text'" (close)="closed()" (click)="backdropClick($event)">
+    <div class="confirm-body">
+        <h2 [id]="name() + '-title'">{{ question()?.title }}</h2>
+        <p [id]="name() + '-text'">{{ question()?.message }}</p>
+        <div class="confirm-actions">
+            <button type="button" class="confirm-no" data-answer="no" autofocus (click)="answer(false)">{{ question()?.cancelLabel || "Cancel" }}</button>
+            <button type="button" class="confirm-yes" data-answer="yes" [class.is-danger]="question()?.danger" [class.btn-primary]="!question()?.danger" (click)="answer(true)">
+                {{ question()?.confirmLabel }}
+            </button>
+        </div>
+    </div>
+</dialog>

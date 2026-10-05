@@ -14,3 +14,23 @@
   margin: 0.5rem 0 1rem;
   text-decoration: none;
 }
+
+// An administrator's way to the Migrations page (English, as the admin panel).
+.admin-update {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+#open-migrations {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-alt);
+  color: var(--text);
+  font-weight: 600;
+
+  &:hover {
+    border-color: var(--text-dim);
+  }
+}

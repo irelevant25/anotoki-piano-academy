@@ -5,7 +5,7 @@ import { AuthService } from '../auth/auth.service';
 import { Session } from '../music/music.types';
 import { ApiError, ApiService } from './api.service';
 
-const OUTBOX = 'piano-learning:unsaved-sessions:local';
+const OUTBOX = 'piano-learning:unsaved-sessions:5';
 
 /** Lets the service's awaits run until it has sent its next request. */
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -14,19 +14,21 @@ function stored(id: string): Session {
   return { id, recordedAt: '2026-09-28T10:00:00.000Z', mode: 'trainer', attempts: 12, correct: 10, accuracy: 83 };
 }
 
+/** Who is signed in, as far as ApiService asks: the IAM user id - null for nobody. */
+let signedInAs: string | null = '5';
+const auth = { userKey: () => signedInAs };
+
 describe('ApiService', () => {
   let api: ApiService;
   let http: HttpTestingController;
-  let auth: AuthService;
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    signedInAs = '5';
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: auth }] });
     api = TestBed.inject(ApiService);
     http = TestBed.inject(HttpTestingController);
-    auth = TestBed.inject(AuthService);
-    auth.mode.set('none'); // no sign-in: the page's user is 'local'
-    api.setDataOwner('local');
+    api.setDataOwner('5');
   });
 
   afterEach(() => {
@@ -101,8 +103,10 @@ describe('ApiService', () => {
   it('never sends anything for another person than the one the page loaded', async () => {
     api.setDataOwner('7');
     await expect(api.saveProgress({})).rejects.toMatchObject({ status: 409, wrongUser: true });
-    auth.mode.set(null);
+    await expect(api.exportMyProgress()).rejects.toMatchObject({ status: 409, wrongUser: true });
+    signedInAs = null;
     await expect(api.fetchState()).rejects.toMatchObject({ status: 401 });
+    await expect(api.previewImport('{}')).rejects.toMatchObject({ status: 401 });
     http.expectNone('/api/progress');
     http.expectNone('/api/state');
   });
@@ -114,22 +118,22 @@ describe('ApiService', () => {
     await expect(state).rejects.toMatchObject({ status: 503, code: 'not_set_up' });
   });
 
-  describe("the owner's calls", () => {
+  describe("the admin panel's calls", () => {
     const ENGLISH = { code: 'en', name: 'English', nativeName: 'English', enabled: true, sortOrder: 1, seeded: true };
     const CZECH = { code: 'cs', name: 'Czech', nativeName: 'Čeština', enabled: false, sortOrder: 3, seeded: false };
     const GRID = { languages: [ENGLISH], keys: [{ name: 'common.loading', description: null, values: { en: 'Loading…' } }] };
 
-    it('read and change the languages under /api/owner/languages', async () => {
+    it('read and change the languages under /api/admin/languages', async () => {
       const list = api.languages();
       await settle();
-      const listed = http.expectOne('/api/owner/languages');
+      const listed = http.expectOne('/api/admin/languages');
       expect(listed.request.method).toBe('GET');
       listed.flush({ languages: [ENGLISH, CZECH] });
       await expect(list).resolves.toEqual([ENGLISH, CZECH]);
 
       const added = api.createLanguage({ code: 'cs', name: 'Czech', nativeName: 'Čeština', enabled: false });
       await settle();
-      const post = http.expectOne('/api/owner/languages');
+      const post = http.expectOne('/api/admin/languages');
       expect(post.request.method).toBe('POST');
       expect(post.request.body).toEqual({ code: 'cs', name: 'Czech', nativeName: 'Čeština', enabled: false });
       post.flush({ language: CZECH }, { status: 201, statusText: 'Created' });
@@ -137,7 +141,7 @@ describe('ApiService', () => {
 
       const changed = api.updateLanguage('cs', { enabled: true });
       await settle();
-      const put = http.expectOne('/api/owner/languages/cs');
+      const put = http.expectOne('/api/admin/languages/cs');
       expect(put.request.method).toBe('PUT');
       expect(put.request.body).toEqual({ enabled: true });
       put.flush({ language: { ...CZECH, enabled: true } });
@@ -145,35 +149,35 @@ describe('ApiService', () => {
 
       const gone = api.deleteLanguage('cs');
       await settle();
-      const removed = http.expectOne('/api/owner/languages/cs');
+      const removed = http.expectOne('/api/admin/languages/cs');
       expect(removed.request.method).toBe('DELETE');
       removed.flush(null, { status: 204, statusText: 'No Content' });
       await expect(gone).resolves.toBeUndefined();
     });
 
-    it('read, save, export and import the strings under /api/owner/translations', async () => {
+    it('read, save, export and import the strings under /api/admin/translations', async () => {
       const grid = api.translationGrid();
       await settle();
-      http.expectOne({ method: 'GET', url: '/api/owner/translations' }).flush(GRID);
+      http.expectOne({ method: 'GET', url: '/api/admin/translations' }).flush(GRID);
       await expect(grid).resolves.toEqual(GRID);
 
       // Only the changed cells go, wrapped in `values`.
       const saved = api.saveTranslations({ 'common.loading': { en: 'Wait…' } });
       await settle();
-      const save = http.expectOne({ method: 'PUT', url: '/api/owner/translations' });
+      const save = http.expectOne({ method: 'PUT', url: '/api/admin/translations' });
       expect(save.request.body).toEqual({ values: { 'common.loading': { en: 'Wait…' } } });
       save.flush(GRID);
       await expect(saved).resolves.toEqual(GRID);
 
       const exported = api.exportTranslations('sk');
       await settle();
-      http.expectOne({ method: 'GET', url: '/api/owner/translations/sk/export' }).flush({ 'common.loading': 'Načítava sa…' });
+      http.expectOne({ method: 'GET', url: '/api/admin/translations/sk/export' }).flush({ 'common.loading': 'Načítava sa…' });
       await expect(exported).resolves.toEqual({ 'common.loading': 'Načítava sa…' });
 
       // The file's strings go as they are: one flat object.
       const imported = api.importTranslations('sk', { 'common.loading': 'Načítavam…' });
       await settle();
-      const put = http.expectOne({ method: 'PUT', url: '/api/owner/translations/sk/import' });
+      const put = http.expectOne({ method: 'PUT', url: '/api/admin/translations/sk/import' });
       expect(put.request.body).toEqual({ 'common.loading': 'Načítavam…' });
       put.flush(GRID);
       await expect(imported).resolves.toEqual(GRID);
@@ -182,10 +186,10 @@ describe('ApiService', () => {
     it('go through the same gate as every call: nothing is sent for another person, or for nobody', async () => {
       api.setDataOwner('7');
       await expect(api.saveTranslations({ 'common.loading': { en: 'x' } })).rejects.toMatchObject({ status: 409, wrongUser: true, details: null });
-      auth.mode.set(null);
+      signedInAs = null;
       await expect(api.languages()).rejects.toMatchObject({ status: 401, details: null });
-      http.expectNone('/api/owner/translations');
-      http.expectNone('/api/owner/languages');
+      http.expectNone('/api/admin/translations');
+      http.expectNone('/api/admin/languages');
     });
 
     it("keep the answer's body of a refusal as `details`: the server's sentence, and the key and language it is about", async () => {
@@ -198,7 +202,7 @@ describe('ApiService', () => {
       };
       const saved = api.saveTranslations({ 'common.loading': { sk: '{pocet}' } });
       await settle();
-      http.expectOne('/api/owner/translations').flush(body, { status: 422, statusText: 'Unprocessable Content' });
+      http.expectOne('/api/admin/translations').flush(body, { status: 422, statusText: 'Unprocessable Content' });
 
       await expect(saved).rejects.toMatchObject({ status: 422, code: 'unknown_placeholder', wrongUser: false, details: body });
     });
@@ -206,17 +210,17 @@ describe('ApiService', () => {
     it('have no details when the answer is no object: a text, a list, or no answer at all', async () => {
       const text = api.translationGrid();
       await settle();
-      http.expectOne('/api/owner/translations').flush('Bad Gateway', { status: 502, statusText: 'Bad Gateway' });
+      http.expectOne('/api/admin/translations').flush('Bad Gateway', { status: 502, statusText: 'Bad Gateway' });
       await expect(text).rejects.toMatchObject({ status: 502, code: null, details: null });
 
       const list = api.translationGrid();
       await settle();
-      http.expectOne('/api/owner/translations').flush(['no'], { status: 500, statusText: 'Server Error' });
+      http.expectOne('/api/admin/translations').flush(['no'], { status: 500, statusText: 'Server Error' });
       await expect(list).rejects.toMatchObject({ status: 500, code: null, details: null });
 
       const none = api.translationGrid();
       await settle();
-      http.expectOne('/api/owner/translations').error(new ProgressEvent('error'));
+      http.expectOne('/api/admin/translations').error(new ProgressEvent('error'));
       await expect(none).rejects.toMatchObject({ status: 0, code: null, details: null });
     });
   });

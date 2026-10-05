@@ -11,7 +11,28 @@ declare(strict_types=1);
  * core/music/) and saves the whole document; the server checks its shape and
  * keeps it. The documents go back out as the database's JSON text, never
  * through PHP arrays, so the empty object {} stays {}.
+ *
+ * A person's progress has a generation (users.progress_generation, migration
+ * 004): GET /api/state hands it out, and a save of a whole document names it
+ * (the Progress-Generation header). Only an import (api/transfer.php), an
+ * administrator's delete (api/people.php) and a visitor's move at sign-in
+ * that adds notes or steps (api/visitors.php) start a new one, so a tab that
+ * loaded the progress before any of them is refused (409 progress_changed) instead
+ * of writing the old documents back. Ordinary saves keep the generation: two
+ * saves of one tab, or of two tabs learning side by side, never refuse each
+ * other - the last one wins, as before.
  */
+
+/** The request header a save of a whole document names its generation in. */
+const GENERATION_HEADER = 'Progress-Generation';
+
+/**
+ * The tables that hold a person's (or a visitor's) data by user_id, children
+ * of users with no ON DELETE: what a delete of somebody empties before their
+ * users row (api/people.php peopleDelete(), the visitors' sweep in
+ * api/visitors.php). A new table of a person's data goes here.
+ */
+const STORE_PERSON_TABLES = ['sessions', 'path_progress', 'progress', 'imports'];
 
 /** A session row as the browser knows it: its fields, the server's id, and when it was recorded. */
 const STORE_SESSION_JSON = "(data || jsonb_build_object('id', id, 'recordedAt', to_char(recorded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"')))";
@@ -42,21 +63,55 @@ const SESSION_FIELDS = [
 
 /* ------------------------------------------------------------- reading */
 
-/** Everything the browser starts with, as JSON text: {"progress":…,"sessions":[…],"path":…}. */
-function storeStateJson(int $userId): string
+/**
+ * Everything the browser starts with, as JSON text: {"progress":…,"sessions":[…],"path":…},
+ * and with $withGeneration also "generation": the generation those documents
+ * are of (null when the person has no users row). One statement, so one
+ * snapshot: the documents and their generation never come from either side
+ * of an import.
+ */
+function storeStateJson(int $userId, bool $withGeneration = false): string
 {
     $row = dbOne(
         "SELECT
             coalesce((SELECT notes::text FROM progress WHERE user_id = ?), '{}') AS progress,
             coalesce((SELECT jsonb_agg(" . STORE_SESSION_JSON . " ORDER BY seq)::text FROM sessions WHERE user_id = ?), '[]') AS sessions,
-            coalesce((SELECT data::text FROM path_progress WHERE user_id = ?), '{\"steps\": {}}') AS path",
+            coalesce((SELECT data::text FROM path_progress WHERE user_id = ?), '{\"steps\": {}}') AS path"
+            . ($withGeneration ? ', (SELECT progress_generation FROM users WHERE id = ?) AS generation' : ''),
+        $withGeneration ? [$userId, $userId, $userId, $userId] : [$userId, $userId, $userId]
+    );
+    $generation = $withGeneration ? ',"generation":' . ($row['generation'] === null ? 'null' : (string) (int) $row['generation']) : '';
+
+    return '{"progress":' . $row['progress'] . ',"sessions":' . $row['sessions'] . ',"path":' . $row['path'] . $generation . '}';
+}
+
+/**
+ * How much progress this person has: notes with a state, path steps with a
+ * result, sessions. An account whose documents are empty has none - the app
+ * saves an empty document as readily as a full one.
+ *
+ * @return array{notes: int, steps: int, sessions: int}
+ */
+function storeProgressCounts(int $userId): array
+{
+    $row = dbOne(
+        "SELECT
+            (SELECT count(*) FROM progress p, jsonb_object_keys(p.notes) WHERE p.user_id = ?) AS notes,
+            (SELECT count(*) FROM path_progress pp, jsonb_object_keys(pp.data -> 'steps') WHERE pp.user_id = ?) AS steps,
+            (SELECT count(*) FROM sessions WHERE user_id = ?) AS sessions",
         [$userId, $userId, $userId]
     );
 
-    return '{"progress":' . $row['progress'] . ',"sessions":' . $row['sessions'] . ',"path":' . $row['path'] . '}';
+    return ['notes' => (int) $row['notes'], 'steps' => (int) $row['steps'], 'sessions' => (int) $row['sessions']];
 }
 
-/** Does this person have any progress, path results or sessions? */
+/** Do these counts (storeProgressCounts()) hold any progress at all? */
+function storeCountsHaveProgress(array $counts): bool
+{
+    return $counts['notes'] > 0 || $counts['steps'] > 0 || $counts['sessions'] > 0;
+}
+
+/** Does this person have any rows of progress, path results or sessions - empty documents too? */
 function storeHasData(int $userId): bool
 {
     return (bool) dbValue(
@@ -189,9 +244,75 @@ function storeIsIsoTime(mixed $value): bool
     }
 }
 
+/* ------------------------------------------------------- the generation */
+
+/**
+ * The generation a save names (GENERATION_HEADER's value): a whole number
+ * from 1. Missing or anything else: 428 generation_required - a save that
+ * does not say which progress it was made to could write over an import.
+ * With $allowZero (a visitor's save, or one that would make a visitor -
+ * api/visitors.php) also 0: "no progress anywhere yet", what GET /api/state
+ * answers somebody who has not signed in and has no visitor yet.
+ */
+function storeGenerationFrom(string $header, bool $allowZero = false): int
+{
+    $value = trim($header);
+    if (!preg_match('/^[1-9][0-9]{0,17}$/D', $value) && !($allowZero && $value === '0')) {
+        throw new ApiError(428, 'generation_required', 'Say which progress this save was made to: the ' . GENERATION_HEADER . ' header, with the generation GET /api/state gave.');
+    }
+
+    return (int) $value;
+}
+
+/**
+ * Inside a transaction: takes this person's users row for the rest of it -
+ * FOR UPDATE, so an import, an administrator's delete and a save of this
+ * person take turns - and answers their generation now, or null when they
+ * have no users row (deleted a moment ago).
+ */
+function storeLockGeneration(int $userId): ?int
+{
+    $generation = dbValue('SELECT progress_generation FROM users WHERE id = ? FOR UPDATE', [$userId]);
+
+    return $generation === null ? null : (int) $generation;
+}
+
+/**
+ * Inside a transaction: the save was made to this person's progress as it is
+ * now - or 409 progress_changed (with the generation now, or null), and
+ * nothing is saved. Holds the person's users row (storeLockGeneration()).
+ */
+function storeRequireGeneration(int $userId, int $generation): void
+{
+    $current = storeLockGeneration($userId);
+    if ($current !== $generation) {
+        throw storeProgressChanged($current);
+    }
+}
+
+/** 409 progress_changed: the save was made to another generation than $current (null: no users row). */
+function storeProgressChanged(?int $current): ApiError
+{
+    return new ApiError(409, 'progress_changed', 'Your progress was replaced or deleted after this page loaded it, so this was not saved. Load the page again.', [], ['generation' => $current]);
+}
+
+/**
+ * Inside a transaction that holds the person's users row: a new generation
+ * of their progress (an import, a delete). Every tab that loaded it before
+ * is refused its next save. The numbers come from one sequence and are
+ * never handed out twice.
+ */
+function storeNewGeneration(int $userId): int
+{
+    return (int) dbValue("UPDATE users SET progress_generation = nextval('progress_generation') WHERE id = ? RETURNING progress_generation", [$userId]);
+}
+
 /* ------------------------------------------------------------- writing */
 
-/** Replaces this person's note progress with the document the browser sent. */
+/**
+ * Replaces this person's note progress with the document the browser sent.
+ * (The routes check its generation first: storeRequireGeneration().)
+ */
 function storeSaveProgress(int $userId, stdClass $notes): void
 {
     dbExec(
@@ -216,15 +337,21 @@ function storeSavePath(int $userId, stdClass $path): void
  * [true, the stored session as JSON text]. With a $requestKey that was
  * already used - the browser retrying a POST whose answer it never got - it
  * stores nothing and returns [false, the session stored the first time].
+ * $beforeAdding runs in the same transaction, after that look and before the
+ * insert: a visitor's row taken and its rounds counted (api/visitors.php) -
+ * it throws to refuse.
  */
-function storeAddSession(int $userId, array $session, ?string $requestKey = null): array
+function storeAddSession(int $userId, array $session, ?string $requestKey = null, ?callable $beforeAdding = null): array
 {
-    return dbTx(static function () use ($userId, $session, $requestKey): array {
+    return dbTx(static function () use ($userId, $session, $requestKey, $beforeAdding): array {
         if ($requestKey !== null) {
             $stored = storeSessionByKey($userId, $requestKey);
             if ($stored !== null) {
                 return [false, $stored];
             }
+        }
+        if ($beforeAdding !== null) {
+            $beforeAdding();
         }
 
         $json = dbValue(

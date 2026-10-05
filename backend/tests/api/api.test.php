@@ -1,25 +1,38 @@
 <?php
 
 // The HTTP API through the real server (router.php under PHP's built-in
-// server) with sign-in off - the owner's own computer - on this file's
-// throwaway database: the answers the browser expects, the shapes checked,
-// the session fields whitelisted and bounded, the files of the built app, and
-// the answer of an app that is not set up.
+// server) on this file's throwaway database, every call signed in as one
+// learner (a token with no role): the answers the browser expects, the shapes
+// checked, the session fields whitelisted and bounded, the files of the built
+// app, and the answer of an app that is not set up or is behind.
 
 declare(strict_types=1);
 
 require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database and settings
 
-const OWNER = 1;
+const LEARNER = 1;
 
 $GLOBALS['app'] = null;
 before(function (): void {
-    $GLOBALS['app'] = start_app(test_auth_none(OWNER));
+    $GLOBALS['app'] = start_app(test_auth_iam());
 });
 
+/**
+ * A request signed in as the learner (unless $headers bring an Authorization
+ * of their own). A save of a whole document names the generation of the
+ * progress, as a tab that has just loaded it does - unless $headers name one
+ * of their own (tests/api/me.test.php holds the generation's rules).
+ */
 function api(string $method, string $url, mixed $body = null, array $headers = []): array
 {
-    return call($GLOBALS['app']['base'], $method, $url, $body, $headers);
+    $has = static fn(string $name): bool => (bool) array_filter($headers, static fn(string $header): bool => stripos($header, "$name:") === 0);
+    $own = $has('Authorization');
+    if ($method === 'PUT' && in_array($url, ['/api/progress', '/api/path'], true) && !$has(GENERATION_HEADER)) {
+        $state = call($GLOBALS['app']['base'], 'GET', '/api/state', null, $own ? $headers : bearer(test_token(LEARNER)));
+        $headers[] = GENERATION_HEADER . ': ' . ($state['body']['generation'] ?? '');
+    }
+
+    return call($GLOBALS['app']['base'], $method, $url, $body, $own ? $headers : array_merge($headers, bearer(test_token(LEARNER))));
 }
 
 /** A note state as the frontend's SRS service makes it. */
@@ -32,31 +45,49 @@ function note(int $midi, array $extra = []): array
     ];
 }
 
-test('health and the sign-in settings: no login here', function (): void {
-    $health = api('GET', '/api/health');
+test('health and the sign-in settings: the IAM, and nothing about a mode', function (): void {
+    $health = call($GLOBALS['app']['base'], 'GET', '/api/health');
     assert_same(200, $health['status']);
-    assert_same(['ok' => true, 'auth' => 'none', 'database' => dbName(), 'pending' => []], $health['body']);
+    assert_same(['ok' => true, 'database' => dbName(), 'pending' => []], $health['body']);
     assert_same('no-store', $health['headers']['cache-control'] ?? null);
     assert_same('nosniff', $health['headers']['x-content-type-options'] ?? null);
     assert_match("/default-src 'none'/", $health['headers']['content-security-policy'] ?? '');
-    assert_same(['mode' => 'none'], api('GET', '/api/auth/config')['body']);
+    assert_same(['issuer' => TEST_ISSUER, 'clientId' => TEST_CLIENT, 'loginRequired' => true], call($GLOBALS['app']['base'], 'GET', '/api/auth/config')['body']);
 });
 
-test('no login here, so only for this computer by name: another host name is refused', function (): void {
+test('nobody gets in without a token that checks out - by any name, through any proxy - and a refused one writes nothing', function (): void {
     $port = parse_url($GLOBALS['app']['base'], PHP_URL_PORT);
-    $refused = api('GET', '/api/state', null, ["Host: rebound.example:$port"]);
-    assert_same(403, $refused['status'], 'a page elsewhere whose name points at 127.0.0.1');
-    assert_same('local_only', $refused['body']['code'] ?? null);
-    assert_same(403, api('PUT', '/api/progress', new stdClass(), ["Host: rebound.example:$port"])['status']);
-    assert_same(200, api('GET', '/api/state', null, ["Host: localhost:$port"])['status'], 'localhost is this computer');
-    assert_same(403, api('GET', '/api/state', null, ['X-Forwarded-For: 203.0.113.9'])['status'], 'relayed by a proxy: not this computer');
+    $routes = [['GET', '/api/state', null], ['PUT', '/api/progress', ['60' => note(60)]], ['PUT', '/api/path', ['steps' => new stdClass()]], ['POST', '/api/sessions', ['mode' => 'trainer', 'attempts' => 1, 'correct' => 1, 'accuracy' => 100]],
+        ['GET', '/api/me/export', null], ['POST', '/api/me/import?replace=true', ['format' => 'piano-academy-export', 'version' => 1, 'progress' => ['60' => note(60)]]]];
+    $bad = [
+        'no token' => [],
+        'no token, from this computer by name' => ["Host: localhost:$port"],
+        'expired' => bearer(test_token(LEARNER, [], ['exp' => time() - 3600])),
+        'from another issuer' => bearer(test_token(LEARNER, [], ['iss' => 'https://iam.elsewhere.example'])),
+        'Bearer with nothing after it' => ['Authorization: Bearer '],
+        'another scheme' => ['Authorization: Basic YWRtaW46YWRtaW4='],
+    ];
+    foreach ($routes as [$method, $url, $body]) {
+        foreach ($bad as $what => $headers) {
+            $answer = call($GLOBALS['app']['base'], $method, $url, $body, $headers);
+            assert_same(401, $answer['status'], "$method $url, $what");
+        }
+    }
+    assert_same(0, (int) dbValue('SELECT count(*) FROM users'), 'nobody was recorded');
+    assert_same(0, (int) dbValue('SELECT count(*) FROM progress') + (int) dbValue('SELECT count(*) FROM path_progress') + (int) dbValue('SELECT count(*) FROM sessions'), 'nothing was written');
+    // A good token is the same answer whatever name or proxy it came through: sign-in is the IAM's, not the address's.
+    assert_same(200, api('GET', '/api/state', null, ["Host: rebound.example:$port"])['status'], 'by any name');
+    assert_same(200, api('GET', '/api/state', null, ['X-Forwarded-For: 203.0.113.9'])['status'], 'through a proxy');
+    dbExec('DELETE FROM users');
 });
 
 test('a fresh start: an empty progress object stays an object', function (): void {
     $state = api('GET', '/api/state');
     assert_same(200, $state['status']);
-    assert_same('{"progress":{},"sessions":[],"path":{"steps": {}}}', $state['raw'], 'exactly what the browser expects');
-    assert_same('1', (string) dbValue('SELECT count(*) FROM users WHERE id = ?', [OWNER]), 'the owner has a users row now');
+    $generation = (int) dbValue('SELECT progress_generation FROM users WHERE id = ?', [LEARNER]);
+    assert_true($generation > 0, 'the learner\'s progress has a generation');
+    assert_same('{"progress":{},"sessions":[],"path":{"steps": {}},"generation":' . $generation . '}', $state['raw'], 'exactly what the browser expects');
+    assert_same('1', (string) dbValue('SELECT count(*) FROM users WHERE id = ?', [LEARNER]), 'the learner has a users row now');
 });
 
 test('PUT /api/progress: the whole object, stored as sent', function (): void {
@@ -107,7 +138,7 @@ test('PUT /api/path: an object with a "steps" object', function (): void {
         assert_same(400, api('PUT', '/api/path', $bad)['status'], "bad path #$i");
     }
     assert_same(204, api('PUT', '/api/path', ['steps' => new stdClass()])['status']);
-    assert_match('/"path":\{"steps": \{\}\}\}$/', api('GET', '/api/state')['raw'], 'empty steps stay an object');
+    assert_match('/"path":\{"steps": \{\}\},"generation":\d+\}$/', api('GET', '/api/state')['raw'], 'empty steps stay an object');
     assert_same(204, api('PUT', '/api/path', $path)['status']);
 });
 
@@ -243,7 +274,7 @@ test('the built app beside the API: its files as they are, its own routes as ind
     assert_same(200, api('GET', '/setup.php')['status'], 'the setup page');
 });
 
-test('an app that is not set up says so - to the API, the app and the launchers alike', function (): void {
+test('an app that is not set up says so - to the API and the app alike', function (): void {
     $bare = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
         'PIANO_TEST_CONFIG' => test_temp_dir('no-config'),
         'PIANO_FRONTEND_DIST' => test_frontend_build(),
@@ -261,22 +292,29 @@ test('an app that is not set up says so - to the API, the app and the launchers 
     ($bare['stop'])();
 });
 
-test('a database behind the code: the app does not start on it', function (): void {
+test('a database behind the code: the app does not start on it, and says it needs an update', function (): void {
     $empty = test_empty_db('behind');
     $behind = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
-        'PIANO_TEST_CONFIG' => test_config_dir(test_auth_none(), $empty),
+        'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam(), $empty),
         'PIANO_FRONTEND_DIST' => test_frontend_build(),
     ], '/api/health');
     assert_same(migrationFiles(), call($behind['base'], 'GET', '/api/health')['body']['pending']);
-    $state = call($behind['base'], 'GET', '/api/state');
-    assert_same(503, $state['status']);
-    assert_same('not_set_up', $state['body']['code']);
-    assert_match('/needs an update/', $state['body']['error']);
+    foreach (['signed in' => bearer(test_token(LEARNER)), 'nobody' => []] as $who => $headers) {
+        $state = call($behind['base'], 'GET', '/api/state', null, $headers);
+        assert_same([503, 'not_set_up', true], [$state['status'], $state['body']['code'] ?? null, $state['body']['update'] ?? null], $who);
+        assert_match('/needs an update/', $state['body']['error'], $who);
+    }
+    // A tab left open while the code moved on: its saves and its own file are told the same, and nothing is written.
+    foreach ([['PUT', '/api/progress', new stdClass()], ['PUT', '/api/path', ['steps' => new stdClass()]], ['GET', '/api/me/export', null], ['POST', '/api/me/import', ['format' => 'piano-academy-export']]] as [$method, $url, $body]) {
+        $answer = call($behind['base'], $method, $url, $body, array_merge(bearer(test_token(LEARNER)), [GENERATION_HEADER . ': 1']));
+        assert_same([503, 'not_set_up', true], [$answer['status'], $answer['body']['code'] ?? null, $answer['body']['update'] ?? null], "$method $url");
+    }
     ($behind['stop'])();
 });
 
-test('the owner\'s data sits under the owner\'s id, and the server logged no PHP problem', function (): void {
-    assert_same((int) dbValue('SELECT count(*) FROM sessions'), (int) dbValue('SELECT count(*) FROM sessions WHERE user_id = ?', [OWNER]));
-    assert_same(['60', '62'], array_column(dbAll('SELECT jsonb_object_keys(notes) AS k FROM progress WHERE user_id = ? ORDER BY 1', [OWNER]), 'k'));
-    assert_same([], server_problems($GLOBALS['app']));
+test('the learner\'s data sits under the learner\'s id, and the server logged no PHP problem', function (): void {
+    assert_same((int) dbValue('SELECT count(*) FROM sessions'), (int) dbValue('SELECT count(*) FROM sessions WHERE user_id = ?', [LEARNER]));
+    assert_same(['60', '62'], array_column(dbAll('SELECT jsonb_object_keys(notes) AS k FROM progress WHERE user_id = ? ORDER BY 1', [LEARNER]), 'k'));
+    $problems = array_values(array_filter(server_problems($GLOBALS['app']), static fn(string $line): bool => !str_contains($line, '[auth] token refused')));
+    assert_same([], $problems);
 });

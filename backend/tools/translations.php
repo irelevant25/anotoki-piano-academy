@@ -161,7 +161,7 @@ if (in_array($command, ['--help', '-h'], true)) {
 $problem = settingsProblem();
 if ($problem !== null) {
     say('red', 'Not set up yet: ' . $problem);
-    echo "  Open /setup.php in a browser (start.ps1 / start.sh open it for you).\n";
+    echo "  Open /setup.php in a browser (composer start in backend/, then http://localhost:8300/setup.php).\n";
     exit(1);
 }
 

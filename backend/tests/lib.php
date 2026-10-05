@@ -12,10 +12,21 @@ declare(strict_types=1);
  * database (piano_test_<…>, copied from piano_test_template) - and points the
  * app at it with PIANO_TEST_CONFIG, which the app honours only for piano_test_
  * databases. It refuses to go on if the app was loaded first. No test can
- * reach your database (piano_academy) or change your settings, and none reads
- * server/data/ itself - the import tests work on copies in temp folders. The
- * databases and folders go when the file's tests end; PIANO_KEEP_TEMP=1 keeps
- * them for a look.
+ * reach your database or change your settings. The databases and folders go
+ * when the file's tests end; PIANO_KEEP_TEMP=1 keeps them for a look.
+ *
+ * Signing in: always the IAM, as in the app. The servers the tests start check
+ * tokens the tests sign with their own key (test_token(), test_auth_iam()), or
+ * download the key set from the stand-in IAM (tests/tools/fake-iam.php). A
+ * token carries no role unless a test gives it one: a learner (the IAM puts
+ * MEMBER in every account's token; a learner with it is the same learner).
+ *
+ * No test ever asks a real IAM. Whether the app requires sign-in is the IAM's
+ * answer: the settings a test writes either name the IAM's answer as a file
+ * (`application_file`, test_application_file() - read on every call, nothing
+ * kept), or an IAM on this computer (the stand-in). test_write_config()
+ * refuses anything else (test_offline_auth()), and so does a test that finds
+ * settings written some other way (the hosted site's, written by setup.php).
  *
  * tests/run.php runs every test file (php tests/run.php [file…]).
  */
@@ -60,15 +71,61 @@ function test_write_config(string $dir, array $database, array $auth): string
         mkdir($dir, 0777, true);
     }
     file_put_contents("$dir/database.local.php", '<?php return ' . var_export($database, true) . ";\n");
-    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export($auth, true) . ";\n");
+    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_offline_auth($auth), true) . ";\n");
 
     return $dir;
 }
 
-/** Sign-in off, as on the owner's computer. */
-function test_auth_none(int $owner = 1): array
+/**
+ * Sign-in settings a test may hand to the app: they never make it ask an IAM
+ * that is not on this computer - the IAM's answer is a file
+ * (`application_file`), or the issuer is this computer's (the stand-in IAM).
+ * Anything else throws: the answer would come from the network (the live IAM
+ * for https://iam.anotoki.eu), and a test that waits on it, or reads what the
+ * owner switched there, is no test.
+ */
+function test_offline_auth(array $auth): array
 {
-    return ['mode' => 'none', 'issuer' => 'http://localhost:4300', 'client_id' => TEST_CLIENT, 'local_user_id' => $owner, 'cache_dir' => 'storage/cache'];
+    if (is_string($auth['application_file'] ?? null) && $auth['application_file'] !== '') {
+        return $auth;
+    }
+    // (Its own test of a name: the app is not loaded yet when the tests' first settings are written.)
+    $host = strtolower(trim((string) parse_url((string) ($auth['issuer'] ?? ''), PHP_URL_HOST), '[]'));
+    if ($host === 'localhost' || $host === '::1' || preg_match('/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/D', $host)) {
+        return $auth;
+    }
+    throw new RuntimeException('These sign-in settings would ask the IAM at ' . ($auth['issuer'] ?? '?')
+        . ' whether sign-in is required: give them an application_file (test_application_file()) or the stand-in IAM.');
+}
+
+/**
+ * The IAM's answer about this app as a file, for the SDK's application_file:
+ * what GET {issuer}/api/public/applications/piano-academy would say. A new
+ * file each call; test_login_required() changes it.
+ */
+function test_application_file(bool $loginRequired = true): string
+{
+    $file = test_temp_dir('iam-application') . '/application.json';
+    test_login_required(['application_file' => $file], $loginRequired);
+
+    return $file;
+}
+
+/** Switches sign-in on or off for the settings $auth (their application_file): the IAM's switch, as a test flips it. */
+function test_login_required(array $auth, bool $required): void
+{
+    file_put_contents($auth['application_file'], json_encode(['client_id' => TEST_CLIENT, 'name' => 'Piano Academy', 'login_required' => $required]));
+}
+
+/**
+ * The sign-in settings this process loads the app with - the IAM's address
+ * and this app's client id there, as setup.php writes them, and the IAM's
+ * answer as a file. (A server a test starts gets test_auth_iam(), which can
+ * check the tests' tokens.)
+ */
+function test_auth_settings(): array
+{
+    return ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'cache_dir' => 'storage/cache', 'application_file' => test_application_file()];
 }
 
 (static function (): void {
@@ -77,7 +134,7 @@ function test_auth_none(int $owner = 1): array
         $name = TEST_DB_PREFIX . getmypid() . '_' . bin2hex(random_bytes(3));
     }
     $dir = test_temp_dir('config');
-    test_write_config($dir, ['name' => $name] + machineDatabaseSettings(), test_auth_none());
+    test_write_config($dir, ['name' => $name] + machineDatabaseSettings(), test_auth_settings());
     putenv("PIANO_TEST_CONFIG=$dir");
     $GLOBALS['TEST_CONFIG_DIR'] = $dir;
 })();
@@ -459,13 +516,22 @@ function test_frontend_build(): string
 /**
  * The real server (router.php) with the given sign-in settings, against this
  * file's database. Checks it says it uses that database before any test talks
- * to it.
+ * to it. $settings: more settings files for its folder, name => values -
+ * ['visitors' => [...]] is config/visitors.local.php. The answer's 'config'
+ * is that folder (its storage/ is beside the settings).
  */
-function start_app(array $auth, array $env = []): array
+function start_app(array $auth, array $env = [], array $settings = []): array
 {
     test_db();
+    $config = test_config_dir($auth);
+    foreach ($settings as $name => $values) {
+        if (in_array($name, ['auth', 'database'], true)) {
+            throw new LogicException("start_app(): the $name settings are \$auth's and this file's database, written by test_config_dir().");
+        }
+        file_put_contents("$config/$name.local.php", '<?php return ' . var_export($values, true) . ";\n");
+    }
     $app = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', $env + [
-        'PIANO_TEST_CONFIG' => test_config_dir($auth),
+        'PIANO_TEST_CONFIG' => $config,
         'PIANO_FRONTEND_DIST' => test_frontend_build(),
     ], '/api/health');
     $health = call($app['base'], 'GET', '/api/health')['body'];
@@ -473,7 +539,7 @@ function start_app(array $auth, array $env = []): array
         throw new RuntimeException('The server uses ' . ($health['database'] ?? '?') . ', not this test\'s database.');
     }
 
-    return $app;
+    return $app + ['config' => $config];
 }
 
 /** What the server wrote to its error output that is not its request log: PHP warnings, [server] errors. */
@@ -585,24 +651,33 @@ function test_keys(): array
     return $keys;
 }
 
-/** Sign-in settings for auth mode "iam" with the tests' key set. */
+/**
+ * Sign-in settings with the tests' key set: the IAM's tokens are the tests' own;
+ * and the IAM's answer about this app as a file of their own, saying sign-in is
+ * required (test_login_required() switches it). An `application_file` of null
+ * in $extra leaves it out: the app then asks the issuer, which must be the
+ * stand-in.
+ */
 function test_auth_iam(array $extra = []): array
 {
-    return $extra + [
-        'mode' => 'iam', 'issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'local_user_id' => 1,
+    return array_filter($extra + [
+        'issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT,
         'cache_dir' => test_temp_dir('cache'), 'jwks_file' => test_keys()['jwks_file'],
-    ];
+        'application_file' => test_application_file(),
+    ], static fn($value): bool => $value !== null);
 }
 
 /**
- * An access token for $userId as the IAM would sign it; $extra overrides
- * claims (an expired one, another audience…). The header's typ / kid / alg,
- * and the key, can be changed through $sign.
+ * An access token for $userId as the IAM would sign it, with $roles - this
+ * application's roles (ROLE_ADMIN, ROLE_EDITOR; none: a learner). $extra
+ * overrides claims (an expired one, another audience, a `roles` that is no
+ * list…). The header's typ / kid / alg, and the key, can be changed through
+ * $sign.
  */
-function test_token(int $userId, array $extra = [], array $sign = []): string
+function test_token(int $userId, array $roles = [], array $extra = [], array $sign = []): string
 {
     $keys = $sign['keys'] ?? test_keys();
-    $claims = anotoki_iam_test_claims(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT], $userId, ['MEMBER'], $extra);
+    $claims = anotoki_iam_test_claims(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT], $userId, $roles, $extra);
 
     return anotoki_iam_test_sign($claims, $keys['private_pem'], $sign['kid'] ?? $keys['kid'], $sign['typ'] ?? 'at+jwt', $sign['alg'] ?? 'RS256');
 }

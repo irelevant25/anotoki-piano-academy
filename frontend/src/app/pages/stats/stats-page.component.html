@@ -87,3 +87,13 @@
         </div>
     }
 </div>
+
+@if (signedIn()) {
+    <app-own-progress />
+} @else {
+    <!-- Practising without signing in (or signed out meanwhile): a progress file is an account's. -->
+    <div class="card own-progress-visitor" id="own-progress-visitor">
+        <p>{{ 'ownProgress.visitor' | translate }}</p>
+        <button type="button" class="btn-primary" id="own-progress-sign-in" (click)="signIn()">{{ 'signIn.button' | translate }}</button>
+    </div>
+}

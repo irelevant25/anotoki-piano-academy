@@ -1,0 +1,15 @@
+// The admin panel's frame, English like the pages in it (its sections are the
+// top bar's links). Colours are the tokens of styles.scss only.
+
+.no-access {
+  max-width: 34rem;
+  margin: 2rem auto;
+  text-align: center;
+}
+
+.button-link {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  text-decoration: none;
+}

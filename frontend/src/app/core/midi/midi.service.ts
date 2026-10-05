@@ -91,7 +91,7 @@ export interface MidiStatus {
 }
 
 /**
- * Why there is no piano, as a kind the header words:
+ * Why there is no piano, as a kind the top bar's piano widget words:
  *   unsupported  this browser has no Web MIDI
  *   refused      the browser would not give the devices (the permission was denied, or it failed)
  *   failed       a device could not be connected
@@ -115,13 +115,13 @@ function detailOf(error: unknown): string | null {
 }
 
 /**
- * The piano connection the header shows and every view listens to: the
+ * The piano connection the top bar shows and every view listens to: the
  * status, the devices, the one chosen. It remembers the last device by name,
  * connects it again when it comes back, and lets go of it when it is unplugged
  * or switched off.
  *
  * It holds no sentence: the status is whether a piano is connected and its
- * name, a problem is a kind and a detail, and the header's panel words them in
+ * name, a problem is a kind and a detail, and the bar's widget words them in
  * the language on the page.
  */
 @Injectable({ providedIn: 'root' })
@@ -170,7 +170,7 @@ export class MidiService {
 
   /** The ⟳ button: ask the browser for the devices again. */
   async refresh(): Promise<void> {
-    // No Web MIDI here: that is the whole answer, and the header has its own sentence for it.
+    // No Web MIDI here: that is the whole answer, and the bar's widget has its own sentence for it.
     if (!this.supported) {
       this.problem.set({ kind: 'unsupported', detail: null });
       this.asked.set(true);

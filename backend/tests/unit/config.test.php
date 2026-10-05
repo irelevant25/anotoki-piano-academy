@@ -36,24 +36,39 @@ test('without the *.local.php files the app is not set up, and says which one is
     file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
     assert_same('config/auth.local.php is missing.', with_config_dir($dir, 'settingsProblem'));
 
-    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_none(), true) . ';');
+    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
     assert_same(null, with_config_dir($dir, 'settingsProblem'));
-    assert_same('none', with_config_dir($dir, 'authMode'));
+    assert_same(TEST_ISSUER, with_config_dir($dir, 'authSettings')['issuer']);
+});
+
+test('a settings file from before sign-in was the IAM only - a mode, an owner\'s id - is still a setting, and only its IAM is read', function (): void {
+    foreach (['none', 'iam', 'off'] as $mode) {
+        $dir = test_temp_dir('old-config');
+        file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+        file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(['mode' => $mode, 'local_user_id' => 1] + test_auth_settings(), true) . ';');
+        assert_same(null, with_config_dir($dir, 'settingsProblem'), "mode '$mode': the owner's installation keeps working");
+        assert_same(['issuer' => TEST_ISSUER, 'clientId' => TEST_CLIENT, 'loginRequired' => true], with_config_dir($dir, 'authPublicConfig'), "mode '$mode' signs in through the IAM");
+    }
+    // ... but a mode "none" without the IAM is no setting at all - nothing would let anybody in.
+    $dir = test_temp_dir('none-only');
+    file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(['mode' => 'none', 'local_user_id' => 1], true) . ';');
+    assert_match('/issuer/', (string) with_config_dir($dir, 'settingsProblem'));
 });
 
 test('a settings file that does not say what it must is no setting', function (): void {
     $bad = [
-        'no host' => [['host' => ''] + good_database(), test_auth_none(), '/database server/'],
-        'a port that is no number' => [['port' => 'five'] + good_database(), test_auth_none(), '/port/'],
-        'a port out of range' => [['port' => 70000] + good_database(), test_auth_none(), '/port/'],
-        'an odd database name' => [['name' => 'piano academy'] + good_database(), test_auth_none(), '/database name/'],
-        'no user' => [['user' => ''] + good_database(), test_auth_none(), '/user/'],
-        'no password key at all' => [array_diff_key(good_database(), ['password' => 1]), test_auth_none(), '/password/'],
-        'no mode' => [good_database(), ['mode' => ''] + test_auth_none(), '/sign-in mode/'],
-        'iam without an issuer' => [good_database(), ['mode' => 'iam', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], '/issuer/'],
-        'iam without a client id' => [good_database(), ['client_id' => ''] + test_auth_iam(), '/client id/'],
-        'iam without a cache folder' => [good_database(), ['cache_dir' => ''] + test_auth_iam(), '/cache_dir/'],
-        'a file that returns nothing' => [good_database(), null, '/sign-in mode/'],
+        'no host' => [['host' => ''] + good_database(), test_auth_settings(), '/database server/'],
+        'a port that is no number' => [['port' => 'five'] + good_database(), test_auth_settings(), '/port/'],
+        'a port out of range' => [['port' => 70000] + good_database(), test_auth_settings(), '/port/'],
+        'an odd database name' => [['name' => 'piano academy'] + good_database(), test_auth_settings(), '/database name/'],
+        'no user' => [['user' => ''] + good_database(), test_auth_settings(), '/user/'],
+        'no password key at all' => [array_diff_key(good_database(), ['password' => 1]), test_auth_settings(), '/password/'],
+        'no issuer' => [good_database(), ['client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], '/issuer/'],
+        'an issuer that is no address' => [good_database(), ['issuer' => 'iam.anotoki.eu'] + test_auth_settings(), '/issuer/'],
+        'no client id' => [good_database(), ['client_id' => ''] + test_auth_iam(), '/client id/'],
+        'no cache folder' => [good_database(), ['cache_dir' => ''] + test_auth_iam(), '/cache_dir/'],
+        'a file that returns nothing' => [good_database(), null, '/issuer/'],
     ];
     foreach ($bad as $what => [$database, $auth, $pattern]) {
         $dir = test_temp_dir('bad-config');
@@ -76,7 +91,7 @@ test('nothing committed stands in for the settings: config/ holds the loader and
 test('the tests\' settings folder is honoured only for a piano_test_ database', function (): void {
     $dir = test_temp_dir('not-a-test-db');
     file_put_contents("$dir/database.local.php", '<?php return ' . var_export(['name' => 'piano_academy'] + good_database(), true) . ';');
-    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_none(), true) . ';');
+    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
     assert_match('/only for the tests/', (string) with_config_dir($dir, 'settingsProblem'));
     assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/only for the tests/');
 });
@@ -86,9 +101,9 @@ test('the settings files: written for their owner only, and read again at once',
     with_config_dir($dir, static function (): void {
         writeLocalConfig('database', ['password' => "it's \$ecret"] + good_database());
         assert_same('config/auth.local.php is missing.', settingsProblem(), 'read again after writing');
-        writeLocalConfig('auth', test_auth_none(7));
+        writeLocalConfig('auth', test_auth_settings());
         assert_same(null, settingsProblem());
-        assert_same(7, authLocalUserId());
+        assert_same(TEST_CLIENT, authSettings()['client_id']);
         assert_same("it's \$ecret", databaseSettings()['password']);
     });
     $values = require "$dir/database.local.php";

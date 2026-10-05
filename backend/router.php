@@ -8,9 +8,11 @@ declare(strict_types=1);
  *
  *   composer start                        development: the API (and setup.php)
  *   (php -S localhost:8300 router.php)    behind `ng serve` on :4500, which
- *                                         proxies /api and /setup.php here
- *   start.ps1 / start.sh                  your own computer: the same, plus the
- *                                         built app, on one address
+ *                                         proxies /api and /setup.php here.
+ *                                         Sign in at http://localhost:4500: that
+ *                                         is the address the IAM knows.
+ *   the tests                             the same, plus a built app, on one
+ *                                         address of their own
  *
  *   /api/...     the API (api/index.php)
  *   /setup.php   the setup page
@@ -88,7 +90,7 @@ $dist = routerFrontendDist();
 if ($dist === null) {
     return routerSend(404, 'text/plain; charset=utf-8', "The app is not built here.\n\n"
         . "Developing? Run the frontend with `npm start` in frontend/ and open http://localhost:4500.\n"
-        . "Or build it once (`npm run build` in frontend/) - start.ps1 and start.sh do that for you.\n");
+        . "Or build it once (`npm run build` in frontend/) to see it here.\n");
 }
 
 // A file of the build is sent as it is - but never a PHP file or a dot-file,

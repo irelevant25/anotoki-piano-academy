@@ -17,6 +17,10 @@ declare(strict_types=1);
  * applied changes nothing where it ran - write another instead.
  *
  * The connection is config/database.local.php, which setup.php writes.
+ *
+ * It takes the same lock as setup.php's Save and an administrator's update in
+ * the app (api/database_update.php): while one of those runs, this says so and
+ * applies nothing.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -48,7 +52,7 @@ if (isset($options['help'])) {
 $problem = settingsProblem();
 if ($problem !== null) {
     say('red', 'Not set up yet: ' . $problem);
-    echo "  Open /setup.php in a browser (start.ps1 / start.sh open it for you).\n";
+    echo "  Open /setup.php in a browser (composer start in backend/, then http://localhost:8300/setup.php).\n";
     exit(1);
 }
 
@@ -85,23 +89,36 @@ if (!$pending) {
     say('green', '  Up to date - ' . count($files) . ' migration' . (count($files) === 1 ? '' : 's') . '.');
 }
 
-foreach ($pending as $file) {
-    if ($dryRun) {
+if ($dryRun) {
+    foreach ($pending as $file) {
         say('yellow', '  would apply ' . $file);
-        continue;
     }
-
-    echo '  ' . $file . ' ... ';
-
-    try {
-        applyMigration($pdo, MIGRATIONS_ALIAS, $file);
-        say('green', 'done');
-    } catch (Throwable $e) {
-        say('red', 'FAILED');
-        say('red', '    ' . $e->getMessage());
-        say('yellow', '    Nothing from this file was applied. The migrations before it stand.');
-        exit(1);
-    }
+    exit(0);
 }
 
-exit(0);
+$code = databaseUpdateLocked($pdo, static function () use ($pdo): int {
+    // Asked again under the lock: another update may have applied some since.
+    foreach (pendingMigrations($pdo) as $file) {
+        echo '  ' . $file . ' ... ';
+
+        try {
+            applyMigration($pdo, MIGRATIONS_ALIAS, $file);
+            say('green', 'done');
+        } catch (Throwable $e) {
+            say('red', 'FAILED');
+            say('red', '    ' . $e->getMessage());
+            say('yellow', '    Nothing from this file was applied. The migrations before it stand.');
+
+            return 1;
+        }
+    }
+
+    return 0;
+});
+
+if ($code === null) {
+    say('red', '  Another update is running (the setup page, the admin panel\'s Migrations page, or another php migration.php). Nothing was applied; try again in a moment.');
+    exit(1);
+}
+
+exit($code);
