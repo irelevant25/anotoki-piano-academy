@@ -3,7 +3,7 @@
 // The app sets the theme itself once it has loaded, but that is after the page
 // has been drawn once - and somebody who chose dark would see it flash light on
 // every visit. It is a file rather than an inline script because the live
-// site's Content-Security-Policy allows scripts from this origin only.
+// site's Content-Security-Policy allows no inline script.
 //
 // Keep the key and the values in step with src/app/core/theme/theme.service.ts.
 (function () {

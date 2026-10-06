@@ -101,7 +101,11 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
 
 Your progress lives in PostgreSQL: the progress per note, the learning-path
 steps you have passed, and a log of your practice rounds - all under your IAM
-user id. Nothing is sent anywhere but to the app's own server. Each person can
+user id. Your progress is sent nowhere but to the app's own server. The pages
+you open are counted by the anotoki sites' own visitor counter (Umami, at
+umami.anotoki.eu), which sets no cookie: it gets each page's address without
+its query string or fragment, its title, the page you came from, the screen
+size and the browser's language. Each person can
 take their own progress out as a file and bring a file back into their own
 account (**Your progress file**, at the end of Stats): the app first shows
 what the file brings, and puts it in place of what is there only after a

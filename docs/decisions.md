@@ -2,6 +2,24 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-06 - the family's visitor counter, without the query string
+
+The owner asked for Umami - the family's own, at `umami.anotoki.eu` - on every
+anotoki site. `frontend/src/index.html` loads its script, and the upload's
+policy (`backend/tools/build.php`) allows it in `script-src`; what it sends
+goes to its own origin, which `connect-src`'s `https:` already allows. It sets
+no cookie and stores nothing in the browser. It is told to leave the query
+string and the fragment out (`data-exclude-search`, `data-exclude-hash`): the
+sign-in comes back to `/auth/callback?code=...&state=...`, and the script may
+read the address before the app has run - a counter that kept it would hold
+every sign-in's code. It is `async`, not the snippet's `defer`: a deferred
+script and the app's module run in order, so the app would wait for the
+counter - for as long as a slow or unreachable `umami.anotoki.eu` takes to
+give up. The paths still go, which is what the counter is for; README's "Data
+and privacy" says what it gets. The price: the script runs in the app's pages,
+beside the sign-in's tokens in localStorage, so the site trusts whoever
+controls what `umami.anotoki.eu` serves that far.
+
 ## 2026-10-05 - the visitor's words (visitors, stage E)
 
 What somebody practising without signing in reads, and what a person reads

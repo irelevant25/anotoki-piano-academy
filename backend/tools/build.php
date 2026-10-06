@@ -200,11 +200,13 @@ foreach (['config', 'migrations', 'vendor', 'storage'] as $folder) {
 mkdir("$out/storage/cache", 0775, true);
 
 // The site's own rules. The Content-Security-Policy allows this origin only,
-// plus https: for fetch - the IAM's token endpoint is on its own origin, and
-// the build cannot know which one the setup will name.
+// plus the family's visitor counter's script (Umami, in index.html), and
+// https: for fetch - the IAM's token endpoint is on its own origin, and the
+// build cannot know which one the setup will name; the counter sends to its
+// own origin through that too.
 $csp = implode('; ', [
     "default-src 'self'",
-    "script-src 'self'",
+    "script-src 'self' https://umami.anotoki.eu",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",

@@ -657,7 +657,11 @@ A new phase, step type, hint or worded unit title also needs its tails in
   Apply on the admin panel's Migrations page, or delete `storage/installed.lock` and run
   `/setup.php` again (idempotent) at once - until then every visitor sees "not
   set up yet". Before a release with strings, export both languages in the
-  browser (DEV.md, "Releasing the app's words").
+  browser (DEV.md, "Releasing the app's words"). The upload's policy allows
+  scripts from this origin and the family's visitor counter (Umami,
+  `https://umami.anotoki.eu`, in `src/index.html`; `async`, so the app never
+  waits for it) - told to leave the query string and the fragment out, as the
+  callback's `code` arrives in the query (`docs/decisions.md`).
 
 ## The app's words (English and Slovak)
 

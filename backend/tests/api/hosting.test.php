@@ -112,7 +112,7 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     assert_match('~RewriteRule \^ index\.html \[L\]~', $htaccess, 'the app\'s routes get the app');
     assert_match('~CGIPassAuth On~', $htaccess);
     assert_match('~SetEnvIf Authorization "\(\.\+\)" HTTP_AUTHORIZATION=\$1~', $htaccess, 'the token reaches PHP under CGI too');
-    assert_match("~Content-Security-Policy \"default-src 'self'; script-src 'self'~", $htaccess);
+    assert_match("~Content-Security-Policy \"default-src 'self'; script-src 'self' https://umami\\.anotoki\\.eu;~", $htaccess, 'scripts from this origin and the family\'s visitor counter, nothing else');
     assert_match('~<FilesMatch "\^setup\\\\\.php\$">~', $htaccess, 'setup.php may run');
     assert_match('~RewriteRule \^ index\.php \[QSA,L\]~', (string) file_get_contents("$dist/api/.htaccess"));
 
