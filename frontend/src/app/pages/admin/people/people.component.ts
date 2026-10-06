@@ -1,6 +1,6 @@
-import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
 import { ApiError, ApiService, PeopleList, Person } from '../../../core/api/api.service';
+import { LocalDatePipe } from '../../../core/i18n/local-date.pipe';
 import { VISITOR_KEEP_DAYS } from '../../../core/i18n/visitor-words';
 import { ProgressStore } from '../../../core/state/progress-store.service';
 import { ConfirmDialogComponent } from '../../../ui/confirm-dialog/confirm-dialog.component';
@@ -9,7 +9,8 @@ import { adminErrorText } from '../admin-error';
 /**
  * People (ADMIN alone; English, as the whole admin panel): everybody who
  * signed in and whom the app keeps anything of - their IAM id and username, when they were first and
- * last seen, how many notes, steps of the path and rounds it keeps - and
+ * last seen (2026-10-01 12:00, or in the order and clock the reader's anotoki account chose -
+ * the localDate pipe's stamp), how many notes, steps of the path and rounds it keeps - and
  * "Delete their progress", after a question that names the person and the
  * counts. A delete takes everything the app keeps of them (the server's
  * DELETE /api/admin/people/{id}); their open tabs are refused their next
@@ -28,7 +29,7 @@ import { adminErrorText } from '../admin-error';
   templateUrl: './people.component.html',
   styleUrl: './people.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, ConfirmDialogComponent],
+  imports: [LocalDatePipe, ConfirmDialogComponent],
 })
 export class PeopleComponent {
   private readonly api = inject(ApiService);

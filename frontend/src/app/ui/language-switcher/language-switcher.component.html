@@ -26,7 +26,7 @@
         </div>
     }
 
-    @if (failed()) {
-        <p #note class="note" role="alert">{{ 'language.notLoaded' | translate }}</p>
+    @if (noteKey(); as key) {
+        <p #note class="note" role="alert">{{ key | translate }}</p>
     }
 }

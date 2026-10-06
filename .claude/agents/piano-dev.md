@@ -102,9 +102,10 @@ Working conventions specific to this repo:
   song titles and device names are never translated. The admin panel's Translations
   and Languages pages are English literals.
 - Persistence: `backend/migrations/piano_academy/` (never edit an applied
-  one; 004 is applied in the owner's database and frozen; 005, visitors, is
-  written whole and final and waits for the owner at the hand-over - a
-  later change is 006); note progress and path progress are whole jsonb documents;
+  one; 004 is applied in the owner's database and frozen; 005, visitors, and
+  006, two sentences of the account's preferences, are written whole and
+  final and wait for the owner at the hand-over - a later change is 007);
+  note progress and path progress are whole jsonb documents;
   sessions are rows. A save of a whole document names the generation of the
   progress (`Progress-Generation`; 409 `progress_changed` for an old one -
   `ProgressStore` loads again and says why, never resends; no save is sent
@@ -132,6 +133,23 @@ Working conventions specific to this repo:
   the .scss); the menus' Tab and Shift+Tab close onto the menu button; under
   `/admin` the admin sections, English (`effectiveLanguage`), no chooser,
   no piano. Its words are keys, in kept-english.ts too.
+- The theme, the dates, the clock and the language are the anotoki
+  account's for somebody signed in (the IAM's 015; the vendored browser SDK
+  1.2.0 - `AuthService.preferences`, null for nobody, a visitor or an IAM
+  that sends none: then nothing changes and nothing is saved). The theme
+  button saves through `ThemeService` (one save at a time, the latest last;
+  the account's theme back and `theme.notSaved` when refused), the language
+  chooser through `TranslationService.setLanguage()` -> `saveToAccount()`
+  (`invalid_request`: silent; else, `access_denied` too, `language.notSaved`
+  - words that promise no retry); a date or time a page writes goes
+  through the `localDate` pipe, which follows the account's order and clock
+  (`stamp` for the admin panel's numbers). The family's language order:
+  signed in with preferences, `?lang=` and this page's choice, then the
+  account's `locale`, then this device's choice, the browser's - an account
+  change made elsewhere followed when it comes (not over `?lang=`, not while
+  a save is out); otherwise the device's choice before the token, as before.
+  The stand-in IAM sends `preferences` only when its state has some
+  (`POST /_test/state`).
 
 The database `anotoki_piano_academy` holds the owner's real progress - never
 test against it. The committed browser check does the whole round on its own

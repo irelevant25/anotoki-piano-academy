@@ -4,8 +4,10 @@
  * just enough OpenID Connect for the browser SDK and the PHP verifier -
  * discovery, the key set, authorize (signs the configured person in at once),
  * token (authorization code with PKCE, refresh with rotation), logout, revoke -
- * and the public answer about an application (whether its site requires
- * sign-in, which the SDK's anotoki_iam_login_required() reads).
+ * the public answer about an application (whether its site requires
+ * sign-in, which the SDK's anotoki_iam_login_required() reads), and the
+ * account's preferences (the browser SDK's savePreferences(): POST
+ * /api/oidc/preferences with the access token, CORS preflight and all).
  * Its tokens are signed with the tests' own key. Never point a real site at it.
  *
  *   FAKE_IAM_DIR=<folder> FAKE_IAM_ISSUER=http://127.0.0.1:8597 php -S 127.0.0.1:8597 tests/tools/fake-iam.php
@@ -31,6 +33,15 @@
  *   deny      true: authorize answers access_denied (the person said no, or the IAM
  *             refused them),
  *             with deny_description as its error_description
+ *   preferences          the account's { theme, date_format, time_format } (the IAM's
+ *                        migration 015): the tokens' `preferences` claim, changed by
+ *                        POST /api/oidc/preferences - null (the default): no claim and
+ *                        503 there, as an IAM before 015. One set, for whoever signs in.
+ *   preferences_refuse   true: POST /api/oidc/preferences answers 503
+ *                        temporarily_unavailable (a save that does not get through)
+ *   languages            the languages it offers (["en", "sk"]): a `language` saved there
+ *                        must be one, or 400 invalid_request; a saved one becomes
+ *                        user.locale - the tokens' `locale` - from then on
  */
 
 declare(strict_types=1);
@@ -52,6 +63,7 @@ function fake_state(string $dir): array
         'user' => ['id' => 1, 'username' => 'owner', 'roles' => ['MEMBER', 'ADMIN']],
         'ttl' => 600, 'down' => false, 'refuse' => false, 'deny' => false, 'deny_description' => 'No access to this application',
         'login_required' => true, 'application_missing' => false,
+        'preferences' => null, 'preferences_refuse' => false, 'languages' => ['en', 'sk'],
         'codes' => [], 'refresh' => [], 'log' => [],
     ];
 }
@@ -96,11 +108,35 @@ function fake_tokens(array &$state, array $user, array $key, string $issuer, str
         'preferred_username' => $user['username'], 'email' => $user['username'] . '@example.test',
         'email_verified' => true, 'locale' => is_string($user['locale'] ?? null) ? $user['locale'] : 'en', 'roles' => $user['roles'],
     ];
+    // The account's theme, dates and clock - left out while it keeps none, as an IAM before its migration 015.
+    if (is_array($state['preferences'])) {
+        $common['preferences'] = $state['preferences'];
+    }
     $access = anotoki_iam_test_sign($common + ['client_id' => $clientId, 'exp' => $now + (int) $state['ttl'], 'jti' => bin2hex(random_bytes(8)), 'scope' => 'openid profile email'], $key['private_pem'], $key['kid']);
     $id = anotoki_iam_test_sign($common + ['azp' => $clientId, 'exp' => $now + 3600, 'auth_time' => $now] + ($nonce !== null ? ['nonce' => $nonce] : []), $key['private_pem'], $key['kid'], 'JWT');
     $refresh = 'iam_rt_' . bin2hex(random_bytes(16));
     $state['refresh'][$refresh] = ['user' => $user, 'client' => $clientId, 'sid' => $sid];
     return ['access_token' => $access, 'token_type' => 'Bearer', 'expires_in' => (int) $state['ttl'], 'refresh_token' => $refresh, 'id_token' => $id, 'scope' => 'openid profile email'];
+}
+
+/**
+ * The claims of the access token the request carries (Authorization: Bearer), verified as a site's backend
+ * verifies one - against this stand-in's own key, put on disk as a key set - or null.
+ */
+function fake_bearer_claims(string $dir, string $issuer, array $key): ?array
+{
+    $token = anotoki_iam_bearer_token(anotoki_iam_authorization_header());
+    if ($token === null) {
+        return null;
+    }
+    // The site it was minted for, read first: the check below then holds the token to it.
+    $payload = anotoki_iam_decode_json(explode('.', $token)[1] ?? '');
+    $clientId = is_array($payload) && is_string($payload['client_id'] ?? null) ? $payload['client_id'] : '';
+    if (!is_file("$dir/jwks.json")) {
+        file_put_contents("$dir/jwks.json", json_encode($key['jwks'], JSON_UNESCAPED_SLASHES));
+    }
+    $claims = anotoki_iam_verify_access_token($token, ['issuer' => $issuer, 'client_id' => $clientId, 'jwks_file' => "$dir/jwks.json", 'cache_dir' => $dir]);
+    return is_array($claims) ? $claims : null;
 }
 
 $key = json_decode((string) file_get_contents("$dir/key.json"), true);
@@ -223,6 +259,66 @@ switch ($path) {
         fake_save($dir, $state);
         $to = (string) ($_GET['post_logout_redirect_uri'] ?? '');
         return $to !== '' ? fake_redirect($to) : fake_json(200, ['signed_out' => true]);
+
+    case '/api/oidc/preferences':
+        // The SDK's savePreferences(): cross-origin, with the access token and a JSON body - so preflighted.
+        if ($method === 'OPTIONS') {
+            fake_save($dir, $state);
+            http_response_code(204);
+            header("Access-Control-Allow-Origin: $origin");
+            header('Access-Control-Allow-Methods: POST');
+            header('Access-Control-Allow-Headers: Authorization, Content-Type');
+            header('Vary: Origin');
+            return true;
+        }
+        $claims = fake_bearer_claims($dir, $issuer, $key);
+        if ($method !== 'POST' || $claims === null) {
+            fake_save($dir, $state);
+            header('WWW-Authenticate: Bearer error="invalid_token"');
+            return fake_json(401, ['error' => 'invalid_token', 'error_description' => 'The access token is not good'], $origin);
+        }
+        if (!is_array($state['preferences']) || $state['preferences_refuse']) {
+            // An IAM before its migration 015 - or one that cannot take it just now.
+            fake_save($dir, $state);
+            return fake_json(503, ['error' => 'temporarily_unavailable', 'error_description' => 'Preferences cannot be saved just now'], $origin);
+        }
+        $changes = json_decode((string) file_get_contents('php://input'), true);
+        $allowed = [
+            'theme' => ['auto', 'light', 'dark'],
+            'date_format' => ['dmy_dot', 'dmy_slash', 'mdy_slash', 'ymd_dash', null],
+            'time_format' => ['24', '12', null],
+            'language' => (array) $state['languages'],
+        ];
+        $wrong = !is_array($changes) || $changes === [] || array_is_list($changes) || array_diff(array_keys($changes), array_keys($allowed)) !== [];
+        foreach (is_array($changes) && !$wrong ? $changes : [] as $name => $value) {
+            $wrong = $wrong || !in_array($value, $allowed[$name], true);
+        }
+        if ($wrong) {
+            fake_save($dir, $state);
+            return fake_json(400, ['error' => 'invalid_request', 'error_description' => 'Not a change the IAM takes'], $origin);
+        }
+        foreach (['theme', 'date_format', 'time_format'] as $name) {
+            if (array_key_exists($name, $changes)) {
+                $state['preferences'][$name] = $changes[$name];
+            }
+        }
+        $sub = (string) $claims['sub'];
+        // The account's language as it stands: the configured person's, or what the token says of another.
+        $locale = (string) ((string) ($state['user']['id'] ?? '') === $sub ? ($state['user']['locale'] ?? 'en') : ($claims['locale'] ?? 'en'));
+        if (isset($changes['language'])) {
+            // The account's language: in every token minted for that account from now on.
+            $locale = $changes['language'];
+            if ((string) ($state['user']['id'] ?? '') === $sub) {
+                $state['user']['locale'] = $locale;
+            }
+            foreach ($state['refresh'] as $token => $entry) {
+                if ((string) $entry['user']['id'] === $sub) {
+                    $state['refresh'][$token]['user']['locale'] = $locale;
+                }
+            }
+        }
+        fake_save($dir, $state);
+        return fake_json(200, ['locale' => $locale, 'preferences' => $state['preferences']], $origin);
 
     case '/account':
         fake_save($dir, $state);

@@ -8,7 +8,8 @@
 // its gate refusing a column that is there in another shape. And 005's:
 // visitors (a negative id with a key's hash), added without changing a row
 // of anybody's - and 004 and 005 both run again over a database that has
-// visitors already, their gates holding.
+// visitors already, their gates holding. And 006's header: words only (the
+// account's theme and language not taken), frozen once applied.
 
 declare(strict_types=1);
 
@@ -16,6 +17,7 @@ require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database a
 
 const FAMILY_MIGRATION = '004_family_shell.sql';
 const VISITORS_MIGRATION = '005_visitors.sql';
+const PREFERENCES_MIGRATION = '006_account_preferences.sql';
 
 function server_pdo(string $name): PDO
 {
@@ -275,4 +277,14 @@ test('005 says it is finished and how the owner applies it, and its gate fails l
     assert_false((bool) $pdo->query("SELECT to_regclass('visitor_ids') IS NOT NULL")->fetchColumn(), 'and its sequence went with it');
     assert_false((bool) $pdo->query("SELECT to_regclass('visitor_starts') IS NOT NULL")->fetchColumn(), 'and its table');
     $pdo = null;
+});
+
+test('006 says it is finished and how the owner applies it, and is words only: its keys, their English and Slovak, its gate', function (): void {
+    // What it may write is held by tests/unit/translations.test.php (only the three tables of the words, nobody's progress).
+    $sql = (string) file_get_contents(migrationsRoot() . '/' . MIGRATIONS_ALIAS . '/' . PREFERENCES_MIGRATION);
+    assert_match('/-- Finished \(2026-10-06\)\. The owner applies it at the hand-over, with 005\s+-- \(after a pg_dump/', $sql, 'the header says it is finished, and to dump first');
+    assert_match('/Once applied it never changes: the next\s+-- change is 007\./', $sql, 'and that it is then frozen');
+    $statements = splitSqlStatements($sql);
+    assert_same(4, count($statements), 'the keys, the English, the Slovak and the gate - nothing else');
+    assert_match('/^DO \$\$.*RAISE EXCEPTION/s', $statements[3], 'it ends with its gate');
 });

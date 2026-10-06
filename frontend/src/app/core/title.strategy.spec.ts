@@ -78,7 +78,7 @@ describe('PianoTitleStrategy', () => {
 
 describe('PianoTitleStrategy with no strings at all', () => {
   // The app is not set up: nothing was asked for, and a first visit has nothing kept either.
-  const auth = { user: () => null, signedIn: () => false, onAuthChange: () => () => undefined };
+  const auth = { user: () => null, signedIn: () => false, preferences: () => null, onAuthChange: () => () => undefined };
   const http = { get: vi.fn() };
 
   beforeEach(() => {

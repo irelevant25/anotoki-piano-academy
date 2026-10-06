@@ -33,7 +33,7 @@ const RELEASES: ChangelogEntry[] = [
   { version: '0.3.0', date: '2026-09-01', changes: { added: ['The learning path'] } },
 ];
 
-const PERSON: AnotokiUser = { sub: '7', preferred_username: 'mia', email: null, email_verified: true, locale: null, roles: [] };
+const PERSON: AnotokiUser = { sub: '7', preferred_username: 'mia', email: null, email_verified: true, locale: null, roles: [], preferences: null };
 
 /** The services whose state decides what the shell draws. */
 interface Shell {
@@ -162,6 +162,12 @@ const STATES: Record<string, (s: Shell) => void> = {
     s.midi.connectedName.set('KAWAI ES120');
     s.changelog.entries.set(RELEASES);
     s.theme.mode.set('light');
+  },
+  'running, signed in, a theme the anotoki account would not take': (s) => {
+    session(s.auth, PERSON);
+    s.store.loaded.set(true);
+    s.boot.status.set('ready');
+    s.theme.notSaved.set(true);
   },
   'running, signed in with a token that names nobody, a save that did not get through, no MIDI device': (s) => {
     session(s.auth, { ...PERSON, preferred_username: null });

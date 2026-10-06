@@ -87,8 +87,9 @@ its own (`PIANO_TEST_CONFIG`, honoured only for `piano_test_` databases). They
 borrow only the PostgreSQL server and user of `config/database.local.php`.
 Sign-in is always the IAM's: tokens the tests sign with their own key
 (`test_token($id, $roles)` - no roles is a learner, and so is MEMBER), and the
-stand-in IAM `tests/tools/fake-iam.php` for a whole sign-in, a downloaded key set
-and the IAM's switch. No test asks a real IAM: the switch's answer is a file
+stand-in IAM `tests/tools/fake-iam.php` for a whole sign-in, a downloaded key set,
+the IAM's switch and the account's preferences (the claim while its state has
+some; `POST /api/oidc/preferences`, as the browser SDK 1.2.0 saves them). No test asks a real IAM: the switch's answer is a file
 (`test_application_file()`, `test_login_required()`) or the stand-in's;
 `test_offline_auth()` refuses settings that would ask anything else.
 
@@ -96,13 +97,13 @@ and the IAM's switch. No test asks a real IAM: the switch's answer is a file
 | --- | --- |
 | `unit/auth` | this computer (setup.php's no-token mode), the browser's sign-in settings and the switch, only Bearer a sign-in, roles (MEMBER a learner), the key cache, no test asking an IAM off this computer |
 | `unit/config` | not set up without the files; an old file with a mode and an owner's id still works; the tests' folder only for `piano_test_` |
-| `unit/migrations` | the engine; 004's schema part (the progress generation, and nothing else of 001), its gate; its header says it is finished and frozen once applied; 005's visitors (no row changes, what the new check lets in), 004 and 005 run again over visitors, 005's gate |
+| `unit/migrations` | the engine; 004's schema part (the progress generation, and nothing else of 001), its gate; its header says it is finished and frozen once applied; 005's visitors (no row changes, what the new check lets in), 004 and 005 run again over visitors, 005's gate; 006's header (words only, the next change is 007) |
 | `unit/visitors` | the counted address (trusted proxies, IPv6 /64), visitors.local.php and the limits, the key, the 30 days equal in the frontend, the work after the answer |
 | `unit/transfer` | an export into an account, replacing (never a mix), a new generation each time, `not_an_export` / `invalid_export`, a move, `tools/progress.php` (`--replace`) |
 | `unit/translations` | the seeded strings, the migrations' layout, the key scan |
 | `api/api` | the progress routes through the router, signed in as a learner (a save names the generation it loaded); 401s; not set up; behind (`update: true`) |
 | `api/me` | one's own file: the export, a round trip, the dry run, the replace rule, refusals with a code, the size limit both ways; a tab of before an import or a delete refused its save (409), 428 without a generation, two tabs side by side; an import holding the users row while a save and a second import wait (two servers) |
-| `api/auth` | tokens good and bad (Basic is nobody), two people, a whole sign-in through the stand-in IAM, an old settings file, the key set downloaded and cached; the IAM's switch relayed, the stand-in's public route, the switch read from it (kept a minute, the last answer while it is down, 404 and nothing read = required, a signed-in request never asks) |
+| `api/auth` | tokens good and bad (Basic is nobody), two people, a whole sign-in through the stand-in IAM, an old settings file, the key set downloaded and cached; the IAM's switch relayed, the stand-in's public route, the switch read from it (kept a minute, the last answer while it is down, 404 and nothing read = required, a signed-in request never asks); the stand-in's preferences (none at first, then the claim; the save: the preflight, a verified token, only what it names, 400 / 401 / 503) |
 | `api/admin` | every admin route, role by role; People (counts, the most recently seen first, the visitors counted apart, one person deleted whole, nobody else touched, 404); the database's routes on a database behind, the lock, a failed update |
 | `api/visitors` | sign-in not required, through two servers: nobody's state, a first save that makes a visitor (or fails and makes nobody), the key and what it opens, a Bearer header never falling back to it, sign-in required again, the limits, the sweep after the answer, a database without 005, requireUser()/requireRole() refusing a visitor |
 | `api/visitor_move` | the move at sign-in: the person's notes kept, a path step both have merged (a pass never lost), every round, the visitor gone and a new generation; again `found: false`; merged documents over BODY_LIMIT not made; no token / no key / a malformed key; the switch on; a row held too long (503 `visitor_move_retry`); the person's row gone |

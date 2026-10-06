@@ -321,6 +321,60 @@ test('the stand-in IAM answers the public application route: the switch, missing
     ($iam['stop'])();
 });
 
+test('the stand-in IAM keeps the account\'s preferences as the IAM does since its 015: none at first, then the claim - and the browser SDK\'s save', function (): void {
+    [$iam] = stand_in_iam();
+    $site = 'http://localhost:4500';
+    $token = static fn(array $keys = []): string => anotoki_iam_test_sign(anotoki_iam_test_claims(['issuer' => $iam['base'], 'client_id' => 'piano-academy'], 31, ['MEMBER']), ($keys ?: test_keys())['private_pem'], ($keys ?: test_keys())['kid']);
+    $save = static fn(mixed $changes, ?string $bearer): array => call($iam['base'], 'POST', '/api/oidc/preferences', $changes, array_merge(["Origin: $site"], $bearer === null ? [] : bearer($bearer)));
+    /** The claims of the ID token the stand-in hands a browser that signs in now (authorize, then the code for tokens). */
+    $signIn = static function () use ($iam, $site): array {
+        $verifier = anotoki_iam_base64url_encode(random_bytes(32));
+        $authorize = call($iam['base'], 'GET', '/api/oidc/authorize?' . http_build_query([
+            'client_id' => 'piano-academy', 'redirect_uri' => "$site/auth/callback", 'response_type' => 'code', 'scope' => 'openid profile email',
+            'state' => 'st', 'nonce' => 'n', 'code_challenge' => anotoki_iam_base64url_encode(hash('sha256', $verifier, true)), 'code_challenge_method' => 'S256',
+        ]));
+        [, $query] = redirect_to($authorize);
+        $tokens = call($iam['base'], 'POST', '/api/oidc/token', http_build_query([
+            'grant_type' => 'authorization_code', 'code' => $query['code'] ?? '', 'redirect_uri' => "$site/auth/callback", 'client_id' => 'piano-academy', 'code_verifier' => $verifier,
+        ]), ['Content-Type: application/x-www-form-urlencoded'])['body'];
+
+        return (array) anotoki_iam_decode_json(explode('.', (string) ($tokens['id_token'] ?? ''))[1] ?? '');
+    };
+    call($iam['base'], 'POST', '/_test/state', ['user' => ['id' => 31, 'username' => 'lea', 'roles' => ['MEMBER']]]);
+
+    // As an IAM before its 015: no claim, and nothing to save into.
+    assert_false(array_key_exists('preferences', $signIn()), 'no preferences claim');
+    assert_same(503, $save(['theme' => 'dark'], $token())['status'], 'temporarily_unavailable');
+
+    // The browser's preflight: a cross-origin POST with the token and a JSON body.
+    $preflight = call($iam['base'], 'OPTIONS', '/api/oidc/preferences', null, ["Origin: $site", 'Access-Control-Request-Method: POST', 'Access-Control-Request-Headers: authorization, content-type']);
+    assert_same([204, $site], [$preflight['status'], $preflight['headers']['access-control-allow-origin'] ?? null]);
+    assert_match('/Authorization, Content-Type/', $preflight['headers']['access-control-allow-headers'] ?? '');
+
+    // Keeping some: the claim, and saves that change only what they name.
+    call($iam['base'], 'POST', '/_test/state', ['preferences' => ['theme' => 'auto', 'date_format' => null, 'time_format' => null]]);
+    assert_same(['theme' => 'auto', 'date_format' => null, 'time_format' => null], $signIn()['preferences'] ?? null, 'the claim, in the ID token');
+    $saved = $save(['theme' => 'dark', 'date_format' => 'ymd_dash'], $token());
+    assert_same([200, $site], [$saved['status'], $saved['headers']['access-control-allow-origin'] ?? null], 'answered cross-origin');
+    assert_same(['locale' => 'en', 'preferences' => ['theme' => 'dark', 'date_format' => 'ymd_dash', 'time_format' => null]], $saved['body']);
+    assert_same(['locale' => 'sk', 'preferences' => ['theme' => 'dark', 'date_format' => 'ymd_dash', 'time_format' => '12']], $save(['language' => 'sk', 'time_format' => '12'], $token())['body']);
+    $claims = $signIn();
+    assert_same(['sk', 'dark'], [$claims['locale'] ?? null, $claims['preferences']['theme'] ?? null], 'the next tokens carry them');
+
+    // What it does not take, and who it does not know.
+    foreach ([[], ['dark'], ['theme' => 'pink'], ['time_format' => 24], ['language' => 'de'], ['nickname' => 'x']] as $wrong) {
+        $answer = $save($wrong, $token());
+        assert_same([400, 'invalid_request'], [$answer['status'], $answer['body']['error'] ?? null], test_show($wrong));
+    }
+    assert_same(401, $save(['theme' => 'light'], null)['status'], 'no token');
+    assert_same(401, $save(['theme' => 'light'], 'not-a-token')['status'], 'not a token');
+    assert_same(401, $save(['theme' => 'light'], $token(anotoki_iam_test_keypair('not-the-iams')))['status'], 'signed by somebody else');
+    call($iam['base'], 'POST', '/_test/state', ['preferences_refuse' => true]);
+    assert_same(503, $save(['theme' => 'light'], $token())['status'], 'refused on purpose');
+    assert_same('dark', call($iam['base'], 'GET', '/_test/state')['body']['preferences']['theme'], 'and nothing of them changed');
+    ($iam['stop'])();
+});
+
 test('the IAM\'s switch: read from the IAM, kept a minute, the last answer while it is out of reach, required when unknown - and a signed-in request never asks', function (): void {
     [$iam] = stand_in_iam();
     $cache = test_temp_dir('iam-cache');

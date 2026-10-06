@@ -57,6 +57,16 @@ sign-in (moved / kept / not moved), Stats' sign-in line in place of the
 progress file, People's visitors line, the browser check's visitor tours
 and a line in 0.2's What's new. Next: the review (F).
 
+**2026-10-06: the theme, the dates and the clock are the anotoki account's**
+(the IAM's migration 015, its browser SDK 1.2.0 - vendored; the owner's
+decision, `docs/decisions.md`). Followed for somebody signed in - the whole
+site, the admin panel too; the bar's theme button and language chooser save
+a signed-in person's choice to the account, and the account's language
+comes before this device's choice (the family's order). Migration **006** (two
+sentences: a choice the account would not take) is written whole and final
+and goes with 005 at the hand-over. It goes out as version 0.3 (its line in
+What's new).
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -134,6 +144,29 @@ words for anything a learner would notice).
   visitor's notes are the shell's (`app.component`; the keys in
   `core/i18n/visitor-words.ts`, migration 005's, in `kept-english.ts` too).
   The boot cards (not set up, could not load) draw without a sign-in.
+- **The theme, the dates, the clock and the language are the anotoki
+  account's** for somebody signed in (`AuthService.preferences`: the
+  vendored browser SDK 1.2.0's `user().preferences`; null for nobody, a
+  visitor, or an IAM before its 015 - then the app keeps its own settings and
+  saves nothing). `ThemeService` shows the account's theme everywhere (taken
+  at sign-in and whenever it changes, never while its own save is out) and
+  the bar's button saves a choice (`savePreferences()`: one at a time, the
+  latest last; refused, the account's theme back and `theme.notSaved`); the
+  `localDate` pipe follows the account's date order and clock (`stamp` for
+  the admin panel's People and Migrations - the server's own numbers there);
+  the language chooser saves a signed-in person's choice
+  (`TranslationService.setLanguage()` -> `saveToAccount()`: a language the
+  IAM does not offer stays the site's own for the visit, silently; another
+  refusal, `access_denied` too, is `language.notSaved`). **Which language**
+  (the family's order, the survey's the reference): signed in with
+  preferences, this tab's `?lang=` and a choice made on the page this visit,
+  then the account's `locale` (when the site has it), then this device's
+  remembered choice, the browser's, English; a change of the account's
+  language made elsewhere is followed when it comes - not over `?lang=`, not
+  while a choice made here is on its way to the account. Signed out, or no
+  preferences: `?lang=`, this device's choice, the token's `locale`, the
+  browser's, as before. `piano-academy:theme` still keeps the theme on the
+  screen for `public/theme-boot.js`. Visitors: each device's own, as before.
 - **Roles, from the token, checked on route groups**: a signed-in person with
   no role but **MEMBER** (every account holds it, in every application; no
   check needs it or refuses it) learns with their own progress - taking
@@ -219,7 +252,7 @@ words for anything a learner would notice).
   the staff's to write (`/api/admin/...`). `setup.php` stays parseable by
   PHP 7.4 (it must be able to say "PHP is too old"); the rest needs 8.2.
 - **The app's words live in the database** (`languages`, `translation_keys`,
-  `translations`; migrations 002 to 005) and are edited in the browser,
+  `translations`; migrations 002 to 006) and are edited in the browser,
   on the admin panel's Translations and Languages pages (English, not
   translated; EDITOR rewords, ADMIN also keeps the languages). English
   and Slovak, English the fallback key by key; **Slovak is informal ("ty")**. A
@@ -238,7 +271,9 @@ words for anything a learner would notice).
   time. `playwright-core` with Edge (`channel: 'msedge'`) works on this
   machine; the stand-in IAM is `backend/tests/tools/fake-iam.php` (on 8597 by
   default; `POST /_test/state` sets who signs in and their roles, and
-  `login_required` / `application_missing` - what it says about this app).
+  `login_required` / `application_missing` - what it says about this app -,
+  `preferences` - the account's theme, dates and clock; null, the default:
+  none, as an IAM before 015 - and `preferences_refuse`).
 - The user is a beginner pianist writing in non-native English: keep UI text
   and explanations plain and short.
 

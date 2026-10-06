@@ -1,5 +1,7 @@
+import { WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ApiError, ApiService, MigrationsStatus } from '../../../core/api/api.service';
+import { AuthService } from '../../../core/auth/auth.service';
 import { BootService } from '../../../core/state/boot.service';
 import { provideTestDialog } from '../../../core/testing/test-dialog';
 import { MigrationsComponent } from './migrations.component';
@@ -69,6 +71,19 @@ describe('MigrationsComponent (ADMIN): what the database has and lacks, and appl
     expect(text('#migrations-applied .sub')).toBe('2 files');
     expect(button().disabled).toBe(false);
     expect(text('#migrations-apply')).toBe('Apply pending');
+  });
+
+  it('writes when each ran in the order and on the clock the reader’s anotoki account chose - the server’s own numbers, never moved to another time zone', async () => {
+    const auth = TestBed.inject(AuthService);
+    (auth as unknown as { authenticated: WritableSignal<boolean> }).authenticated.set(true);
+    auth.user.set({ sub: '1', preferred_username: 'owner', email: null, email_verified: true, locale: 'en', roles: ['MEMBER', 'ADMIN'], preferences: { theme: 'dark', date_format: 'mdy_slash', time_format: '12' } });
+    await fixture.whenStable();
+    expect(texts('#migrations-applied li')).toEqual(['001_init.sql 09/28/2026 10:00 am', '002_languages_and_translations.sql 09/30/2026 6:12 pm']);
+
+    // An account that left both automatic: as the server wrote it.
+    auth.user.set({ sub: '1', preferred_username: 'owner', email: null, email_verified: true, locale: 'en', roles: ['MEMBER', 'ADMIN'], preferences: { theme: 'dark', date_format: null, time_format: null } });
+    await fixture.whenStable();
+    expect(texts('#migrations-applied li')).toEqual(['001_init.sql 2026-09-28 10:00', '002_languages_and_translations.sql 2026-09-30 18:12']);
   });
 
   it('asks first - a no applies nothing', async () => {

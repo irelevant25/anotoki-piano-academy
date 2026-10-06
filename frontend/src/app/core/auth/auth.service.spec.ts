@@ -122,7 +122,7 @@ describe('AuthService.signIn()', () => {
 describe('AuthService: who is signed in, as the header is told', () => {
   let auth: AuthService;
 
-  const person = (more: Partial<AnotokiUser> = {}): AnotokiUser => ({ sub: '7', preferred_username: 'mia', email: 'mia@example.test', email_verified: true, locale: null, roles: [], ...more });
+  const person = (more: Partial<AnotokiUser> = {}): AnotokiUser => ({ sub: '7', preferred_username: 'mia', email: 'mia@example.test', email_verified: true, locale: null, roles: [], preferences: null, ...more });
   /** The SDK holds a session (or none) - what sync() reads after init() and after every change. */
   const session = (user: AnotokiUser | null): void => {
     (auth as unknown as { authenticated: { set(value: boolean): void } }).authenticated.set(user !== null);
@@ -174,5 +174,36 @@ describe('AuthService: who is signed in, as the header is told', () => {
     expect(auth.userKey()).toBeNull();
     (auth as unknown as { client: { user(): AnotokiUser | null } }).client = { user: () => person() };
     expect(auth.userKey()).toBe('7');
+  });
+
+  it('preferences are the account’s while somebody is signed in - none for nobody, for a session that ended, or from an IAM that sends none', () => {
+    const chosen = { theme: 'dark', date_format: 'ymd_dash', time_format: '12' } as const;
+    session(person({ preferences: chosen }));
+    expect(auth.preferences()).toEqual(chosen);
+
+    // An IAM before its migration 015, or a sign-in without the profile scope: the app keeps its own settings.
+    session(person({ preferences: null }));
+    expect(auth.preferences()).toBeNull();
+    session(null);
+    expect(auth.preferences()).toBeNull();
+
+    // What the SDK still holds of a session that has ended is nobody's choice.
+    session(person({ preferences: chosen }));
+    (auth as unknown as { authenticated: { set(value: boolean): void } }).authenticated.set(false);
+    expect(auth.preferences()).toBeNull();
+  });
+
+  it('savePreferences() hands the change to the SDK, and its answer back - with no settings read, it refuses as for nobody signed in', async () => {
+    await expect(auth.savePreferences({ theme: 'dark' })).rejects.toMatchObject({ code: 'login_required' });
+
+    const saved = { locale: 'sk', preferences: { theme: 'dark', date_format: null, time_format: null } } as const;
+    const client = { savePreferences: vi.fn(async (_changes: unknown) => saved) };
+    (auth as unknown as { client: typeof client }).client = client;
+    expect(await auth.savePreferences({ theme: 'dark' })).toEqual(saved);
+    expect(client.savePreferences.mock.calls).toEqual([[{ theme: 'dark' }]]);
+
+    // A refusal comes through as the SDK made it: the code is the IAM's.
+    client.savePreferences.mockRejectedValueOnce(Object.assign(new Error('The IAM refused the change'), { code: 'invalid_request' }));
+    await expect(auth.savePreferences({ language: 'de' })).rejects.toMatchObject({ code: 'invalid_request' });
   });
 });

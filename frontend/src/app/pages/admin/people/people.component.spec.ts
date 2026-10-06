@@ -1,5 +1,7 @@
+import { WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ApiError, ApiService, Person } from '../../../core/api/api.service';
+import { AuthService } from '../../../core/auth/auth.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
 import { provideTestDialog } from '../../../core/testing/test-dialog';
 import { PeopleComponent } from './people.component';
@@ -112,5 +114,22 @@ describe('PeopleComponent (ADMIN): everybody the app keeps anything of, and dele
     await answer(true);
     expect(host.querySelector('.row-problem td')?.textContent).toBe('Only an administrator of Piano Academy may do this.');
     expect(rows()).toHaveLength(2);
+  });
+
+  it('writes when each was first and last seen as numbers, here - or in the order and on the clock the reader’s anotoki account chose', async () => {
+    const seen = (): string[] => Array.from(host.querySelectorAll('tr[data-person="7"] td')).slice(2, 4).map((cell) => cell.textContent?.trim() ?? '');
+    const pad = (value: number): string => String(value).padStart(2, '0');
+    const first = new Date(MIA.firstSeen);
+    const last = new Date(MIA.lastSeen);
+    // As the date pipe wrote it before (yyyy-MM-dd HH:mm), in the reader's time zone.
+    const stamp = (date: Date): string => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    expect(seen()).toEqual([stamp(first), stamp(last)]);
+
+    const auth = TestBed.inject(AuthService);
+    (auth as unknown as { authenticated: WritableSignal<boolean> }).authenticated.set(true);
+    auth.user.set({ sub: '1', preferred_username: 'owner', email: null, email_verified: true, locale: 'en', roles: ['MEMBER', 'ADMIN'], preferences: { theme: 'auto', date_format: 'dmy_dot', time_format: '12' } });
+    await fixture.whenStable();
+    const clock = (date: Date): string => new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }).format(date);
+    expect(seen()).toEqual([`${first.getDate()}.${first.getMonth() + 1}.${first.getFullYear()} ${clock(first)}`, `${last.getDate()}.${last.getMonth() + 1}.${last.getFullYear()} ${clock(last)}`]);
   });
 });

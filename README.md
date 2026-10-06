@@ -88,9 +88,17 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   one menu button. The version number at the bottom of the page shows what is
   new.
 - **Light and dark**: the theme button in the bar follows your computer, or
-  keeps the one you choose.
-- **English and Slovak**: the language button in the bar chooses; until you choose, the app follows your browser (or, signed in, your
-  anotoki account). Note names, song titles and your piano's name stay as they
+  keeps the one you choose. Signed in, the theme is your anotoki account's:
+  choose it here or on any anotoki site, and every site - the admin panel
+  too - follows it. Without signing in, this browser keeps its own.
+- **Dates and times** are written the way your language writes them - or,
+  signed in, in the order and on the clock your anotoki account chose
+  (2026-10-06, 6.10.2026, 2:30 PM ...).
+- **English and Slovak**: the language button in the bar chooses - and,
+  signed in, saves it to your anotoki account as well, so every anotoki site
+  speaks it. Signed in, the app speaks your account's language (changed on
+  another site, it follows); without signing in it keeps what you chose in
+  this browser, and until you choose, it follows your browser. Note names, song titles and your piano's name stay as they
   are in every language. The app's words live in the database, reworded in
   the browser in the admin panel (`/admin`, in English; **Admin** in your
   menu, and the bar there has its sections): an account with the role EDITOR of Piano Academy
@@ -135,10 +143,21 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
-- English and Slovak (informal), 287 keys of the app's own words in the
-  database (migrations 002 to 005), a language chooser, and the
+- English and Slovak (informal), 289 keys of the app's own words in the
+  database (migrations 002 to 006), a language chooser, and the
   Translations and Languages pages. A word with no string shows its key, on
   purpose.
+- **The anotoki account's theme, dates and clock (2026-10-06).** The IAM
+  keeps them beside the account's language (its migration 015), and Piano
+  Academy follows them for somebody signed in: the theme everywhere (the
+  admin panel too), dates and times in the order and on the clock chosen.
+  The bar's theme button and language button save a signed-in person's
+  choice to the account (the IAM's browser SDK 1.2.0), and the account's
+  language comes before what this browser remembered (the family's order);
+  when the account would not take a choice, a note under the button says so
+  (migration 006: two sentences, applied at the hand-over with 005). Without
+  signing in - or with an IAM before its 015 - everything stays as it was.
+  Version 0.3 (its line in What's new).
 - **Under way (2026-10-05): sign-in per site.** The IAM now says, per site,
   whether signing in is required and which roles may sign in, and every
   account holds MEMBER. The backend reads Piano Academy's "Sign-in required"

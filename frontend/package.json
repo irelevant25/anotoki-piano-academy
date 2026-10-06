@@ -1,6 +1,6 @@
 {
   "name": "piano-academy",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Piano Academy's frontend: Angular 21 (standalone, zoneless, signals), VexFlow for the notation, Web MIDI for the piano.",
   "private": true,
   "engines": {

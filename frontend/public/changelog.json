@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.3",
+    "date": "2026-10-06",
+    "changes": {
+      "added": [
+        "When you are signed in, the theme and the language you choose are saved to your anotoki account, so every anotoki site uses them - and dates and times are written the way your account says"
+      ],
+      "updated": [],
+      "fixed": []
+    }
+  },
+  {
     "version": "0.2",
     "date": "2026-10-04",
     "changes": {

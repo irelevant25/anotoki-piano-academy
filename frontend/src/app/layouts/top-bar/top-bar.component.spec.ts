@@ -163,6 +163,8 @@ describe('TopBarComponent: the family\'s one bar', () => {
             isStaff: computed(() => (person()?.roles ?? []).some((role) => role === 'ADMIN' || role === 'EDITOR')),
             accountUrl: () => 'http://localhost:4300/account',
             signInFailure: signal(null),
+            // The account's theme, dates and clock: none here (an IAM that sends none) - the theme button keeps the device's.
+            preferences: signal(null),
           },
         },
         { provide: BootService, useValue: boot },

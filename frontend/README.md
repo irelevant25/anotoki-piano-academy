@@ -27,10 +27,11 @@ src/
     boot/                            the cards drawn instead of the app: sign in (after a failed sign-in
                                      only), not set up (an ADMIN gets a link to Migrations), could not load
     core/
-      auth/                          AuthService (the IAM's browser SDK, vendored; loginRequired - the IAM's
-                                     switch), the sign-in guards, the interceptor (the token for a person's
-                                     request, the key for a visitor's - as ApiService issued it), VisitorKey
-                                     (the visitor's key in localStorage)
+      auth/                          AuthService (the IAM's browser SDK 1.2.0, vendored; loginRequired - the IAM's
+                                     switch; preferences - the account's theme, dates and clock while signed in -
+                                     and savePreferences()), the sign-in guards, the interceptor (the token for a
+                                     person's request, the key for a visitor's - as ApiService issued it),
+                                     VisitorKey (the visitor's key in localStorage)
       api/                           ApiService: one method a route of ../backend; who each call is for
                                      (ISSUED_AS); the session outbox; the generation every save names; a
                                      visitor's one "maker"; the move at a sign-in
@@ -39,12 +40,17 @@ src/
                                      memory - an answer at a time, updateNote(); no page keeps a copy -,
                                      its saves, a 409 settled by loading again)
       music/                         theory, srs, songs, path - ALL the domain logic, pure and tested
-      i18n/                          TranslationService, the translate pipes, the kept English, error-text,
+      i18n/                          TranslationService (the family's order: signed in with preferences, the account's
+                                     language before this device's; saveToAccount(): the chooser's choice to the account),
+                                     the translate pipes, the localDate pipe and date-patterns (the account's date
+                                     order and clock for somebody signed in), the kept English, error-text,
                                      visitor-words (the keys of practising without signing in, VISITOR_KEEP_DAYS;
                                      visitorRefusalKey() - ApiService.visitorRefusal; the shell (app.component)
                                      and Stats draw them)
+      theme/                         ThemeService: light, dark or the system's - the account's for somebody signed
+                                     in (saved from the bar's button), this device's otherwise; theme-boot.js's key
       admin/                         LocalizationDrafts (what the Translations and Languages pages hold unsaved)
-      midi/, notation/, player/, audio/, theme/, changelog/, util/, testing/
+      midi/, notation/, player/, audio/, changelog/, util/, testing/
     layouts/top-bar/                 the anotoki family's one bar: brand, sections, "Not saved yet", the piano,
                                      language, theme, the person's menu; a phone's up to PHONE_BAR_MAX (1240);
                                      under /admin the admin sections, in English
@@ -54,7 +60,8 @@ src/
                                      line in its place), auth-callback
     pages/admin/                     the admin panel: Translations (EDITOR, ADMIN); Languages, People, Migrations (ADMIN)
     ui/                              the bar's kit (brand, icon, spinner, the piano's widget, language chooser,
-                                     theme toggle), piano keyboard, notation, changelog and confirm dialogs
+                                     theme toggle - each with its note under it -, keep-on-screen), piano
+                                     keyboard, notation, changelog and confirm dialogs
 public/                              changelog.json (the version shown), anotoki.png (the family's mark),
                                      favicon.svg, theme-boot.js
 proxy.conf.json                      /api and /setup.php to the backend on :8300
@@ -112,7 +119,13 @@ the own progress file (the size checked, the dry run, the question before a
 replace, every code worded); the top bar (the row, the sections lit, the
 menus' keys - Tab and Shift+Tab onto the menu button, the phone's menu, the
 admin panel in English, the sign-out question); the piano's widget; the admin
-pages.
+pages; the anotoki account's preferences (the theme taken at sign-in and
+when it changes, saved one at a time with the latest last, a refusal put
+back and said; dates in the account's order and clock, nobody else's
+changed; the language chooser's choice saved, a language the IAM does not
+offer kept silently; the account's language before this device's, a change
+of it followed - not over `?lang=`, not while a save is out) - checked by
+taking each rule out once.
 
 The key scan that holds the frontend's keys to the database's is the
 backend's (`php tests/run.php`, `tests/unit/translations.test.php`). Pages in

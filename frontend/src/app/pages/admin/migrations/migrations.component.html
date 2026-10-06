@@ -83,7 +83,7 @@
                         @for (item of now.applied; track item.name) {
                             <li>
                                 <code>{{ item.name }}</code>
-                                <span class="when">{{ item.applied_at ?? "" }}</span>
+                                <span class="when">{{ item.applied_at | localDate: "stamp" }}</span>
                             </li>
                         }
                     </ol>

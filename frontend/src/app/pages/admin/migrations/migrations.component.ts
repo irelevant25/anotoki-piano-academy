@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
 import { ApiError, ApiService, MigrationsApplyResult, MigrationsStatus } from '../../../core/api/api.service';
+import { LocalDatePipe } from '../../../core/i18n/local-date.pipe';
 import { BootService } from '../../../core/state/boot.service';
 import { ConfirmDialogComponent } from '../../../ui/confirm-dialog/confirm-dialog.component';
 import { adminErrorText } from '../admin-error';
@@ -8,7 +9,9 @@ import { adminErrorText } from '../admin-error';
  * /admin/migrations (ADMIN alone; English) - the anotoki family's Migrations
  * page, the IAM's shape and words: the database schema is what the files in
  * backend/migrations/piano_academy/ build. Pending (in the order they will
- * run) and Applied (in the order they ran, with when), and "Apply pending" -
+ * run) and Applied (in the order they ran, with when - the server's
+ * "2026-10-04 09:30", or its numbers in the order and clock the reader's
+ * anotoki account chose: the localDate pipe's stamp), and "Apply pending" -
  * POST /api/admin/migrations/apply, under the one lock setup.php's Save and
  * `php migration.php` take too (409 busy while one of them runs). The files
  * run in order, each in its own transaction, and the run stops at the first
@@ -26,7 +29,7 @@ import { adminErrorText } from '../admin-error';
   templateUrl: './migrations.component.html',
   styleUrl: './migrations.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ConfirmDialogComponent],
+  imports: [ConfirmDialogComponent, LocalDatePipe],
 })
 export class MigrationsComponent {
   private readonly api = inject(ApiService);

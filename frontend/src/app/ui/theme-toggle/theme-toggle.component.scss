@@ -1,3 +1,10 @@
+// The note below stands under the button: the host is what it is placed against.
+:host {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
 // A round button in the top bar, as wide as the language beside it: the mode's icon, its name in the title.
 .theme-toggle {
   display: inline-flex;
@@ -15,4 +22,27 @@
 .theme-toggle:hover {
   background: var(--panel-alt);
   color: var(--text);
+}
+
+// The account would not take the theme: said under the button, as the
+// language chooser says a language that could not be loaded - centred on the
+// button, and moved by --shift (keep-on-screen.ts) when it stands too near the
+// screen's edge.
+.note {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+  z-index: 40;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: center;
 }

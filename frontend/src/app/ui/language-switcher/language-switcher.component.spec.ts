@@ -1,12 +1,22 @@
 import { HttpClient } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { type AnotokiPreferenceChanges, type AnotokiPreferences, type AnotokiSavedPreferences } from '../../core/auth/anotoki-auth';
 import { AuthService } from '../../core/auth/auth.service';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { TEST_LANGUAGES, provideTestTranslations } from '../../core/testing/test-translations';
 import { LanguageSwitcherComponent } from './language-switcher.component';
 
-const ENGLISH = { 'language.button': 'Language: {name} ({code})', 'language.notLoaded': 'The language could not be loaded. Please try again.' };
-const SLOVAK = { 'language.button': 'Jazyk: {name} ({code})', 'language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.' };
+const ENGLISH = {
+  'language.button': 'Language: {name} ({code})',
+  'language.notLoaded': 'The language could not be loaded. Please try again.',
+  'language.notSaved': 'The language could not be saved to your anotoki account - it holds for this visit only.',
+};
+const SLOVAK = {
+  'language.button': 'Jazyk: {name} ({code})',
+  'language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.',
+  'language.notSaved': 'Jazyk sa nepodarilo uložiť do tvojho účtu anotoki – platí len počas tejto návštevy.',
+};
 
 describe('LanguageSwitcherComponent', () => {
   let fixture: ComponentFixture<LanguageSwitcherComponent>;
@@ -220,6 +230,133 @@ describe('LanguageSwitcherComponent', () => {
   });
 });
 
+describe('LanguageSwitcherComponent for somebody signed in: the choice is the anotoki account’s language too', () => {
+  let fixture: ComponentFixture<LanguageSwitcherComponent>;
+  let host: HTMLElement;
+  /** The account: its language (the token's locale) and its preferences (null: an IAM that keeps none). */
+  const user = signal<{ locale: string | null } | null>(null);
+  const preferences = signal<AnotokiPreferences | null>(null);
+  let saves: { changes: AnotokiPreferenceChanges; accept(): void; refuse(code: string): void }[];
+  const auth = {
+    user,
+    signedIn: () => user() !== null,
+    onAuthChange: () => () => undefined,
+    preferences,
+    savePreferences: vi.fn(
+      (changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> =>
+        new Promise((resolve, reject) => {
+          saves.push({
+            changes,
+            accept: () => {
+              user.set({ locale: changes.language ?? null });
+              resolve({ locale: changes.language ?? null, preferences: preferences() });
+            },
+            refuse: (code) => reject(Object.assign(new Error('The IAM refused the change'), { code })),
+          });
+        }),
+    ),
+  };
+
+  const button = () => host.querySelector<HTMLButtonElement>('button.switcher')!;
+  const items = () => Array.from(host.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'));
+  const note = () => host.querySelector<HTMLElement>('[role="alert"]');
+  const sent = (): AnotokiPreferenceChanges[] => saves.map((save) => save.changes);
+
+  async function choose(index: number): Promise<void> {
+    button().click();
+    await fixture.whenStable();
+    items()[index].click();
+    await fixture.whenStable();
+    await new Promise((done) => setTimeout(done));
+    await fixture.whenStable();
+  }
+
+  beforeEach(async () => {
+    localStorage.clear();
+    user.set({ locale: 'sk' });
+    preferences.set({ theme: 'auto', date_format: null, time_format: null });
+    saves = [];
+    auth.savePreferences.mockClear();
+    TestBed.configureTestingModule({ providers: [provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }), { provide: AuthService, useValue: auth }] });
+    fixture = TestBed.createComponent(LanguageSwitcherComponent);
+    host = fixture.nativeElement;
+    document.body.appendChild(host);
+    await fixture.whenStable();
+  });
+
+  afterEach(() => {
+    host.remove();
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  it('saves the language to the account once the page has switched to it - and remembers it on this device, as before', async () => {
+    await choose(0);
+    expect(TestBed.inject(TranslationService).language()).toBe('en');
+    expect(localStorage.getItem('piano-academy:language')).toBe('en');
+    expect(sent()).toEqual([{ language: 'en' }]);
+    saves[0].accept();
+    await fixture.whenStable();
+    expect(note()).toBeNull();
+  });
+
+  it('saves nothing when the language could not be loaded: the page stayed where it was', async () => {
+    vi.spyOn(TestBed.inject(TranslationService), 'setLanguage').mockResolvedValue(false);
+    await choose(0);
+    expect(note()?.textContent?.trim()).toBe('Jazyk sa nepodarilo načítať. Skús to znova.');
+    expect(sent()).toEqual([]);
+  });
+
+  it('saves the language already on the page when the account has another - a link’s, or one the site chose while it lacked the account’s', async () => {
+    user.set({ locale: 'en' });
+    const setLanguage = vi.spyOn(TestBed.inject(TranslationService), 'setLanguage');
+    await choose(1);
+    expect(setLanguage).not.toHaveBeenCalled();
+    expect(sent()).toEqual([{ language: 'sk' }]);
+
+    // The account has it already: nothing more to save.
+    saves[0].accept();
+    await choose(1);
+    expect(sent()).toEqual([{ language: 'sk' }]);
+  });
+
+  it('says it under the button when the account would not take the language - the page stays in it for this visit - until the next press', async () => {
+    // The IAM no longer lets this account into Piano Academy (the SDK's access_denied): trying again would not help, and the words do not say it would.
+    await choose(0);
+    saves[0].refuse('access_denied');
+    await fixture.whenStable();
+    await new Promise((done) => setTimeout(done));
+    await fixture.whenStable();
+
+    expect(TestBed.inject(TranslationService).language()).toBe('en');
+    // In the language the page is in now.
+    expect(note()?.textContent?.trim()).toBe('The language could not be saved to your anotoki account - it holds for this visit only.');
+
+    button().click();
+    await fixture.whenStable();
+    expect(note()).toBeNull();
+  });
+
+  it('keeps a language the IAM does not offer as this site’s own, and says nothing', async () => {
+    await choose(0);
+    saves[0].refuse('invalid_request');
+    await fixture.whenStable();
+    await new Promise((done) => setTimeout(done));
+    await fixture.whenStable();
+    expect(note()).toBeNull();
+    expect(TestBed.inject(TranslationService).language()).toBe('en');
+  });
+
+  it('saves nothing for a visitor, or while the IAM keeps no preferences', async () => {
+    preferences.set(null);
+    await choose(0);
+    user.set(null);
+    await choose(1);
+    expect(sent()).toEqual([]);
+    expect(TestBed.inject(TranslationService).language()).toBe('sk');
+  });
+});
+
 describe('LanguageSwitcherComponent with nothing to choose between', () => {
   afterEach(() => localStorage.clear());
 
@@ -237,7 +374,7 @@ describe('LanguageSwitcherComponent with nothing to choose between', () => {
     localStorage.clear();
     sessionStorage.clear();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const auth = { user: () => null, signedIn: () => false, onAuthChange: () => () => undefined };
+    const auth = { user: () => null, signedIn: () => false, preferences: () => null, onAuthChange: () => () => undefined };
     // The real service, with no bundle: the app is not set up, so nothing was asked for.
     TestBed.configureTestingModule({
       providers: [

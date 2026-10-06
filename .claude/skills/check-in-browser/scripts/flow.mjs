@@ -556,7 +556,7 @@ try {
     check((await admin.textContent('#migrations-pending')).includes('Nothing pending'), 'Migrations: nothing pending');
     check(await admin.isDisabled('#migrations-apply'), 'Apply pending is off with nothing pending');
     const applied = await admin.$$eval('#migrations-applied li', (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.when').textContent.trim()]));
-    check(applied.length >= 4 && applied.at(-1)[0] === '005_visitors.sql' && applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)), 'Applied: every file with when, 005 last', applied);
+    check(applied.length >= 4 && applied.at(-1)[0] === '006_account_preferences.sql' && applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)), 'Applied: every file with when, 006 last', applied);
     check((await admin.title()) === 'Migrations · Admin panel · Piano Academy', 'its title', await admin.title());
     await admin.screenshot({ path: join(shots, 'admin-migrations-1280.png'), fullPage: true });
     // The Database page's old address.
@@ -854,10 +854,133 @@ try {
     await iamAs(MIA);
   }
 
+  step('The anotoki account’s theme, dates and clock (the IAM’s 015): followed when signed in, the admin panel too; saved from the bar; a refusal said');
+  {
+    /** What the stand-in IAM holds now: the account's preferences, and who signs in (their language). */
+    const iamState = async () => (await fetch(`${IAM}/_test/state`)).json();
+    const iamSet = (changes) => fetch(`${IAM}/_test/state`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes) });
+    /** Polls an async test until it holds, or the time is up. */
+    const until = async (test, ms = 5000) => {
+      for (const end = Date.now() + ms; Date.now() < end; await new Promise((done) => setTimeout(done, 100))) {
+        if (await test()) return true;
+      }
+      return false;
+    };
+    const theme = (page) => page.evaluate(() => document.documentElement.dataset.theme);
+    const shown = (page) => page.getAttribute('#theme-toggle', 'title');
+
+    // The account chose dark, its dates day first with dots, and the 12-hour clock; this browser had light.
+    await iamAs(MIA, { preferences: { theme: 'dark', date_format: 'dmy_dot', time_format: '12' }, preferences_refuse: false });
+    const context = await newContext({ scheme: 'light' });
+    const page = await context.newPage();
+    await page.goto(`${APP}/api/health`);
+    await page.evaluate(() => localStorage.setItem('piano-academy:theme', 'light'));
+    await page.goto(`${APP}/stats`);
+    await page.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await page.waitForFunction(() => document.querySelector('#view-root .loading') === null, null, { timeout: 20000 });
+    await until(async () => (await theme(page)) === 'dark');
+    check((await theme(page)) === 'dark' && (await shown(page)) === 'Theme: dark', 'signed in: the account’s dark, over this browser’s light', [await theme(page), await shown(page)]);
+    check((await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === 'dark', 'kept for the next first paint (theme-boot.js)');
+    const whens = await page.$$eval('#view-root tbody tr td:first-child', (cells) => cells.map((cell) => cell.textContent.trim()));
+    check(whens.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [ap]m$/.test(when)), 'Stats: when each round was played, in the account’s order and on its clock', whens);
+    await page.click('#app-version');
+    await page.waitForSelector('.release-date');
+    const [year, month, day] = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0].date.split('-').map(Number);
+    check((await page.textContent('.release-date'))?.trim() === `${day}.${month}.${year}`, 'What’s new: the release day in the account’s order', await page.textContent('.release-date'));
+    await page.screenshot({ path: join(shots, 'account-dark-whats-new-1280.png') });
+    await page.keyboard.press('Escape');
+
+    // The bar's button: dark -> automatic, saved to the account - and another tab of the site follows the next choice at once.
+    await page.click('#theme-toggle');
+    check(await until(async () => (await iamState()).preferences?.theme === 'auto'), 'the button saved "automatic" to the account', (await iamState()).preferences);
+    check((await theme(page)) === 'light' && (await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === null, 'automatic: the system’s light, nothing kept for the first paint', await theme(page));
+    const other = await context.newPage();
+    await other.goto(`${APP}/`);
+    await other.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await page.click('#theme-toggle');
+    check(await until(async () => (await iamState()).preferences?.theme === 'light'), 'light saved to the account');
+    await until(async () => (await shown(other)) === 'Theme: light');
+    check((await shown(other)) === 'Theme: light', 'the other tab shows it too (the SDK tells every tab)', await shown(other));
+    await other.close();
+
+    // The account would not take it: the account's theme back, and a note under the button - on a phone too.
+    await iamSet({ preferences_refuse: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(150);
+    await page.click('#theme-toggle');
+    await page.waitForSelector('#theme-not-saved', { timeout: 5000 }).catch(() => undefined);
+    check((await page.textContent('#theme-not-saved'))?.trim() === 'The theme could not be saved to your anotoki account.', 'refused: said under the button, promising nothing', await page.textContent('#theme-not-saved').catch(() => null));
+    check((await shown(page)) === 'Theme: light' && (await theme(page)) === 'light' && (await iamState()).preferences?.theme === 'light', 'refused: the account’s light on the screen again', [await shown(page), await theme(page)]);
+    await page.waitForTimeout(150);
+    const note = await page.evaluate(() => {
+      const box = document.querySelector('#theme-not-saved').getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return { left: Math.round(box.left), right: Math.round(box.right), screen: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, onTop: !!hit?.closest('#theme-not-saved') };
+    });
+    check(note.left >= 0 && note.right <= note.screen && note.scroll <= note.screen && note.onTop, 'the note at 390: inside the screen, on top of the page, no sideways scroll', note);
+    await page.screenshot({ path: join(shots, 'account-theme-refused-390.png') });
+    // Elsewhere: Stats' second heading, clear of the bar (its first stands under the bar and the note at 390).
+    await page.locator('#view-root h2').nth(1).click();
+    await page.waitForSelector('#theme-not-saved', { state: 'detached', timeout: 3000 }).catch(() => undefined);
+    check(!(await page.$('#theme-not-saved')), 'a click elsewhere: the note goes');
+    await iamSet({ preferences_refuse: false });
+
+    // The language chosen in the bar is the account's too - another tab of the site follows it, over this browser's
+    // remembered choice; the dates keep the account's order and clock, in Slovak's words.
+    const twin = await context.newPage();
+    await twin.goto(`${APP}/`);
+    await twin.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    check((await twin.getAttribute('html', 'lang')) === 'en', 'another tab, in English');
+    await page.click('app-language-switcher .switcher');
+    await page.click('[role="menuitemradio"][lang="sk"]');
+    check(await until(async () => (await iamState()).user?.locale === 'sk'), 'Slovak chosen in the bar: the account’s language now', (await iamState()).user);
+    await until(async () => (await page.getAttribute('html', 'lang')) === 'sk');
+    await until(async () => (await twin.getAttribute('html', 'lang')) === 'sk');
+    check((await twin.getAttribute('html', 'lang')) === 'sk', 'the other tab follows the account’s new language', await twin.getAttribute('html', 'lang'));
+    await twin.close();
+    const slovak = await page.$$eval('#view-root tbody tr td:first-child', (cells) => cells.map((cell) => cell.textContent.trim()));
+    check(slovak.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [AP]M$/.test(when)), 'in Slovak: the same order and clock', slovak);
+    check((await keysOnPage(page)).length === 0, 'no key on the page', await keysOnPage(page));
+    await page.screenshot({ path: join(shots, 'account-sk-390.png'), fullPage: true });
+    await context.close();
+
+    // The account's language before what a browser remembered: this one chose Slovak, the account says English.
+    await iamAs(MIA, { preferences: { theme: 'auto', date_format: null, time_format: null } });
+    const readerContext = await newContext();
+    const reader = await readerContext.newPage();
+    await reader.goto(`${APP}/api/health`);
+    await reader.evaluate(() => localStorage.setItem('piano-academy:language', 'sk'));
+    await reader.goto(`${APP}/`);
+    await reader.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await reader.waitForFunction(() => document.querySelector('#view-root .loading') === null, null, { timeout: 20000 });
+    check((await reader.getAttribute('html', 'lang')) === 'en', 'signed in: the account’s English over this browser’s Slovak', await reader.getAttribute('html', 'lang'));
+    check((await reader.evaluate(() => localStorage.getItem('piano-academy:language'))) === 'sk', 'this browser keeps its choice, for when nobody is signed in');
+    await readerContext.close();
+
+    // The admin panel follows the same account: one theme everywhere, its stamps in the account's order and clock.
+    await iamAs(ADA, { preferences: { theme: 'dark', date_format: 'mdy_slash', time_format: '24' } });
+    const adminContext = await newContext({ scheme: 'light' });
+    const admin = await signedIn(adminContext, ADA, '/admin/people');
+    await admin.waitForSelector('#people-table');
+    await until(async () => (await theme(admin)) === 'dark');
+    check((await theme(admin)) === 'dark', 'the admin panel: the account’s dark too', await theme(admin));
+    const seen = await admin.$$eval('#people-table tbody tr[data-person] td:nth-child(3)', (cells) => cells.map((cell) => cell.textContent.trim()));
+    check(seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'People: first seen in the account’s order, on its 24-hour clock', seen);
+    await admin.click('#topbar-nav a[href="/admin/migrations"]');
+    await admin.waitForSelector('#migrations-applied li');
+    const ran = await admin.$$eval('#migrations-applied .when', (all) => all.map((when) => when.textContent.trim()));
+    check(ran.length > 0 && ran.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'Migrations: when each ran, in the account’s order', ran);
+    await admin.screenshot({ path: join(shots, 'account-admin-migrations-dark.png'), fullPage: true });
+    await adminContext.close();
+    // An IAM that keeps no preferences again, for what follows.
+    await iamAs(MIA, { preferences: null });
+  }
+
   step('A database behind the code: the card, an Apply that fails with what PostgreSQL said, and an ADMIN applies it on the Migrations page');
   {
-    // 005 - the newest - taken off the record: the app is behind it (005 runs again cleanly - every statement steps aside
-    // for what is there, and its gates hold with visitors in the database; tests/unit/migrations.test.php runs 004 and 005 again too).
+    // 005 - the newest with a schema part - taken off the record (006, words only, stays): the app is behind it (005 runs
+    // again cleanly - every statement steps aside for what is there, and its gates hold with visitors in the database;
+    // tests/unit/migrations.test.php runs 004 and 005 again too).
     onTheDatabase("DELETE FROM migrations WHERE filename = '005_visitors.sql'");
 
     const learnerContext = await newContext();

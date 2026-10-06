@@ -40,6 +40,8 @@ function standInAuth() {
     }),
     userKey: () => auth.person,
     user: () => null,
+    // The account's preferences: none here (an IAM before its 015) - the language is decided as it always was.
+    preferences: () => null,
     isAdmin: () => auth.admin,
     accessToken: vi.fn(async () => (auth.person !== null ? 'token-7' : null)),
     refreshToken: vi.fn(async () => null),

@@ -1,11 +1,11 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { type AnotokiAuth, type AnotokiUser, createAuth } from './anotoki-auth';
+import { type AnotokiAuth, type AnotokiPreferenceChanges, type AnotokiPreferences, type AnotokiSavedPreferences, type AnotokiUser, createAuth } from './anotoki-auth';
 
 /**
  * Signing in, through the anotoki IAM - the only way in; the app has no login
- * of its own. The vendored browser SDK (anotoki-auth.mjs v1.1.1, copied
+ * of its own. The vendored browser SDK (anotoki-auth.mjs v1.2.0, copied
  * unchanged from the IAM's sdk/js/) does the OpenID Connect code flow with
  * PKCE and keeps the tokens in localStorage, shared by every tab, refreshing
  * them serialised across tabs; this wraps it in signals.
@@ -17,6 +17,12 @@ import { type AnotokiAuth, type AnotokiUser, createAuth } from './anotoki-auth';
  * until setup.php has run. While a sign-in is not required, somebody who has
  * not signed in practises as a visitor (core/auth/visitor-key.ts) - this
  * service knows nothing of visitors.
+ *
+ * The account's theme, date order and clock come with who signed in
+ * (`preferences`, IAM migration 015), and its language as `user().locale`:
+ * one choice every anotoki site follows. The theme button, the date pipe and
+ * the language chooser read them here, and save a signed-in person's choice
+ * to the account through savePreferences().
  */
 
 /**
@@ -91,6 +97,15 @@ export class AuthService {
     const user = this.signedIn() ? this.user() : null;
     return user ? user.preferred_username || user.email || null : null;
   });
+  /**
+   * The account's theme, date order and clock, which every anotoki site
+   * follows - while somebody is signed in and the IAM sends them. Null for
+   * nobody and for a visitor (each device keeps its own choices then), and
+   * null from an IAM before its migration 015 or a sign-in without the
+   * `profile` scope: then the app keeps its own settings, as it always did,
+   * and saves nothing to the account.
+   */
+  readonly preferences = computed<AnotokiPreferences | null>(() => (this.signedIn() ? (this.user()?.preferences ?? null) : null));
 
   /**
    * Once per page load, before anything calls the API: reads the backend's
@@ -209,7 +224,28 @@ export class AuthService {
     return this.client ? this.client.accountUrl() : null;
   }
 
-  /** Signed in, out or refreshed - in this tab or another. Returns an unsubscribe. */
+  /**
+   * Saves a choice made here - the theme, the language - to the account, for
+   * every anotoki site (the SDK's savePreferences(): POST
+   * {issuer}/api/oidc/preferences with the access token). The SDK puts the
+   * answer into user() at once, in every tab, and says so (onAuthChange).
+   * Rejects with the IAM's error code in `code`: login_required (nobody
+   * signed in - nor any settings read - or somebody else signed in
+   * meanwhile: the SDK sends only this person's own token),
+   * insufficient_scope, invalid_request (a value the IAM does not take: a
+   * language it does not offer), access_denied (the IAM no longer lets this
+   * account into Piano Academy - trying again would not help),
+   * invalid_token, temporarily_unavailable, network... The caller decides
+   * what each means to the person.
+   */
+  savePreferences(changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> {
+    if (!this.client) {
+      return Promise.reject(Object.assign(new Error('Nobody is signed in'), { code: 'login_required' }));
+    }
+    return this.client.savePreferences(changes);
+  }
+
+  /** Signed in, out or refreshed, or a preference saved - in this tab or another. Returns an unsubscribe. */
   onAuthChange(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

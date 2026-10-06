@@ -98,6 +98,8 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'theme.autoSpoken': 'Theme: automatic (press to change)',
   'theme.lightSpoken': 'Theme: light (press to change)',
   'theme.darkSpoken': 'Theme: dark (press to change)',
+  // ...and the note under it when the anotoki account would not take the theme chosen there.
+  'theme.notSaved': 'The theme could not be saved to your anotoki account.',
   // The footer (app.component): the version button's hint.
   'footer.whatsNew': 'What\'s new',
   // The frame of the list of changes (ui/changelog-dialog); its entries are not translated.

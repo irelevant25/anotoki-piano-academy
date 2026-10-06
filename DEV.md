@@ -186,6 +186,12 @@ and with which roles (`["MEMBER"]`: a learner - every account holds MEMBER), and
 `{"login_required": false}` what the IAM says about the app's "Sign-in required"
 (`{"application_missing": true}`: a 404). The app keeps that answer a minute in
 the folder's `cache/`; `testenv.php ... --application-ttl=1` keeps it a second.
+`{"preferences": {"theme": "dark", "date_format": "dmy_dot", "time_format": "12"}}`
+gives the account a theme, a date order and a clock (the tokens' `preferences`
+claim, as an IAM with its migration 015; `null`, the default, is an IAM
+before it), and the app's theme button and language chooser save into it;
+`{"preferences_refuse": true}` makes those saves fail. A sign-in takes the
+claim, so sign in again after changing it.
 Throwaway servers go on 8590-8599.
 
 With `login_required` false the throwaway copy keeps visitors' progress
@@ -333,6 +339,18 @@ Cloudflare's IP ranges as `client_address.trusted_proxies` - otherwise every
 visitor is counted by Cloudflare's address and the hourly limit per address
 fills for everybody at once. Watch the People page's visitors line; the same
 file lowers the limits (`max_visitors`, `new_per_hour`, ...).
+
+**The account's theme, dates and clock (migration 006, 2026-10-06, not
+applied anywhere yet)**: two sentences (`theme.notSaved`,
+`language.notSaved`), words only - applied with 005 at the hand-over, the
+same way (one Apply takes both). The frontend vendors the IAM's browser SDK
+1.2.0 and follows the account's preferences once the IAM has its migration
+015 - in either order: with an IAM before 015 the app keeps its own theme,
+dates and language order (this browser's choice first) and saves nothing to
+the account; from then on a signed-in person reads the account's language
+before this browser's choice. On the host the browser reaches
+`{issuer}/api/oidc/preferences` cross-origin (the upload's `connect-src`
+allows `https:`).
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code

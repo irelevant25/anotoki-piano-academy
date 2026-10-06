@@ -41,3 +41,11 @@ move before the state - `architecture.md`, "The frontend"); and the
 visitor's words are on the page (stage E: the notice, what came with a
 sign-in, a progress ended, a save refused, sign-in required meanwhile;
 Stats' sign-in line; People's visitors line). Next: the review.
+Then (2026-10-06) the anotoki account's theme, dates and clock (the IAM's
+015, its browser SDK 1.2.0): followed for somebody signed in, the bar's
+theme button and language chooser save to the account, the account's
+language comes before this device's choice (the family's order), and
+migration 006 (two sentences, written whole and final, applied at the
+hand-over with 005) says when the account would not take a choice -
+`architecture.md`, "The frontend" ("Which language"); `decisions.md`. It goes
+out as version 0.3.

@@ -323,3 +323,42 @@ progress loaded again and the other tabs told. Each code is a key of its own
 what is on its way (a spinner); if progress or the path still did not get
 through, the learner is asked (`signOut.*`, their language) before
 `AuthService.signOut()`.
+
+**The account's theme, dates, clock and language** (the IAM's migration 015,
+its browser SDK 1.2.0; `decisions.md`, 2026-10-06): `AuthService.preferences`
+is the account's `{theme, date_format, time_format}` while somebody is signed
+in - null for nobody, a visitor, or an IAM that sends none, and then the app
+keeps its own settings as before and saves nothing to the account.
+`ThemeService` shows the account's theme (taken at sign-in and whenever it
+changes - another tab, another site, a token refresh - but not while a save
+of its own is out), and the bar's theme button saves a choice to the account
+through the SDK's `savePreferences()`: shown at once, one save at a time, the
+latest last; refused, the account's theme comes back and `theme.notSaved` is
+said under the button. The whole site, the admin panel too, has that one
+theme; `piano-academy:theme` keeps the theme on the screen for
+`public/theme-boot.js`. The `localDate` pipe writes a signed-in person's
+dates in the account's order and clock when it chose them (a moment: the
+date and the time side by side, each half the language's own where left
+automatic), the admin panel's People and Migrations included (`stamp`: their
+`yyyy-MM-dd HH:mm`, the server's own numbers for Migrations).
+
+**Which language** (`core/i18n/translation.service.ts`; the family's order,
+the survey site's the reference): for somebody signed in whose account sends
+its preferences, this tab's `?lang=` and a choice made on the page this
+visit come first, then the account's language (when the site has it), then
+the choice this device remembered, the browser's languages, English. A
+choice that won in the chooser is saved to the account as well
+(`setLanguage()` -> `saveToAccount()` - and the chooser's own call for the
+language already on the page), so every anotoki site follows it: one save at
+a time, the latest choice last, and the answer to an earlier save never
+turns the page back. The page stays in the chosen language for the visit
+whatever the account answers - silently when the IAM does not offer that
+language (`invalid_request`: it is this site's own, then), with
+`language.notSaved` under the chooser when the save failed otherwise (the
+IAM out of reach, the sign-in ended, `access_denied`). A change of the
+account's language made elsewhere (its page, another site, another tab) is
+followed when it comes (`onAuthChange`), over the device's choice and an
+earlier choice on the page - not over this tab's `?lang=`, and not while a
+choice made here is on its way to the account. Signed out, or through an
+IAM that sends no preferences, the order is as it always was: `?lang=`,
+this device's choice, the token's `locale`, the browser's, English.

@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { defer, from } from 'rxjs';
+import { type AnotokiPreferenceChanges, type AnotokiPreferences, type AnotokiSavedPreferences } from '../auth/anotoki-auth';
 import { AuthService } from '../auth/auth.service';
 import { TEST_LANGUAGES, provideTestTranslations } from '../testing/test-translations';
 import { KEPT_ENGLISH } from './kept-english';
@@ -115,11 +116,17 @@ describe('TranslationService', () => {
   };
   /** The SDK's session is live: a user it holds counts only then. */
   const live = signal(true);
-  const user = signal<{ locale: string | null } | null>(null);
+  /** Who is signed in: their account's language, and - from an IAM that keeps them (its 015) - its preferences. */
+  const user = signal<{ locale: string | null; preferences?: AnotokiPreferences } | null>(null);
   let listeners: (() => void)[] = [];
+  /** A save to the account: answered by each spec (a pending promise by default). */
+  const savePreferences = vi.fn<(changes: AnotokiPreferenceChanges) => Promise<AnotokiSavedPreferences>>();
   const auth = {
     user,
     signedIn: () => live() && user() !== null,
+    // As AuthService has it: the account's while somebody is signed in, and only from an IAM that sends them.
+    preferences: () => (live() ? (user()?.preferences ?? null) : null),
+    savePreferences,
     onAuthChange: (listener: () => void) => {
       listeners.push(listener);
       return () => undefined;
@@ -146,6 +153,7 @@ describe('TranslationService', () => {
     live.set(true);
     user.set(null);
     listeners = [];
+    savePreferences.mockReset().mockReturnValue(new Promise(() => undefined));
     warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     browser = vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['en-GB']);
     TestBed.configureTestingModule({ providers });
@@ -291,14 +299,16 @@ describe('TranslationService', () => {
       await vi.waitFor(() => expect(service().language()).toBe('sk'));
       expect(localStorage.getItem(LANGUAGE_KEY)).toBeNull();
 
-      // Once somebody chose here, the token no longer decides.
+      // Once somebody chose here, the token no longer decides - for an account that sends no preferences
+      // (an IAM before its 015): waited out, so a switch on its way would have landed.
       await service().setLanguage('en');
       user.set({ locale: 'en' });
       listeners.forEach((listener) => listener());
       user.set({ locale: 'sk' });
       listeners.forEach((listener) => listener());
-      await Promise.resolve();
+      await settled();
       expect(service().language()).toBe('en');
+      expect(server.mock.calls.filter(([code]) => code === 'sk')).toHaveLength(1);
     });
 
     it('says the language of the strings on <html lang>, and the locale dates are written in', async () => {
@@ -1006,6 +1016,199 @@ describe('TranslationService', () => {
       expect(server).not.toHaveBeenCalled();
     });
   });
+
+  describe('an account that sends its preferences (the IAM’s 015): its language before what this device remembered', () => {
+    const PREFERENCES: AnotokiPreferences = { theme: 'auto', date_format: null, time_format: null };
+
+    /** The next visit: a new page load, with what the browser kept. */
+    function nextVisit(): void {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({ providers });
+      listeners = [];
+    }
+
+    /** The account's language as the SDK passes a change of it on - saved here, in another tab, on another site: user() first, then every listener. */
+    function accountSays(locale: string): void {
+      user.set({ locale, preferences: PREFERENCES });
+      listeners.forEach((listener) => listener());
+    }
+
+    it('reads the account’s language over what this device remembered - not over this tab’s ?lang= - and the device’s first for anybody else, as before', async () => {
+      browser.mockReturnValue(['en']);
+      localStorage.setItem(LANGUAGE_KEY, 'en');
+      user.set({ locale: 'sk', preferences: PREFERENCES });
+      await service().init(true);
+      expect(service().language()).toBe('sk');
+      expect(localStorage.getItem(LANGUAGE_KEY)).toBe('en');
+
+      // A link's ?lang= holds for its tab, over the account too.
+      history.replaceState(null, '', '/?lang=en');
+      await service().init(true);
+      expect(service().language()).toBe('en');
+
+      // Signed out, or signed in through an IAM that sends no preferences: the device's choice first.
+      sessionStorage.clear();
+      nextVisit();
+      user.set(null);
+      await service().init(true);
+      expect(service().language()).toBe('en');
+      nextVisit();
+      user.set({ locale: 'sk' });
+      await service().init(true);
+      expect(service().language()).toBe('en');
+    });
+
+    it('reads the device’s choice next, when the site does not have the account’s language', async () => {
+      browser.mockReturnValue(['en']);
+      localStorage.setItem(LANGUAGE_KEY, 'sk');
+      user.set({ locale: 'de', preferences: PREFERENCES });
+      await service().init(true);
+      expect(service().language()).toBe('sk');
+    });
+
+    it('saves the chooser’s choice to the account, as it switches - nothing for a visitor, nor through an IAM that sends no preferences, nor what the account has', async () => {
+      browser.mockReturnValue(['en']);
+      await service().init(true);
+
+      expect(await service().setLanguage('sk')).toBe(true);
+      user.set({ locale: 'en' });
+      expect(await service().setLanguage('en')).toBe(true);
+      expect(savePreferences).not.toHaveBeenCalled();
+
+      user.set({ locale: 'en', preferences: PREFERENCES });
+      expect(await service().setLanguage('en')).toBe(true);
+      expect(savePreferences).not.toHaveBeenCalled();
+      expect(await service().setLanguage('sk')).toBe(true);
+      expect(savePreferences.mock.calls).toEqual([[{ language: 'sk' }]]);
+      // On this device too, for when nobody is signed in.
+      expect(localStorage.getItem(LANGUAGE_KEY)).toBe('sk');
+    });
+
+    it('saves only a choice that won: one overtaken on its way is not sent', async () => {
+      browser.mockReturnValue(['en']);
+      user.set({ locale: 'en', preferences: PREFERENCES });
+      await service().init(true);
+      const slow = later<unknown>();
+      server.mockImplementation((code: string) => (code === 'sk' ? slow.promise : answer(code)));
+
+      const overtaken = service().setLanguage('sk');
+      expect(await service().setLanguage('en')).toBe(true);
+      slow.resolve(SK_ANSWER);
+      expect(await overtaken).toBe(false);
+      expect(service().language()).toBe('en');
+      expect(savePreferences).not.toHaveBeenCalled();
+    });
+
+    it('keeps a language the IAM does not offer as this site’s own for the visit, silently - the next visit reads the account’s again', async () => {
+      browser.mockReturnValue(['en']);
+      user.set({ locale: 'en', preferences: PREFERENCES });
+      await service().init(true);
+      expect(service().language()).toBe('en');
+
+      savePreferences.mockRejectedValue(Object.assign(new Error('Not a language the IAM offers'), { code: 'invalid_request' }));
+      expect(await service().setLanguage('sk')).toBe(true);
+      await settled();
+      expect(savePreferences.mock.calls).toEqual([[{ language: 'sk' }]]);
+      expect(service().language()).toBe('sk');
+      expect(service().languageNotSaved()).toBe(false);
+
+      // For the rest of the visit: the strings read again (an editor saved some) are still Slovak - over the account's English.
+      await service().reload();
+      expect(service().language()).toBe('sk');
+
+      nextVisit();
+      await service().init(true);
+      expect(service().language()).toBe('en');
+      // The device keeps what was chosen on it, for when nobody is signed in.
+      expect(localStorage.getItem(LANGUAGE_KEY)).toBe('sk');
+    });
+
+    it('says any other refusal - access_denied too: this account may no longer use Piano Academy - and the page stays in the chosen language for the visit', async () => {
+      browser.mockReturnValue(['en']);
+      user.set({ locale: 'en', preferences: PREFERENCES });
+      await service().init(true);
+
+      savePreferences.mockRejectedValueOnce(Object.assign(new Error('The IAM could not be reached'), { code: 'network' }));
+      expect(await service().setLanguage('sk')).toBe(true);
+      await settled();
+      expect(service().language()).toBe('sk');
+      expect(service().languageNotSaved()).toBe(true);
+      await service().reload();
+      expect(service().language()).toBe('sk');
+
+      savePreferences.mockRejectedValueOnce(Object.assign(new Error('No access to this application'), { code: 'access_denied' }));
+      const again = service().setLanguage('sk');
+      // A new choice puts the note away until its own answer comes.
+      expect(service().languageNotSaved()).toBe(false);
+      expect(await again).toBe(true);
+      await settled();
+      expect(service().languageNotSaved()).toBe(true);
+      expect(savePreferences.mock.calls).toEqual([[{ language: 'sk' }], [{ language: 'sk' }]]);
+      expect(service().language()).toBe('sk');
+    });
+
+    it('follows a change of the account’s language when it comes - over the device’s choice, and over a choice made earlier on this page', async () => {
+      browser.mockReturnValue(['en']);
+      localStorage.setItem(LANGUAGE_KEY, 'en');
+      user.set({ locale: 'sk', preferences: PREFERENCES });
+      await service().init(true);
+      expect(service().language()).toBe('sk');
+
+      // Changed on the IAM's account page, on another anotoki site, in another tab.
+      accountSays('en');
+      await vi.waitFor(() => expect(service().language()).toBe('en'));
+
+      // Chosen here and saved, then changed elsewhere again: the newer wish wins - and still does when the strings are read again.
+      savePreferences.mockImplementation(async (changes: AnotokiPreferenceChanges) => {
+        accountSays(String(changes.language));
+        return { locale: changes.language ?? null, preferences: PREFERENCES };
+      });
+      expect(await service().setLanguage('sk')).toBe(true);
+      await settled();
+      expect(service().language()).toBe('sk');
+      accountSays('en');
+      await vi.waitFor(() => expect(service().language()).toBe('en'));
+      await service().reload();
+      expect(service().language()).toBe('en');
+      expect(localStorage.getItem(LANGUAGE_KEY)).toBe('sk');
+    });
+
+    it('does not follow it over this tab’s ?lang=', async () => {
+      browser.mockReturnValue(['en']);
+      history.replaceState(null, '', '/?lang=en');
+      user.set({ locale: 'en', preferences: PREFERENCES });
+      await service().init(true);
+
+      accountSays('sk');
+      await settled();
+      expect(service().language()).toBe('en');
+    });
+
+    it('does not follow it while a choice made here is on its way to the account: the answer to that save is the last word', async () => {
+      const THREE = [...TEST_LANGUAGES, { code: 'cs', name: 'Czech', nativeName: 'Čeština' }];
+      server.mockImplementation((code: string) =>
+        Promise.resolve(code === 'sk' ? { ...SK_ANSWER, languages: THREE } : code === 'cs' ? { language: 'cs', languages: THREE, values: ENGLISH, english: ENGLISH } : { ...EN_BUNDLE, languages: THREE }),
+      );
+      browser.mockReturnValue(['en']);
+      user.set({ locale: 'en', preferences: PREFERENCES });
+      await service().init(true);
+      const saved = later<AnotokiSavedPreferences>();
+      savePreferences.mockReturnValue(saved.promise);
+
+      expect(await service().setLanguage('sk')).toBe(true);
+      // Another anotoki site changes the account meanwhile: not followed while this page's choice is on its way.
+      accountSays('cs');
+      await settled();
+      expect(service().language()).toBe('sk');
+
+      // The IAM took this page's choice last: its answer is the account's language now.
+      accountSays('sk');
+      saved.resolve({ locale: 'sk', preferences: PREFERENCES });
+      await settled();
+      expect(service().language()).toBe('sk');
+      expect(asked.filter((url) => url.endsWith('/cs'))).toEqual([]);
+    });
+  });
 });
 
 describe('TranslationService: the request itself', () => {
@@ -1013,7 +1216,7 @@ describe('TranslationService: the request itself', () => {
     localStorage.clear();
     sessionStorage.clear();
     vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['sk-SK']);
-    const auth = { user: () => null, signedIn: () => false, onAuthChange: () => () => undefined };
+    const auth = { user: () => null, signedIn: () => false, preferences: () => null, onAuthChange: () => () => undefined };
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: auth }] });
     const http = TestBed.inject(HttpTestingController);
     const i18n = TestBed.inject(TranslationService);
@@ -1171,5 +1374,119 @@ describe('TranslationService: wording', () => {
     expect(i18n.t('common.close')).toBe('Zavrieť');
     // With a bundle in memory the kept English is out of play in a spec too.
     expect(i18n.t('title.learn')).toBe('title.learn');
+  });
+});
+
+describe('TranslationService.saveToAccount(): the chooser’s choice is the anotoki account’s language too', () => {
+  /** The account as AuthService holds it: its language (the token's locale) and its preferences - null for nobody, a visitor, or an IAM before its 015. */
+  const user = signal<{ locale: string | null } | null>(null);
+  const preferences = signal<AnotokiPreferences | null>(null);
+  let saves: { changes: AnotokiPreferenceChanges; accept(): void; refuse(code: string): void }[];
+  const auth = {
+    user,
+    signedIn: () => user() !== null,
+    onAuthChange: () => () => undefined,
+    preferences,
+    savePreferences: vi.fn(
+      (changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> =>
+        new Promise((resolve, reject) => {
+          saves.push({
+            changes,
+            // As the SDK does: user() says the account's new language before the promise resolves.
+            accept: () => {
+              user.set({ locale: changes.language ?? user()?.locale ?? null });
+              resolve({ locale: user()?.locale ?? null, preferences: preferences() });
+            },
+            refuse: (code) => reject(Object.assign(new Error('The IAM refused the change'), { code })),
+          });
+        }),
+    ),
+  };
+  const ACCOUNT: AnotokiPreferences = { theme: 'auto', date_format: null, time_format: null };
+
+  function service(): TranslationService {
+    return TestBed.inject(TranslationService);
+  }
+
+  /** The answers given have come back, and what they set off has run. */
+  const settle = (): Promise<void> => new Promise((done) => setTimeout(done));
+
+  beforeEach(() => {
+    user.set({ locale: 'en' });
+    preferences.set(ACCOUNT);
+    saves = [];
+    auth.savePreferences.mockClear();
+    TestBed.configureTestingModule({ providers: [provideTestTranslations({}, { language: 'sk' }), { provide: AuthService, useValue: auth }] });
+  });
+
+  it('saves the language a signed-in person chose - only that, through the SDK', async () => {
+    service().saveToAccount('sk');
+    expect(saves.map((save) => save.changes)).toEqual([{ language: 'sk' }]);
+    saves[0].accept();
+    await settle();
+    expect(user()?.locale).toBe('sk');
+    expect(service().languageNotSaved()).toBe(false);
+  });
+
+  it('saves nothing when the account says it already, for a visitor, or while the IAM keeps no preferences (before its 015)', async () => {
+    user.set({ locale: 'sk' });
+    service().saveToAccount('sk');
+    preferences.set(null);
+    service().saveToAccount('en');
+    user.set(null);
+    service().saveToAccount('en');
+    service().saveToAccount('not a code');
+    await settle();
+    expect(auth.savePreferences).not.toHaveBeenCalled();
+  });
+
+  it('one save at a time, the latest choice last - and none when the account has it by then', async () => {
+    service().saveToAccount('sk');
+    service().saveToAccount('en');
+    service().saveToAccount('de');
+    service().saveToAccount('en');
+    expect(saves.map((save) => save.changes)).toEqual([{ language: 'sk' }]);
+
+    // The first answer: only the latest choice waiting (en) is saved, so it is the account's last word.
+    saves[0].accept();
+    await settle();
+    expect(saves.map((save) => save.changes)).toEqual([{ language: 'sk' }, { language: 'en' }]);
+    saves[1].accept();
+    await settle();
+    expect(user()?.locale).toBe('en');
+
+    // Back to the account's own language while a save is on its way: when it settles, nothing more to save.
+    service().saveToAccount('sk');
+    service().saveToAccount('en');
+    saves[2].refuse('network');
+    await settle();
+    expect(saves).toHaveLength(3);
+    expect(service().languageNotSaved()).toBe(false);
+  });
+
+  it('keeps a language the IAM does not offer as this site’s own, silently', async () => {
+    service().saveToAccount('cs');
+    saves[0].refuse('invalid_request');
+    await settle();
+    expect(service().languageNotSaved()).toBe(false);
+    expect(service().language()).toBe('sk');
+  });
+
+  it('says any other refusal - until the next choice - and a refusal a later choice overtook is no news', async () => {
+    service().saveToAccount('sk');
+    saves[0].refuse('temporarily_unavailable');
+    await settle();
+    expect(service().languageNotSaved()).toBe(true);
+
+    service().saveToAccount('sk');
+    expect(service().languageNotSaved()).toBe(false);
+    service().saveToAccount('de');
+    saves[1].refuse('network');
+    await settle();
+    expect(service().languageNotSaved()).toBe(false);
+    expect(saves.map((save) => save.changes)).toEqual([{ language: 'sk' }, { language: 'sk' }, { language: 'de' }]);
+    saves[2].refuse('invalid_token');
+    await settle();
+    expect(service().languageNotSaved()).toBe(true);
   });
 });

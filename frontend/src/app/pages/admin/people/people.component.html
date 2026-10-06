@@ -44,8 +44,8 @@
                                 }
                             </td>
                             <td>{{ person.id }}</td>
-                            <td>{{ person.firstSeen | date: "yyyy-MM-dd HH:mm" }}</td>
-                            <td>{{ person.lastSeen | date: "yyyy-MM-dd HH:mm" }}</td>
+                            <td>{{ person.firstSeen | localDate: "stamp" }}</td>
+                            <td>{{ person.lastSeen | localDate: "stamp" }}</td>
                             <td class="number">{{ person.notes }}</td>
                             <td class="number">{{ person.steps }}</td>
                             <td class="number">{{ person.sessions }}</td>

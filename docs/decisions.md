@@ -2,6 +2,82 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-06 - the theme, the dates and the clock are the anotoki account's
+
+The owner's decision, made for the whole family in the IAM (its migration 015
+and browser SDK 1.2.0; `../anotoki-iam/docs/decisions.md`): "it should be in
+the iam only and apply for every project/application". A site's own controls
+save a signed-in person's choice to the account, and there is one theme
+everywhere - every site, every area of it, the admin panel included.
+
+**The SDK 1.2.0, vendored byte for byte** (`core/auth/anotoki-auth.mjs` and
+`.d.ts`; the PHP SDK stays 1.1.0 - nothing of it changed).
+`AuthService.preferences` is the account's theme, date order and clock while
+somebody is signed in - null for nobody, for a visitor, and from an IAM that
+sends none (before its 015, or a sign-in without `profile`). Null: everything
+is as it was, and nothing is saved to the account (the IAM would answer 503).
+
+**The theme** (`core/theme/theme.service.ts`, after the IAM's own): signed
+in, the account's - taken at sign-in and whenever the account says another
+(another tab, another anotoki site, a refresh of the tokens), but not while
+a choice made here is still being saved, or the page would flick back. The
+bar's button shows a choice at once and saves it (`savePreferences({theme})`):
+one save at a time, the latest choice last, so two saves never race. A
+refusal puts the account's theme back on the screen and says so under the
+button (`theme.notSaved`). The admin panel has the same button, so the whole
+site has one theme. The theme on the screen is still kept in
+`piano-academy:theme`, which `public/theme-boot.js` reads before the first
+paint. Signed out it is the device's, as before; and the device's earlier
+choice is not carried into the account at sign-in - which of a person's
+devices should win is not knowable (the IAM's reasoning).
+
+**Dates and times** (`core/i18n/local-date.pipe.ts`, with the family's four
+orders and two clocks in `date-patterns.ts`): for somebody signed in whose
+account chose an order or a clock, a day is written in that order, and a
+moment as the date and the time side by side - each half the language's own
+where the account left it automatic. Otherwise exactly as before. The admin
+panel's People and Migrations go through the same pipe (`stamp`):
+`yyyy-MM-dd HH:mm` as they always showed, or the account's order and clock.
+The Migrations page's times are the server's own numbers (its clock is UTC),
+put in the chosen order as they are - never moved into the reader's time
+zone, which would make them read differently from what the page showed
+before.
+
+**Which language a reader gets** - decided for the whole family (the survey
+site's `TranslationService` is the reference; Japanese Academy, the build
+analyzer and genshin do the same). For somebody signed in whose IAM sends the
+account's preferences, strongest first: `?lang=` of this tab and a choice
+made on the page this visit, then the account's language (when the site has
+it), then the choice this device remembered, the browser's languages,
+English. A change of the account's language made elsewhere - its page,
+another anotoki site, another tab - is followed when it comes, over the
+device's choice and over a choice made earlier on the page; not over this
+tab's `?lang=`, and not while a choice made here is on its way to the
+account (the answer to an earlier save would turn the page back to it).
+Signed out, and through an IAM that sends no preferences, exactly as before:
+`?lang=`, this device's choice, the token's `locale`, the browser's,
+English - the token's language adopted only while nothing is chosen here.
+The chooser saves a signed-in person's choice to the account too
+(`savePreferences({language})`: one save at a time, the latest last, only a
+choice that won) - also a choice of the language already on the page, which
+the account may not have yet - and still remembers it on this device, for
+when nobody is signed in. A language the IAM does not offer
+(`invalid_request`) stays this site's own for the visit, silently - the next
+visit reads the account's again; any other refusal (the IAM out of reach,
+the sign-in ended, `access_denied`: the account no longer let into Piano
+Academy) is said under the chooser (`language.notSaved`: "...it holds for
+this visit only"), and the page stays in the chosen language for the visit.
+Before this decision the device's choice came first on this site; the IAM's
+own pages put the account first, and now every site does.
+
+**The words of a refusal promise nothing**: `theme.notSaved` and
+`language.notSaved` say what happened and not to try again - after
+`access_denied` (the SDK's code when the site no longer lets the person in)
+trying again would not help.
+
+**Migration 006**: the two sentences, in English and Slovak - words only.
+Written whole and final; the owner applies it at the hand-over, with 005.
+
 ## 2026-10-06 - the family's visitor counter, without the query string
 
 The owner asked for Umami - the family's own, at `umami.anotoki.eu` - on every

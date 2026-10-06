@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import type { MockInstance } from 'vitest';
+import { type AnotokiPreferences } from '../../core/auth/anotoki-auth';
 import { AuthService } from '../../core/auth/auth.service';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { ProgressMap, Session } from '../../core/music/music.types';
@@ -123,7 +124,7 @@ describe('Stats: the page in the language of the reader', () => {
     });
   const tile = (index: number): string => (host.querySelectorAll('.stat-tile .value')[index].textContent ?? '').trim();
 
-  async function show(list: Session[], language: 'en' | 'sk' = 'sk', signedIn = true): Promise<void> {
+  async function show(list: Session[], language: 'en' | 'sk' = 'sk', signedIn = true, preferences: AnotokiPreferences | null = null): Promise<void> {
     sessions.set(list);
     TestBed.configureTestingModule({
       providers: [
@@ -135,7 +136,7 @@ describe('Stats: the page in the language of the reader', () => {
     TestBed.overrideComponent(StatsPageComponent, { remove: { imports: [OwnProgressComponent] }, add: { imports: [OwnProgressStandIn] } });
     const auth = TestBed.inject(AuthService);
     (auth as unknown as { authenticated: { set(value: boolean): void } }).authenticated.set(signedIn);
-    auth.user.set(signedIn ? { sub: '7', preferred_username: 'mia', email: null, email_verified: true, locale: null, roles: ['MEMBER'] } : null);
+    auth.user.set(signedIn ? { sub: '7', preferred_username: 'mia', email: null, email_verified: true, locale: null, roles: ['MEMBER'], preferences } : null);
     fixture = TestBed.createComponent(StatsPageComponent);
     host = fixture.nativeElement;
     await fixture.whenStable();
@@ -235,6 +236,27 @@ describe('Stats: the page in the language of the reader', () => {
     ]);
     // The page's language decides, not the browser's: toLocaleString() is what the page used to show.
     expect(when).not.toBe(new Date('2026-10-20T16:00:00.000Z').toLocaleString());
+  });
+
+  it('writes when a round was played in the order and on the clock the anotoki account chose - the language’s own way for what it left automatic', async () => {
+    const start = new Date('2026-10-20T16:00:00.000Z');
+    const pad = (value: number): string => String(value).padStart(2, '0');
+    const clock24 = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+    const clock12 = new Intl.DateTimeFormat('sk-SK', { hour: 'numeric', minute: '2-digit', hourCycle: 'h12' }).format(start);
+    const day = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+
+    await show([played('1', { mode: 'sheet' })], 'sk', true, { theme: 'auto', date_format: 'ymd_dash', time_format: '24' });
+    expect(rows()[0][0]).toBe(`${day} ${clock24}`);
+
+    // The clock alone chosen: the date the Slovak way, then the 12-hour clock in Slovak's words.
+    TestBed.resetTestingModule();
+    await show([played('1', { mode: 'sheet' })], 'sk', true, { theme: 'auto', date_format: null, time_format: '12' });
+    expect(rows()[0][0]).toBe(`${new Intl.DateTimeFormat('sk-SK', { dateStyle: 'medium' }).format(start)} ${clock12}`);
+
+    // Nothing chosen - or nobody signed in: as before.
+    TestBed.resetTestingModule();
+    await show([played('1', { mode: 'sheet' })], 'sk', true, { theme: 'dark', date_format: null, time_format: null });
+    expect(rows()[0][0]).toBe(new Intl.DateTimeFormat('sk-SK', { dateStyle: 'medium', timeStyle: 'short' }).format(start));
   });
 
   it('follows the language when it changes on the page', async () => {
