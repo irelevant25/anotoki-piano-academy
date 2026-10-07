@@ -1,6 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { ANOTOKI_MIGRATIONS_CONFIG, SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { ApiService, VISITOR_OWNER } from '../api/api.service';
 import { authInterceptor } from '../auth/auth.interceptor';
 import { AuthService, NotSetUpError } from '../auth/auth.service';
@@ -9,6 +10,10 @@ import { RETRY_WAIT_MS, TranslationService } from '../i18n/translation.service';
 import { provideTestTranslations } from '../testing/test-translations';
 import { BootService } from './boot.service';
 import { ProgressStore } from './progress-store.service';
+import { provideSiteMigrations } from './site-migrations';
+
+/** What the family's gate answers every other request while an update waits (anotoki/lib's SiteGate). */
+const UPDATE_PENDING = { code: 'update_pending', message: 'The site is being updated. Try again in a few minutes.' };
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -65,20 +70,20 @@ describe('BootService', () => {
     localStorage.clear();
     auth = standInAuth();
     // The strings are there already and cost no request (the stand-in): these cases are about the sign-in and the progress.
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), { provide: AuthService, useValue: auth }] });
+    // Where the site stands is the family's SiteStatus - not asked here (the app's initializer asks it): ready, but where a case says.
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(ProgressStore);
+    TestBed.inject(SiteStatus).markReady();
   });
 
   afterEach(() => http.verify());
 
   it('an app that is not set up says so, and loads nothing', async () => {
-    auth.failing = new NotSetUpError('config/database.local.php is missing.');
+    auth.failing = new NotSetUpError();
     await boot.start();
     expect(boot.status()).toBe('not-set-up');
-    expect(boot.notSetUpDetail()).toBe('config/database.local.php is missing.');
-    expect(boot.needsUpdate()).toBe(false);
     http.expectNone('/api/state');
   });
 
@@ -117,39 +122,80 @@ describe('BootService', () => {
     consoleError.mockRestore();
   });
 
-  it('a database behind the code sends the learner to the setup page too - and knows it is only behind', async () => {
-    const started = boot.start();
-    await settle();
-    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
-    await started;
-    expect(boot.status()).toBe('not-set-up');
-    expect(boot.needsUpdate()).toBe(true);
+  it('while an update waits the start signs in and stops there: nothing that would fail is asked for - for everybody', async () => {
+    for (const who of ['a learner', 'nobody', 'a visitor'] as const) {
+      TestBed.resetTestingModule();
+      auth = standInAuth();
+      auth.person = who === 'a learner' ? '7' : null;
+      auth.required = who !== 'a visitor';
+      TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
+      TestBed.inject(SiteStatus).report('update_pending');
+      boot = TestBed.inject(BootService);
+      await boot.start();
+      expect(auth.init, who).toHaveBeenCalledTimes(1);
+      expect(boot.status(), who).toBe('waiting');
+      expect(boot.onlyMigrations(), who).toBe(false);
+      TestBed.inject(HttpTestingController).expectNone(() => true);
+      // Nobody is sent to the IAM by the start - the status page has a Sign in of its own.
+      expect(auth.signIn).not.toHaveBeenCalled();
+    }
+    http = TestBed.inject(HttpTestingController);
   });
 
-  it('behind, an ADMIN has the Migrations page alone - and once it applied what was pending, the app starts where it stands', async () => {
-    auth.admin = true;
+  it('the database out of reach, or not set up after all: the start waits the same way', async () => {
+    for (const code of ['unavailable', 'not_set_up']) {
+      TestBed.resetTestingModule();
+      auth = standInAuth();
+      TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
+      TestBed.inject(SiteStatus).report(code);
+      boot = TestBed.inject(BootService);
+      await boot.start();
+      expect(boot.status(), code).toBe('waiting');
+      TestBed.inject(HttpTestingController).expectNone('/api/state');
+    }
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  it('an update that came after the site was asked: the progress\'s 503 says so - the start waits, and the site\'s status hears it', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const started = boot.start();
     await settle();
-    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
+    http.expectOne('/api/state').flush(UPDATE_PENDING, { status: 503, statusText: 'Service Unavailable', headers: { 'Retry-After': '60' } });
     await started;
-    expect(boot.onlyMigrations()).toBe(true);
+    expect(boot.status()).toBe('waiting');
+    expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
+    expect(store.loaded()).toBe(false);
+    // No error to anybody: the family's page says it.
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('while an update waits an ADMIN has the Migrations page alone - and once it applied what was pending, the app starts where it stands', async () => {
+    auth.admin = true;
+    const site = TestBed.inject(SiteStatus);
+    site.report('update_pending');
+    await boot.start();
+    expect([boot.status(), boot.onlyMigrations()]).toEqual(['waiting', true]);
+    http.expectNone('/api/state');
     const reload = vi.spyOn(TestBed.inject(TranslationService), 'reload');
 
-    // Still behind (a migration failed): nothing changes.
+    // Still behind (another file came meanwhile): it waits on.
     let resumed = boot.resumeAfterUpdate();
     await settle();
-    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
+    http.expectOne('/api/state').flush(UPDATE_PENDING, { status: 503, statusText: 'Service Unavailable' });
     await resumed;
-    expect([boot.status(), boot.onlyMigrations()]).toEqual(['not-set-up', true]);
+    expect([boot.status(), boot.onlyMigrations()]).toEqual(['waiting', true]);
     expect(reload).not.toHaveBeenCalled();
 
+    // Applied: the Migrations page says the site is ready, and the start goes on where it stopped.
     resumed = boot.resumeAfterUpdate();
+    site.markReady();
     await settle();
     http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} }, generation: 4 });
     await resumed;
-    expect([boot.status(), boot.needsUpdate(), boot.onlyMigrations()]).toEqual(['ready', false, false]);
+    expect([boot.status(), boot.onlyMigrations()]).toEqual(['ready', false]);
     expect(store.loaded()).toBe(true);
-    // The strings again: the start's request for them got 503.
+    // The strings again: the ones in memory are from before the update.
     expect(reload).toHaveBeenCalledTimes(1);
 
     // Running: asks nothing.
@@ -157,14 +203,10 @@ describe('BootService', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('behind, anybody but an ADMIN has the card alone, and nothing resumes for them', async () => {
-    const started = boot.start();
-    await settle();
-    http.expectOne('/api/state').flush({ error: 'The database needs an update.', code: 'not_set_up', update: true }, { status: 503, statusText: 'Unavailable' });
-    await started;
-    expect(boot.onlyMigrations()).toBe(false);
-    await boot.resumeAfterUpdate();
-    expect(boot.status()).toBe('not-set-up');
+  it('while an update waits anybody but an ADMIN has the status page alone - the Migrations page is no way in for them', async () => {
+    TestBed.inject(SiteStatus).report('update_pending');
+    await boot.start();
+    expect([boot.status(), boot.onlyMigrations()]).toEqual(['waiting', false]);
   });
 
   it('an API that cannot be reached is the error card', async () => {
@@ -211,9 +253,10 @@ describe('BootService: where the language comes into the start', () => {
       if (auth.failing) throw auth.failing;
     });
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations({}, { language: 'sk' }), { provide: AuthService, useValue: auth }],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations({}, { language: 'sk' }), provideSiteMigrations(), { provide: AuthService, useValue: auth }],
     });
     boot = TestBed.inject(BootService);
+    TestBed.inject(SiteStatus).markReady();
     vi.spyOn(TestBed.inject(TranslationService), 'init').mockImplementation(async (request: boolean) => {
       order.push(`i18n:${request}`);
       statusAtInit = boot.status();
@@ -233,8 +276,8 @@ describe('BootService: where the language comes into the start', () => {
     expect(boot.status()).toBe('sign-in');
   });
 
-  it('asks for nothing when the app is not set up: only what the browser kept, before the card is shown', async () => {
-    auth.failing = new NotSetUpError('config/auth.local.php is missing.');
+  it('asks for nothing when the app is not set up: only what the browser kept, before the status page is shown', async () => {
+    auth.failing = new NotSetUpError();
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:false']);
     expect(statusAtInit).toBe('loading');
@@ -254,6 +297,16 @@ describe('BootService: where the language comes into the start', () => {
     await boot.signIn();
     expect(auth.signIn.mock.calls).toEqual([[undefined, 'sk']]);
   });
+
+  it('while an update waits it still gets the sign-in and the strings - the status page has them - and the family\'s page signs in the same way', async () => {
+    TestBed.inject(SiteStatus).report('update_pending');
+    await boot.start();
+    expect(order).toEqual(['auth', 'i18n:true']);
+    expect(boot.status()).toBe('waiting');
+    // The status page's "Sign in" is this one (core/state/site-migrations.ts): to the IAM in the page's language, back to this address.
+    await TestBed.inject(ANOTOKI_MIGRATIONS_CONFIG).signIn();
+    expect(auth.signIn.mock.calls).toEqual([[undefined, 'sk']]);
+  });
 });
 
 describe('BootService with the real translation service', () => {
@@ -267,10 +320,11 @@ describe('BootService with the real translation service', () => {
     sessionStorage.clear();
     vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['sk-SK', 'en']);
     auth = standInAuth();
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: auth }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     i18n = TestBed.inject(TranslationService);
+    TestBed.inject(SiteStatus).markReady();
   });
 
   afterEach(() => {
@@ -346,22 +400,25 @@ describe('BootService with the real translation service', () => {
     expect(i18n.t('title.learn')).toBe('Učenie');
   });
 
-  it('started in place after an ADMIN applied what was pending, it asks for the strings the 503 kept from it', async () => {
+  it('started in place after an ADMIN applied what was pending, it asks for the strings it could not have while the database had none', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     auth.admin = true;
-    const behind = { error: 'The database needs an update.', code: 'not_set_up', update: true };
+    const site = TestBed.inject(SiteStatus);
+    site.report('update_pending');
+    // The words answer while an update waits - but a database without their tables (002 waiting) has none to give.
+    const noWords = { error: 'The site is being updated. Try again in a few minutes.', code: 'update_pending' };
     const started = boot.start();
     await settle();
-    http.expectOne('/api/translations/sk-sk').flush(behind, { status: 503, statusText: 'Service Unavailable' });
+    http.expectOne('/api/translations/sk-sk').flush(noWords, { status: 503, statusText: 'Service Unavailable' });
     await new Promise((resolve) => setTimeout(resolve, RETRY_WAIT_MS + 50));
-    http.expectOne('/api/translations/sk-sk').flush(behind, { status: 503, statusText: 'Service Unavailable' });
-    await settle();
-    http.expectOne('/api/state').flush(behind, { status: 503, statusText: 'Service Unavailable' });
+    http.expectOne('/api/translations/sk-sk').flush(noWords, { status: 503, statusText: 'Service Unavailable' });
     await started;
-    expect([boot.onlyMigrations(), i18n.ready()]).toEqual([true, false]);
+    http.expectNone('/api/state');
+    expect([boot.status(), boot.onlyMigrations(), i18n.ready()]).toEqual(['waiting', true, false]);
 
-    // The Migrations page applied it: the app starts where it stands - and its strings come.
+    // The Migrations page applied it (and said the site is ready): the app starts where it stands - and its strings come.
     const resumed = boot.resumeAfterUpdate();
+    site.markReady();
     await settle();
     http.expectOne('/api/state').flush({ progress: {}, sessions: [], path: { steps: {} }, generation: 2 });
     await resumed;
@@ -401,15 +458,22 @@ describe('BootService: visitors, and the move at a sign-in', () => {
   let api: ApiService;
   let auth: ReturnType<typeof standInAuth>;
 
-  /** Builds the app around the stand-in IAM, as it is when the page loads. */
+  /** Builds the app around the stand-in IAM, as it is when the page loads - its interceptors as app.config.ts has them, the site ready. */
   function start(): void {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(withInterceptors([authInterceptor])), provideHttpClientTesting(), provideTestTranslations(), { provide: AuthService, useValue: auth }],
+      providers: [
+        provideHttpClient(withInterceptors([siteStatusInterceptor, authInterceptor])),
+        provideHttpClientTesting(),
+        provideTestTranslations(),
+        provideSiteMigrations(),
+        { provide: AuthService, useValue: auth },
+      ],
     });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(ProgressStore);
     api = TestBed.inject(ApiService);
+    TestBed.inject(SiteStatus).markReady();
   }
 
   beforeEach(() => {
@@ -604,6 +668,30 @@ describe('BootService: visitors, and the move at a sign-in', () => {
       await started;
       expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBeNull();
       expect(boot.visitorNotMoved()).toBe(false);
+    });
+
+    it('while an update waits the move waits with everything else: not asked for, the key kept, nothing said', async () => {
+      TestBed.inject(SiteStatus).report('update_pending');
+      await boot.start();
+      await settle();
+      http.expectNone('/api/visitor/move');
+      http.expectNone('/api/state');
+      expect([boot.status(), boot.visitorMoved(), boot.visitorNotMoved()]).toEqual(['waiting', null, false]);
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
+    });
+
+    it('an update that came after the site was asked: the move\'s 503 is no failure to word - the key kept, the start waits', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const started = boot.start();
+      (await theMove()).flush(UPDATE_PENDING, { status: 503, statusText: 'Service Unavailable', headers: { 'Retry-After': '60' } });
+      await settle();
+      http.expectNone('/api/visitor/move');
+      http.expectOne('/api/state').flush(UPDATE_PENDING, { status: 503, statusText: 'Service Unavailable', headers: { 'Retry-After': '60' } });
+      await started;
+      expect([boot.status(), boot.visitorMoved(), boot.visitorNotMoved()]).toEqual(['waiting', null, false]);
+      expect(TestBed.inject(SiteStatus).state()).toBe('update-pending');
+      expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
+      expect(consoleError).not.toHaveBeenCalled();
     });
 
     it('signed in again in the middle of practising (another tab visited meanwhile): moved then, and the progress loaded again', async () => {

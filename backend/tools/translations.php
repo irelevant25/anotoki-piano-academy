@@ -166,7 +166,7 @@ if ($problem !== null) {
 }
 
 try {
-    $pending = pendingMigrationsReadOnly(db());
+    $pending = array_column(databaseMigrator()->applicable(), 'name');
 } catch (Throwable $e) {
     refuse('Cannot reach the database ' . dbName() . ': ' . $e->getMessage());
 }

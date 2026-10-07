@@ -31,10 +31,13 @@ declare(strict_types=1);
  *   'application_ttl' and 'application_timeout' (api/auth.php authIamConfig()).
  *
  * There is nothing to fall back on. Without both files, or with one that does
- * not say what it must, the API answers every request 503 {code: "not_set_up"}
- * pointing at /setup.php, and the frontend shows a "not set up yet" page. A
- * default in a committed file would be a way for the app to run somewhere with
- * settings nobody chose there - which is exactly what this is here to stop.
+ * not say what it must - or that PHP cannot run (a slip in an editor) - the
+ * API answers every request but GET /api/site-status 503 {code: "not_set_up"}
+ * (pointing at /setup.php while the site was never installed: the anotoki
+ * family's gate, api/index.php), and the frontend shows the family's status
+ * page. A default in a committed file would be a way for the app to run
+ * somewhere with settings nobody chose there - which is exactly what this is
+ * here to stop.
  *
  * A third file is optional, and never written by setup.php (git ignores it
  * too): visitors.local.php - the limits on practising without signing in,
@@ -110,12 +113,23 @@ function localSettings(bool $reload = false): array
         return $settings;
     }
 
-    $read = static function (string $name): ?array {
+    // A file PHP cannot run is no setting - said, rather than a 500 on every
+    // path (the site's status too, which the pages read to know what to say).
+    // What PHP said is not repeated: it may quote the file, password and all.
+    $unreadable = null;
+    $read = static function (string $name) use (&$unreadable): ?array {
         $file = localConfigFile($name);
         if (!is_file($file)) {
             return null;
         }
-        $values = require $file;
+        try {
+            $values = require $file;
+        } catch (Throwable $e) {
+            $unreadable ??= "config/$name.local.php cannot be read: PHP stops at its line {$e->getLine()}.";
+            error_log("[config] $unreadable");
+
+            return [];
+        }
 
         return is_array($values) ? $values : [];
     };
@@ -129,7 +143,7 @@ function localSettings(bool $reload = false): array
     } elseif ($auth === null) {
         $problem = 'config/auth.local.php is missing.';
     } else {
-        $problem = databaseSettingsProblem($database) ?? authSettingsProblem($auth);
+        $problem = $unreadable ?? databaseSettingsProblem($database) ?? authSettingsProblem($auth);
     }
 
     if ($problem === null && usingTestConfig() && !str_starts_with((string) $database['name'], 'piano_test_')) {

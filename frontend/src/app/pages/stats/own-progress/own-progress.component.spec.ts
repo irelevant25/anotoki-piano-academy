@@ -237,6 +237,7 @@ describe('ownProgressProblem(): every code the own file’s routes give, worded 
     [refused(413, null), 'ownProgress.error.tooLarge'],
     [refused(409, 'export_too_large'), 'ownProgress.error.exportTooLarge'],
     [refused(503, 'not_set_up'), 'ownProgress.error.notSetUp'],
+    [refused(503, 'update_pending'), 'ownProgress.error.notSetUp'],
     [refused(401, 'sign_in_required'), 'ownProgress.error.signedOut'],
     [refused(401, 'invalid_token'), 'ownProgress.error.signedOut'],
     [new ApiError('Not signed in', 401), 'ownProgress.error.signedOut'],

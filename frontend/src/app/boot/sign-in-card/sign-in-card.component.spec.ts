@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AuthService } from '../../core/auth/auth.service';
 import { TranslationService } from '../../core/i18n/translation.service';
+import { provideSiteMigrations } from '../../core/state/site-migrations';
 import { provideTestTranslations } from '../../core/testing/test-translations';
 import { SignInCardComponent } from './sign-in-card.component';
 
@@ -24,7 +25,7 @@ describe('SignInCardComponent: a sign-in that came back without one', () => {
   beforeEach(async () => {
     // The card's own words are not what these cases are about: only the failure is looked at.
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    TestBed.configureTestingModule({ providers: [provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH })] });
+    TestBed.configureTestingModule({ providers: [provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }), provideSiteMigrations()] });
     auth = TestBed.inject(AuthService);
     fixture = TestBed.createComponent(SignInCardComponent);
     await fixture.whenStable();

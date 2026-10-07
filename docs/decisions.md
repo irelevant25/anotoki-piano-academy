@@ -2,6 +2,77 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-07 - one behaviour while the site is not ready: the anotoki family's library
+
+The owner's request, for every anotoki site (the IAM, genshin, the survey
+site, Piano Academy, Japanese Academy, the build analyzer):
+
+> When there is a new migration, some sites behave differently than others.
+> Japanese won't let me go to the admin or anywhere if I am not logged in, but
+> I cannot log in because a migration is waiting. Genshin gives me no warning.
+> Piano and survey show me a setup error with buttons to the setup page or the
+> migrations page. This needs to be consistent. I do not want logged-in users
+> or visitors to see the error about what is going on. The admin should see
+> it. If the setup was already done it should never offer that button again,
+> especially as setup.php is no longer there.
+
+So what the sites share went into one library, `anotoki-lib`
+(`irelevant25/anotoki-lib` on GitHub, version 0.1.0: the PHP package
+`anotoki/lib` and the Angular package `@anotoki/lib`, one version for both),
+starting with the database migrations; Piano Academy takes both halves from
+GitHub (`backend/composer.json`, `vendor/anotoki/lib`; the release's tarball
+in `frontend/package.json`) and keeps nothing of its own that they do:
+
+- **The engine** is the library's `Migrator` (`api/migrations.php` sets it
+  up): the same files, the same `migrations (id, filename, applied_at)`
+  table, the app's own advisory lock (`DATABASE_UPDATE_LOCK`, so every way
+  of applying still takes turns), and the rename of the first runner's
+  `migrations(name)` column as its `prepare` hook. `api/migration_runner.php`,
+  `api/database_update.php` and `api/meddleware/setup.php` are gone; setup's
+  Save, `php migration.php`, the admin panel's Apply and the tests' database
+  builders all go through it.
+- **The gate** is the library's `SiteGate`, in front of every route: not
+  set up -> 503 `not_set_up` (the setup page named only while
+  `storage/installed.lock` is not there - once installed it is never
+  offered again); an update waiting -> 503 `update_pending` everywhere but
+  the sign-in settings, the words, the health check and the Migrations
+  page's routes, so somebody can sign in, the pages have their words and an
+  ADMIN reaches Apply. It replaces the app's "not set up" gate and its
+  per-route schema check (`requireCurrentSchema`, which answered
+  `not_set_up` with `update: true`); `POST /api/sessions`, which had no
+  schema check, waits too now. `GET /api/site-status` says the state to the
+  pages - always 200, to anybody, in every state: nothing of the app's may
+  stand in front of it (the pages ask it before anybody can be signed in, and
+  read a 401 or a 500 there as "not available right now" - what another
+  site's sign-in gate did to it); a settings file PHP cannot run is "not set
+  up" now, where it was a 500. The words' route answers while an update waits, from the database
+  as it is; a database without the words' tables (002 waiting) answers that
+  route `update_pending` as the gate would.
+- **The pages** are the library's: `<anotoki-site-gate>` around the shell's
+  outlet draws "The site is being updated" for visitors and learners (in
+  their language, no error, no code, a quiet Sign in while nobody is signed
+  in; it comes back by itself), "A database update is waiting" with "Open
+  Migrations" for the site's ADMIN (the token's roles), "This site is not
+  set up yet" with the setup page only while never installed, "The site is
+  not available right now" otherwise; the admin panel's Migrations page is
+  the library's `<anotoki-migrations-page>` (Pending with drafts, Applied
+  with each file's SQL, Missing, "Apply pending"). The app's "not set up
+  yet" card and its own Migrations page are gone; migration 007 deletes the
+  card's four words (`boot.notSetUp.*`), which nothing asks for any more.
+- **Signing in works while an update waits** - the deadlock the owner met
+  on Japanese Academy: the start reads the sign-in settings and the words
+  (both open), then waits without asking for the progress or moving a
+  visitor; the sign-in guard sends nobody to the IAM then, and the
+  navigation goes on, so the status page's Sign in comes back to the address
+  it was pressed on. An ADMIN's Apply that leaves nothing to apply goes on
+  with the start in place (`BootService.resumeAfterUpdate()`), the Migrations
+  page staying on the screen; everybody else's page reloads by itself once
+  the site is back.
+
+Gone with it: the server's `detail` (what is missing, to this computer only)
+in the "not set up" answer - the library's body has none; `php
+migration.php` still says what is missing.
+
 ## 2026-10-06 - the theme, the dates and the clock are the anotoki account's
 
 The owner's decision, made for the whole family in the IAM (its migration 015

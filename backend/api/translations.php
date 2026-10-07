@@ -378,6 +378,19 @@ function translationBundle(string $code): array
 }
 
 /**
+ * Are the words' tables there (migration 002)? The bundle is asked for while
+ * an update waits too (the site's gate lets it through), and a database from
+ * before 002 has no words to give yet - asked without touching a table that
+ * is not there.
+ */
+function translationsReady(): bool
+{
+    return (bool) dbValue(
+        "SELECT to_regclass('languages') IS NOT NULL AND to_regclass('translation_keys') IS NOT NULL AND to_regclass('translations') IS NOT NULL"
+    );
+}
+
+/**
  * Does the browser hold this very answer already? If-None-Match compared the
  * weak way, which is what a conditional GET asks for: any of the tags it
  * lists, or *. A tag comes back as whatever stood between the site and the

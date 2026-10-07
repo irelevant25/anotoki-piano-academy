@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy, provideRouter } from '@angular/router';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { AuthService } from '../../core/auth/auth.service';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { BootService, BootStatus } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
+import { provideSiteMigrations } from '../../core/state/site-migrations';
 import { provideTestDialog } from '../../core/testing/test-dialog';
 import { provideTestTranslations } from '../../core/testing/test-translations';
 import { PianoTitleStrategy } from '../../core/title.strategy';
@@ -169,8 +171,11 @@ describe('TopBarComponent: the family\'s one bar', () => {
         },
         { provide: BootService, useValue: boot },
         { provide: ProgressStore, useValue: { unsaved, loaded } },
+        // Where the site stands (the family's SiteStatus): ready, unless a case says otherwise.
+        provideSiteMigrations(),
       ],
     });
+    TestBed.inject(SiteStatus).markReady();
     router = TestBed.inject(Router);
     fixture = TestBed.createComponent(TopBarComponent);
     host = fixture.nativeElement;
@@ -565,12 +570,14 @@ describe('TopBarComponent: the family\'s one bar', () => {
       expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy - admin panel');
     });
 
-    it('while the database is behind: an ADMIN in the admin panel has Migrations alone; elsewhere, and anybody else, no sections', async () => {
+    it('while an update waits: an ADMIN in the admin panel has Migrations alone; elsewhere, and anybody else, no sections', async () => {
       person.set({ name: 'mia', roles: ['ADMIN'] });
-      status.set('not-set-up');
+      status.set('waiting');
       onlyMigrations.set(true);
       try {
         await bar({ at: '/admin/migrations' });
+        TestBed.inject(SiteStatus).report('update_pending');
+        await fixture.whenStable();
         expect(texts('#topbar-nav a')).toEqual(['Migrations']);
         expect(texts('#topbar-nav a[aria-current="page"]')).toEqual(['Migrations']);
         await router.navigateByUrl('/');
@@ -584,6 +591,18 @@ describe('TopBarComponent: the family\'s one bar', () => {
         status.set('ready');
         onlyMigrations.set(false);
       }
+    });
+
+    it('an update that comes in the middle of practising: the sections go while the status page stands in the view\'s place - and come back with the site', async () => {
+      await bar({ at: '/trainer' });
+      expect(texts('#topbar-nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+      const site = TestBed.inject(SiteStatus);
+      site.report('update_pending');
+      await fixture.whenStable();
+      expect($('#topbar-nav')).toBeNull();
+      site.markReady();
+      await fixture.whenStable();
+      expect(texts('#topbar-nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
     });
 
     it('the admin panel\'s sections by role: an EDITOR has Translations alone, somebody with no role none', async () => {

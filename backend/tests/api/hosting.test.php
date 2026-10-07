@@ -89,14 +89,19 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     sort($top);
     assert_same(['.htaccess', '.piano-academy-build', 'api', 'changelog.json', 'config', 'index.html',
         'main-TEST.js', 'media', 'migrations', 'setup.php', 'storage', 'styles-TEST.css', 'theme-boot.js', 'vendor'], $top);
-    foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/anotoki_iam.php', 'api/routes/progress.php', 'api/routes/visitor.php', 'api/meddleware/setup.php',
-        'api/translations.php', 'api/routes/admin.php', 'api/database_update.php', 'api/meddleware/auth.php',
+    foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/anotoki_iam.php', 'api/routes/progress.php', 'api/routes/visitor.php', 'api/routes/public.php',
+        'api/translations.php', 'api/routes/admin.php', 'api/migrations.php', 'api/meddleware/auth.php', 'api/meddleware/security.php',
         'api/store.php', 'api/transfer.php', 'api/people.php', 'api/visitors.php', 'api/client_address.php', 'api/after_response.php',
         'config/config.php', 'config/.htaccess', 'migrations/piano_academy/001_init.sql', 'migrations/piano_academy/002_languages_and_translations.sql',
         'migrations/piano_academy/003_site_strings.sql', 'migrations/piano_academy/004_family_shell.sql', 'migrations/piano_academy/005_visitors.sql',
-        'migrations/piano_academy/006_account_preferences.sql', 'migrations/.htaccess', 'vendor/autoload.php',
-        'vendor/slim/slim/Slim/App.php', 'vendor/.htaccess', 'storage/.htaccess', 'media/font-TEST.woff2'] as $file) {
+        'migrations/piano_academy/006_account_preferences.sql', 'migrations/piano_academy/007_site_status_words.sql', 'migrations/.htaccess', 'vendor/autoload.php',
+        'vendor/slim/slim/Slim/App.php', 'vendor/anotoki/lib/php/src/Migrations/Migrator.php', 'vendor/anotoki/lib/php/src/Migrations/Http/SiteGate.php',
+        'vendor/.htaccess', 'storage/.htaccess', 'media/font-TEST.woff2'] as $file) {
         assert_true(in_array($file, $files, true), "$file is in the upload");
+    }
+    // The family's engine took the place of the app's own; the gates it replaced are gone with it.
+    foreach (['api/migration_runner.php', 'api/database_update.php', 'api/meddleware/setup.php'] as $file) {
+        assert_false(in_array($file, $files, true), "$file is no longer in the upload");
     }
     assert_true(is_dir("$dist/storage/cache"), 'storage/cache/');
     foreach ($files as $file) {
@@ -193,6 +198,25 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_same(401, site($site, 'GET', '/api/admin/migrations')['status'], 'nor into the admin panel');
     assert_same(['ok' => true, 'database' => $database, 'pending' => []], site($site, 'GET', '/api/health')['body']);
     assert_match('/<title>Piano Academy<\/title>/', site($site, 'GET', '/')['raw'], 'the app');
+
+    // Where the site stands: ready, and installed - so the setup page is never offered again, not even when
+    // its settings go missing later (a half-finished upload): then the site is only "not available right now".
+    assert_same(['state' => 'ready', 'installed' => true], site($site, 'GET', '/api/site-status')['body']);
+    rename("$dist/config/auth.local.php", "$dist/config/auth.local.php.away");
+    try {
+        assert_same(['state' => 'not_set_up', 'installed' => true], site($site, 'GET', '/api/site-status')['body']);
+        foreach (['/api/state', '/api/auth/config', '/api/health', '/api/admin/migrations'] as $url) {
+            $answer = site($site, 'GET', $url);
+            assert_same(
+                [503, ['code' => 'not_set_up', 'installed' => true, 'message' => 'The site is not available right now. Try again in a few minutes.']],
+                [$answer['status'], $answer['body']],
+                "$url: never the setup page"
+            );
+        }
+    } finally {
+        rename("$dist/config/auth.local.php.away", "$dist/config/auth.local.php");
+    }
+    assert_same(['state' => 'ready', 'installed' => true], site($site, 'GET', '/api/site-status')['body'], 'and ready again with them');
 
     // uploaded again by mistake: refuses, and deletes itself again
     copy(TEST_BACKEND . '/setup.php', "$dist/setup.php");

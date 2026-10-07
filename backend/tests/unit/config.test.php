@@ -78,6 +78,23 @@ test('a settings file that does not say what it must is no setting', function ()
     }
 });
 
+test('a settings file PHP cannot run is no setting: the problem names the file and the line - never what PHP said, which may quote the password', function (): void {
+    $dir = test_temp_dir('broken-config');
+    // A quote too many in the password: PHP's own message would quote what follows it.
+    file_put_contents("$dir/database.local.php", "<?php return [\n    'host' => '127.0.0.1', 'port' => 5432, 'name' => 'piano_test_config', 'user' => 'postgres',\n    'password' => 'open'sesame-and-more',\n];\n");
+    file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
+    assert_same('config/database.local.php cannot be read: PHP stops at its line 3.', with_config_dir($dir, 'settingsProblem'));
+    assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/^config\/database\.local\.php cannot be read/');
+
+    // The other file, cut short; and one that throws as it runs.
+    file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+    file_put_contents("$dir/auth.local.php", "<?php\nreturn ['issuer' => 'http://localhost:4300', 'client_id' => 'piano-academy',\n");
+    assert_match('/^config\/auth\.local\.php cannot be read: PHP stops at its line \d+\.$/', (string) with_config_dir($dir, 'settingsProblem'));
+    file_put_contents("$dir/auth.local.php", "<?php\nthrow new RuntimeException('sesame');\n");
+    assert_same('config/auth.local.php cannot be read: PHP stops at its line 2.', with_config_dir($dir, 'settingsProblem'));
+    assert_false(str_contains((string) with_config_dir($dir, 'settingsProblem'), 'sesame'), 'nothing of the file in the sentence');
+});
+
 test('nothing committed stands in for the settings: config/ holds the loader and nothing else', function (): void {
     $committed = array_values(array_filter(
         array_map('basename', glob(TEST_BACKEND . '/config/*') ?: []),

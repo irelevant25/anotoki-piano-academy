@@ -364,6 +364,35 @@ function test_empty_db(string $suffix): string
     return $name;
 }
 
+/**
+ * Brings a test's database up to and with the migration $through - every one
+ * there is without it - with the app's own engine (api/migrations.php): a
+ * database as it stood then. The files after $through are held back as
+ * drafts are (the Migrator's `ready`: a draft and everything after it wait),
+ * so what a database already has is skipped and the rest runs in order, each
+ * file whole or not at all. Returns what Migrator::apply() says.
+ *
+ * @return array{applied: list<array{set: string, name: string}>, failed: ?array{set: string, name: string}, error: ?string, busy: bool, note: ?string}
+ */
+function test_migrate(PDO $pdo, ?string $through = null): array
+{
+    $options = $through === null ? [] : ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => strnatcmp($name, $through) <= 0];
+
+    return databaseMigrator($pdo, $options)->apply();
+}
+
+/** test_migrate(), up to the migration before $migration: a database as it stood just before that one came. */
+function test_migrate_before(PDO $pdo, string $migration): array
+{
+    return databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => strnatcmp($name, $migration) < 0])->apply();
+}
+
+/** The names of the files a Migrator answer lists ({set, name} each). */
+function names_of(array $files): array
+{
+    return array_column($files, 'name');
+}
+
 /** A new temp folder, removed at the end. */
 function test_temp_dir(string $label = 'tmp'): string
 {

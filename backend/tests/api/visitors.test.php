@@ -576,31 +576,38 @@ test('the sweep after the answer: at most once an hour on a visit, always after 
 
 /* ------------------------------------------------ a database without 005 */
 
-test('a database without 005: a visitor\'s round, or one that would make a visitor, is 503 visitors_unavailable - a person\'s goes in', function (): void {
+test('a database without 005: every round waits at the site\'s gate - a visitor\'s, one that would make a visitor, a person\'s - and nothing is made', function (): void {
     $name = test_empty_db('before_005');
     $pdo = dbConnect(machineDatabaseSettings(), $name);
-    ensureMigrationsTable($pdo);
-    foreach (migrationFiles() as $file) {
-        if (strcmp($file, '005_visitors.sql') >= 0) {
-            break;
-        }
-        applyMigration($pdo, MIGRATIONS_ALIAS, $file);
-    }
-    $pdo = null;
+    assert_same(null, test_migrate_before($pdo, '005_visitors.sql')['failed']);
+    $config = test_config_dir($GLOBALS['auth'], $name);
     $behind = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
-        'PIANO_TEST_CONFIG' => test_config_dir($GLOBALS['auth'], $name),
+        'PIANO_TEST_CONFIG' => $config,
         'PIANO_FRONTEND_DIST' => test_frontend_build(),
     ], '/api/health');
     test_login_required($GLOBALS['auth'], false);
 
-    foreach ([[], with_key(str_repeat('A', 43))] as $headers) {
+    // POST /api/sessions had no schema check of its own: the gate in front of every route holds it now too.
+    foreach (['nobody' => [], 'a visitor key' => with_key(str_repeat('A', 43)), 'a person' => bearer(test_token(MEMBER))] as $who => $headers) {
         $round = visit('POST', '/api/sessions', round_of(), $headers, $behind);
-        assert_same([503, 'visitors_unavailable', '60'], [$round['status'], $round['body']['code'] ?? null, $round['headers']['retry-after'] ?? null]);
+        assert_same([503, 'update_pending', '60'], [$round['status'], $round['body']['code'] ?? null, $round['headers']['retry-after'] ?? null], $who);
     }
     $state = visit('GET', '/api/state', null, [], $behind);
-    assert_same([503, 'not_set_up', true], [$state['status'], $state['body']['code'] ?? null, $state['body']['update'] ?? null], 'the rest says the database is behind, as ever');
-    assert_same(201, visit('POST', '/api/sessions', round_of(), bearer(test_token(MEMBER)), $behind)['status'], 'a person\'s round goes in');
+    assert_same([503, 'update_pending'], [$state['status'], $state['body']['code'] ?? null], 'the rest says the site is being updated, as ever');
+    assert_same([0, 0], [(int) $pdo->query('SELECT count(*) FROM users')->fetchColumn(), (int) $pdo->query('SELECT count(*) FROM sessions')->fetchColumn()], 'nobody made, no round kept');
     assert_same([], server_problems($behind));
+
+    // Should a visitor's save ever reach such a database all the same (the gate makes it unreachable through the
+    // API), the check under it holds on its own: 503 visitors_unavailable, never a 500 - asked by a process of its own.
+    $script = test_temp_dir('visitors-ready') . '/check.php';
+    file_put_contents($script, "<?php\nrequire " . var_export(TEST_BACKEND . '/api/bootstrap.php', true) . ";\n"
+        . "try {\n    visitorsMustBeReady();\n    echo 'ready';\n} catch (ApiError \$e) {\n    echo json_encode([\$e->status, \$e->errorCode, \$e->headers]);\n}\n");
+    $process = proc_open([PHP_BINARY, $script], [0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, TEST_BACKEND, ['PIANO_TEST_CONFIG' => $config] + getenv());
+    $out = (string) stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    proc_close($process);
+    assert_same([503, 'visitors_unavailable', ['Retry-After' => '60']], json_decode($out, true), $out);
+    $pdo = null;
 });
 
 /* ---------------------------------- "a verified token", however it is stacked */

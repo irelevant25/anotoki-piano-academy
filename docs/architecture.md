@@ -24,17 +24,31 @@ them without the IAM (the admin panel never does).
 
 ```
 browser ── Authorization: Bearer <IAM access token> ──> backend/api/index.php
-   securityHeaders -> error handler -> setupGate (settings there?) -> the route's middleware -> the route
+   securityHeaders -> error handler -> the site's gate (where the site stands) -> the route's middleware -> the route
 ```
 
-1. **setupGate** (`api/meddleware/setup.php`): without `config/database.local.php`
-   and `config/auth.local.php` every request is `503 {code: "not_set_up", setup: "/setup.php"}`.
-2. **requireCurrentSchema**: on a database behind the code (a migration
-   pending), `503 {code: "not_set_up", update: true}` - before any table is
-   read. Every route has it but the database's own two (below),
-   `/api/health`, `/api/auth/config` and `POST /api/sessions` (a round is
-   added to a table that is there from 001).
-3. **Who is asking** (`api/auth.php` `requestUser()`, `api/meddleware/auth.php`):
+1. **The site's gate** - the anotoki family's (`anotoki/lib`'s `SiteGate`,
+   with `siteState()` of `api/migrations.php`), in front of every route; one
+   behaviour on every anotoki site (the owner's request of 2026-10-07,
+   [decisions.md](decisions.md)). Where the site stands is decided afresh for
+   every request, and `GET /api/site-status` (which always passes, and looks
+   at nobody: no token, no key - the pages ask it before anybody can be
+   signed in) says it:
+   - **not set up** - `config/database.local.php` or `config/auth.local.php`
+     missing, saying too little or not PHP that runs (named with its line,
+     never with what PHP said, which may quote the password): every request is `503 {code: "not_set_up",
+     installed, message}`, with `setup: "/setup.php"` only while the site was
+     never installed (`storage/installed.lock`, which setup.php writes on a
+     real host - never on this computer);
+   - **an update pending** - a migration file not applied: every request is
+     `503 {code: "update_pending", message}` with `Retry-After: 60` - before
+     any table is read - but the open paths (`SITE_OPEN_PATHS`):
+     `/api/auth/config`, `/api/translations/{code}`, `/api/health` and the
+     Migrations page's `/api/admin/migrations...`, so somebody can sign in,
+     the pages have their words and an ADMIN reaches Apply;
+   - **unavailable** - the database out of reach - and **ready**: through
+     (a dead database is the error handler's `503 database_unavailable`).
+2. **Who is asking** (`api/auth.php` `requestUser()`, `api/meddleware/auth.php`):
    the bearer token is verified by the vendored SDK (`api/anotoki_iam.php`):
    RS256, `typ at+jwt`, the IAM's keys (cached in `cache_dir`), `iss`, `aud`,
    `exp`. Its `sub` is the person's id - the only id any query on a person's
@@ -48,7 +62,7 @@ browser ── Authorization: Bearer <IAM access token> ──> backend/api/inde
    On one's own progress (`requireOwner()`) a request without a Bearer header
    goes on: sign-in required -> `401 sign_in_required`; else its
    `X-Visitor-Key` is that visitor's; else it is nobody (below).
-4. **The role** (`requireRole()`): added to a whole Slim route group, so a
+3. **The role** (`requireRole()`): added to a whole Slim route group, so a
    route added later cannot forget it. `403 forbidden` without the role, with a
    sentence for the staff group and another for ADMIN's.
 
@@ -78,24 +92,51 @@ with three groups:
 
 | Group | Middleware | Routes |
 | --- | --- | --- |
-| staff | `requireCurrentSchema`, `requireRole(...ROLES_STAFF)` | `GET /api/admin/languages`, `GET`/`PUT /api/admin/translations`, `.../{code}/export`, `.../{code}/import` |
-| ADMIN | `requireCurrentSchema`, `requireRole(ROLE_ADMIN)` | `POST /api/admin/languages`, `PUT`/`DELETE /api/admin/languages/{code}`, `GET /api/admin/people`, `DELETE /api/admin/people/{id}` |
-| ADMIN, the migrations | `requireRole(ROLE_ADMIN)` only | `GET /api/admin/migrations`, `POST /api/admin/migrations/apply` |
+| staff | `requireRole(...ROLES_STAFF)` | `GET /api/admin/languages`, `GET`/`PUT /api/admin/translations`, `.../{code}/export`, `.../{code}/import` |
+| ADMIN | `requireRole(ROLE_ADMIN)` | `POST /api/admin/languages`, `PUT`/`DELETE /api/admin/languages/{code}`, `GET /api/admin/people`, `DELETE /api/admin/people/{id}` |
+| ADMIN, the migrations (the family's: `anotoki/lib`'s `MigrationsRoutes::admin()`) | `requireRole(ROLE_ADMIN)` - open while an update waits | `GET /api/admin/migrations`, `GET /api/admin/migrations/file`, `POST /api/admin/migrations/apply` |
 
 Every route, with its answers: [api.md](api.md).
 
 ## A database update
 
-Three things apply migrations: `setup.php`'s Save, `php migration.php`, and
-an administrator's Apply on the admin panel's Migrations page
-(`POST /api/admin/migrations/apply`). All three take the same PostgreSQL advisory
-lock first (`api/database_update.php`, `databaseUpdateLocked()`); the second one
-to come is told another update is running and applies nothing (the route
-answers `409 busy`). The migrations routes skip the schema check on purpose -
-they are how an administrator brings a database that is behind up to date
-from the app. A migration that fails is applied not at all (one transaction);
-the route names the file and answers what PostgreSQL said (the page shows it
-in a box, as the IAM's does; it goes to the server log too).
+The migrations are the schema (`backend/migrations/piano_academy/NNN_name.sql`),
+applied by the anotoki family's engine - `anotoki/lib`'s `Migrator`, set up
+in `api/migrations.php` (`databaseMigrator()`: the one set, the app's lock
+`DATABASE_UPDATE_LOCK`, and as its `prepare` the rename of the first
+runner's `migrations(name)` column to `filename`). The bookkeeping table is
+the one it always was: `migrations (id, filename, applied_at)`.
+
+Four things apply migrations: `setup.php`'s Save, `php migration.php`, an
+administrator's Apply on the admin panel's Migrations page
+(`POST /api/admin/migrations/apply`), and the tests' database builders. All
+take the same PostgreSQL advisory lock first; the second one to come is told
+another update is running and applies nothing (the route answers `409
+busy`). Each file runs in a transaction of its own with its record, in
+order, stopping at the first that fails: that one is applied not at all, and
+the route names it and answers what PostgreSQL said (statement N of M, and
+the statement's first lines - the page shows it in a box; it goes to the
+server log too). The migrations routes are open while an update waits - they
+are how an administrator brings a database that is behind up to date from
+the app; the ADMIN check there reads the token and keeps the caller's users
+row (001's table, which no migration may change in what `usersSeen()`
+writes).
+
+In the browser (`@anotoki/lib/migrations`, wired in
+`frontend/src/app/core/state/site-migrations.ts`): the app's initializer asks
+`GET /api/site-status` first; `siteStatusInterceptor` hears any `503
+update_pending`/`not_set_up` later; `<anotoki-site-gate>` around the shell's
+outlet draws the family's status page in the view's place while the site is
+not ready - "The site is being updated" for visitors and learners (their
+language, a quiet Sign in for nobody, a reload once the site is back), "A
+database update is waiting" with "Open Migrations" for the site's ADMIN,
+"This site is not set up yet" with the setup page only while never
+installed, "not available right now" otherwise. The start (`BootService`)
+then reads the sign-in settings and the words, and waits (`waiting`) - no
+move, no progress asked for; the sign-in guard sends nobody to the IAM; an
+ADMIN's Apply that leaves nothing to apply goes on with the start in place
+(`resumeAfterUpdate()`), the Migrations page (`<anotoki-migrations-page>`
+under `/admin/migrations`) staying on the screen.
 
 ## Settings
 
@@ -198,10 +239,12 @@ everybody's counts and deletes a person whole (`api/people.php`).
 whole map. How it meets the backend:
 
 **The start** (`core/state/boot.service.ts`, run by the app initializer before
-the router's first navigation): the sign-in settings (`GET /api/auth/config`:
+the router's first navigation, once the initializer has asked where the site
+stands - `GET /api/site-status`): the sign-in settings (`GET /api/auth/config`:
 the IAM's address, the client id and `loginRequired`; then the IAM's SDK
 finishes a callback or restores the stored session), the language and its
-strings, then the state. Signed in: with a visitor key held, the move first
+strings, then - unless the site is not ready, when the start waits there -
+the state. Signed in: with a visitor key held, the move first
 (`POST /api/visitor/move`; the key forgotten once it is answered, kept when
 not), the visitor's outbox taken on, then the person's state. Nobody signed
 in and no sign-in required: a visitor (`BootService.visiting`; the data
@@ -211,7 +254,8 @@ forgotten and the start goes on as nobody. It ends in one status:
 
 | Status | Drawn | Why |
 | --- | --- | --- |
-| `not-set-up` | the "not set up yet" card (an ADMIN also gets a link to the Migrations page when the 503 said `update: true` - `BootService.onlyMigrations`; on `/admin/migrations` the shell draws that page instead of the card, and after its Apply `resumeAfterUpdate()` loads the progress and asks for the strings again - the start's request for them got 503 - and the app runs on, the page kept) | no settings, or a database behind the code |
+| `not-set-up` | the family's status page (`<anotoki-site-gate>`): "This site is not set up yet" with the setup page while never installed, else "not available right now" | no settings |
+| `waiting` | the family's status page: "The site is being updated" (visitors, learners - a Sign in for nobody), "A database update is waiting" with "Open Migrations" (the site's ADMIN, who has the Migrations page itself - `BootService.onlyMigrations`; the shell draws that page in the same outlet, and after its Apply `resumeAfterUpdate()` goes on with the start and asks for the strings again, the page kept), "not available right now" (the database out of reach) | the site is not ready - SiteStatus asked at the start, or told by a 503 since |
 | `load-error` | "Could not load your progress" | the API or the IAM out of reach - the app never runs on empty progress |
 | `sign-in` | "Loading…" while the guard goes to the IAM; the sign-in card only after a sign-in that came back without one or could not start | nobody signed in, and a sign-in required (also when the API said so to a visitor at the start) |
 | `ready` | the page | the progress is in memory - a person's, or a visitor's |
@@ -226,8 +270,11 @@ the admin panel always signs in. From a visitor's page the saves on their
 way arrive first (`BootService.beforeSignIn()`).
 `AuthService.signInFailure` (refused, cancelled, could not start) lets the
 pages of that load through to the card instead - otherwise the browser would
-go round for ever. While the status is `loading`, `not-set-up` or
-`load-error` it lets nothing through and sends nobody anywhere. The IAM's
+go round for ever. While the site is not ready (SiteStatus) they send nobody
+to the IAM and let every page through, the address kept: the family's status
+page stands in its place, with its own quiet Sign in - how a signed-out
+ADMIN gets in and back to the page. While the status is otherwise `loading`
+or `load-error` they let nothing through and send nobody anywhere. The IAM's
 redirect route (`/auth/callback`) has no guard.
 
 **The top bar** (`layouts/top-bar/`, drawn once by `AppComponent` above every
@@ -252,7 +299,8 @@ own. The footer keeps the version, which opens What's new.
 
 **The admin panel** (`/admin`, English): its sections are the top bar's links
 there - Translations (EDITOR, ADMIN); Languages, People, Migrations (ADMIN,
-`pages/admin/admin.guard.ts`; `/admin/database` redirects to Migrations);
+`pages/admin/admin.guard.ts`; the Migrations page is the family's
+`<anotoki-migrations-page>`; `/admin/database` redirects to Migrations);
 the person's menu calls it "Admin panel", its brand "Piano Academy - admin
 panel" and its titles "Translations · Admin panel · Piano Academy", as on
 every anotoki site; `layouts/admin-layout/` draws the page, or

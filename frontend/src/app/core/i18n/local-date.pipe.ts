@@ -20,7 +20,7 @@ const FORMATS = {
 
 const DATE_FORMATS = new Map<string, Intl.DateTimeFormat>();
 
-/** "2026-10-04 09:30": numbers the server wrote on its own clock (the Migrations page's) - kept as they are, never moved into another time zone. */
+/** "2026-10-04 09:30": numbers a server wrote on its own clock (the Migrations page's, before it was the family's) - kept as they are, never moved into another time zone. */
 const SERVER_CLOCK = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/;
 
 /**
@@ -37,8 +37,9 @@ const SERVER_CLOCK = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/;
  *
  * `stamp` is the admin panel's: "2026-10-20 18:05", numbers in a fixed order
  * (yyyy-MM-dd HH:mm) - what People and Migrations always showed - or the
- * account's order and clock in their place. An instant is written in the
- * reader's time zone; the server's own "2026-10-04 09:30" keeps its numbers.
+ * account's order and clock in their place. An instant (People's, the
+ * Migrations page's "2026-10-06T10:01:02Z") is written in the reader's time
+ * zone; a server's own "2026-10-04 09:30" keeps its numbers.
  *
  * A calendar day (`2026-10-20`, a release's day) is that day wherever the
  * reader is - not midnight UTC. Nothing gives nothing; what is not a date
@@ -53,29 +54,37 @@ export class LocalDatePipe implements PipeTransform {
   private readonly _auth = inject(AuthService);
 
   transform(value: string | null | undefined, style: LocalDateStyle = 'day'): string {
-    if (!value) {
-      return '';
-    }
-    const locale = this._i18n.locale();
-    const chosen = this._auth.preferences();
-    if (style === 'stamp') {
-      return stamp(value, locale, chosen);
-    }
-    const date = dateFrom(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-    if (style === 'day') {
-      return chosen?.date_format ? formatDatePattern(date, chosen.date_format) : dateFormat(locale, 'day').format(date);
-    }
-    // Neither chosen: the language's own way of putting the two together.
-    if (!chosen?.date_format && !chosen?.time_format) {
-      return dateFormat(locale, 'moment').format(date);
-    }
-    const day = chosen.date_format ? formatDatePattern(date, chosen.date_format) : dateFormat(locale, 'momentDay').format(date);
-    const time = chosen.time_format ? formatClock(date, locale, chosen.time_format) : dateFormat(locale, 'momentTime').format(date);
-    return `${day} ${time}`;
+    return localDateText(value, style, this._i18n.locale(), this._auth.preferences());
   }
+}
+
+/**
+ * What the pipe writes, for a date written outside a template of the app's
+ * own: the family's Migrations page (@anotoki/lib) takes the app's way of
+ * writing its dates as a function (core/state/site-migrations.ts). `locale`
+ * is the language's for Intl, `chosen` the account's choices (or null).
+ */
+export function localDateText(value: string | null | undefined, style: LocalDateStyle, locale: string, chosen: AnotokiPreferences | null): string {
+  if (!value) {
+    return '';
+  }
+  if (style === 'stamp') {
+    return stamp(value, locale, chosen);
+  }
+  const date = dateFrom(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  if (style === 'day') {
+    return chosen?.date_format ? formatDatePattern(date, chosen.date_format) : dateFormat(locale, 'day').format(date);
+  }
+  // Neither chosen: the language's own way of putting the two together.
+  if (!chosen?.date_format && !chosen?.time_format) {
+    return dateFormat(locale, 'moment').format(date);
+  }
+  const day = chosen.date_format ? formatDatePattern(date, chosen.date_format) : dateFormat(locale, 'momentDay').format(date);
+  const time = chosen.time_format ? formatClock(date, locale, chosen.time_format) : dateFormat(locale, 'momentTime').format(date);
+  return `${day} ${time}`;
 }
 
 /** A calendar day is taken as that day at noon here; anything else as the moment it names. */

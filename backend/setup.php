@@ -25,11 +25,14 @@ declare(strict_types=1);
  *                          access can read that file. It shows nothing of what
  *                          is saved. When it is done it writes
  *                          storage/installed.lock, which stops it running
- *                          again, and deletes the token and itself. A later
- *                          version with a new migration: delete the lock,
- *                          upload setup.php again, and run it once more - or
- *                          an administrator applies it in the app (the admin
- *                          panel's Migrations page).
+ *                          again - and from then on the site never offers
+ *                          this page to anybody (api/migrations.php) - and
+ *                          deletes the token and itself. A later version with
+ *                          a new migration: an administrator applies it in
+ *                          the app (the admin panel's Migrations page; the
+ *                          site tells everybody else it is being updated
+ *                          meanwhile) - or delete the lock, upload setup.php
+ *                          again, and run it once more.
  *
  * It asks for the database and the IAM, and nothing else: who may administer
  * the app is the IAM's roles (ADMIN, EDITOR), and each person brings their own
@@ -37,8 +40,9 @@ declare(strict_types=1);
  *
  * "Test connection" tries the database, and the IAM's discovery document
  * ({issuer}/.well-known/openid-configuration), with what is typed in - without
- * saving anything. Save applies the migrations under the same lock as php
- * migration.php and the app's own update (api/database_update.php).
+ * saving anything. Save applies the migrations with the anotoki family's
+ * engine, under the same lock as php migration.php and the app's own update
+ * (api/migrations.php).
  *
  * This one file stays readable by PHP 7.4, so a host with an old PHP gets a
  * sentence saying so rather than a blank page.
@@ -180,8 +184,8 @@ if (!$local && is_file($lockFile)) {
         . ($gone
             ? '<p class="ok">The setup page has deleted itself.</p>'
             : '<p class="err">Delete <code>setup.php</code> and <code>storage/setup-token.php</code> by hand: the host did not let the setup page do it.</p>')
-        . '<p class="small">To run it again on purpose (a new version with a database update): delete the lock, upload setup.php again, and open it. '
-        . 'Or sign in as an administrator and apply the update in the app (Admin -> Database).</p>', 'good');
+        . '<p class="small">A new version with a database update: sign in as an administrator and apply it in the app (the admin panel\'s Migrations page). '
+        . 'Or, to run the setup again on purpose: delete the lock, upload setup.php again, and open it.</p>', 'good');
 }
 
 /**
@@ -381,7 +385,7 @@ function setupTestDatabase(array $db): array
     try {
         $pdo = dbConnect($db);
         $tables = (int) $pdo->query("SELECT count(*) FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'")->fetchColumn();
-        $pending = count(pendingMigrationsReadOnly($pdo));
+        $pending = count(databaseMigrator($pdo)->applicable());
 
         return [true, 'Connected to the database "' . $db['name'] . '": '
             . ($tables === 0 ? 'it is empty - Save makes the tables.' : ($pending > 0 ? "$pending update(s) to apply - Save applies them." : 'it is up to date.'))];
@@ -474,7 +478,7 @@ if ($method === 'POST') {
     }
 
     // The database, as the app will use it: made if it may be, then its tables -
-    // under the lock every database update takes (api/database_update.php).
+    // under the lock every database update takes (api/migrations.php).
     if (!$errors) {
         try {
             try {
@@ -484,14 +488,12 @@ if ($method === 'POST') {
                 // the one made in the hosting panel is what the connection finds.
             }
             $pdo = dbConnect($db);
-            $migrated = databaseUpdateLocked($pdo, static function () use ($pdo): array {
-                return applyPendingMigrations($pdo);
-            });
-            if ($migrated === null) {
+            $migrated = databaseMigrator($pdo)->apply();
+            if ($migrated['busy']) {
                 throw new RuntimeException('Another database update is running (php migration.php, or an administrator in the app). Wait a moment and press Save again.');
             }
             if ($migrated['failed'] !== null) {
-                throw new RuntimeException('The database update ' . $migrated['failed'] . ' failed: ' . $migrated['error']);
+                throw new RuntimeException('The database update ' . $migrated['failed']['name'] . ' failed: ' . $migrated['error']);
             }
             $pdo = null;
         } catch (PDOException $e) {
@@ -512,7 +514,7 @@ if ($method === 'POST') {
             }
             $log = [
                 'Saved the database connection and the IAM in config/database.local.php and config/auth.local.php.',
-                $migrated['applied'] ? 'Made the tables (' . implode(', ', $migrated['applied']) . ').' : 'The tables were up to date.',
+                $migrated['applied'] ? 'Made the tables (' . implode(', ', array_column($migrated['applied'], 'name')) . ').' : 'The tables were up to date.',
                 'People sign in through the IAM at ' . $form['issuer'] . ', where this app is "' . $form['client_id'] . '". '
                     . 'Who may reword its words (EDITOR) and administer it (ADMIN) is set there, in the admin panel.',
             ];

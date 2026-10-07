@@ -96,10 +96,10 @@ describe('the routes: every page signed in, the admin panel split by role', () =
     expect(paths.indexOf('languages')).toBeLessThan(paths.indexOf(''));
   });
 
-  it('load the layout and the four pages', async () => {
+  it('load the layout and the four pages - the Migrations page the anotoki family\'s (@anotoki/lib/migrations)', async () => {
     const names = await Promise.all([top('admin'), admin('translations'), admin('languages'), admin('people'), admin('migrations')].map(async (route) => ((await route.loadComponent!()) as { name: string }).name));
 
-    expect(names.join(' ')).toMatch(/AdminLayoutComponent.*TranslationsComponent.*LanguagesComponent.*PeopleComponent.*MigrationsComponent/);
+    expect(names.join(' ')).toMatch(/AdminLayoutComponent.*TranslationsComponent.*LanguagesComponent.*PeopleComponent.*MigrationsPageComponent/);
   });
 
   it('ask the page itself whether it may be left', async () => {

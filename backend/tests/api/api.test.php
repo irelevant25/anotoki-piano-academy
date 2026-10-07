@@ -283,16 +283,17 @@ test('an app that is not set up says so - to the API and the app alike', functio
         $answer = call($bare['base'], 'GET', $url);
         assert_same(503, $answer['status'], $url);
         assert_same('not_set_up', $answer['body']['code'] ?? null, $url);
+        // Never installed here (no storage/installed.lock): the setup page is offered.
         assert_same('/setup.php', $answer['body']['setup'] ?? null, "$url points at the setup page");
     }
-    assert_match('/database\.local\.php is missing/', (string) call($bare['base'], 'GET', '/api/health')['body']['detail'], 'this computer is told what is missing');
+    assert_same(['state' => 'not_set_up', 'installed' => false], call($bare['base'], 'GET', '/api/site-status')['body'], 'the status says so too, and nothing more');
     assert_same(503, call($bare['base'], 'PUT', '/api/progress', new stdClass())['status'], 'nothing is saved');
     assert_same(200, call($bare['base'], 'GET', '/')['status'], 'the app itself loads, to show its "not set up yet" page');
     assert_match('/Set up Piano Academy/', call($bare['base'], 'GET', '/setup.php')['raw']);
     ($bare['stop'])();
 });
 
-test('a database behind the code: the app does not start on it, and says it needs an update', function (): void {
+test('a database behind the code: the app does not start on it - the site is being updated', function (): void {
     $empty = test_empty_db('behind');
     $behind = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
         'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam(), $empty),
@@ -301,14 +302,14 @@ test('a database behind the code: the app does not start on it, and says it need
     assert_same(migrationFiles(), call($behind['base'], 'GET', '/api/health')['body']['pending']);
     foreach (['signed in' => bearer(test_token(LEARNER)), 'nobody' => []] as $who => $headers) {
         $state = call($behind['base'], 'GET', '/api/state', null, $headers);
-        assert_same([503, 'not_set_up', true], [$state['status'], $state['body']['code'] ?? null, $state['body']['update'] ?? null], $who);
-        assert_match('/needs an update/', $state['body']['error'], $who);
+        assert_same([503, ['code' => 'update_pending', 'message' => 'The site is being updated. Try again in a few minutes.']], [$state['status'], $state['body']], $who);
     }
     // A tab left open while the code moved on: its saves and its own file are told the same, and nothing is written.
-    foreach ([['PUT', '/api/progress', new stdClass()], ['PUT', '/api/path', ['steps' => new stdClass()]], ['GET', '/api/me/export', null], ['POST', '/api/me/import', ['format' => 'piano-academy-export']]] as [$method, $url, $body]) {
+    foreach ([['PUT', '/api/progress', new stdClass()], ['PUT', '/api/path', ['steps' => new stdClass()]], ['POST', '/api/sessions', ['mode' => 'trainer']], ['GET', '/api/me/export', null], ['POST', '/api/me/import', ['format' => 'piano-academy-export']]] as [$method, $url, $body]) {
         $answer = call($behind['base'], $method, $url, $body, array_merge(bearer(test_token(LEARNER)), [GENERATION_HEADER . ': 1']));
-        assert_same([503, 'not_set_up', true], [$answer['status'], $answer['body']['code'] ?? null, $answer['body']['update'] ?? null], "$method $url");
+        assert_same([503, 'update_pending', '60'], [$answer['status'], $answer['body']['code'] ?? null, $answer['headers']['retry-after'] ?? null], "$method $url");
     }
+    assert_false((bool) dbConnect(machineDatabaseSettings(), $empty)->query("SELECT to_regclass('migrations') IS NOT NULL")->fetchColumn(), 'nothing was written to find out');
     ($behind['stop'])();
 });
 

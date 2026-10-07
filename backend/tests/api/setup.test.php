@@ -122,8 +122,7 @@ test('Test connection: the database and the IAM in the family\'s words, without 
     // A database with the first migration only: the updates to apply, counted.
     $behind = test_empty_db('setup_behind');
     $pdo = dbConnect(machineDatabaseSettings(), $behind);
-    ensureMigrationsTable($pdo);
-    applyMigration($pdo, MIGRATIONS_ALIAS, '001_init.sql');
+    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
     $pdo = null;
     $count = count(migrationFiles()) - 1;
     assert_same([true, 'Connected to the database "' . $behind . '": ' . $count . ' update(s) to apply - Save applies them.'], array_values($test('database', ['db_name' => $behind])['body']));
@@ -238,6 +237,19 @@ test('asked by another name, it is a real host: the token, not the nonce - and n
     assert_false(is_file(TEST_BACKEND . '/storage/setup-token.php'), 'nothing written into backend/storage/');
     $relayed = page('GET', '/setup.php', null, ['X-Forwarded-For: 203.0.113.9']);
     assert_match('/<h1>Install Piano Academy<\/h1>/', $relayed['raw'], 'relayed by a proxy: a real host');
+});
+
+test('a settings file PHP cannot run: the page opens and says which - never a PHP error - and Save writes it anew', function (): void {
+    // Edited by hand and broken: the app is not set up (tests/api/site.test.php), and this page is the way back.
+    file_put_contents($GLOBALS['config'] . '/database.local.php', "<?php\nreturn ['host' => '127.0.0.1', 'password' => 'it's',\n];\n");
+    $page = page('GET', '/setup.php', null, with_cookie());
+    assert_same(200, $page['status']);
+    assert_match('/The saved settings are not complete: config\/database\.local\.php cannot be read: PHP stops at its line 2\./', $page['raw']);
+    assert_no_match('/it\'s|unexpected/', $page['raw'], 'nothing of the file, nor what PHP said');
+    $answer = call_form($GLOBALS['site']['base'], '/setup.php', fields(), [], with_cookie());
+    assert_match('/<h1>Saved<\/h1>/', $answer['raw']);
+    assert_same([$GLOBALS['database'], (string) machineDatabaseSettings()['password']], [saved('database')['name'], saved('database')['password']], 'written anew');
+    assert_match('/This copy is set up/', page('GET', '/setup.php', null, with_cookie())['raw'], 'and set up again');
 });
 
 test('no PHP problem in the server log', function (): void {

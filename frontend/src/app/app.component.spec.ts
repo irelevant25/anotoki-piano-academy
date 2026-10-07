@@ -3,6 +3,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, Provider, WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ROUTES, Router, provideRouter } from '@angular/router';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { AppComponent } from './app.component';
 import { ApiService, VISITOR_OWNER } from './core/api/api.service';
 import { type AnotokiUser } from './core/auth/anotoki-auth';
@@ -15,12 +16,13 @@ import { VISITOR_WORDS } from './core/i18n/visitor-words';
 import { MidiService } from './core/midi/midi.service';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
+import { provideSiteMigrations } from './core/state/site-migrations';
 import { provideTestTranslations } from './core/testing/test-translations';
 import { ThemeMode, ThemeService } from './core/theme/theme.service';
 
 /**
  * A key as it would stand on a page: a namespace, then segments that begin
- * with a letter, joined by dots - "nav.learn", "boot.notSetUp.title". (A
+ * with a letter, joined by dots - "nav.learn", "boot.loadError.title". (A
  * version, "v0.4.0", is not one: its segments are numbers.)
  */
 const KEY_SHAPE = /(?<![A-Za-z0-9._-])[a-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+(?![A-Za-z0-9_-])/;
@@ -47,6 +49,8 @@ interface Shell {
   changelog: ChangelogService;
   api: ApiService;
   visitorKey: VisitorKey;
+  /** Where the site stands (the family's SiteStatus): ready, unless a state says otherwise. */
+  site: SiteStatus;
 }
 
 /** A page under the shell's outlet, where a spec needs one drawn. */
@@ -56,7 +60,10 @@ class StubPageComponent {}
 /** The shell, made with the providers given: the real translation service with no bundle unless they say otherwise. */
 function shell(providers: Provider[] = []): Shell {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), ...providers] });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideSiteMigrations(), ...providers] });
+  // As the app's initializer leaves it: the site asked, and ready.
+  const site = TestBed.inject(SiteStatus);
+  site.markReady();
   const fixture = TestBed.createComponent(AppComponent);
   return {
     fixture,
@@ -69,6 +76,20 @@ function shell(providers: Provider[] = []): Shell {
     changelog: TestBed.inject(ChangelogService),
     api: TestBed.inject(ApiService),
     visitorKey: TestBed.inject(VisitorKey),
+    site,
+  };
+}
+
+/** The family's status page, as drawn in the view's place: its heading, its words and its buttons and links. */
+function statusPage(s: Shell): { title: string | undefined; text: string | undefined; lang: string | null; actions: string[]; links: (string | null)[] } | null {
+  const page = s.host.querySelector('anotoki-site-status section');
+  if (!page) return null;
+  return {
+    title: page.querySelector('h1')?.textContent?.trim(),
+    text: page.querySelector('p')?.textContent?.trim(),
+    lang: page.getAttribute('lang'),
+    actions: Array.from(page.querySelectorAll('a, button')).map((control) => control.textContent?.trim() ?? ''),
+    links: Array.from(page.querySelectorAll('a')).map((link) => link.getAttribute('href')),
   };
 }
 
@@ -130,9 +151,37 @@ const text = (s: Shell, selector: string): string | undefined => s.host.querySel
 /** Every state the shell can be drawn in, by name: each sets the services and leaves the drawing to the caller. */
 const STATES: Record<string, (s: Shell) => void> = {
   'loading, before anything is known': () => undefined,
-  'not set up, with what the server says is missing': (s) => {
-    s.boot.notSetUpDetail.set('config/database.local.php is missing.');
+  'not set up, never installed: the setup page offered': (s) => {
+    s.site.report('not_set_up', false);
     s.boot.status.set('not-set-up');
+  },
+  'not set up once installed: only "not available right now"': (s) => {
+    s.site.report('not_set_up', true);
+    s.boot.status.set('not-set-up');
+  },
+  'the database out of reach': (s) => {
+    s.site.report('unavailable');
+    s.boot.status.set('waiting');
+  },
+  'an update waits, nobody signed in': (s) => {
+    session(s.auth, null);
+    s.site.report('update_pending');
+    s.boot.status.set('waiting');
+  },
+  'an update waits, a learner signed in': (s) => {
+    session(s.auth, { ...PERSON, roles: ['MEMBER'] });
+    s.site.report('update_pending');
+    s.boot.status.set('waiting');
+  },
+  'an update waits, the site\'s ADMIN signed in': (s) => {
+    session(s.auth, { ...PERSON, roles: ['MEMBER', 'ADMIN'] });
+    s.site.report('update_pending');
+    s.boot.status.set('waiting');
+  },
+  'an update came in the middle of a visitor\'s practising, a save refused meanwhile': (s) => {
+    visiting(s);
+    s.api.visitorRefusal.set(VISITOR_WORDS.busy);
+    s.site.report('update_pending');
   },
   'the progress could not be loaded': (s) => s.boot.status.set('load-error'),
   'nobody signed in, on the way to the IAM (no card)': (s) => {
@@ -312,9 +361,15 @@ describe('the shell with no bundle', () => {
   }
 
   it('says itself in the English kept in code: the cards, the top bar and the footer', async () => {
-    const notSetUp = await drawn(STATES['not set up, with what the server says is missing']);
-    expect(notSetUp.host.querySelector('#not-set-up h2')?.textContent).toBe('Piano Academy is not set up yet');
-    expect(notSetUp.host.querySelector('#not-set-up a')?.textContent).toBe('Open the setup page');
+    const notSetUp = await drawn(STATES['not set up, never installed: the setup page offered']);
+    // The family's page in the view's place, in its own words (and marked as such).
+    expect(statusPage(notSetUp)).toEqual({
+      title: 'This site is not set up yet',
+      text: 'Its setup page connects it to its database and to the anotoki sign-in.',
+      lang: 'en',
+      actions: ['Open the setup page', 'Try again'],
+      links: ['/setup.php'],
+    });
     // Before the app runs there is nothing to practise on: the bar has no sections yet.
     expect(notSetUp.host.querySelector('#topbar-nav')).toBeNull();
     expect(notSetUp.host.querySelector('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
@@ -547,69 +602,168 @@ describe('the shell with no bundle', () => {
     expect(member.host.querySelector('#admin-link')).toBeNull();
   });
 
-  it('links an ADMIN to the Migrations page from the not-set-up card when the database is only behind - nobody else, and English', async () => {
-    const behind = (roles: string[]) => (s: Shell) => {
-      session(s.auth, { ...PERSON, roles });
-      s.boot.needsUpdate.set(true);
-      s.boot.status.set('not-set-up');
-    };
-    const admin = await drawn(behind(['ADMIN']));
-    expect(admin.host.querySelector('#open-migrations')?.textContent?.trim()).toBe('Open Migrations');
-    expect(admin.host.querySelector('#open-migrations')?.getAttribute('href')).toBe('/admin/migrations');
-    expect(admin.host.querySelector('#not-set-up-update')?.getAttribute('lang')).toBe('en');
-    // The card, not a page: the address is not the Migrations page's.
-    expect(admin.host.querySelector('router-outlet')).toBeNull();
+  /** The stub page under every address - and the Migrations page's - for the gate's cases. */
+  const anyPage: Provider = { provide: ROUTES, multi: true, useValue: [{ path: 'admin/migrations', component: StubPageComponent }, { path: '**', component: StubPageComponent }] };
 
-    expect((await drawn(behind(['EDITOR']))).host.querySelector('#open-migrations')).toBeNull();
-    expect((await drawn(behind([]))).host.querySelector('#open-migrations')).toBeNull();
-    // Not set up at all: nothing to apply, whoever it is.
-    const notSetUp = await drawn((s) => {
-      session(s.auth, { ...PERSON, roles: ['ADMIN'] });
-      s.boot.status.set('not-set-up');
+  /** Lets a click's navigation, the change detection and the gate's following of the router run out. */
+  async function settled(s: Shell): Promise<void> {
+    for (let i = 0; i < 3; i++) {
+      await new Promise((done) => setTimeout(done));
+      await s.fixture.whenStable();
+    }
+  }
+
+  async function go(s: Shell, url: string): Promise<void> {
+    await TestBed.inject(Router).navigateByUrl(url);
+    await settled(s);
+  }
+
+  it('while an update waits a visitor and a signed-in learner read that the site is being updated - in their language, no error, no code, no setup or Migrations link; Sign in only for nobody', async () => {
+    const nobody = await drawn(STATES['an update waits, nobody signed in'], [anyPage]);
+    expect(statusPage(nobody)).toEqual({
+      title: 'The site is being updated',
+      text: 'It will be back in a few minutes. This page reloads by itself.',
+      lang: 'en',
+      actions: ['Sign in'],
+      links: [],
     });
-    expect(notSetUp.host.querySelector('#open-migrations')).toBeNull();
+    expect(nobody.host.querySelector('anotoki-site-status section')?.getAttribute('role')).toBe('status');
+    // Nothing else in the view: no error, no code, no way to the setup page or the Migrations page.
+    const view = (s: Shell): string => s.host.querySelector('#view-root')?.textContent?.trim() ?? '';
+    expect(view(nobody)).toBe(['The site is being updated', 'It will be back in a few minutes. This page reloads by itself.', 'Sign in'].join(''));
+    expect(nobody.host.querySelector('[role="alert"], a[href="/setup.php"], a[href="/admin/migrations"], #stub-page')).toBeNull();
+    // Whatever the address: an admin panel's too.
+    await go(nobody, '/admin/migrations');
+    expect(statusPage(nobody)?.title).toBe('The site is being updated');
+    expect(nobody.host.querySelector('#stub-page')).toBeNull();
+
+    const learner = await drawn(STATES['an update waits, a learner signed in'], [anyPage]);
+    expect(statusPage(learner)).toEqual({ title: 'The site is being updated', text: 'It will be back in a few minutes. This page reloads by itself.', lang: 'en', actions: [], links: [] });
+    await go(learner, '/admin/migrations');
+    expect(learner.host.querySelector('#stub-page')).toBeNull();
+    expect(statusPage(learner)?.actions).toEqual([]);
+
+    // In Slovak, in the family's own Slovak words.
+    const slovak = await drawn(STATES['an update waits, nobody signed in'], [provideTestTranslations({}, { language: 'sk' })]);
+    expect(statusPage(slovak)).toEqual({
+      title: 'Stránku práve aktualizujeme',
+      text: 'O pár minút bude späť. Táto stránka sa obnoví sama.',
+      lang: 'sk',
+      actions: ['Prihlásiť sa'],
+      links: [],
+    });
+
+    // An update that came in the middle of practising: the page goes, and no note of the shell's says anything else.
+    const visitor = await drawn(STATES['an update came in the middle of a visitor\'s practising, a save refused meanwhile'], [anyPage]);
+    expect(statusPage(visitor)?.title).toBe('The site is being updated');
+    for (const id of ['visitor-refused', 'visitor-notice', 'signed-out-banner', 'stub-page']) {
+      expect(visitor.host.querySelector('#' + id), id).toBeNull();
+    }
+    // The bar offers no section to go to meanwhile.
+    expect(visitor.host.querySelector('#topbar-nav')).toBeNull();
   });
 
-  it('draws the Migrations page for an ADMIN while the database is only behind - the same outlet staying as the app starts', async () => {
-    const routes: Provider = { provide: ROUTES, multi: true, useValue: [{ path: 'admin/migrations', component: StubPageComponent }, { path: '**', component: StubPageComponent }] };
-    const behind = (roles: string[]) => (s: Shell) => {
-      session(s.auth, { ...PERSON, roles });
-      s.boot.needsUpdate.set(true);
-      s.boot.status.set('not-set-up');
-    };
-    const go = async (s: Shell, url: string): Promise<void> => {
-      await TestBed.inject(Router).navigateByUrl(url);
-      await s.fixture.whenStable();
-    };
+  it('while an update waits the site\'s ADMIN reads that a database update is waiting, in English, and reaches the Migrations page - nothing else of the app', async () => {
+    const admin = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+    expect(statusPage(admin)).toEqual({
+      title: 'A database update is waiting',
+      text: 'This site is closed to everybody else until the update is applied. Back the database up first.',
+      lang: 'en',
+      actions: ['Open Migrations'],
+      links: ['/admin/migrations'],
+    });
+    expect(admin.host.querySelector('#stub-page')).toBeNull();
 
-    const admin = await drawn(behind(['ADMIN']), [routes]);
-    await go(admin, '/admin/migrations');
+    (admin.host.querySelector('anotoki-site-status a') as HTMLAnchorElement).click();
+    await settled(admin);
+    expect(TestBed.inject(Router).url).toBe('/admin/migrations');
     expect(admin.host.querySelector('#stub-page')).not.toBeNull();
-    expect(admin.host.querySelector('#not-set-up')).toBeNull();
+    expect(statusPage(admin)).toBeNull();
+
+    // Anywhere else: the same notice again.
+    await go(admin, '/stats');
+    expect(admin.host.querySelector('#stub-page')).toBeNull();
+    expect(statusPage(admin)?.title).toBe('A database update is waiting');
+  });
+
+  it('a signed-out ADMIN presses Sign in on the status page - to the IAM, to come back to this address - and comes back to the Migrations page', async () => {
+    const signedOut = await drawn(STATES['an update waits, nobody signed in'], [anyPage]);
+    await go(signedOut, '/admin/migrations');
+    // The address bar, as the router leaves it in a browser.
+    history.replaceState(null, '', '/admin/migrations');
+    try {
+      const login = vi.fn(async (_options: { returnTo: string; uiLocales?: string }) => undefined);
+      (signedOut.auth as unknown as { client: unknown }).client = { login };
+      (signedOut.host.querySelector('anotoki-site-status button') as HTMLButtonElement).click();
+      await settled(signedOut);
+      expect(login).toHaveBeenCalledTimes(1);
+      expect(login).toHaveBeenCalledWith({ returnTo: '/admin/migrations' });
+
+      // Back from the IAM (its callback puts the address back before the router reads it): the ADMIN is on the Migrations page.
+      const back = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+      await go(back, '/admin/migrations');
+      expect(back.host.querySelector('#stub-page')).not.toBeNull();
+      expect(statusPage(back)).toBeNull();
+    } finally {
+      history.replaceState(null, '', '/');
+    }
+  });
+
+  it('the Migrations page stays on the screen as the app starts after its Apply - and is nobody else\'s way in', async () => {
+    const admin = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+    await go(admin, '/admin/migrations');
     const page = admin.host.querySelector('#stub-page');
-    // Applied: the app starts - and the page on the screen is the same one, not drawn again.
-    admin.boot.needsUpdate.set(false);
+    expect(page).not.toBeNull();
+    // Applied: the site is ready, the start goes on - and the page on the screen is the same one, not drawn again.
+    admin.site.markReady();
+    admin.boot.status.set('loading');
+    await settled(admin);
+    expect(admin.host.querySelector('#stub-page')).toBe(page);
     admin.boot.status.set('ready');
-    await admin.fixture.whenStable();
+    await settled(admin);
     expect(admin.host.querySelector('#stub-page')).toBe(page);
 
-    // Anywhere else, the card - with its link to the page.
-    const elsewhere = await drawn(behind(['ADMIN']), [routes]);
-    await go(elsewhere, '/stats');
-    expect(elsewhere.host.querySelector('#stub-page')).toBeNull();
-    expect(elsewhere.host.querySelector('#open-migrations')).not.toBeNull();
-
-    // An EDITOR, or not behind but not set up at all: the card, whatever the address.
-    const editor = await drawn(behind(['EDITOR']), [routes]);
+    // An EDITOR: the status page, whatever the address.
+    const editor = await drawn((s) => {
+      STATES['an update waits, a learner signed in'](s);
+      s.auth.user.set({ ...PERSON, roles: ['MEMBER', 'EDITOR'] });
+    }, [anyPage]);
     await go(editor, '/admin/migrations');
     expect(editor.host.querySelector('#stub-page')).toBeNull();
-    expect(editor.host.querySelector('#not-set-up')).not.toBeNull();
+    expect(statusPage(editor)?.title).toBe('The site is being updated');
+
+    // Not set up at all: nothing to apply - no Migrations page for an ADMIN either.
     const notSetUp = await drawn((s) => {
+      STATES['not set up once installed: only "not available right now"'](s);
       session(s.auth, { ...PERSON, roles: ['ADMIN'] });
-      s.boot.status.set('not-set-up');
-    }, [routes]);
+    }, [anyPage]);
     await go(notSetUp, '/admin/migrations');
     expect(notSetUp.host.querySelector('#stub-page')).toBeNull();
+    expect(statusPage(notSetUp)?.title).toBe('The site is not available right now');
+  });
+
+  it('offers the setup page only while the site was never installed - never once it was, nor while its database is out of reach', async () => {
+    const never = await drawn(STATES['not set up, never installed: the setup page offered']);
+    expect(statusPage(never)?.links).toEqual(['/setup.php']);
+
+    const installed = await drawn(STATES['not set up once installed: only "not available right now"']);
+    expect(statusPage(installed)).toEqual({
+      title: 'The site is not available right now',
+      text: 'Please try again in a few minutes. This page reloads by itself.',
+      lang: 'en',
+      actions: ['Try again'],
+      links: [],
+    });
+    // Nobody is offered it then - an ADMIN neither.
+    const admin = await drawn((s) => {
+      STATES['not set up once installed: only "not available right now"'](s);
+      session(s.auth, { ...PERSON, roles: ['ADMIN'] });
+    });
+    expect(admin.host.querySelector('a[href="/setup.php"]')).toBeNull();
+
+    const unavailable = await drawn(STATES['the database out of reach']);
+    expect(statusPage(unavailable)?.title).toBe('The site is not available right now');
+    expect(unavailable.host.querySelector('a[href="/setup.php"]')).toBeNull();
   });
 
   it('the theme button says each mode, and that pressing changes it', async () => {
@@ -664,10 +818,10 @@ describe('the shell with a bundle in memory', () => {
 
   it('shows a key that has no string as the key - the kept English is out of play (and the check above can see a key)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const s = await drawn(STATES['not set up, with what the server says is missing'], [provideTestTranslations({ 'nav.learn': 'Learn' })]);
+    const s = await drawn(STATES['the progress could not be loaded'], [provideTestTranslations({ 'nav.learn': 'Learn' })]);
 
     const keys = keysIn(said(s.host));
-    expect(keys).toContain('boot.notSetUp.title');
+    expect(keys).toContain('boot.loadError.title');
     expect(keys).toContain('brand.area');
     expect(keys).toContain('midi.notConnected');
     expect(keys).toContain('theme.autoSpoken');
@@ -680,12 +834,12 @@ describe('the shell with a bundle in memory', () => {
     expect(running.host.querySelector('#topbar-nav a')?.textContent?.trim()).toBe('Learn');
   });
 
-  it('marks what is not the app’s own as English where the page is not: the server’s detail, the release notes', async () => {
+  it('marks what is not the app’s own as such where the page is not: the family\'s status page, the release notes', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const slovak = [provideTestTranslations({ 'whatsNew.added': 'Pridané' }, { language: 'sk' })];
-    const notSetUp = await drawn(STATES['not set up, with what the server says is missing'], slovak);
-    expect(notSetUp.host.querySelector('#not-set-up .detail')?.getAttribute('lang')).toBe('en');
-    expect(notSetUp.host.querySelector('#not-set-up .detail')?.textContent).toBe('config/database.local.php is missing.');
+    // The family's page in the page's language - and its administrator's part in English, marked so.
+    expect(statusPage(await drawn(STATES['an update waits, nobody signed in'], slovak))?.lang).toBe('sk');
+    expect(statusPage(await drawn(STATES['an update waits, the site\'s ADMIN signed in'], slovak))?.lang).toBe('en');
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], slovak);
     const lists = Array.from(running.host.querySelectorAll('.release ul'));
@@ -696,11 +850,9 @@ describe('the shell with a bundle in memory', () => {
     expect(running.host.querySelector('.section-title.added')?.hasAttribute('lang')).toBe(false);
     expect(running.host.querySelector('.release-date')?.textContent).toBe('28. septembra 2026');
 
-    // On an English page the release notes need no mark: the page says English already. The server's detail is marked all the same.
+    // On an English page the release notes need no mark: the page says English already.
     const english = [provideTestTranslations({})];
     const plain = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], english);
     expect(Array.from(plain.host.querySelectorAll('.release ul')).map((list) => list.hasAttribute('lang'))).toEqual([false, false, false, false]);
-    const detail = await drawn(STATES['not set up, with what the server says is missing'], english);
-    expect(detail.host.querySelector('#not-set-up .detail')?.getAttribute('lang')).toBe('en');
   });
 });

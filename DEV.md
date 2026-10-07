@@ -18,14 +18,32 @@ is only needed to change PHP dependencies. `frontend/.npmrc` sets
 `legacy-peer-deps`: npm 10.9's installer trips over the test runner's optional
 peers otherwise.
 
+**The anotoki family's library** (`anotoki-lib`, on GitHub:
+`irelevant25/anotoki-lib`) has two halves with one version, and both come
+from GitHub, never from a folder next door: the PHP package `anotoki/lib`
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.1"`;
+in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
+Angular package `@anotoki/lib` (`frontend/package.json`: the release's
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.1.0/anotoki-lib-0.1.0.tgz`;
+in both `bun.lock` and `package-lock.json`). Version 0.1.0 is its
+migrations module: the engine, the gate in front of the API, and the pages
+of a site that is not ready (below, *While the site is not ready*). **To
+update it**, both halves together: read its `CHANGELOG.md` (while 0.x a
+minor version may break), then in `backend/` `composer update anotoki/lib
+--prefer-dist` (change the constraint first when the new version needs
+it) and commit what changed in `vendor/`; in `frontend/` the
+new release's URL in `package.json`, then `bun install` and `npm install`
+(both lock files agree).
+
 ## First setup
 
 Everything that belongs to one installation - the database connection, the
 IAM's address and this app's client id there, the key cache - lives in
 `backend/config/database.local.php` and `backend/config/auth.local.php`. They are gitignored and **required**: without
-them the API answers every request `503 {code: "not_set_up"}`, and the app shows
-"Piano Academy is not set up yet" with a link to the setup page. Nothing falls
-back to a committed default. The setup page writes them.
+them the API answers every request `503 {code: "not_set_up", installed, message}`
+- with `setup: "/setup.php"` while the site was never installed - and the app
+shows the family's page "This site is not set up yet" with "Open the setup
+page". Nothing falls back to a committed default. The setup page writes them.
 
 ### 1. The setup page
 
@@ -100,8 +118,39 @@ php tools/build.php [--out=DIR]                  # the upload (see Building and 
 ```
 
 The database is `migrations/piano_academy/NNN_name.sql`, applied in order by the
-same engine as the IAM's and the genshin site's (`api/migration_runner.php`).
-Never edit an applied migration; add the next number.
+anotoki family's engine - `anotoki/lib`'s `Migrator`, which every anotoki site
+uses (`api/migrations.php` sets it up: the folder, the app's one lock, and
+the rename of the first runner's `migrations(name)` column). Each file runs
+whole or not at all, and the run stops at the first that fails. Never edit
+an applied migration; add the next number.
+
+### While the site is not ready
+
+The backend decides for every request where the site stands (`siteState()`,
+the family's `SiteGate` in front of every route, `api/index.php`) and
+`GET /api/site-status` says it to the pages:
+
+- **not set up** (a `config/*.local.php` missing): every path answers 503
+  `not_set_up`; the page says "This site is not set up yet" with "Open the
+  setup page" - but only while the site was never installed (no
+  `storage/installed.lock`, which the setup writes on a real host, never on
+  this computer); once installed it only says "The site is not available
+  right now" and asks again by itself;
+- **an update waiting** (a migration file not applied): every path answers 503
+  `update_pending` (`Retry-After: 60`) but the sign-in settings, the words,
+  `/api/health` and the Migrations page's routes. Visitors and learners read
+  "The site is being updated" in their language (a quiet Sign in while
+  nobody is signed in), and the page comes back by itself; the site's ADMIN
+  reads "A database update is waiting" and opens the admin panel's
+  **Migrations** page, the one page that works then. Sign in works
+  throughout;
+- **the database out of reach**: the routes answer as ever (503
+  `database_unavailable`); the page says "The site is not available right
+  now".
+
+On this computer that means: after writing a migration your own dev site
+says it is being updated until you apply it - `php migration.php`, Save on
+the setup page, or "Apply pending" as an ADMIN.
 
 ### The app's words
 
@@ -275,13 +324,15 @@ No settings file, no progress, no tests or tools.
 **Later versions**: build and upload again (the settings and the lock stay). A
 version with a new migration: sign in as an administrator and apply it in the
 app (the admin panel's **Migrations** page, `/admin/migrations`: what is
-pending and applied, and "Apply pending" - while the database is behind it is
-the one page that runs for an administrator, and the "not set up yet" card
-links to it) - or run the setup page once more: delete
-`storage/installed.lock`, and open `/setup.php` (the upload carries it) with the
-same details. Either applies what is missing and keeps everybody's progress;
-on a host the setup page shows nothing that is saved (a blank password keeps
-the saved one).
+pending and applied, each file's SQL, and "Apply pending" - while an update
+waits it is the one page that runs for an administrator; the page everybody
+else sees then, "The site is being updated", says to an ADMIN that a
+database update is waiting and links to it) - or run the setup page once
+more: delete `storage/installed.lock`, and open `/setup.php` (the upload
+carries it) with the same details. Either applies what is missing and keeps
+everybody's progress; on a host the setup page shows nothing that is saved (a
+blank password keeps the saved one). Once installed the site never offers
+the setup page again - the lock is how it knows.
 
 ### Releasing the app's words
 
@@ -313,10 +364,10 @@ database only with a released version, by the owner's own hand.
 4. **The host**: in the browser, export both languages first (Translations,
    each language's export) - your rewordings, kept. Then upload and apply the
    migration **at once** - as an ADMIN, "Apply pending" on the admin panel's
-   Migrations page (the "not set up yet" card links to it), or delete
-   `storage/installed.lock` and run `/setup.php`: until then every visitor
-   sees "Piano Academy is not set up yet". So the strings of a release are
-   collected into **one** migration.
+   Migrations page (the page that says the site is being updated links an
+   ADMIN to it), or delete `storage/installed.lock` and run `/setup.php`:
+   until then every visitor reads "The site is being updated". So the strings
+   of a release are collected into **one** migration.
 
 **Version 0.2 (the anotoki family's work, migration 004)**: 004 is applied
 in the owner's database on this computer (2026-10-05). On the host in this
@@ -327,8 +378,8 @@ per-site "Sign-in required" switch and "Roles that may sign in").
 **Visitors (migration 005, 2026-10-05, not applied anywhere yet)**: the owner
 applies it at the hand-over, after a `pg_dump` - on this computer by Save on
 `/setup.php`, `php migration.php` or "Apply pending" on the Migrations page;
-on the host: upload the build, apply 005 at once (until then the app says
-"not set up yet"), then the IAM's migrations. It changes no row of anybody's
+on the host: upload the build, apply 005 at once (until then the site says
+it is being updated), then the IAM's migrations. It changes no row of anybody's
 (it rewrites the check on `users.id` so a negative id is a visitor's; every
 row there passes). Then, only if wanted, switch Piano Academy's "Sign-in
 required" off in the IAM's admin panel. On the host check once that the
@@ -352,6 +403,14 @@ before this browser's choice. On the host the browser reaches
 `{issuer}/api/oidc/preferences` cross-origin (the upload's `connect-src`
 allows `https:`).
 
+**The family's library and its pages (migration 007, 2026-10-07, not
+applied anywhere yet)**: the build carries `anotoki-lib` 0.1.0 (the engine,
+the gate, the pages of a site that is not ready - see *While the site is
+not ready*) in place of the app's own "not set up yet" card, whose four
+words 007 deletes (`boot.notSetUp.*`; nothing else). It goes with 005 and
+006 at the hand-over - one Apply takes all three. Nothing to do on the host
+beyond the upload and that Apply; the bookkeeping table stays as it is.
+
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
 after release needs an `UPDATE` in its migration. The two databases (your
@@ -372,7 +431,9 @@ of the new id first, if there is one).
 
 | Symptom | Likely cause |
 | --- | --- |
-| "Piano Academy is not set up yet"; the API answers 503 `not_set_up` | The setup page has not run, a `config/*.local.php` is missing - or, with `update: true`, the database needs an update (`php migration.php`, the setup page, or an administrator in the app). |
+| "This site is not set up yet" (or, once installed, "The site is not available right now"); the API answers 503 `not_set_up` | The setup page has not run, or a `config/*.local.php` is missing - or PHP cannot run it (edited by hand? the PHP error log says `[config] config/....local.php cannot be read: PHP stops at its line N`). On a host the setup page is offered only while `storage/installed.lock` is not there. |
+| "The site is being updated"; the API answers 503 `update_pending` | A migration waits: an ADMIN applies it on the admin panel's Migrations page (sign in from that page), or `php migration.php`, or the setup page. The sign-in, the words and `/api/health` answer meanwhile. |
+| "The site is not available right now", and it does not come back | The database cannot be reached (`GET /api/site-status` says `unavailable`): is PostgreSQL running, do the settings name it? |
 | The setup page asks for a token on this computer | It was not asked as `localhost` / `127.0.0.1` straight from PHP's built-in server: a LAN address, another name, or a proxy that adds forwarding headers makes it a real host's install. |
 | 403 `forbidden` on `/api/admin/...` | The account has no role of Piano Academy in the IAM (EDITOR for the words, ADMIN for languages and the database) - or the token was issued before the role was given: sign in again. |
 | 409 `busy` / "Another database update is running" | The setup page, `php migration.php` and the app's update take one lock: wait for the other to finish. |

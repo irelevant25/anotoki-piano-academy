@@ -56,7 +56,10 @@ function reworded(close: string): TranslationBundle {
 }
 
 const OFFLINE = new HttpErrorResponse({ status: 0, statusText: 'Unknown Error' });
-const PENDING_MIGRATION = new HttpErrorResponse({ status: 503, error: { error: 'The database needs an update.', code: 'not_set_up' } });
+/** The words while an update waits on a database that has none yet (the backend's 503 update_pending). */
+const PENDING_MIGRATION = new HttpErrorResponse({ status: 503, error: { error: 'The site is being updated. Try again in a few minutes.', code: 'update_pending' } });
+/** A site with no settings: the family's gate (503 not_set_up). */
+const NOT_SET_UP = new HttpErrorResponse({ status: 503, error: { code: 'not_set_up', installed: false, message: 'This site is not set up yet. Its setup page connects it to its database.', setup: '/setup.php' } });
 
 /** Everything already on its way has run: the answers of requests that were settled, and what follows them. */
 function settled(): Promise<void> {
@@ -784,16 +787,19 @@ describe('TranslationService', () => {
       expect(asked).toEqual([]);
     });
 
-    it('asks for nothing more once the server has said it is not set up (a migration is pending): the page is loaded again after the setup', async () => {
+    it.each([
+      ['it is being updated and has no words yet', PENDING_MIGRATION],
+      ['it is not set up', NOT_SET_UP],
+    ])('asks for nothing more once the server has said %s: the family\'s status page loads the page again when the site is back', async (_why, refusal) => {
       vi.useFakeTimers();
-      server.mockRejectedValue(PENDING_MIGRATION);
+      server.mockRejectedValue(refusal);
       const starting = service().init(true);
       await vi.advanceTimersByTimeAsync(RETRY_WAIT_MS);
       await starting;
       vi.useRealTimers();
       expect(server).toHaveBeenCalledTimes(2);
 
-      // The "not set up yet" card is drawn: its navigation asks nothing a third time.
+      // The status page is drawn: a navigation asks nothing a third time.
       service().navigated();
       service().navigated();
       await settled();

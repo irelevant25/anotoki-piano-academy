@@ -14,7 +14,8 @@ import { type AnotokiAuth, type AnotokiPreferenceChanges, type AnotokiPreference
  * sign-in here come from the backend (GET /api/auth/config: {issuer,
  * clientId, loginRequired} - the backend reads the IAM's switch and relays
  * it, so the browser never asks the IAM for it), which says 503 not_set_up
- * until setup.php has run. While a sign-in is not required, somebody who has
+ * until setup.php has run - and answers while an update waits, so somebody
+ * can sign in then. While a sign-in is not required, somebody who has
  * not signed in practises as a visitor (core/auth/visitor-key.ts) - this
  * service knows nothing of visitors.
  *
@@ -35,9 +36,9 @@ export interface SignInFailure {
   message: string;
 }
 
-/** GET /api/auth/config (or /api/state) answered 503 not_set_up: the setup page has not been run. */
+/** GET /api/auth/config answered 503 not_set_up: the site has no settings (the family's status page says so). */
 export class NotSetUpError extends Error {
-  constructor(readonly detail: string | null = null) {
+  constructor() {
     super('Piano Academy is not set up yet.');
   }
 }
@@ -120,7 +121,7 @@ export class AuthService {
       config = await firstValueFrom(this.http.get<typeof config>('/api/auth/config'));
     } catch (error) {
       if (error instanceof HttpErrorResponse && error.status === 503 && error.error?.code === 'not_set_up') {
-        throw new NotSetUpError(typeof error.error?.detail === 'string' ? error.error.detail : null);
+        throw new NotSetUpError();
       }
       throw error;
     }

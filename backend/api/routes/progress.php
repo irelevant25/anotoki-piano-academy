@@ -47,10 +47,11 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * With sign-in required, nobody and a visitor key are 401 sign_in_required
  * on all of them.
  *
- * Every route here but POST /api/sessions checks the schema first: 503
- * not_set_up with update: true on a database behind the code. (A visitor's
- * round, or one that would make a visitor, then answers 503
- * visitors_unavailable.)
+ * While an update waits none of these runs - nothing is read from, or saved
+ * into, tables that are not as the code expects yet: the site's gate answers
+ * every one of them 503 update_pending first (api/index.php), POST
+ * /api/sessions too. (Should a visitor's round ever reach a database without
+ * 005 all the same, it answers 503 visitors_unavailable.)
  *
  * @var \Slim\App $app
  */
@@ -58,8 +59,6 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 /** What nobody has: no progress anywhere yet - generation 0, which a first save names. */
 const STATE_OF_NOBODY = '{"progress":{},"sessions":[],"path":{"steps":{}},"generation":0}';
 
-// Middleware added last runs first: the schema is checked before anybody is
-// looked up in a users table that might not be there yet.
 $app->get('/api/state', function (Request $request, Response $response): Response {
     if ($request->getAttribute('nobody') === true) {
         return respondJsonText($response, STATE_OF_NOBODY);
@@ -72,7 +71,7 @@ $app->get('/api/state', function (Request $request, Response $response): Respons
     }
 
     return respondJsonText($response, $json);
-})->add(requireOwner('empty'))->add(requireCurrentSchema());
+})->add(requireOwner('empty'));
 
 $app->put('/api/progress', function (Request $request, Response $response): Response {
     $owner = visitorWriter($request);
@@ -86,7 +85,7 @@ $app->put('/api/progress', function (Request $request, Response $response): Resp
     });
 
     return visitorAnswerMade($response->withStatus(204), $made);
-})->add(requireOwner('make'))->add(requireCurrentSchema());
+})->add(requireOwner('make'));
 
 $app->put('/api/path', function (Request $request, Response $response): Response {
     $owner = visitorWriter($request);
@@ -100,14 +99,14 @@ $app->put('/api/path', function (Request $request, Response $response): Response
     });
 
     return visitorAnswerMade($response->withStatus(204), $made);
-})->add(requireOwner('make'))->add(requireCurrentSchema());
+})->add(requireOwner('make'));
 
 // A round is added, never written over anything: it needs no generation. One
 // played in a tab still open after an import or a delete is a round played.
 $app->post('/api/sessions', function (Request $request, Response $response): Response {
     $owner = visitorWriter($request);
     if ($owner === null) {
-        // No schema check on this route: a round that would make a visitor needs 005 itself.
+        // A round that would make a visitor needs 005 itself (the gate holds every route while it waits; this holds the rest).
         visitorsMustBeReady();
     }
     $session = storeCleanSession(jsonBody($request));
@@ -135,7 +134,7 @@ $app->get('/api/me/export', function (Request $request, Response $response): Res
 
     return respondJsonText($response, $json)
         ->withHeader('Content-Disposition', 'attachment; filename="piano-academy-progress-' . gmdate('Y-m-d') . '.json"');
-})->add(requireUser())->add(requireCurrentSchema());
+})->add(requireUser());
 
 $app->post('/api/me/import', function (Request $request, Response $response): Response {
     $query = $request->getQueryParams();
@@ -166,4 +165,4 @@ $app->post('/api/me/import', function (Request $request, Response $response): Re
     }
 
     return respondJson($response, transferImport($userId, $data, $replace) + ['leftOut' => $data['leftOut']]);
-})->add(requireUser())->add(requireCurrentSchema());
+})->add(requireUser());

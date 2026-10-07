@@ -1,7 +1,11 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { BootService, BootStatus } from '../state/boot.service';
+import { provideSiteMigrations } from '../state/site-migrations';
 import { provideTestTranslations } from '../testing/test-translations';
 import { AuthService, SignInFailure } from './auth.service';
 import { adminSignInGuard, signInGuard } from './sign-in.guard';
@@ -19,6 +23,8 @@ describe('signInGuard', () => {
   const order: string[] = [];
   const auth = {
     signedIn: () => signedIn(),
+    isAdmin: () => false,
+    preferences: () => null,
     signInFailure: failure,
     loginRequired: () => loginRequired(),
     signIn: vi.fn(async (_returnTo?: string, _uiLocales?: string) => (order.push('signIn'), true)),
@@ -48,10 +54,15 @@ describe('signInGuard', () => {
           { path: '', canActivateChild: [signInGuard], children: [{ path: '', component: PageComponent }, { path: 'stats', component: PageComponent }, { path: 'songs/:songId', component: PageComponent }] },
         ]),
         provideTestTranslations({}, { language: 'sk' }),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // Where the site stands (the family's SiteStatus): ready, unless a case says otherwise.
+        provideSiteMigrations(),
         { provide: AuthService, useValue: auth },
         { provide: BootService, useValue: boot },
       ],
     });
+    TestBed.inject(SiteStatus).markReady();
   });
 
   const go = (url: string) => TestBed.inject(Router).navigateByUrl(url);
@@ -105,6 +116,33 @@ describe('signInGuard', () => {
       expect(await go('/admin')).toBe(false);
     }
     expect(auth.signIn).not.toHaveBeenCalled();
+  });
+
+  it('sends nobody to the IAM while the site is not ready: every page goes through to the family\'s status page, which has a Sign in of its own - and the address stays', async () => {
+    const site = TestBed.inject(SiteStatus);
+    for (const code of ['update_pending', 'not_set_up', 'unavailable']) {
+      site.report(code);
+      // Whatever the start came to: waiting for the update, not set up - or running, when the update came in the middle of practising.
+      for (const state of ['waiting', 'not-set-up', 'loading', 'sign-in', 'ready'] as const) {
+        status.set(state);
+        expect(await go('/stats?x=1')).toBe(true);
+        expect(await go('/admin')).toBe(true);
+      }
+      loginRequired.set(false);
+      visiting.set(true);
+      expect(await go('/')).toBe(true);
+      loginRequired.set(true);
+      visiting.set(false);
+    }
+    expect(auth.signIn).not.toHaveBeenCalled();
+    expect(boot.beforeSignIn).not.toHaveBeenCalled();
+    expect(TestBed.inject(Router).url).toBe('/');
+
+    // Ready again: the guard is the guard it was.
+    site.markReady();
+    status.set('sign-in');
+    expect(await go('/stats')).toBe(false);
+    expect(auth.signIn).toHaveBeenLastCalledWith('/stats', 'sk');
   });
 
   it('stays put when there are no sign-in settings to go by (signIn answers false with no failure)', async () => {

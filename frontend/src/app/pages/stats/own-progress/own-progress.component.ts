@@ -34,7 +34,9 @@ export function ownProgressProblem(error: unknown): OwnProgressProblem {
       return { key: 'ownProgress.error.tooLarge', params: { megabytes: LIMIT_MB } };
     case 'export_too_large':
       return { key: 'ownProgress.error.exportTooLarge', params: { megabytes: LIMIT_MB } };
+    // The site is not ready - an update waits, or it is not set up: "being updated right now".
     case 'not_set_up':
+    case 'update_pending':
       return { key: 'ownProgress.error.notSetUp' };
   }
   return error.status === 413 ? { key: 'ownProgress.error.tooLarge', params: { megabytes: LIMIT_MB } } : { key: 'ownProgress.error.failed' };

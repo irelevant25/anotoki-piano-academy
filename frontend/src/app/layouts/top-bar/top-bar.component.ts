@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, Signal, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -107,6 +108,7 @@ export class TopBarComponent {
   protected readonly auth = inject(AuthService);
   protected readonly boot = inject(BootService);
   protected readonly store = inject(ProgressStore);
+  private readonly _site = inject(SiteStatus);
   private readonly _i18n = inject(TranslationService);
   private readonly _router = inject(Router);
   private readonly _host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -136,10 +138,12 @@ export class TopBarComponent {
    * The sections: the learner's once the app runs (before, there is nothing
    * to practise on); in the admin panel the ones the person's role opens -
    * none for somebody without one, whom the admin layout sends back. While
-   * the database is behind, an ADMIN there has the Migrations page alone.
+   * the site is not ready (the family's status page in the view's place)
+   * none - but while an update waits an ADMIN there has the Migrations page
+   * alone.
    */
   protected readonly links = computed<readonly BarLink[]>(() => {
-    if (this.boot.status() !== 'ready') return this.boot.onlyMigrations() && this.inAdmin() ? ADMIN_LINKS.filter((link) => link.path === '/admin/migrations') : [];
+    if (this.boot.status() !== 'ready' || this._site.blocked()) return this.boot.onlyMigrations() && this.inAdmin() ? ADMIN_LINKS.filter((link) => link.path === '/admin/migrations') : [];
     if (!this.inAdmin()) return APP_LINKS;
     if (!this.auth.isStaff()) return [];
     return ADMIN_LINKS.filter((link) => !link.adminOnly || this.auth.isAdmin());

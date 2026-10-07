@@ -1,9 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { SiteGateComponent, SiteStatus } from '@anotoki/lib/migrations';
 import { filter, map } from 'rxjs';
 import { LoadErrorComponent } from './boot/load-error/load-error.component';
-import { NotSetUpComponent } from './boot/not-set-up/not-set-up.component';
 import { SignInCardComponent } from './boot/sign-in-card/sign-in-card.component';
 import { ApiService } from './core/api/api.service';
 import { AuthService, SignInFailure } from './core/auth/auth.service';
@@ -15,6 +15,7 @@ import { TranslationService } from './core/i18n/translation.service';
 import { VISITOR_KEEP_DAYS, VISITOR_WORDS } from './core/i18n/visitor-words';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
+import { MIGRATIONS_ROUTE } from './core/state/site-migrations';
 import { TopBarComponent } from './layouts/top-bar/top-bar.component';
 import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog.component';
 
@@ -22,12 +23,20 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * The frame around every view: the family's top bar (layouts/top-bar: the
  * brand, the sections, the piano, the language, the theme and the person's
  * menu - the admin panel's sections under /admin), the view - or, while the
- * app cannot run yet, the card saying why (but for an ADMIN on the admin
- * panel's Migrations page while the database is only behind: that page is
- * how it is brought up to date) - and the footer with the version,
+ * app cannot run yet, the card saying why - and the footer with the version,
  * which opens what is new. Also the notes that cannot be missed, under the
  * bar: signed out in the middle of practising, and the progress replaced or
  * deleted somewhere else (ProgressStore.changedElsewhere).
+ *
+ * While the site is not ready - an update waits, it is not set up, its
+ * database is out of reach - the anotoki family's gate
+ * (<anotoki-site-gate>, @anotoki/lib/migrations) draws its status page in
+ * the view's place: visitors and learners read, in their language, that the
+ * site is being updated (no error, no code, a quiet Sign in while nobody is
+ * signed in), and it comes back by itself; the site's ADMIN reads that a
+ * database update is waiting, and opens the Migrations page - the one page
+ * that works then; the setup page only while the site was never installed.
+ * The notes under the bar wait meanwhile: nothing but that page is said.
  *
  * For a VISITOR - practising without signing in, while the IAM does not
  * require it (BootService.visiting) - the notes of core/i18n/visitor-words.ts:
@@ -60,8 +69,8 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
     TopBarComponent,
     ChangelogDialogComponent,
     SignInCardComponent,
-    NotSetUpComponent,
     LoadErrorComponent,
+    SiteGateComponent,
   ],
 })
 export class AppComponent {
@@ -72,6 +81,7 @@ export class AppComponent {
   protected readonly visitorKey = inject(VisitorKey);
   private readonly i18n = inject(TranslationService);
   protected readonly store = inject(ProgressStore);
+  protected readonly site = inject(SiteStatus);
 
   private readonly changelogDialog = viewChild.required(ChangelogDialogComponent);
 
@@ -86,12 +96,13 @@ export class AppComponent {
   );
 
   /**
-   * The page is drawn: the app runs - or the database is only behind and an
-   * ADMIN is on the Migrations page (BootService.onlyMigrations). One outlet
-   * for both, so that page stays as the app starts after its Apply.
+   * The page is drawn (where the gate lets it be seen): the app runs - or an
+   * ADMIN is on the Migrations page, which works while the rest of the app
+   * waits for an update. One outlet for both, so that page stays (with what
+   * its Apply said) as the app starts after it.
    */
   protected readonly pageShown = computed(
-    () => this.boot.status() === 'ready' || (this.boot.onlyMigrations() && (this.path() === '/admin/migrations' || this.path().startsWith('/admin/migrations/'))),
+    () => this.boot.status() === 'ready' || (this.auth.isAdmin() && (this.path() === MIGRATIONS_ROUTE || this.path().startsWith(MIGRATIONS_ROUTE + '/'))),
   );
 
   /** A sign-in that came back without one, or could not start: the card says so (otherwise the guard is on its way to the IAM). */

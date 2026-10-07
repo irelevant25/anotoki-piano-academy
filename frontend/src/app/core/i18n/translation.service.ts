@@ -118,7 +118,7 @@ export function pickLanguage(candidates: readonly LanguageCandidate[], offered: 
  * A key with no string comes back as itself, on the page, and warns once: the
  * owner wants to see which key is missing. The one exception is the time
  * while no bundle is in memory at all - the app is not set up, the backend is
- * down, a migration is pending - and the shell is drawn all the same: then,
+ * down, its database has no words yet - and the shell is drawn all the same: then,
  * and only then, a key is answered from the English kept in code
  * (kept-english.ts).
  *
@@ -214,12 +214,13 @@ export class TranslationService {
    * The last init() was allowed to ask the server. False while the app could
    * not even read its sign-in settings (not set up, the backend out of reach):
    * then nothing is asked, at a navigation neither. Set false as well once
-   * the server has answered that it is not set up (a migration is pending):
-   * the app shows its "not set up yet" card, and after the setup the page is
-   * loaded again - asking at the first page's navigation would only have
-   * made a third request of a first visit. True again with reload(): an
-   * ADMIN's Apply on the Migrations page starts the app without a page load
-   * (BootService.resumeAfterUpdate()), and from then on the server is asked.
+   * the server has answered that it is not set up, or that it is being
+   * updated and has no words to give yet (503 not_set_up / update_pending):
+   * the family's status page shows, and loads the page again once the site
+   * is back - asking at every navigation meanwhile would only ask for
+   * nothing. True again with reload(): an ADMIN's Apply on the Migrations
+   * page starts the app without a page load (BootService.resumeAfterUpdate()),
+   * and from then on the server is asked.
    */
   private _asking = false;
   /**
@@ -462,8 +463,8 @@ export class TranslationService {
    * the languages on offer (the admin panel's Translations and Languages
    * pages, after a save), and for an app just started in place after the
    * pending migrations were applied (BootService.resumeAfterUpdate(): the
-   * start's request got 503, so there is no bundle, or the cached one from
-   * before the update). Asks for the bundle of the language on the page and
+   * strings in memory are from before the update - or there are none, when
+   * the database had no words yet). Asks for the bundle of the language on the page and
    * settles against the list that comes with it - so a language hidden or
    * offered a moment ago is followed - then puts the answer in force and in
    * the cache. Never rejects; when the server cannot be had, the page stays
@@ -522,8 +523,9 @@ export class TranslationService {
    *
    * `request: true`, after the sign-in (which, back from the IAM, has put the
    * address back) and before anybody is asked to sign in - the sign-in card
-   * has its strings. A bundle that does not come (503 while a migration is
-   * pending, the network) is "no bundle", and the start goes on.
+   * has its strings. A bundle that does not come (503 while the database has
+   * no words yet, the network) is "no bundle", and the start goes on. (While
+   * an update waits the words still answer, from the database as it is.)
    */
   async init(request: boolean): Promise<void> {
     try {
@@ -648,10 +650,10 @@ export class TranslationService {
     try {
       return bundleFrom(await this.fetchBundle(code));
     } catch (error) {
-      // Offline, the API is down, or its database waits for a migration (503).
-      // The cache - or the kept English - is what the page shows then; it is
-      // not worth stopping the app over.
-      if (notSetUp(error)) {
+      // Offline, the API is down, or the site is not set up or has no words
+      // yet (503). The cache - or the kept English - is what the page shows
+      // then; it is not worth stopping the app over.
+      if (siteNotReady(error)) {
         this._asking = false;
       }
       return null;
@@ -872,9 +874,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** The server's answer that it is not set up: 503 `not_set_up` (no settings, or a migration pending). */
-function notSetUp(error: unknown): boolean {
-  return error instanceof HttpErrorResponse && error.status === 503 && isPlainObject(error.error) && error.error['code'] === 'not_set_up';
+/** The server's answer that the site is not ready: 503 `not_set_up` (no settings), or `update_pending` (no words yet). */
+function siteNotReady(error: unknown): boolean {
+  return error instanceof HttpErrorResponse && error.status === 503 && isPlainObject(error.error) && (error.error['code'] === 'not_set_up' || error.error['code'] === 'update_pending');
 }
 
 /** A flat {key: text} map, copied - or null when it is anything else. */

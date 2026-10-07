@@ -10,7 +10,8 @@ declare(strict_types=1);
  * Under PHP's built-in server router.php does the same. Slim routes on the
  * original path, so every route starts with /api/.
  *
- *   routes/public.php         GET /api/health, GET /api/auth/config, GET /api/translations/{code}
+ *   routes/public.php         GET /api/health, GET /api/auth/config, GET /api/translations/{code},
+ *                             GET /api/site-status
  *   routes/progress.php       GET /api/state, PUT /api/progress, PUT /api/path, POST /api/sessions
  *                             (a person's or - when the IAM says sign-in is not required - a
  *                             visitor's, api/visitors.php), GET /api/me/export, POST /api/me/import
@@ -23,15 +24,24 @@ declare(strict_types=1);
  *                             ADMIN: POST /api/admin/languages,
  *                             PUT, DELETE /api/admin/languages/{code},
  *                             GET /api/admin/people, DELETE /api/admin/people/{id},
- *                             GET /api/admin/migrations, POST /api/admin/migrations/apply
+ *                             GET /api/admin/migrations, GET /api/admin/migrations/file,
+ *                             POST /api/admin/migrations/apply
  *
  * The middleware, outermost first: security headers -> the error handler ->
- * the setup gate (503 not_set_up without config/*.local.php) -> routing -> on
- * the progress routes, the schema check (but for POST /api/sessions) and the
- * person or visitor the request comes from (meddleware/auth.php); on the move, the schema check and
- * the person; on the app's words, the schema check; on the admin
- * routes, the schema check (but for the migrations' own) and then the person
- * and their role, on each group.
+ * the site's gate (anotoki/lib's SiteGate: where the site stands, below) ->
+ * routing -> on the progress routes, the person or visitor the request comes
+ * from (meddleware/auth.php); on the move, the person; on the admin routes,
+ * the person and their role, on each group.
+ *
+ * The gate answers before any route runs (siteState(), api/migrations.php):
+ * not set up - config/*.local.php missing, incomplete or not PHP that runs - every path but
+ * GET /api/site-status is 503 {code: "not_set_up", installed, message}, with
+ * "setup": "/setup.php" only while the site was never installed; an update
+ * pending - a migration waiting - every path but SITE_OPEN_PATHS and the
+ * status is 503 {code: "update_pending", message} with Retry-After: 60, so
+ * nothing runs on tables that are not there yet; unavailable (the database
+ * out of reach) and ready: through, and a dead database is the error
+ * handler's 503 database_unavailable as ever.
  *
  * After the answer is written, the work a request queued for then
  * (api/after_response.php: the sweep of visitors unseen for 30 days).
@@ -39,14 +49,29 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/meddleware/security.php';
-require_once __DIR__ . '/meddleware/setup.php';
 require_once __DIR__ . '/meddleware/auth.php';
 
+use Anotoki\Lib\Migrations\Http\SiteGate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Exception\HttpMethodNotAllowedException;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Factory\AppFactory;
+
+/**
+ * What still answers while an update waits: the sign-in settings, the app's
+ * words, the health check and the Migrations page's routes - so people can
+ * sign in, the pages have their words, and an administrator reaches Apply.
+ * (GET /api/site-status always does.) A path is exact, or a pattern when it
+ * starts with ~.
+ */
+const SITE_OPEN_PATHS = [
+    '/api/auth/config',
+    '/api/health',
+    '~^/api/translations/[^/]+$~',
+    // Exactly the Migrations page's three routes: a crafted path under them stays held.
+    '~^/api/admin/migrations(/file|/apply)?$~D',
+];
 
 /**
  * The application: every route and middleware, not yet running. Built once -
@@ -69,7 +94,7 @@ function buildPianoApp(): \Slim\App
     require __DIR__ . '/routes/admin.php';
 
     // Added in this order, so they run the other way round.
-    $app->add(setupGate());
+    $app->add(new SiteGate(siteState(), $app->getResponseFactory(), SITE_OPEN_PATHS));
 
     $errorMiddleware = $app->addErrorMiddleware(false, false, false);
     $errorMiddleware->setDefaultErrorHandler(function (Request $request, Throwable $exception) use ($app): Response {
@@ -84,9 +109,7 @@ function buildPianoApp(): \Slim\App
         if ($exception instanceof HttpMethodNotAllowedException) {
             return respondError($response, 405, 'method_not_allowed', 'Method not allowed', ['Allow' => implode(', ', $exception->getAllowedMethods())]);
         }
-        if ($exception instanceof NotSetUp) {
-            return respondError($response, 503, 'not_set_up', notSetUpMessage(), [], ['setup' => '/setup.php']);
-        }
+        // (No case for NotSetUp: without the settings the gate answers before any route could ask for them.)
         if ($exception instanceof PDOException) {
             error_log('[db] ' . $exception->getMessage());
 

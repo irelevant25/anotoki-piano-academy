@@ -8,7 +8,7 @@
 // needs (how PHONE_BAR_MAX was chosen).
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +87,28 @@ async function iamAs(user, more = {}) {
 const MIA = { id: 7, username: 'mia', roles: ['MEMBER'] };
 const ED = { id: 8, username: 'ed', roles: ['MEMBER', 'EDITOR'] };
 const ADA = { id: 1, username: 'ada', roles: ['MEMBER', 'ADMIN'] };
+
+/** The admin panel's Migrations page: the anotoki family's (@anotoki/lib/migrations). */
+const MIGRATIONS = 'anotoki-migrations-page';
+
+/**
+ * The family's status page (<anotoki-site-status>, in the view's place while the site is not ready), as it is
+ * read: its title, its sentence, its language, the words of its buttons and links, and where its links go.
+ * Null while it is not on the page.
+ */
+async function siteStatus(page) {
+  return page.evaluate(() => {
+    const section = document.querySelector('anotoki-site-status section');
+    if (!section) return null;
+    return {
+      title: section.querySelector('h1')?.textContent.trim(),
+      text: section.querySelector('p')?.textContent.trim(),
+      lang: section.getAttribute('lang'),
+      controls: [...section.querySelectorAll('a, button')].map((control) => control.textContent.trim()),
+      links: [...section.querySelectorAll('a[href]')].map((link) => link.getAttribute('href')),
+    };
+  });
+}
 
 /** Every namespace of the app's words: a text of the shape "<namespace>.<word>" on a page is a key where a word should be. */
 const english = await (await fetch(`${APP}/api/translations/en`)).json();
@@ -308,8 +330,8 @@ try {
     await page.waitForSelector('#own-progress', { timeout: 20000 });
     check(seen.some((url) => url.startsWith(IAM)) && seen.some((url) => url.endsWith('/auth/callback')), 'the browser went to the IAM, and came back through /auth/callback', seen);
     const before = calls.filter((call) => !call.afterCallback).map((call) => call.api);
-    const learnerCalls = before.filter((api) => !/^\/api\/(auth\/config|translations\/[a-z-]+|health)$/.test(api));
-    check(learnerCalls.length === 0, 'before the trip to the IAM: no call for a learner\'s data (/api/state, saves, /api/me) - only the sign-in\'s settings and the words', before);
+    const learnerCalls = before.filter((api) => !/^\/api\/(site-status|auth\/config|translations\/[a-z-]+|health)$/.test(api));
+    check(learnerCalls.length === 0, 'before the trip to the IAM: no call for a learner\'s data (/api/state, saves, /api/me) - only where the site stands, the sign-in\'s settings and the words', before);
     check(calls.some((call) => call.afterCallback && call.api === '/api/state'), 'the progress loaded only after the way back', calls);
     check(new URL(page.url()).pathname === '/stats' && new URL(page.url()).search === '?from=deep', 'and came back to /stats?from=deep', page.url());
     check((await page.textContent('#account-name')) === 'mia', 'signed in as the learner, named in the bar');
@@ -551,17 +573,27 @@ try {
     check((await admin.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations|Languages|People|Migrations', 'an ADMIN\'s sections');
     check((await admin.$$eval('#topbar-nav a[aria-current="page"]', (all) => all.map((a) => a.textContent.trim()))).join() === 'People', 'People is the page');
     await admin.screenshot({ path: join(shots, 'admin-people.png'), fullPage: true });
+    // Migrations: the anotoki family's page (@anotoki/lib/migrations), in the admin panel's frame.
     await admin.click('#topbar-nav a[href="/admin/migrations"]');
-    await admin.waitForSelector('#migrations-pending');
-    check((await admin.textContent('#migrations-pending')).includes('Nothing pending'), 'Migrations: nothing pending');
-    check(await admin.isDisabled('#migrations-apply'), 'Apply pending is off with nothing pending');
-    const applied = await admin.$$eval('#migrations-applied li', (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.when').textContent.trim()]));
-    check(applied.length >= 4 && applied.at(-1)[0] === '006_account_preferences.sql' && applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)), 'Applied: every file with when, 006 last', applied);
+    await admin.waitForSelector(`${MIGRATIONS} [data-pending]`);
+    check((await admin.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'Migrations (the family\'s page): nothing pending');
+    check(await admin.isDisabled(`${MIGRATIONS} [data-apply]`), 'Apply pending is off with nothing pending');
+    const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.when')?.textContent.trim() ?? '']));
+    check(applied.length >= 7 && applied.at(-1)[0] === '007_site_status_words.sql' && applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)), 'Applied: every file with when (the admin panel\'s stamp), 007 last', applied);
     check((await admin.title()) === 'Migrations · Admin panel · Piano Academy', 'its title', await admin.title());
+    // Each applied file's SQL, read from the server, in a dialog: the focus on Close, Escape closes it.
+    await admin.click(`${MIGRATIONS} [data-applied] li:last-child button`);
+    await admin.waitForSelector(`${MIGRATIONS} dialog[data-sql][open] pre.sql`, { timeout: 10000 });
+    check((await admin.textContent(`${MIGRATIONS} dialog[data-sql] pre.sql`)).includes("'boot.notSetUp.title'"), 'View: 007\'s SQL from the server', (await admin.textContent(`${MIGRATIONS} dialog[data-sql]`)).slice(0, 200));
+    check((await admin.evaluate(() => document.activeElement?.hasAttribute('data-close'))) === true, 'the focus on Close');
+    await admin.screenshot({ path: join(shots, 'admin-migrations-sql-1280.png') });
+    await admin.keyboard.press('Escape');
+    await admin.waitForSelector(`${MIGRATIONS} dialog[data-sql][open]`, { state: 'detached', timeout: 3000 }).catch(() => undefined);
+    check(!(await admin.$(`${MIGRATIONS} dialog[data-sql][open]`)), 'Escape closes it');
     await admin.screenshot({ path: join(shots, 'admin-migrations-1280.png'), fullPage: true });
     // The Database page's old address.
     await admin.goto(`${APP}/admin/database`);
-    await admin.waitForSelector('#migrations-pending');
+    await admin.waitForSelector(`${MIGRATIONS} [data-pending]`);
     check(new URL(admin.url()).pathname === '/admin/migrations', '/admin/database goes to /admin/migrations', admin.url());
     // A phone: the admin panel's bar ("admin panel" beside the mark) and the page, nothing wider than the screen.
     await admin.setViewportSize({ width: 360, height: 800 });
@@ -675,6 +707,9 @@ try {
     check(!(await page.$('#visitor-notice')), 'a practice screen: no notice');
     await playUntil(page, '#mt-notation', '#ls-next');
     await page.click('#ls-next');
+    // The drill on the screen first: the meet's own Next may still be there a moment after the click (the view is
+    // drawn on the next frame), and would end the drill's playing before it began.
+    await page.waitForSelector('#dr-notation', { timeout: 20000 });
     await playUntil(page, '#dr-notation', '#ls-next, #ls-retry');
     await page.waitForTimeout(800);
     const before = saves.map((save) => save.what);
@@ -967,56 +1002,121 @@ try {
     const seen = await admin.$$eval('#people-table tbody tr[data-person] td:nth-child(3)', (cells) => cells.map((cell) => cell.textContent.trim()));
     check(seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'People: first seen in the account’s order, on its 24-hour clock', seen);
     await admin.click('#topbar-nav a[href="/admin/migrations"]');
-    await admin.waitForSelector('#migrations-applied li');
-    const ran = await admin.$$eval('#migrations-applied .when', (all) => all.map((when) => when.textContent.trim()));
-    check(ran.length > 0 && ran.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'Migrations: when each ran, in the account’s order', ran);
+    await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
+    const ran = await admin.$$eval(`${MIGRATIONS} [data-applied] .when`, (all) => all.map((when) => when.textContent.trim()));
+    check(ran.length > 0 && ran.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'Migrations (the family’s page, the app’s way of writing dates): when each ran, in the account’s order', ran);
     await admin.screenshot({ path: join(shots, 'account-admin-migrations-dark.png'), fullPage: true });
     await adminContext.close();
     // An IAM that keeps no preferences again, for what follows.
     await iamAs(MIA, { preferences: null });
   }
 
-  step('A database behind the code: the card, an Apply that fails with what PostgreSQL said, and an ADMIN applies it on the Migrations page');
+  step('A database behind the code: everybody else reads that the site is being updated, an ADMIN signs in from that page and applies it on the Migrations page - one Apply failing with what PostgreSQL said - and the pages come back');
   {
-    // 005 - the newest with a schema part - taken off the record (006, words only, stays): the app is behind it (005 runs
-    // again cleanly - every statement steps aside for what is there, and its gates hold with visitors in the database;
-    // tests/unit/migrations.test.php runs 004 and 005 again too).
+    // 005 - the newest with a schema part (006 and 007 are words only, and stay applied) - taken off the record: the
+    // code is ahead of the database, and the site's gate (anotoki/lib's SiteGate) answers 503 update_pending but on its
+    // open paths. 005 runs again cleanly - every statement steps aside for what is there, and its gates hold with
+    // visitors in the database; tests/unit/migrations.test.php runs 004 and 005 again too.
     onTheDatabase("DELETE FROM migrations WHERE filename = '005_visitors.sql'");
 
-    const learnerContext = await newContext();
-    const learner = await signedIn(learnerContext, MIA, '/stats');
-    await learner.waitForSelector('#not-set-up');
-    check(!(await learner.$('#open-migrations')), 'a learner: the "not set up yet" card, no way to the Migrations page');
-    await learner.goto(`${APP}/admin/migrations`);
-    await learner.waitForSelector('#not-set-up, #admin-no-role', { timeout: 20000 });
-    check(!(await learner.$('#migrations-pending')), 'a learner on /admin/migrations: no page');
-    await learnerContext.close();
+    /** A page's trips (navigations of its main frame) and its API answers, as they happen. */
+    const watch = (page) => {
+      const seen = { navigations: [], answers: [] };
+      page.on('request', (request) => {
+        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) seen.navigations.push(request.url());
+      });
+      page.on('response', (response) => {
+        if (response.url().startsWith(`${APP}/api/`)) seen.answers.push(`${response.status()} ${new URL(response.url()).pathname}`);
+      });
+      return seen;
+    };
 
+    // A learner, not signed in yet (sign-in required): the status page at once - nobody is sent to the IAM while the
+    // site is being updated, nothing fails, and the one thing to press is a quiet Sign in.
+    await iamAs(MIA);
+    const learnerContext = await newContext();
+    const learner = await learnerContext.newPage();
+    const learnerSeen = watch(learner);
+    await learner.goto(`${APP}/stats`);
+    await learner.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+    let shown = await siteStatus(learner);
+    check(shown.title === 'The site is being updated' && shown.text === 'It will be back in a few minutes. This page reloads by itself.' && shown.lang === 'en', 'signed out: "The site is being updated" (the family\'s page), in English', shown);
+    check(JSON.stringify(shown.controls) === JSON.stringify(['Sign in']) && shown.links.length === 0, 'nothing to press but a quiet Sign in: no setup page, no Migrations, no error', shown);
+    check(!learnerSeen.navigations.some((url) => url.startsWith(IAM)), 'nobody is sent to the IAM while the site is being updated', learnerSeen.navigations);
+    check(learnerSeen.answers.every((answer) => answer.startsWith('200 ') || answer.startsWith('304 ')), 'and nothing the page asked failed (where the site stands, the sign-in\'s settings, the words)', learnerSeen.answers);
+    check(!(await learner.$('app-load-error, app-sign-in-card, #signed-out-banner')) && !(await learner.$('#topbar-nav')), 'no error card, no banner, no sections in the bar');
+    await learner.screenshot({ path: join(shots, 'behind-signed-out-1280.png'), fullPage: true });
+
+    // Signing in works meanwhile: to the IAM and back to the page it started from - still being updated, now with nothing to press.
+    await learner.click('anotoki-site-status button');
+    await learner.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    check(learnerSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(learner.url()).pathname === '/stats', 'its Sign in: to the IAM and back to /stats', learnerSeen.navigations);
+    check((await learner.textContent('#account-name')) === 'mia', 'signed in as the learner, named in the bar');
+    shown = await siteStatus(learner);
+    check(shown?.title === 'The site is being updated' && shown.controls.length === 0, 'a learner signed in: still being updated, nothing to press', shown);
+    await learner.screenshot({ path: join(shots, 'behind-learner-1280.png'), fullPage: true });
+    // The Migrations page is not a learner's: the same status page on its address, and nothing of it drawn.
+    await learner.goto(`${APP}/admin/migrations`);
+    await learner.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+    check((await siteStatus(learner))?.title === 'The site is being updated' && !(await learner.$(MIGRATIONS)), 'a learner on /admin/migrations: the same page, no Migrations', await siteStatus(learner));
+    check(!learnerSeen.answers.some((answer) => answer.includes('/api/admin/')), 'and nothing of the admin panel asked for', learnerSeen.answers);
+    // Back to Stats, where the page waits - it is to come back by itself once the update is applied (below).
+    await learner.goto(`${APP}/stats`);
+    await learner.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+    await learner.evaluate(() => (window.beforeTheUpdate = true));
+
+    // A visitor in Slovak on a phone: the same page in Slovak, no key, inside the screen.
+    const slovakContext = await newContext({ width: 390 });
+    const slovak = await slovakContext.newPage();
+    await slovak.goto(`${APP}/?lang=sk`);
+    await slovak.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+    await slovak.waitForFunction(() => document.documentElement.lang === 'sk', null, { timeout: 10000 }).catch(() => undefined);
+    shown = await siteStatus(slovak);
+    check(shown.title === 'Stránku práve aktualizujeme' && shown.lang === 'sk' && JSON.stringify(shown.controls) === JSON.stringify(['Prihlásiť sa']), 'in Slovak: "Stránku práve aktualizujeme", its Sign in in Slovak', shown);
+    check((await keysOnPage(slovak)).length === 0 && (await slovak.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)), 'at 390: no key, no sideways scroll', await keysOnPage(slovak));
+    await slovak.screenshot({ path: join(shots, 'behind-sk-390.png'), fullPage: true });
+    await slovakContext.close();
+
+    // The site's ADMIN, not signed in yet: the same page - its Sign in, and back to the same address as the ADMIN,
+    // told in English that a database update is waiting, with the way to the Migrations page.
+    await iamAs(ADA);
     const context = await newContext();
-    const page = await signedIn(context, ADA, '/');
-    await page.waitForSelector('#open-migrations');
-    check((await page.getAttribute('#not-set-up-update', 'lang')) === 'en', 'an ADMIN: the card links to the Migrations page, in English');
-    await page.screenshot({ path: join(shots, 'behind-card-admin.png'), fullPage: true });
-    await page.click('#open-migrations');
-    await page.waitForSelector('#migrations-pending li');
+    const page = await context.newPage();
+    const adminSeen = watch(page);
+    await page.goto(`${APP}/`);
+    await page.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+    check(JSON.stringify((await siteStatus(page)).controls) === JSON.stringify(['Sign in']), 'an ADMIN not signed in yet: the same page, with Sign in', await siteStatus(page));
+    await page.click('anotoki-site-status button');
+    await page.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await page.waitForFunction(() => document.querySelector('anotoki-site-status h1')?.textContent.trim() === 'A database update is waiting', null, { timeout: 10000 }).catch(() => undefined);
+    shown = await siteStatus(page);
+    check(adminSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(page.url()).pathname === '/', 'its Sign in: to the IAM and back to the same page', adminSeen.navigations);
+    check(shown?.title === 'A database update is waiting' && shown.lang === 'en' && JSON.stringify(shown.controls) === JSON.stringify(['Open Migrations']), 'signed in, the site\'s ADMIN: "A database update is waiting", in English, with "Open Migrations"', shown);
+    check(!(await page.$('#topbar-nav')), 'the bar: no sections outside the admin panel');
+    await page.screenshot({ path: join(shots, 'behind-admin-1280.png'), fullPage: true });
+    await page.click('anotoki-site-status a');
+    await page.waitForSelector(`${MIGRATIONS} [data-pending] li`, { timeout: 20000 });
     check(new URL(page.url()).pathname === '/admin/migrations', 'on the Migrations page', page.url());
-    const pending = await page.$$eval('#migrations-pending li', (all) => all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('.badge').textContent.trim()}`));
+    const pending = await page.$$eval(`${MIGRATIONS} [data-pending] li`, (all) => all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('.badge').textContent.trim()}`));
     check(JSON.stringify(pending) === JSON.stringify(['005_visitors.sql pending']), 'Pending: 005', pending);
     check((await page.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Migrations', 'the bar: Migrations alone while the database is behind');
     await page.screenshot({ path: join(shots, 'migrations-behind-1280.png'), fullPage: true });
 
     // An Apply that fails: users.visitor_key_hash made a text, so 005's gate refuses - the page shows what PostgreSQL said.
     onTheDatabase('ALTER TABLE users ALTER COLUMN visitor_key_hash TYPE TEXT');
-    await page.click('#migrations-apply');
-    await page.waitForSelector('dialog[aria-labelledby="migrations-confirm-title"][open]');
-    await page.click('dialog[aria-labelledby="migrations-confirm-title"] [data-answer="yes"]');
-    await page.waitForSelector('#migrations-result.is-bad');
-    check((await page.textContent('#migrations-result .alert-head'))?.trim() === 'Stopped at 005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent('#migrations-result'));
-    check((await page.textContent('#migrations-result p:not(.alert-head)')).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.', 'nothing applied, rolled back whole', await page.textContent('#migrations-result'));
-    const said = (await page.textContent('#migrations-result pre.error code')) ?? '';
-    check(said.includes('users.visitor_key_hash is not a char(64) that may be null') && /^statement \d+ of \d+: SQLSTATE\[P0001\]/.test(said), 'what PostgreSQL said, word for word, on the page (as the IAM shows it)', said);
-    await page.waitForSelector('#migrations-pending li');
-    check(!(await page.isDisabled('#migrations-apply')), 'still pending: Apply pending is on again');
+    await page.click(`${MIGRATIONS} [data-apply]`);
+    await page.waitForSelector(`${MIGRATIONS} dialog[data-confirm][open]`);
+    check((await page.evaluate(() => document.activeElement?.hasAttribute('data-confirm-cancel'))) === true, 'the question: the focus on Cancel (the safe answer first)');
+    await page.click(`${MIGRATIONS} [data-confirm-apply]`);
+    await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="danger"]`, { timeout: 20000 });
+    const result = `${MIGRATIONS} [data-result]`;
+    check((await page.textContent(`${result} .result-title`))?.trim() === 'Stopped at 005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
+    check((await page.textContent(`${result} .result-text`)).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.', 'nothing applied, rolled back whole', await page.textContent(result));
+    const said = (await page.textContent(`${result} pre.error`)) ?? '';
+    check(said.includes('users.visitor_key_hash is not a char(64) that may be null') && /^statement \d+ of \d+: SQLSTATE\[P0001\]/.test(said), 'what PostgreSQL said, word for word, on the page', said);
+    await page.waitForFunction((apply) => document.querySelector(apply)?.disabled === false, `${MIGRATIONS} [data-apply]`, { timeout: 10000 }).catch(() => undefined);
+    check(!(await page.isDisabled(`${MIGRATIONS} [data-apply]`)) && (await page.$$(`${MIGRATIONS} [data-pending] li`)).length === 1, 'still pending: Apply pending is on again');
+    check((await siteStatus(learner))?.title === 'The site is being updated', 'meanwhile the learner\'s page still says the site is being updated');
     await page.screenshot({ path: join(shots, 'migrations-failed-1280.png'), fullPage: true });
     await page.setViewportSize({ width: 360, height: 800 });
     await page.waitForTimeout(150);
@@ -1030,23 +1130,23 @@ try {
     await page.setViewportSize({ width: 1280, height: 900 });
     onTheDatabase('ALTER TABLE users ALTER COLUMN visitor_key_hash TYPE CHAR(64)');
 
-    await page.click('#migrations-apply');
-    await page.waitForSelector('dialog[aria-labelledby="migrations-confirm-title"][open]');
-    check((await page.textContent('#migrations-confirm-title'))?.trim() === 'Apply 1 pending migration?', 'asked first');
+    await page.click(`${MIGRATIONS} [data-apply]`);
+    await page.waitForSelector(`${MIGRATIONS} dialog[data-confirm][open]`);
+    check((await page.textContent(`${MIGRATIONS} dialog[data-confirm] .dialog-title`))?.trim() === 'Apply 1 pending migration?', 'asked first');
     await page.screenshot({ path: join(shots, 'migrations-question.png') });
-    await page.click('dialog[aria-labelledby="migrations-confirm-title"] [data-answer="yes"]');
-    await page.waitForSelector('#migrations-result.is-good');
-    check((await page.textContent('#migrations-result .alert-head'))?.trim() === 'Up to date', 'Up to date', await page.textContent('#migrations-result'));
-    check((await page.textContent('#migrations-result')).includes('Applied: 005_visitors.sql.'), 'Applied: 005');
-    await page.waitForSelector('#topbar-nav a[href="/admin/people"]');
+    await page.click(`${MIGRATIONS} [data-confirm-apply]`);
+    await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="success"]`, { timeout: 20000 });
+    check((await page.textContent(`${result} .result-title`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
+    check((await page.textContent(`${result} .result-text`))?.trim() === 'Applied: 005_visitors.sql.', 'Applied: 005', await page.textContent(result));
+    await page.waitForSelector('#topbar-nav a[href="/admin/people"]', { timeout: 20000 });
     check((await page.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations|Languages|People|Migrations', 'the app started where it stands: every section, the result still on the page');
-    check((await page.textContent('#migrations-pending')).includes('Nothing pending'), 'nothing pending now');
+    check((await page.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'nothing pending now');
     await page.screenshot({ path: join(shots, 'migrations-applied-1280.png'), fullPage: true });
     await page.click('#topbar-user-button');
     await page.click('#topbar-back');
     await page.waitForSelector('#topbar-nav a[href="/stats"]');
-    check(!(await page.$('#not-set-up')), 'back to Piano Academy: the app runs');
-    // A fresh browser: the start's request for the strings got 503, so the Learn page has words only if the resume asked again.
+    check(!(await siteStatus(page)), 'back to Piano Academy: the app runs');
+    // The strings in memory are from before the update: the Learn page has every word only if the resume asked again.
     await page.waitForFunction(() => !!document.querySelector('#view-root router-outlet')?.nextElementSibling, null, { timeout: 20000 });
     let keysAfter = await keysOnPage(page);
     for (let tries = 0; keysAfter.length > 0 && tries < 20; tries++) {
@@ -1055,6 +1155,57 @@ try {
     }
     check(keysAfter.length === 0, 'back to Piano Academy: the Learn page in words, no key (the strings were asked for again)', keysAfter);
     await page.screenshot({ path: join(shots, 'after-apply-learn-1280.png'), fullPage: true });
+    await context.close();
+
+    // The learner's page came back by itself: it asks again every 30 seconds, and loads the page afresh once the site is ready.
+    await learner.waitForSelector('#own-progress', { timeout: 45000 }).catch(() => undefined);
+    check(!!(await learner.$('#own-progress')) && !(await siteStatus(learner)), 'the learner\'s page came back by itself: Stats, the learner\'s own', await siteStatus(learner));
+    check((await learner.evaluate(() => window.beforeTheUpdate)) === undefined && new URL(learner.url()).pathname === '/stats', 'loaded afresh, on the same address', learner.url());
+    await learner.screenshot({ path: join(shots, 'behind-learner-back-1280.png'), fullPage: true });
+    await learnerContext.close();
+    await iamAs(MIA);
+  }
+
+  step('Not set up: the setup page only while the site was never installed - and Try again once it is set up');
+  {
+    // The throwaway settings lose their IAM file, as before a first setup; the installer's lock (storage/installed.lock -
+    // under the tests' settings, <config>/storage) says whether the site was ever installed.
+    const settings = join(WORK, 'config', 'auth.local.php');
+    const lock = join(WORK, 'config', 'storage', 'installed.lock');
+    const context = await newContext({ width: 390 });
+    const page = await context.newPage();
+    const navigations = [];
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) navigations.push(request.url());
+    });
+    renameSync(settings, `${settings}.away`);
+    try {
+      await page.goto(`${APP}/stats`);
+      await page.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+      const never = await siteStatus(page);
+      check(never.title === 'This site is not set up yet' && JSON.stringify(never.controls) === JSON.stringify(['Open the setup page', 'Try again']) && JSON.stringify(never.links) === JSON.stringify(['/setup.php']), 'never installed: "This site is not set up yet", the setup page and Try again', never);
+      check(!navigations.some((url) => url.startsWith(IAM)) && (await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)), 'nobody sent to the IAM; at 390 no sideways scroll', navigations);
+      await page.screenshot({ path: join(shots, 'not-set-up-390.png'), fullPage: true });
+
+      // Installed once: nobody is offered the setup page again - the site is "not available right now".
+      mkdirSync(dirname(lock), { recursive: true });
+      writeFileSync(lock, 'the browser check\n');
+      await page.reload();
+      await page.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+      const installed = await siteStatus(page);
+      check(installed.title === 'The site is not available right now' && JSON.stringify(installed.controls) === JSON.stringify(['Try again']) && installed.links.length === 0, 'installed once: "The site is not available right now" and Try again - never the setup page', installed);
+      check(!(await page.$('a[href*="setup.php"]')), 'no way to the setup page anywhere on the page');
+      await page.screenshot({ path: join(shots, 'not-available-390.png'), fullPage: true });
+    } finally {
+      rmSync(lock, { force: true });
+      renameSync(`${settings}.away`, settings);
+    }
+
+    // Set up again: Try again finds the site ready, and the page starts afresh - to the IAM and back, to Stats.
+    await iamAs(MIA);
+    await page.click('anotoki-site-status button');
+    await page.waitForSelector('#own-progress', { timeout: 20000 }).catch(() => undefined);
+    check(!!(await page.$('#own-progress')) && !(await siteStatus(page)) && new URL(page.url()).pathname === '/stats', 'set up again: Try again - the page starts afresh, on Stats', page.url());
     await context.close();
   }
 

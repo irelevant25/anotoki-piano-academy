@@ -67,6 +67,18 @@ sentences: a choice the account would not take) is written whole and final
 and goes with 005 at the hand-over. It goes out as version 0.3 (its line in
 What's new).
 
+**2026-10-07: one way while the site is not ready - the anotoki family's
+library** (`anotoki-lib` 0.1.0, the owner's request, `docs/decisions.md`;
+both halves from GitHub: `anotoki/lib` in `backend/composer.json` and the
+committed `vendor/`, `@anotoki/lib` as the release's tarball in
+`frontend/package.json`, `bun.lock` and `package-lock.json`). Its engine
+(`Migrator`) applies the migrations everywhere; its gate (`SiteGate`) stands
+in front of every route; its pages (`<anotoki-site-gate>`, the status page,
+`<anotoki-migrations-page>`) replace the app's "not set up yet" card and its
+own Migrations page. Migration **007** (words only: the card's four
+`boot.notSetUp.*` keys deleted) is written whole and final and goes with 005
+and 006 at the hand-over.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -143,7 +155,8 @@ words for anything a learner would notice).
   (who gets no signed-out banner) in a note of its own, the same words. A
   visitor's notes are the shell's (`app.component`; the keys in
   `core/i18n/visitor-words.ts`, migration 005's, in `kept-english.ts` too).
-  The boot cards (not set up, could not load) draw without a sign-in.
+  The boot card "could not load" draws without a sign-in, and so does the
+  family's status page while the site is not ready (below).
 - **The theme, the dates, the clock and the language are the anotoki
   account's** for somebody signed in (`AuthService.preferences`: the
   vendored browser SDK 1.2.0's `user().preferences`; null for nobody, a
@@ -153,7 +166,8 @@ words for anything a learner would notice).
   the bar's button saves a choice (`savePreferences()`: one at a time, the
   latest last; refused, the account's theme back and `theme.notSaved`); the
   `localDate` pipe follows the account's date order and clock (`stamp` for
-  the admin panel's People and Migrations - the server's own numbers there);
+  the admin panel's People and Migrations - the family's page takes it as its
+  `formatDate`, `localDateText()`);
   the language chooser saves a signed-in person's choice
   (`TranslationService.setLanguage()` -> `saveToAccount()`: a language the
   IAM does not offer stays the site's own for the visit, silently; another
@@ -184,18 +198,36 @@ words for anything a learner would notice).
 - **Settings are required and never committed**: `backend/config/database.local.php`
   and `auth.local.php` (`issuer`, `client_id`, `cache_dir`; gitignored). Any
   other key is passed over, so an old file with `mode` / `local_user_id`
-  still works (and signs in through the IAM). Without them the API answers
-  `503 {code: "not_set_up"}` and the app shows its "not set up yet" page; a
-  database behind the code answers the same with `update: true` - and then an
-  ADMIN gets the admin panel's **Migrations** page (`/admin/migrations`, the
-  IAM's page: Pending, Applied, "Apply pending"), the one page that runs
-  while the database is behind (the card links to it). The web
+  still works (and signs in through the IAM). **Where the site stands is the
+  family's** (`anotoki/lib`; `siteState()` in `api/migrations.php`, the
+  `SiteGate` in front of every route, `GET /api/site-status` for the pages -
+  always 200 `{state, installed}`, to anybody: nothing may stand in front of
+  it, no token, key or role check, since the pages ask it before anybody can
+  be signed in and read a 401 or a 500 there as "not available right now"):
+  without the settings (or with one PHP cannot run) every path is `503 {code: "not_set_up", installed,
+  message}` - `setup: "/setup.php"` only while `storage/installed.lock` is not
+  there (a real host's install writes it; once installed the setup page is
+  never offered again); a migration waiting is `503 {code:
+  "update_pending"}` (`Retry-After: 60`) everywhere but `SITE_OPEN_PATHS` -
+  `/api/auth/config`, `/api/translations/{code}`, `/api/health`,
+  `/api/admin/migrations...` - so somebody can sign in, the pages have their
+  words and an ADMIN reaches Apply. In the browser `<anotoki-site-gate>`
+  around the shell's outlet draws the status page then: "The site is being
+  updated" for visitors and learners (their language, a quiet Sign in for
+  nobody, a reload once the site is back), "A database update is waiting"
+  for the site's ADMIN, who has the admin panel's **Migrations** page
+  (`/admin/migrations`, the family's `<anotoki-migrations-page>`: Pending,
+  Applied with each file's SQL, "Apply pending") - the one page that runs;
+  `BootService` waits (`waiting`: the sign-in and the words, no state, no
+  move), the sign-in guard sends nobody to the IAM, and an Apply that leaves
+  nothing to apply resumes the start in place (`resumeAfterUpdate()`). The web
   **`backend/setup.php`** writes them, asking for the database and the IAM
   only - on this computer (no token, a CSRF nonce, re-runnable, saved values
   shown) and on a real host (token + lock + self-delete, nothing saved shown).
-  Setup's Save, `php migration.php` and an administrator's Apply
-  (`POST /api/admin/migrations/apply`) take one advisory lock
-  (`api/database_update.php`). Never print the database password; never copy
+  Setup's Save, `php migration.php`, an administrator's Apply
+  (`POST /api/admin/migrations/apply`) and the tests' builders use the
+  family's `Migrator` (`databaseMigrator()`) and take one advisory lock
+  (`DATABASE_UPDATE_LOCK`). Never print the database password; never copy
   it anywhere git would publish.
 - **The owner's database is `anotoki_piano_academy`** (their IAM user id is 1;
   new setups default to `anotoki_piano`, port 5432). Never run a test, an
@@ -265,7 +297,19 @@ words for anything a learner would notice).
   names (C D E F G A B, B in Slovak too), song titles, MIDI device names and
   the changelog's entries are never translated.
 - **Migrations are the schema**: `backend/migrations/piano_academy/NNN_name.sql`,
-  the family's engine (`api/migration_runner.php`). Never edit an applied one.
+  applied by the anotoki family's engine - `anotoki/lib`'s `Migrator`, set up
+  in `api/migrations.php` (the set, `DATABASE_UPDATE_LOCK`, the first
+  runner's `migrations(name)` adopted in its `prepare` hook); the bookkeeping
+  table is the one it always was. Never edit an applied one. The tests build
+  a database as it stood at some point with `test_migrate()` /
+  `test_migrate_before()` (`tests/lib.php`: the files after the point held
+  back as drafts).
+- **The family's library** (`anotoki-lib`, one version for both halves -
+  0.1.0): PHP `anotoki/lib` (Composer's VCS repository on GitHub, committed in
+  `vendor/`), Angular `@anotoki/lib` (the GitHub release's tarball, in both
+  lock files). Never from a local path. Updating: DEV.md (Prerequisites) -
+  both halves together, after its CHANGELOG.md. Its pages take this app's
+  colours through the `--anotoki-*` properties in `styles.scss`.
 - No piano in dev: dispatch `noteon` on `window.pianoMIDI`; read the staff via
   `.vf-stavenote[data-midi]`; `window.pianoPlayer.expectedTimes` for runs in
   time. `playwright-core` with Edge (`channel: 'msedge'`) works on this

@@ -43,4 +43,4 @@ $app->post('/api/visitor/move', function (Request $request, Response $response):
     }
 
     return respondJson($response, visitorMove(currentUser($request), $key));
-})->add(requireUser())->add(requireCurrentSchema());
+})->add(requireUser());

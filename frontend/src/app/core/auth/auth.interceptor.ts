@@ -32,14 +32,16 @@ import { VISITOR_KEY_HEADER, VisitorKey } from './visitor-key';
  * - **A visitor's while a sign-in is required**: neither key nor token (the
  *   key stays where it is). ApiService sends none such; this is the guard.
  *
- * The sign-in settings (/api/auth/config) and the app's strings
- * (/api/translations/...) go untouched: they are public, asked for before
- * anybody is signed in, and must not wait for a token to be refreshed. The
- * admin panel's calls (/api/admin/...) and a person's own file (/api/me/...)
- * are a person's like every other signed-in call.
+ * The sign-in settings (/api/auth/config), the app's strings
+ * (/api/translations/...) and where the site stands (/api/site-status) go
+ * untouched: they are public, asked for before anybody is signed in, and must
+ * not wait for a token to be refreshed - nor carry a visitor's key. The admin
+ * panel's calls (/api/admin/...: the Migrations page's too, which the family's
+ * page makes itself) and a person's own file (/api/me/...) are a person's like
+ * every other signed-in call.
  */
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
-  if (!request.url.startsWith('/api/') || request.url === '/api/auth/config' || request.url.startsWith('/api/translations/')) {
+  if (!request.url.startsWith('/api/') || request.url === '/api/auth/config' || request.url === '/api/site-status' || request.url.startsWith('/api/translations/')) {
     return next(request);
   }
   const auth = inject(AuthService);

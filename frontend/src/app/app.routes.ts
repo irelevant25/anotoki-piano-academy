@@ -23,8 +23,10 @@ function withNotation<T>(load: () => Promise<T>): () => Promise<T> {
  * else is sent to the IAM and comes back to the page asked for - the learner's
  * pages ask it page by page (canActivateChild), the admin panel once as it is
  * entered. While the IAM does not require a sign-in, the learner's pages are a
- * visitor's too; the admin panel never is. The boot cards (not set up, could not load) are drawn without a
- * sign-in; so is the sign-in card after a sign-in that came back without one.
+ * visitor's too; the admin panel never is. The card "could not load" is drawn without a sign-in; so is the
+ * sign-in card after a sign-in that came back without one. While the site is not ready (an update
+ * waits, it is not set up, its database is out of reach) nobody is sent anywhere: the family's status
+ * page stands in every page's place (<anotoki-site-gate>), with a Sign in of its own.
  *
  * A title is a translation key (`title.*`): PianoTitleStrategy words it in the
  * language on the page and puts the app's name after it. The admin panel's
@@ -38,7 +40,7 @@ export const routes: Routes = [
   // The admin panel (English): the app's words for the staff (EDITOR or ADMIN) - Translations; the
   // languages, the people and the migrations for ADMIN alone (adminGuard). The guards and the layout
   // only hide what the server refuses anyway; leaving a page with something not saved asks. While
-  // the database is behind, the Migrations page is the one an ADMIN can use, and /admin opens it.
+  // an update waits, the Migrations page is the one an ADMIN can use, and /admin opens it.
   {
     path: 'admin',
     canActivate: [adminSignInGuard],
@@ -68,7 +70,8 @@ export const routes: Routes = [
         path: 'migrations',
         title: 'Migrations',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/admin/migrations/migrations.component').then((m) => m.MigrationsComponent),
+        // The anotoki family's page (@anotoki/lib/migrations): Pending, Applied with each file's SQL, "Apply pending".
+        loadComponent: () => import('@anotoki/lib/migrations').then((m) => m.MigrationsPageComponent),
       },
       // The Migrations page's address before it was the family's (the Database page).
       { path: 'database', pathMatch: 'full', redirectTo: 'migrations' },

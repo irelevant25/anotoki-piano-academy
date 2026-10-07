@@ -7,7 +7,7 @@ frontend's. These pages are for changing it.
 
 | Page | What it holds |
 | --- | --- |
-| [architecture.md](architecture.md) | the parts and how a request goes through them: the IAM token, the roles, the route groups, the setup gate and the schema check, a database update; the frontend's start, its sign-in guard, the admin panel, saving and the generation, the own progress file |
+| [architecture.md](architecture.md) | the parts and how a request goes through them: the IAM token, the roles, the route groups, the site's gate (not set up, an update waiting - the anotoki family's library), a database update; the frontend's start, its sign-in guard, the admin panel, saving and the generation, the own progress file |
 | [api.md](api.md) | every route of the API: who may call it, what it answers, how it refuses |
 | [decisions.md](decisions.md) | the choices made, with their reasons - read before undoing one |
 
@@ -49,3 +49,12 @@ migration 006 (two sentences, written whole and final, applied at the
 hand-over with 005) says when the account would not take a choice -
 `architecture.md`, "The frontend" ("Which language"); `decisions.md`. It goes
 out as version 0.3.
+Then (2026-10-07) the anotoki family's library, `anotoki-lib` 0.1.0 (the
+owner's request: one behaviour on every site while it is not ready): its
+engine applies the migrations, its gate stands in front of every route (an
+update waiting: the sign-in, the words and the Migrations page answer,
+nothing else), its pages say "The site is being updated" to visitors and
+learners and "A database update is waiting" to the site's ADMIN, the setup
+page only while never installed - `architecture.md`, "A request" and "A
+database update"; `decisions.md`. Migration 007 (words only: the old "not set
+up yet" card's four keys go) goes with 005 and 006 at the hand-over.

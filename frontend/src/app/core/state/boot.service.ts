@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { ApiError, ApiService, VISITOR_OWNER, VisitorMove } from '../api/api.service';
 import { AuthService, NotSetUpError } from '../auth/auth.service';
 import { VisitorKey } from '../auth/visitor-key';
@@ -10,15 +11,19 @@ import { ProgressStore } from './progress-store.service';
 /**
  * Where the app is while it starts:
  *   loading      the sign-in settings and the progress are on their way
- *   not-set-up   the backend has no settings yet (or its database needs an update): /setup.php -
- *                or, for an ADMIN when only a migration is pending, the admin panel's Migrations page
+ *   not-set-up   the backend has no settings yet: the family's status page says so
+ *                (<anotoki-site-gate>, SiteStatus) - and nothing more can start
+ *   waiting      the site is not ready (SiteStatus.blocked(): an update waits, or the database is
+ *                out of reach): the sign-in and the strings are there, the progress is not asked
+ *                for - the family's status page stands in every page's place, and an ADMIN's
+ *                Apply on the Migrations page goes on from here (resumeAfterUpdate())
  *   sign-in      nobody signed in, and the IAM requires a sign-in: the sign-in guard sends the
  *                browser to the IAM - or, after a sign-in that came back without one, lets the
  *                sign-in card be drawn
  *   load-error   the progress could not be loaded - and the app does not run without it
  *   ready        the progress is in memory - a person's, or a visitor's (`visiting`); the views run
  */
-export type BootStatus = 'loading' | 'not-set-up' | 'sign-in' | 'load-error' | 'ready';
+export type BootStatus = 'loading' | 'not-set-up' | 'waiting' | 'sign-in' | 'load-error' | 'ready';
 
 /** A move after a sign-in that brought something: whether the account kept progress of its own for some of it. */
 export interface VisitorMoved {
@@ -62,6 +67,16 @@ export const MOVE_RETRY_MAX_MS = 5000;
  * not be read nothing is asked for - the shell words itself from the strings
  * kept from the last visit, or from the English kept in code.
  *
+ * While the site is not ready - an update waits, or its database is out of
+ * reach: SiteStatus, asked by the app's initializer before this starts, or
+ * told by any answer since - the start reads the sign-in settings (somebody
+ * can sign in then: that is how an ADMIN gets to the Migrations page) and the
+ * strings (both answer while an update waits), and stops there: `waiting`.
+ * Nothing that would fail is asked for - no move, no state - and the family's
+ * status page stands in every page's place. An ADMIN's Apply that leaves
+ * nothing to apply goes on from there (resumeAfterUpdate()); everybody
+ * else's status page loads the page again once the site is back.
+ *
  * Also here: another person signing in in another tab reloads this one (it
  * holds the other person's progress), and leaving the page with a save that
  * did not get through asks first.
@@ -78,18 +93,16 @@ export class BootService {
   private readonly midi = inject(MidiService);
   private readonly i18n = inject(TranslationService);
   private readonly visitorKey = inject(VisitorKey);
+  private readonly site = inject(SiteStatus);
 
   readonly status = signal<BootStatus>('loading');
-  /** What the backend said is missing, when it said it (to this computer only). */
-  readonly notSetUpDetail = signal<string | null>(null);
-  /** The backend is set up, but its database is behind the code (503 not_set_up with update: true). */
-  readonly needsUpdate = signal(false);
   /**
-   * The database is only behind the code and the person is an ADMIN: the one
-   * page of the app that works is the admin panel's Migrations page, which
-   * applies what is pending (the "not set up yet" card links to it).
+   * An update waits and the person is the site's ADMIN: the one page of the
+   * app that works is the admin panel's Migrations page, which applies it
+   * (the family's status page links to it). The bar has it alone then, and
+   * /admin opens it.
    */
-  readonly onlyMigrations = computed(() => this.status() === 'not-set-up' && this.needsUpdate() && this.auth.isAdmin());
+  readonly onlyMigrations = computed(() => this.site.state() === 'update-pending' && this.auth.isAdmin());
   /** The progress in memory is a visitor's (or nobody's, before the first save): nobody signed in, no sign-in required at the start. */
   readonly visiting = computed(() => this.api.dataOwner() === VISITOR_OWNER);
   /** The move after a sign-in brought this browser's progress into the account (null: nothing to say). */
@@ -129,7 +142,10 @@ export class BootService {
     });
   }
 
-  /** Once, before the first page is drawn (app.config.ts). Never throws: the status says what happened. */
+  /**
+   * Once, before the first page is drawn (app.config.ts - after it asked
+   * where the site stands). Never throws: the status says what happened.
+   */
   async start(): Promise<void> {
     try {
       await this.auth.init();
@@ -138,7 +154,6 @@ export class BootService {
       // there are any, the English kept in code otherwise - and no request.
       await this.i18n.init(false);
       if (error instanceof NotSetUpError) {
-        this.notSetUpDetail.set(error.detail);
         this.status.set('not-set-up');
         return;
       }
@@ -152,6 +167,16 @@ export class BootService {
     // "no bundle", and the start goes on.
     await this.i18n.init(true);
 
+    // The site is not ready: the sign-in is in place, the progress is not asked for (see the class).
+    if (this.site.blocked()) {
+      this.status.set('waiting');
+      return;
+    }
+    await this.run();
+  }
+
+  /** The rest of the start: whose progress it is, and the progress. */
+  private async run(): Promise<void> {
     if (this.auth.signedIn()) {
       this.loadedFor = this.auth.userKey();
       this.api.setDataOwner(this.loadedFor);
@@ -181,9 +206,10 @@ export class BootService {
         this.status.set('sign-in');
         return;
       }
-      if (error instanceof ApiError && error.code === 'not_set_up') {
-        this.needsUpdate.set(error.details?.['update'] === true);
-        this.status.set('not-set-up');
+      // An update that came after the site was asked (or settings that went): the family's page says so.
+      if (siteNotReady(error)) {
+        this.site.report(error.code, typeof error.details?.['installed'] === 'boolean' ? error.details['installed'] : undefined);
+        this.status.set('waiting');
         return;
       }
       console.error('Failed to load saved progress.', error);
@@ -229,6 +255,10 @@ export class BootService {
         this.visitorKey.forget(key);
         return false;
       }
+      // The site is being updated: the move waits with everything else - the key kept, nothing to say (the status page says it).
+      if (siteNotReady(error)) {
+        return false;
+      }
       if (error instanceof ApiError && (error.status === 0 || error.status >= 500)) {
         const wait = error.retryAfterMs;
         if (again && error.code === 'visitor_move_retry' && wait !== null && wait <= MOVE_RETRY_MAX_MS) {
@@ -259,28 +289,22 @@ export class BootService {
   }
 
   /**
-   * After an ADMIN applied the pending migrations on the Migrations page
-   * while the database was behind: the progress is loaded now and the app
-   * runs on where it stands - no reload, so the page keeps saying what was
-   * applied. Anything that is not that state is left as it is, and so is a
-   * database still behind (the page shows what is pending). The strings are
-   * asked for again at once (TranslationService.reload()): the start's
-   * request for them got 503, so the app has no bundle - or the one cached
-   * from before the update, without the keys it added - and would not ask
-   * again by itself.
+   * After an ADMIN's Apply on the Migrations page left nothing to apply (the
+   * family's page calls it: onUpToDate, core/state/site-migrations.ts): a
+   * start that waited for the update goes on where it stopped - whose
+   * progress it is, the move, the progress - and the app runs where it
+   * stands, with no reload, so the page keeps saying what was applied. The
+   * strings are asked for again at once (TranslationService.reload()): the
+   * ones in memory are from before the update, without the keys it added (or
+   * there are none: a database without its words yet), and nothing would ask
+   * again by itself. Anything but a start that waited is left as it is; a
+   * database still behind leaves it waiting.
    */
   async resumeAfterUpdate(): Promise<void> {
-    if (!this.onlyMigrations()) return;
-    try {
-      this.store.load(await this.api.fetchState());
-    } catch (error) {
-      if (!(error instanceof ApiError && error.code === 'not_set_up')) console.error('Failed to load saved progress after the update.', error);
-      return;
-    }
-    this.needsUpdate.set(false);
-    this.status.set('ready');
-    void this.i18n.reload();
-    this.midi.start();
+    if (this.status() !== 'waiting') return;
+    this.status.set('loading');
+    await this.run();
+    if (this.status() === 'ready') void this.i18n.reload();
   }
 
   /**
@@ -314,4 +338,9 @@ export class BootService {
     this.leaving = true;
     this.auth.signOut();
   }
+}
+
+/** The server's answer that the site is not ready: 503 update_pending, or not_set_up (the family's gate). */
+function siteNotReady(error: unknown): error is ApiError & { code: 'update_pending' | 'not_set_up' } {
+  return error instanceof ApiError && error.status === 503 && (error.code === 'update_pending' || error.code === 'not_set_up');
 }

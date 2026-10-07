@@ -27,6 +27,7 @@
   --good: #1d8a55;
   --good-contrast: #ffffff;
   --bad: #c9403a;
+  --bad-contrast: #ffffff;
   --warn: #9a6512;
   --continue-glow: rgb(31 111 209 / 10%);
   --backdrop: rgb(20 22 28 / 45%);
@@ -72,6 +73,7 @@
   --good: #4cc38a;
   --good-contrast: #0b1a12;
   --bad: #e5615a;
+  --bad-contrast: #220b09;
   --warn: #e5b95a;
   --continue-glow: rgb(90 169 255 / 14%);
   --backdrop: rgb(4 6 10 / 70%);
@@ -104,6 +106,22 @@
 
   // The top bar's height (layouts/top-bar), which its menus' height is measured against.
   --topbar-height: 60px;
+
+  // The anotoki family's pages (@anotoki/lib/migrations: the page in the view's place while the
+  // site is being updated or not available, and the admin panel's Migrations page) in this app's
+  // colours. Each is a token of the palette in force here, so they follow light and dark with it.
+  --anotoki-bg: var(--bg);
+  --anotoki-surface: var(--panel);
+  --anotoki-text: var(--text);
+  --anotoki-muted: var(--text-dim);
+  --anotoki-border: var(--border);
+  --anotoki-primary: var(--accent);
+  --anotoki-primary-contrast: var(--accent-contrast);
+  --anotoki-danger: var(--bad);
+  --anotoki-danger-contrast: var(--bad-contrast);
+  --anotoki-success: var(--good);
+  --anotoki-warning: var(--warn);
+  --anotoki-radius: 8px;
 
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }

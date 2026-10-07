@@ -61,13 +61,19 @@ switch ($command) {
         }
         ensureDatabase($server, TEMPLATE);
         $pdo = dbConnect($server, TEMPLATE);
-        $result = applyPendingMigrations($pdo);
+        // The app's own engine and lock (api/migrations.php): the template is built as every database is.
+        $result = databaseMigrator($pdo)->apply();
         $pdo = null;
-        if ($result['failed'] !== null) {
-            fwrite(STDERR, "testdb: {$result['failed']} failed: {$result['error']}\n");
+        if ($result['busy']) {
+            fwrite(STDERR, "testdb: another update holds the template's lock - is another test run preparing it?\n");
             exit(1);
         }
-        echo TEMPLATE . ': ' . ($result['applied'] ? ($name === '--fresh' ? 'built again (' : 'updated (') . implode(', ', $result['applied']) . ')' : 'up to date') . "\n";
+        if ($result['failed'] !== null) {
+            fwrite(STDERR, "testdb: {$result['failed']['name']} failed: {$result['error']}\n");
+            exit(1);
+        }
+        $applied = array_column($result['applied'], 'name');
+        echo TEMPLATE . ': ' . ($applied ? ($name === '--fresh' ? 'built again (' : 'updated (') . implode(', ', $applied) . ')' : 'up to date') . "\n";
         break;
 
     case 'create':

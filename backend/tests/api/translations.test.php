@@ -46,7 +46,7 @@ before(function (): void {
 function catalogue_seeded(): bool
 {
     foreach (migrationFiles() as $file) {
-        if (preg_match('/INSERT\s+INTO\s+translation_keys\b/i', (string) file_get_contents(migrationsRoot() . '/' . MIGRATIONS_ALIAS . '/' . $file))) {
+        if (preg_match('/INSERT\s+INTO\s+translation_keys\b/i', (string) file_get_contents(migrationsDir() . '/' . $file))) {
             return true;
         }
     }
@@ -1018,11 +1018,11 @@ test('who reworded a string follows that person to another IAM id, and their goi
     assert_same(array_keys($before), array_keys(every_string()), 'and no string came or went');
 });
 
-test('a database with only 001 applied: the words and every admin route of them say "needs an update", and nothing is looked up', function (): void {
+test('a database with only 001 applied: the words and every admin route of them say the site is being updated, and nothing is looked up', function (): void {
     $behind = test_empty_db('only_001');
     $pdo = dbConnect(machineDatabaseSettings(), $behind);
-    assert_same(migrationFiles(), pendingMigrations($pdo));
-    applyMigration($pdo, MIGRATIONS_ALIAS, '001_init.sql');
+    assert_same(migrationFiles(), names_of(databaseMigrator($pdo)->applicable()));
+    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
     $pending = array_values(array_diff(migrationFiles(), ['001_init.sql']));
     assert_true(in_array('002_languages_and_translations.sql', $pending, true));
 
@@ -1031,15 +1031,22 @@ test('a database with only 001 applied: the words and every admin route of them 
         'PIANO_FRONTEND_DIST' => test_frontend_build(),
     ], '/api/health');
     assert_same($pending, call($app['base'], 'GET', '/api/health')['body']['pending']);
-    // With an administrator's token, an editor's, and none: the schema is looked at before the person.
+    // With an administrator's token, an editor's, and none. The words answer while an update waits (the gate's open
+    // paths) - but a database without their tables has none to give, and says so as the gate does; the admin
+    // routes of the words are the gate's own answer, before the person is looked at.
+    $being = 'The site is being updated. Try again in a few minutes.';
     foreach (['an administrator' => bearer(token_of(ADMIN_A)), 'an editor' => bearer(token_of(EDITOR_A)), 'nobody' => []] as $who => $headers) {
-        foreach (array_merge([['GET', '/api/translations/en', null], ['GET', '/api/translations/sk', null]], admin_routes()) as [$method, $url, $body]) {
+        foreach (['en', 'sk'] as $code) {
+            $words = call($app['base'], 'GET', "/api/translations/$code", null, $headers);
+            assert_same([503, ['error' => $being, 'code' => 'update_pending'], '60'], [$words['status'], $words['body'], $words['headers']['retry-after'] ?? null], "$who: the words in $code");
+        }
+        foreach (admin_routes() as [$method, $url, $body]) {
             $answer = call($app['base'], $method, $url, $body, $headers);
-            assert_same([503, 'not_set_up', '/setup.php', true], [$answer['status'], $answer['body']['code'] ?? null, $answer['body']['setup'] ?? null, $answer['body']['update'] ?? null], "$who: $method $url");
-            assert_match('/needs an update/', (string) ($answer['body']['error'] ?? ''), "$who: $method $url");
+            assert_same([503, ['code' => 'update_pending', 'message' => $being], '60'], [$answer['status'], $answer['body'], $answer['headers']['retry-after'] ?? null], "$who: $method $url");
         }
     }
-    assert_same(404, call($app['base'], 'GET', '/api/translations')['status'], 'an address that is no route is still only that');
+    assert_same(404, call($app['base'], 'GET', '/api/translations/x@')['status'], 'a code that is no code is still only that');
+    assert_same(503, call($app['base'], 'GET', '/api/translations')['status'], 'an address that is no route waits like every other while an update does');
     assert_same([], problems_of($app), 'no table that is not there was asked for');
     ($app['stop'])();
     assert_same(0, (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn(), 'nobody was looked up, or recorded');

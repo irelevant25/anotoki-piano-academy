@@ -199,28 +199,6 @@ export interface PeopleList {
   visitors: { count: number; sessions: number };
 }
 
-/**
- * GET /api/admin/migrations (ADMIN; the IAM's shape): the files applied, in
- * the order they ran, with when ("YYYY-MM-DD HH:MM", the server's clock), and
- * the ones pending, in the order they will run.
- */
-export interface MigrationsStatus {
-  database: string;
-  applied: { name: string; applied_at: string | null }[];
-  pending: { name: string }[];
-}
-
-/**
- * POST /api/admin/migrations/apply (ADMIN): what was applied, and the file it
- * stopped at (rolled back whole) with what PostgreSQL said (the statement's
- * number and first lines too), as the IAM's answer has it.
- */
-export interface MigrationsApplyResult {
-  applied: string[];
-  failed: string | null;
-  error: string | null;
-}
-
 /** An answer's body as `details`: a plain object - not a list, not a text, not the browser's own error for "no answer". */
 function bodyDetails(body: unknown): Record<string, unknown> | null {
   if (typeof body === 'string') {
@@ -600,15 +578,7 @@ export class ApiService {
     await this.request('DELETE', `/api/admin/people/${encodeURIComponent(String(id))}`, undefined, AS_PERSON);
   }
 
-  /** What the database has and lacks - also while it is behind the code. */
-  migrations(): Promise<MigrationsStatus> {
-    return this.request<MigrationsStatus>('GET', '/api/admin/migrations', undefined, AS_PERSON);
-  }
-
-  /** Applies every pending migration, in order. ApiError 409 `busy` while another update runs. */
-  applyMigrations(): Promise<MigrationsApplyResult> {
-    return this.request<MigrationsApplyResult>('POST', '/api/admin/migrations/apply', undefined, AS_PERSON);
-  }
+  // (The Migrations page's calls are the family's page's own: @anotoki/lib/migrations, through the interceptors.)
 
   // --- the session outbox ---
 

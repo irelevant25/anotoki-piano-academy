@@ -11,8 +11,8 @@ the backend (`backend/`) is PHP 8.2 + Slim 4 keeping each person's progress in
 PostgreSQL. Everybody signs in through the anotoki IAM - the only way in, on a
 development computer too; the IAM's roles decide the admin panel (EDITOR
 rewords the app's words, ADMIN also keeps the languages, applies the
-database's migrations (the Migrations page, also while the database is behind)
-and sees and deletes people's data - the admin panel, `/admin`, English;
+database's migrations (the family's Migrations page, also while an update
+waits) and sees and deletes people's data - the admin panel, `/admin`, English;
 "Admin panel" wherever it is named). Every page signs in first (the routes' `signInGuard`; the sign-in
 card only after a failed sign-in) - but while the IAM requires no sign-in a
 visitor practises on the learner pages (`/admin` always signs in:
@@ -102,9 +102,11 @@ Working conventions specific to this repo:
   song titles and device names are never translated. The admin panel's Translations
   and Languages pages are English literals.
 - Persistence: `backend/migrations/piano_academy/` (never edit an applied
-  one; 004 is applied in the owner's database and frozen; 005, visitors, and
-  006, two sentences of the account's preferences, are written whole and
-  final and wait for the owner at the hand-over - a later change is 007);
+  one; 004 is applied in the owner's database and frozen; 005, visitors,
+  006, two sentences of the account's preferences, and 007, the old "not set
+  up yet" card's words deleted, are written whole and final and wait for the
+  owner at the hand-over - a later change is 008), applied by the anotoki
+  family's engine (`anotoki/lib`'s `Migrator`, `api/migrations.php`);
   note progress and path progress are whole jsonb documents;
   sessions are rows. A save of a whole document names the generation of the
   progress (`Progress-Generation`; 409 `progress_changed` for an old one -
@@ -114,8 +116,20 @@ Working conventions specific to this repo:
   `SESSION_MODES` (`api/store.php`) and `SessionInput`.
 - Settings are only `backend/config/*.local.php` (gitignored, written by
   `setup.php`); nothing committed stands in for them. Setup's Save,
-  `php migration.php` and an administrator's Apply on the Migrations page take one lock
-  (`api/database_update.php`).
+  `php migration.php`, an administrator's Apply on the Migrations page and
+  the tests' builders take one lock (`DATABASE_UPDATE_LOCK`,
+  `api/migrations.php`).
+- While the site is not ready the anotoki family's library decides
+  (`anotoki-lib`, both halves from GitHub - never a local path; DEV.md says
+  how to update them together): its `SiteGate` answers every route 503
+  `not_set_up` (the setup page only while never installed) or
+  `update_pending` (but for `SITE_OPEN_PATHS`: the sign-in settings, the
+  words, the health check, the Migrations page's routes); its
+  `<anotoki-site-gate>` draws the status page in the view's place ("being
+  updated" for visitors and learners, "A database update is waiting" for the
+  site's ADMIN); `BootService` waits (`waiting`) and the sign-in guard sends
+  nobody to the IAM then. A new route that must answer while an update waits
+  goes into `SITE_OPEN_PATHS`.
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 - Before reporting done: `php tests/run.php` in `backend/` (and under the
   hosting's PHP 8.2 if you touched PHP), `npm test` and `npm run build` in

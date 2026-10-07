@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateChildFn, CanActivateFn, Router } from '@angular/router';
+import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationService } from '../i18n/translation.service';
 import { BootService } from '../state/boot.service';
 import { AuthService } from './auth.service';
@@ -32,9 +33,17 @@ import { AuthService } from './auth.service';
  * the same: the page goes through to the card, which says why - not a blank
  * page, the first navigation cancelled and nothing said.
  *
- * While the app cannot run (loading, not set up, the progress or the
- * sign-in settings could not be loaded) it lets nothing through and sends
- * nobody anywhere: the boot cards are drawn then, without a sign-in.
+ * While the site is not ready - an update waits, it is not set up, its
+ * database is out of reach (SiteStatus.blocked()) - it sends nobody to the
+ * IAM and lets the navigation go on: the family's status page stands in
+ * every page's place, with a quiet Sign in of its own (how an ADMIN gets to
+ * the Migrations page), and the address stays - so a sign-in started there
+ * comes back to it. Nothing of a learner's page is drawn then (the shell
+ * draws its outlet only for a running app, or an ADMIN's Migrations page).
+ *
+ * While the app cannot run otherwise (loading, the progress or the sign-in
+ * settings could not be loaded) it lets nothing through and sends nobody
+ * anywhere: the boot cards are drawn then, without a sign-in.
  *
  * A guard on activation, not on matching: refused, the navigation stops where
  * it is, rather than going on to the next route that would match.
@@ -50,6 +59,10 @@ export const adminSignInGuard: CanActivateFn = () => guard(false);
 function guard(visitorsWelcome: boolean): boolean | Promise<boolean> {
   const auth = inject(AuthService);
   if (auth.signedIn() || auth.signInFailure()) {
+    return true;
+  }
+  // The site is not ready: its status page, not the IAM (see above).
+  if (inject(SiteStatus).blocked()) {
     return true;
   }
   const boot = inject(BootService);

@@ -6,10 +6,11 @@
 // learner 403, an editor 403 on ADMIN's, and lets the right ones through. The
 // People routes: everybody with their counts, and one person deleted whole -
 // nobody else touched, a string they reworded kept by nobody. And the
-// Migrations page's two routes: what the database has (and when) and lacks,
-// and Apply - working while every other route says the database is behind,
-// under the one lock setup.php and php migration.php take too, a failure
-// named and logged; the Database page's old addresses are gone.
+// Migrations page's routes (the anotoki family's, anotoki/lib's
+// MigrationsRoutes): what the database has (and when) and lacks, a file's
+// SQL, and Apply - working while every other route says the site is being
+// updated, under the one lock setup.php and php migration.php take too, a
+// failure named and logged; the Database page's old addresses are gone.
 
 declare(strict_types=1);
 
@@ -64,6 +65,7 @@ function admin_routes(): array
         ['GET', '/api/admin/people', null],
         ['DELETE', '/api/admin/people/999999', null],                // 404: nobody with that id
         ['GET', '/api/admin/migrations', null],
+        ['GET', '/api/admin/migrations/file?set=piano_academy&name=001_init.sql', null],
         ['POST', '/api/admin/migrations/apply', null],               // nothing pending: nothing applied
     ];
 }
@@ -166,19 +168,37 @@ test('an administrator: through every route - staff and ADMIN alike', function (
         'GET /api/admin/people' => [200, null],
         'DELETE /api/admin/people/999999' => [404, 'not_found'],
         'GET /api/admin/migrations' => [200, null],
+        'GET /api/admin/migrations/file?set=piano_academy&name=001_init.sql' => [200, null],
         'POST /api/admin/migrations/apply' => [200, null],
     ];
     foreach (admin_routes() as [$method, $url, $body]) {
         $answer = ask($GLOBALS['app'], $method, $url, $body, bearer(token_for(ADMIN)));
         assert_same($expected["$method $url"], [$answer['status'], is_array($answer['body']) ? ($answer['body']['code'] ?? null) : null], "$method $url");
     }
-    $status = ask($GLOBALS['app'], 'GET', '/api/admin/migrations', null, bearer(token_for(ADMIN)))['body'];
-    assert_same([dbName(), migrationFiles(), []], [$status['database'], array_column($status['applied'], 'name'), $status['pending']], 'every file applied, in the order they ran');
+
+    // The Migrations page's list: the one set, every file applied in the order they ran - when, in ISO 8601 UTC.
+    $list = ask($GLOBALS['app'], 'GET', '/api/admin/migrations', null, bearer(token_for(ADMIN)));
+    $status = $list['body'];
+    assert_same(['sets', 'applied', 'pending', 'missing'], array_keys($status));
+    assert_same([[MIGRATIONS_SET], migrationFiles(), [], []], [$status['sets'], names_of($status['applied']), $status['pending'], $status['missing']], 'every file applied, in the order they ran');
     foreach ($status['applied'] as $file) {
-        assert_same(['name', 'applied_at'], array_keys($file));
-        assert_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', (string) $file['applied_at'], 'when ' . $file['name'] . ' was applied');
+        assert_same(['set', 'name', 'applied_at'], array_keys($file));
+        assert_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', (string) $file['applied_at'], 'when ' . $file['name'] . ' was applied');
     }
-    assert_same(['applied' => [], 'failed' => null, 'error' => null], ask($GLOBALS['app'], 'POST', '/api/admin/migrations/apply', null, bearer(token_for(ADMIN)))['body'], 'nothing to apply');
+    assert_same('no-store', $list['headers']['cache-control'] ?? null);
+
+    // A file's SQL as it is - and nothing that is not a file of the set.
+    $file = ask($GLOBALS['app'], 'GET', '/api/admin/migrations/file?set=piano_academy&name=001_init.sql', null, bearer(token_for(ADMIN)));
+    assert_same(['set' => MIGRATIONS_SET, 'name' => '001_init.sql', 'sql' => (string) file_get_contents(migrationsDir() . '/001_init.sql')], $file['body']);
+    foreach (['set=piano_academy&name=../../config/database.local.php', 'set=piano_academy&name=001_init', 'set=survey&name=001_init.sql', 'set=piano_academy', ''] as $query) {
+        $none = ask($GLOBALS['app'], 'GET', "/api/admin/migrations/file?$query", null, bearer(token_for(ADMIN)));
+        assert_same([404, ['code' => 'not_found', 'message' => 'No such migration file.']], [$none['status'], $none['body']], "?$query");
+    }
+
+    assert_same(['applied' => [], 'failed' => null, 'error' => null, 'note' => null], ask($GLOBALS['app'], 'POST', '/api/admin/migrations/apply', null, bearer(token_for(ADMIN)))['body'], 'nothing to apply');
+    // The Database page's old addresses answer nothing any more.
+    assert_same(404, ask($GLOBALS['app'], 'GET', '/api/admin/database', null, bearer(token_for(ADMIN)))['status']);
+    assert_same(404, ask($GLOBALS['app'], 'POST', '/api/admin/database/update', null, bearer(token_for(ADMIN)))['status']);
     assert_same($before, everything());
 
     // The languages' routes really are an administrator's: one added and gone again.
@@ -247,37 +267,42 @@ test('People: everybody with what they have, the most recently seen first - and 
     assert_same([200, ADMIN, 0], [$after['status'], $after['body']['people'][0]['id'], $after['body']['people'][0]['notes']]);
 });
 
-test('a database behind the code: everything else says so (update: true), and an administrator brings it up to date - one update at a time', function (): void {
+test('a database behind the code: every other route says the site is being updated, and an administrator brings it up to date - one update at a time', function (): void {
     $behind = test_empty_db('behind');
     $pdo = dbConnect(machineDatabaseSettings(), $behind);
-    ensureMigrationsTable($pdo);
-    applyMigration($pdo, MIGRATIONS_ALIAS, '001_init.sql');
+    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
     $pending = array_values(array_diff(migrationFiles(), ['001_init.sql']));
     $config = test_config_dir(test_auth_iam(), $behind);
     $app = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', ['PIANO_TEST_CONFIG' => $config, 'PIANO_FRONTEND_DIST' => test_frontend_build()], '/api/health');
 
-    foreach ([['GET', '/api/state'], ['GET', '/api/translations/en'], ['GET', '/api/admin/translations'], ['DELETE', '/api/admin/languages/sk']] as [$method, $url]) {
+    // The gate answers first: an administrator too is told the site is being updated, everywhere but the Migrations page's routes.
+    foreach ([['GET', '/api/state'], ['GET', '/api/admin/translations'], ['DELETE', '/api/admin/languages/sk'], ['GET', '/api/admin/people']] as [$method, $url]) {
         $answer = ask($app, $method, $url, null, bearer(token_for(ADMIN)));
-        assert_same([503, 'not_set_up', true], [$answer['status'], $answer['body']['code'] ?? null, $answer['body']['update'] ?? null], "$method $url");
+        assert_same([503, 'update_pending', '60'], [$answer['status'], $answer['body']['code'] ?? null, $answer['headers']['retry-after'] ?? null], "$method $url");
     }
 
     // The Migrations page's routes: ADMIN only, and they work on it - the pending files in the order they will run.
     $status = ask($app, 'GET', '/api/admin/migrations', null, bearer(token_for(ADMIN)))['body'];
-    assert_same([$behind, ['001_init.sql'], array_map(static fn (string $name): array => ['name' => $name], $pending)], [$status['database'], array_column($status['applied'], 'name'), $status['pending']]);
-    assert_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', (string) $status['applied'][0]['applied_at']);
-    assert_same(403, ask($app, 'GET', '/api/admin/migrations', null, bearer(token_for(EDITOR)))['status']);
-    // The Database page's old addresses answer nothing any more.
-    assert_same(404, ask($app, 'GET', '/api/admin/database', null, bearer(token_for(ADMIN)))['status']);
-    assert_same(404, ask($app, 'POST', '/api/admin/database/update', null, bearer(token_for(ADMIN)))['status']);
-    assert_same(403, ask($app, 'POST', '/api/admin/migrations/apply', null, bearer(token_for(EDITOR)))['status'], 'an editor applies nothing');
-    assert_same(401, ask($app, 'POST', '/api/admin/migrations/apply', null, [])['status']);
+    assert_same([['001_init.sql'], $pending, []], [names_of($status['applied']), names_of($status['pending']), $status['missing']]);
+    assert_same([true], array_values(array_unique(array_column($status['pending'], 'ready'))), 'every one ready (no drafts here)');
+    assert_same([false], array_values(array_unique(array_column($status['pending'], 'blocked'))));
+    assert_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', (string) $status['applied'][0]['applied_at']);
+    assert_same(['sql' => (string) file_get_contents(migrationsDir() . '/' . $pending[0])], array_intersect_key(ask($app, 'GET', '/api/admin/migrations/file?set=piano_academy&name=' . $pending[0], null, bearer(token_for(ADMIN)))['body'], ['sql' => 0]), 'a pending file\'s SQL');
+    foreach (['GET /api/admin/migrations', 'GET /api/admin/migrations/file?set=piano_academy&name=001_init.sql', 'POST /api/admin/migrations/apply'] as $route) {
+        [$method, $url] = explode(' ', $route);
+        $editor = ask($app, $method, $url, null, bearer(token_for(EDITOR)));
+        assert_same([403, 'forbidden', ADMIN_SENTENCE], [$editor['status'], $editor['body']['code'] ?? null, $editor['body']['error'] ?? null], "$route: an editor, in the site's own words");
+        $nobody = ask($app, $method, $url, null, []);
+        assert_same([401, 'sign_in_required'], [$nobody['status'], $nobody['body']['code'] ?? null], "$route: nobody");
+    }
+    assert_same(['001_init.sql'], $pdo->query('SELECT filename FROM migrations')->fetchAll(PDO::FETCH_COLUMN), 'an editor applied nothing');
 
     // Somebody else is updating (setup.php's Save, php migration.php): busy, and nothing applied.
     $other = dbConnect(machineDatabaseSettings(), $behind);
     $other->query('SELECT pg_advisory_lock(' . DATABASE_UPDATE_LOCK . ')');
     try {
         $busy = ask($app, 'POST', '/api/admin/migrations/apply', null, bearer(token_for(ADMIN)));
-        assert_same([409, 'busy'], [$busy['status'], $busy['body']['code'] ?? null]);
+        assert_same([409, ['code' => 'busy', 'message' => 'Another database update is running. Nothing was applied. Wait a moment, then look again.']], [$busy['status'], $busy['body']]);
         $env = ['PIANO_TEST_CONFIG' => $config] + getenv();
         $process = proc_open([PHP_BINARY, TEST_BACKEND . '/migration.php'], [0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, TEST_BACKEND, $env);
         $out = (string) stream_get_contents($pipes[1]);
@@ -293,9 +318,11 @@ test('a database behind the code: everything else says so (update: true), and an
     }
 
     $update = ask($app, 'POST', '/api/admin/migrations/apply', null, bearer(token_for(ADMIN)));
-    assert_same([200, ['applied' => $pending, 'failed' => null, 'error' => null]], [$update['status'], $update['body']]);
+    $applied = array_map(static fn (string $name): array => ['set' => MIGRATIONS_SET, 'name' => $name], $pending);
+    assert_same([200, ['applied' => $applied, 'failed' => null, 'error' => null, 'note' => null]], [$update['status'], $update['body']]);
     $after = ask($app, 'GET', '/api/admin/migrations', null, bearer(token_for(ADMIN)))['body'];
-    assert_same([migrationFiles(), []], [array_column($after['applied'], 'name'), $after['pending']], 'applied in order, nothing pending');
+    assert_same([migrationFiles(), []], [names_of($after['applied']), $after['pending']], 'applied in order, nothing pending');
+    assert_same(['state' => 'ready', 'installed' => false], ask($app, 'GET', '/api/site-status', null, [])['body'], 'the site is ready again');
     assert_same(200, ask($app, 'GET', '/api/state', null, bearer(token_for(LEARNER)))['status'], 'and the app starts on it');
     assert_same(0, (int) $pdo->query("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND database = (SELECT oid FROM pg_database WHERE datname = current_database())")->fetchColumn(), 'the lock was let go');
     assert_same([], server_problems($app));
@@ -306,8 +333,7 @@ test('a database behind the code: everything else says so (update: true), and an
 test('a migration that fails: the file is named with what PostgreSQL said (as the IAM\'s page), nothing of it stays, and why is in the log too', function (): void {
     $broken = test_empty_db('broken');
     $pdo = dbConnect(machineDatabaseSettings(), $broken);
-    ensureMigrationsTable($pdo);
-    applyMigration($pdo, MIGRATIONS_ALIAS, '001_init.sql');
+    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
     // A table 002 makes, there already in another shape: 002 stops at its first insert.
     $pdo->exec('CREATE TABLE languages (code TEXT PRIMARY KEY)');
     $app = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', ['PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam(), $broken), 'PIANO_FRONTEND_DIST' => test_frontend_build()], '/api/health');
@@ -315,7 +341,7 @@ test('a migration that fails: the file is named with what PostgreSQL said (as th
     $update = ask($app, 'POST', '/api/admin/migrations/apply', null, bearer(token_for(ADMIN)));
     assert_same(200, $update['status'], 'answered, so the page can say it');
     assert_same([], $update['body']['applied'] ?? null, 'nothing applied');
-    assert_same('002_languages_and_translations.sql', $update['body']['failed'] ?? null, 'the file it stopped at');
+    assert_same(['set' => MIGRATIONS_SET, 'name' => '002_languages_and_translations.sql'], $update['body']['failed'] ?? null, 'the file it stopped at');
     // PostgreSQL's own words, with the statement it refused - as the IAM's Migrations page shows them.
     assert_match('/^statement \d+ of \d+: SQLSTATE\[42703\]: .*column "name" of relation "languages" does not exist/', (string) ($update['body']['error'] ?? ''), 'what PostgreSQL said');
     assert_true(str_contains((string) ($update['body']['error'] ?? ''), 'INSERT INTO languages (code, name, native_name, sort_order) VALUES'), 'and the statement\'s first lines');

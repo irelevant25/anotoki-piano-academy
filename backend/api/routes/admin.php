@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
+use Anotoki\Lib\Migrations\Migrator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Routing\RouteCollectorProxy;
@@ -34,17 +36,29 @@ use Slim\Routing\RouteCollectorProxy;
  *                                                 sessions, users row); a tab of theirs still open gets 409
  *                                                 progress_changed on its next save. 404 not_found for nobody.
  *
- * ADMIN alone - the migrations (the admin panel's Migrations page, the IAM's
- * shape), and these two work while the database is behind the code (every
- * other route then answers 503 not_set_up with update: true):
+ * ADMIN alone - the migrations: the admin panel's Migrations page, the
+ * anotoki family's (anotoki/lib's MigrationsRoutes::admin(), in its shapes
+ * and words). These work while an update waits, when the site's gate answers
+ * every other route 503 update_pending (SITE_OPEN_PATHS, api/index.php):
  *
- *   GET    /api/admin/migrations                  {database, applied: [{name, applied_at}], pending: [{name}]},
- *                                                 applied in the order they ran, pending in the order they will
- *   POST   /api/admin/migrations/apply            {applied: [file], failed: file | null, error: string | null} -
+ *   GET    /api/admin/migrations                  {sets: ["piano_academy"], applied: [{set, name, applied_at}],
+ *                                                 pending: [{set, name, ready, blocked}], missing: [{set, name,
+ *                                                 applied_at}]} - applied in the order they ran (applied_at ISO
+ *                                                 8601 UTC, "2026-10-06T10:01:02Z"), pending in the order they will
+ *   GET    /api/admin/migrations/file?set=&name=  {set, name, sql}: a file of the set, as it is; 404 not_found
+ *                                                 {code, message} for anything else
+ *   POST   /api/admin/migrations/apply            {applied: [{set, name}], failed: {set, name} | null, error, note} -
  *                                                 in order, each in its own transaction, stopping at the first that
  *                                                 fails (rolled back whole; error is what PostgreSQL said, as the
- *                                                 IAM's page shows it, and in the log too); 409 busy while another update runs
- *                                                 (setup.php, php migration.php, or this route - api/database_update.php)
+ *                                                 IAM's page shows it, and in the log too); 409 busy {code, message}
+ *                                                 while another update runs (setup.php, php migration.php, or this
+ *                                                 route: the one lock of api/migrations.php)
+ *
+ * The role check there needs nothing a pending migration makes: it reads the
+ * token's roles, and keeps the caller's users row - the table 001 makes, and
+ * which no migration may change in what usersSeen() writes. (A database
+ * without even 001 - an empty one - has no users table for it: setup.php's
+ * Save or php migration.php builds that one.)
  *
  * A {code} that is not a language's is 404 not_found. What a save or an import
  * refuses is a 422 with its code, and the key, language and placeholder it is
@@ -60,9 +74,9 @@ use Slim\Routing\RouteCollectorProxy;
  * @var \Slim\App $app
  */
 
-// Middleware added last runs first (routes/progress.php): the schema is
-// checked before anybody is looked up in a users table that might not be
-// there yet, then who is asking and whether they have the role.
+// Who is asking, and whether they have the role. (While an update waits none
+// of these runs: the site's gate answers first, before anybody is looked up
+// in a users table that might not be as the code expects yet.)
 $app->group('/api/admin', function (RouteCollectorProxy $group): void {
     $group->get('/languages', function (Request $request, Response $response): Response {
         return respondJson($response, ['languages' => languagesAll()]);
@@ -90,7 +104,7 @@ $app->group('/api/admin', function (RouteCollectorProxy $group): void {
 
         return respondJson($response, translationGrid());
     });
-})->add(requireRole(...ROLES_STAFF))->add(requireCurrentSchema());
+})->add(requireRole(...ROLES_STAFF));
 
 $app->group('/api/admin', function (RouteCollectorProxy $group): void {
     $group->post('/languages', function (Request $request, Response $response): Response {
@@ -119,23 +133,15 @@ $app->group('/api/admin', function (RouteCollectorProxy $group): void {
 
         return $response->withStatus(204);
     });
-})->add(requireRole(ROLE_ADMIN))->add(requireCurrentSchema());
+})->add(requireRole(ROLE_ADMIN));
 
-// No schema check here, on purpose: this is how an administrator brings a
-// database that is behind up to date. (The users table, which the role check
-// writes to, is there from 001_init.sql; a database without even that is not
-// set up, and setup.php is the way.)
-$app->group('/api/admin/migrations', function (RouteCollectorProxy $group): void {
-    $group->get('', function (Request $request, Response $response): Response {
-        return respondJson($response, databaseStatus(db()));
-    });
-
-    $group->post('/apply', function (Request $request, Response $response): Response {
-        $result = databaseApplyUpdate(db());
-        if ($result === null) {
-            throw new ApiError(409, 'busy', 'Another database update is running. Wait a moment, then look again.');
-        }
-
-        return respondJson($response, $result);
-    });
+// The Migrations page's routes: how an administrator brings a database that
+// is behind up to date, so they answer while an update waits (the gate's open
+// paths). A file that fails is named with what PostgreSQL said on the page -
+// on a host with only FTP that is where it can be read (the owner,
+// 2026-10-04) - and in the server's log as well.
+MigrationsRoutes::admin($app, '/api/admin/migrations', static fn (): Migrator => databaseMigrator(), static function (Request $request, array $result): void {
+    if ($result['failed'] !== null) {
+        error_log('[db] the migration ' . $result['failed']['name'] . ' failed: ' . $result['error']);
+    }
 })->add(requireRole(ROLE_ADMIN));

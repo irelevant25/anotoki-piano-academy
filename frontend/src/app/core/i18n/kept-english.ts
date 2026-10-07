@@ -3,10 +3,12 @@
  *
  * The app's words live in the database - and the shell (the top bar, the
  * footer, the cards that say why the app cannot run) is drawn exactly when the
- * database cannot be asked: on a fresh install, while a migration waits for
- * the setup page, whenever the backend is down. TranslationService answers
- * from this table only while no bundle is in memory; with one, a key that has
- * no string shows as the key, as everywhere.
+ * database cannot be asked: on a fresh install, whenever the backend or its
+ * database is down. TranslationService answers from this table only while no
+ * bundle is in memory; with one, a key that has no string shows as the key,
+ * as everywhere. (The page that says the site is being updated, not set up
+ * or not available is the anotoki family's, with its own words in English
+ * and Slovak: @anotoki/lib/migrations.)
  *
  * A key here is also a key in the database, with the same English: the
  * backend's test (tests/unit/translations.test.php) holds the two equal, and
@@ -29,11 +31,6 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'nav.sheet': 'Sheet Practice',
   'nav.songs': 'Songs',
   'nav.stats': 'Stats',
-  // The card "not set up yet" (boot/not-set-up).
-  'boot.notSetUp.title': 'Piano Academy is not set up yet',
-  'boot.notSetUp.text': 'Before you can practise, the app needs its database and its sign-in through the anotoki IAM. The setup page asks for both and takes a minute.',
-  'boot.notSetUp.open': 'Open the setup page',
-  'boot.notSetUp.after': 'When it is done, come back here and reload the page.',
   // The card "could not load" (boot/load-error).
   'boot.loadError.title': 'Could not load your progress',
   'boot.loadError.text': 'The app did not start, so your saved progress stays safe. Check that the server is still running, then try again.',

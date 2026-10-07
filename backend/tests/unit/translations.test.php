@@ -23,6 +23,8 @@ declare(strict_types=1);
 require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database and settings
 require TEST_BACKEND . '/tools/translation_keys.php';
 
+use Anotoki\Lib\Migrations\Splitter;
+
 /** The five tables of 001: each person's progress. No translation migration may touch them. */
 const PROGRESS_TABLES = ['users', 'progress', 'path_progress', 'sessions', 'imports'];
 
@@ -65,7 +67,7 @@ const TRANSLATION_TABLES = ['languages', 'translation_keys', 'translations'];
 /** A migration's text, with the line endings of a checkout on any computer. */
 function migration_sql(string $file): string
 {
-    return str_replace("\r\n", "\n", (string) file_get_contents(migrationsRoot() . '/' . MIGRATIONS_ALIAS . '/' . $file));
+    return str_replace("\r\n", "\n", (string) file_get_contents(migrationsDir() . '/' . $file));
 }
 
 /**
@@ -450,7 +452,7 @@ test('the migrations of this work make and fill only their own three tables - by
 
     $made = sql_code(migration_sql('002_languages_and_translations.sql'));
     assert_match('/\bupdated_by\s+BIGINT\s+REFERENCES\s+users\s*\(id\)\s+ON\s+UPDATE\s+CASCADE\s+ON\s+DELETE\s+SET\s+NULL\b/i', $made, 'who reworded a string follows a person to another IAM id, and is forgotten with their users row');
-    $statements = splitSqlStatements(migration_sql('002_languages_and_translations.sql'));
+    $statements = Splitter::split(migration_sql('002_languages_and_translations.sql'));
     assert_match('/^DO \$\$.*server_encoding.*UTF8/s', $statements[0], 'the first thing it does is look at the database\'s encoding');
     assert_match('/^DO \$\$.*RAISE EXCEPTION/s', $statements[count($statements) - 1], 'and the last is its gate');
 });
@@ -458,8 +460,8 @@ test('the migrations of this work make and fill only their own three tables - by
 test('the migrations of this work leave everybody\'s progress exactly as it was - by what they do', function (): void {
     $name = test_empty_db('own_tables');
     $pdo = dbConnect(machineDatabaseSettings(), $name);
-    assert_same('001_init.sql', pendingMigrations($pdo)[0] ?? null);
-    applyMigration($pdo, MIGRATIONS_ALIAS, '001_init.sql');
+    assert_same('001_init.sql', names_of(databaseMigrator($pdo)->applicable())[0] ?? null);
+    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
 
     // Two people's progress, as the app keeps it.
     $pdo->exec("INSERT INTO users (id, preferred_username) VALUES (1, 'owner'), (7, NULL)");
@@ -472,9 +474,10 @@ test('the migrations of this work leave everybody\'s progress exactly as it was 
 
     $held = translation_migrations();
     $applied = [];
-    foreach (pendingMigrationsReadOnly($pdo) as $file) {
+    // One file at a time, each looked at before and after.
+    foreach (names_of(databaseMigrator($pdo)->applicable()) as $file) {
         $was = progress_tables_as_they_are($pdo);
-        applyMigration($pdo, MIGRATIONS_ALIAS, $file);
+        assert_same([[$file], null], [names_of(($result = test_migrate($pdo, $file))['applied']), $result['failed']], "$file applied");
         $applied[] = $file;
         if (in_array($file, $held, true)) {
             // 005 makes visitors (VISITORS_STATEMENTS): everything else of 001 as it was.
@@ -520,15 +523,15 @@ test('a database that is not UTF8 is refused by 002 with a sentence, before anyt
 
     $pdo = dbConnect($server, $name);
     assert_same('LATIN1', (string) $pdo->query('SHOW server_encoding')->fetchColumn());
-    $result = applyPendingMigrations($pdo);
-    assert_same(['001_init.sql'], $result['applied'], 'the tables of 001 hold no text of the app\'s own');
-    assert_same('002_languages_and_translations.sql', $result['failed']);
+    $result = databaseMigrator($pdo)->apply();
+    assert_same(['001_init.sql'], names_of($result['applied']), 'the tables of 001 hold no text of the app\'s own');
+    assert_same('002_languages_and_translations.sql', $result['failed']['name'] ?? null);
     assert_match('/This database keeps its text as LATIN1, and the app\'s words need UTF8\./', (string) $result['error'], 'it says what is wrong, in words');
     assert_match('/statement 1 of /', (string) $result['error'], 'the very first statement');
     foreach (TRANSLATION_TABLES as $table) {
         assert_false((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "nothing was made: $table");
     }
-    assert_same(['001_init.sql'], appliedMigrations($pdo), 'and 002 is still to do, once the database is made again');
+    assert_same(['001_init.sql'], names_of(databaseMigrator($pdo)->status()['applied']), 'and 002 is still to do, once the database is made again');
     $pdo = null;
 });
 

@@ -84,6 +84,18 @@ describe('authInterceptor', () => {
     expect(auth.accessToken).not.toHaveBeenCalled();
   });
 
+  it('leaves where the site stands alone: asked before anybody is signed in - no token, no visitor\'s key, no waiting', () => {
+    localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
+    loginRequired.set(false);
+    http.get('/api/site-status').subscribe();
+
+    const request = server.expectOne('/api/site-status');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.headers.has(VISITOR_KEY_HEADER)).toBe(false);
+    expect(auth.accessToken).not.toHaveBeenCalled();
+    request.flush({ state: 'ready', installed: false });
+  });
+
   it('tries once more with a fresh token after a 401', async () => {
     let answer: unknown = null;
     http.get('/api/admin/languages', as('person')).subscribe((body) => (answer = body));

@@ -71,7 +71,7 @@ if ($problem !== null) {
 }
 
 try {
-    if (pendingMigrationsReadOnly(db()) !== []) {
+    if (databaseMigrator()->applicable() !== []) {
         stop('The database needs an update first: php migration.php');
     }
 

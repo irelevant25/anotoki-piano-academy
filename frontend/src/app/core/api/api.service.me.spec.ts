@@ -136,7 +136,7 @@ describe('ApiService: the generation of the progress, the own file, the ADMIN ca
     expect(await over).toMatchObject({ replaced: true, generation: 10 });
   });
 
-  it('lists and deletes people, looks at the database and applies its update - under /api/admin/', async () => {
+  it('lists and deletes people - under /api/admin/', async () => {
     const people = api.people();
     await settle();
     const person = { id: 7, username: 'mia', firstSeen: '2026-10-01T10:00:00.000Z', lastSeen: '2026-10-04T10:00:00.000Z', notes: 3, steps: 1, sessions: 2 };
@@ -147,15 +147,5 @@ describe('ApiService: the generation of the progress, the own file, the ADMIN ca
     await settle();
     http.expectOne({ method: 'DELETE', url: '/api/admin/people/7' }).flush(null, { status: 204, statusText: 'No Content' });
     await gone;
-
-    const status = api.migrations();
-    await settle();
-    http.expectOne({ method: 'GET', url: '/api/admin/migrations' }).flush({ database: 'piano_test_x', applied: [{ name: '001_init.sql', applied_at: '2026-10-04 09:30' }], pending: [{ name: '002_languages_and_translations.sql' }] });
-    expect(await status).toMatchObject({ pending: [{ name: '002_languages_and_translations.sql' }] });
-
-    const update = api.applyMigrations();
-    await settle();
-    http.expectOne({ method: 'POST', url: '/api/admin/migrations/apply' }).flush({ applied: ['002_languages_and_translations.sql'], failed: null, error: null });
-    expect(await update).toEqual({ applied: ['002_languages_and_translations.sql'], failed: null, error: null });
   });
 });

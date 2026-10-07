@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -19,6 +20,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                                 languages on offer (see api/translations.php):
  *                                 {language, languages, values, english?}; "sk-sk" is
  *                                 answered by "sk" when only that is offered
+ *   GET /api/site-status          where the site stands: {state: "ready" | "not_set_up" |
+ *                                 "update_pending" | "unavailable", installed} - and
+ *                                 nothing else (anotoki/lib's MigrationsRoutes::status());
+ *                                 answered in every state, not set up too
+ *
+ * The first three answer while an update waits too (SITE_OPEN_PATHS in
+ * api/index.php): somebody can sign in then, and the pages have their words.
  *
  * @var \Slim\App $app
  */
@@ -28,7 +36,7 @@ $app->get('/api/health', function (Request $request, Response $response): Respon
 
     if (isLoopback(requestRemoteAddr($request))) {
         $health['database'] = dbName();
-        $health['pending'] = pendingMigrationsReadOnly(db());
+        $health['pending'] = array_column(databaseMigrator()->applicable(), 'name');
     }
 
     return respondJson($response, $health);
@@ -44,15 +52,20 @@ $app->get('/api/auth/config', function (Request $request, Response $response): R
 // looked at: public words, nothing of anybody's. The only route under
 // /api/translations/.
 //
-// The schema is checked, though: on a database the code is ahead of, the
-// tables may not be there yet, and that is "not set up" (503 not_set_up), not
-// a database error. The app then draws its shell from the English it keeps.
+// It answers while an update waits, from the words the database has then.
+// A database that has not got the words' tables yet (002 among what waits)
+// has none to give: that is said the way the gate says it to every other
+// route then (503 update_pending), never as a database error. The app draws
+// its shell from the English it keeps meanwhile.
 $app->get('/api/translations/{code}', function (Request $request, Response $response, array $args): Response {
     // Before any query: only a code is looked up (a wrong address is a 404, not
     // a database refusing bytes that are not text).
     $code = (string) $args['code'];
     if (!languageCodeOk($code)) {
         throw languageNotFound();
+    }
+    if (!translationsReady()) {
+        throw new ApiError(503, 'update_pending', 'The site is being updated. Try again in a few minutes.', ['Retry-After' => '60']);
     }
 
     // The strings change when the owner saves one, or with a release: the
@@ -70,4 +83,9 @@ $app->get('/api/translations/{code}', function (Request $request, Response $resp
     }
 
     return respondJsonText($response, $body);
-})->add(requireCurrentSchema());
+});
+
+// Where the site stands, for the pages (the frontend's SiteStatus): asked as
+// the app starts, and again by the page that waits for an update. The gate
+// lets it through whatever the state.
+MigrationsRoutes::status($app, siteState());

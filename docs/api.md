@@ -5,12 +5,25 @@ Every route starts with `/api/`. Answers are JSON; an error is
 anything else is `415 unsupported_media_type`, too large `413 too_large`. There
 is no CORS anywhere: another site's page cannot call a write.
 
-Before any route: no settings -> `503 not_set_up` (`setup: "/setup.php"`,
-`detail` for this computer). A token that is sent must check out, or the
-answer is `401 invalid_token` (`WWW-Authenticate: Bearer realm="piano-academy",
-error="invalid_token"`); no token where one is needed is
-`401 sign_in_required`. "Behind" below means `503 not_set_up` with
-`update: true` while a migration is pending.
+Before any route, the site's gate (the anotoki family's - `anotoki/lib`'s
+`SiteGate`, the same on every anotoki site; its bodies are the family's,
+`{code, message}`):
+
+- no settings (a file missing, saying too little, or not PHP that runs) ->
+  `503 {code: "not_set_up", installed, message}`, with
+  `setup: "/setup.php"` only while the site was never installed
+  (`storage/installed.lock`), on every path but `GET /api/site-status`;
+- a migration waiting -> `503 {code: "update_pending", message: "The site is
+  being updated. Try again in a few minutes."}` with `Retry-After: 60` on
+  every path but the open ones: `GET /api/auth/config`, `GET
+  /api/translations/{code}`, `GET /api/health`, `/api/admin/migrations...`
+  (and `GET /api/site-status`). "Behind" below means that answer;
+- the database out of reach: through - a route that needs it answers
+  `503 database_unavailable` as ever.
+
+A token that is sent must check out, or the answer is `401 invalid_token`
+(`WWW-Authenticate: Bearer realm="piano-academy", error="invalid_token"`); no
+token where one is needed is `401 sign_in_required`.
 
 Only `Authorization: Bearer ...` is a sign-in; another scheme (`Basic ...`)
 counts as no header. While the IAM says this app does not require sign-in,
@@ -21,14 +34,15 @@ one's own progress (the next section's first four routes) is also a
 
 | Route | Answers |
 | --- | --- |
-| `GET /api/health` | `{ok: true}`; asked from this computer (loopback) also `database` and `pending` (the migrations still to apply) |
-| `GET /api/auth/config` | `{issuer, clientId, loginRequired}`: how the browser signs in, and whether the IAM says this app requires sign-in (its "Sign-in required" switch for `piano-academy`, read by the SDK from `{issuer}/api/public/applications/piano-academy`, kept a minute, `true` whenever nothing better is known - an IAM out of reach with nothing read, a 404, an answer about another app). While it is `true`, every learner route requires a token; while `false`, one's own progress is also a visitor's (below) |
-| `GET /api/translations/{code}` | a language's strings with English underneath: `{language, languages, values, english?}`; ETag + `no-cache` (304); an unknown code is answered in English, a code that is none is 404; behind -> 503 |
+| `GET /api/health` | `{ok: true}`; asked from this computer (loopback) also `database` and `pending` (the migrations still to apply). Answers while behind |
+| `GET /api/auth/config` | `{issuer, clientId, loginRequired}`: how the browser signs in, and whether the IAM says this app requires sign-in (its "Sign-in required" switch for `piano-academy`, read by the SDK from `{issuer}/api/public/applications/piano-academy`, kept a minute, `true` whenever nothing better is known - an IAM out of reach with nothing read, a 404, an answer about another app). While it is `true`, every learner route requires a token; while `false`, one's own progress is also a visitor's (below). Answers while behind: somebody can sign in then |
+| `GET /api/translations/{code}` | a language's strings with English underneath: `{language, languages, values, english?}`; ETag + `no-cache` (304); an unknown code is answered in English, a code that is none is 404. Answers while behind, from the words the database has - a database without the words' tables yet (002 waiting): `503 {error, code: "update_pending"}` with `Retry-After: 60` |
+| `GET /api/site-status` | where the site stands, for the pages: `{state: "ready" \| "not_set_up" \| "update_pending" \| "unavailable", installed}` and nothing else (the family's `MigrationsRoutes::status()`); always `200`, in every state, to anybody - no token, key or header is read, so a sign-in the IAM requires, a token that does not verify or a settings file PHP cannot run never turns it into a 401 or a 500; `no-store` |
 
 ## Signed in (any role, or none): one's own progress
 
-Behind -> 503 on every route here but `POST /api/sessions` (the app starts at
-`GET /api/state`). Who it is comes from the token alone, or - for the first
+Behind -> 503 on every route here, `POST /api/sessions` too (the gate holds a
+round as it holds a save). Who it is comes from the token alone, or - for the first
 four routes, while sign-in is not required - from the visitor key ("Without
 signing in" below). An id in the address or the body is nobody's.
 
@@ -89,7 +103,8 @@ else nobody.
   as a visitor keeps. `413 too_large`: a visitor's progress or path over
   128 KiB.
 - `503 visitors_unavailable` (`Retry-After: 60`): migration 005 not applied
-  yet (on `POST /api/sessions`; the other routes say "behind").
+  yet - which the gate answers first ("behind") on every route; this one is
+  for a save that would reach such a database all the same.
 - A key never opens `/api/me/export`, `/api/me/import` or `/api/admin/...`:
   `401 sign_in_required`.
 
@@ -177,5 +192,6 @@ anybody else signed in, an editor included.
 | `DELETE /api/admin/languages/{code}` | 204, its strings go with it; 409 `fallback_language`, `seeded_language`. Behind -> 503 |
 | `GET /api/admin/people` | `{people: [{id, username, firstSeen, lastSeen, notes, steps, sessions}], visitors: {count, sessions}}`, the people who signed in, the most recently seen first; the visitors only counted (they go 30 days after their last visit). Behind -> 503 |
 | `DELETE /api/admin/people/{id}` | 204: everything the app keeps of that person goes, in one transaction - notes, path, sessions, an `imports` row, the users row (a string they reworded stays, by nobody). A tab of theirs still open gets `409 progress_changed` on its next save; their next visit starts empty. `404 not_found` for an id with nobody (an `{id}` that is not a whole number is no route). Deleting oneself is allowed. Behind -> 503 |
-| `GET /api/admin/migrations` | the admin panel's Migrations page (the IAM's shape): `{database, applied: [{name, applied_at}], pending: [{name}]}` - applied in the order they ran, `applied_at` "YYYY-MM-DD HH:MM" (the server's clock); pending in the order they will run. Reads only the migrations (the role check keeps the caller's users row, as on every signed-in route) - works while behind |
-| `POST /api/admin/migrations/apply` | applies what is pending, in order, each file in its own transaction, under the update lock, stopping at the first that fails (rolled back whole) -> `{applied: [file], failed: file | null, error: string | null}` - `error` is what PostgreSQL said, with the statement's number and first lines, as the IAM's route answers it (ADMIN only; logged too; the owner, 2026-10-04) - a failure is answered 200, so the page can say it\| null, error: sentence \| null}` (a failure is answered 200, so the page can say it; PostgreSQL's words are in the server log only); `409 busy` while setup.php, `php migration.php` or another update runs - works while behind. (Until 2026-10-04: `/api/admin/database` and `.../update` - gone, nothing outside the app used them.) |
+| `GET /api/admin/migrations` | the admin panel's Migrations page - the anotoki family's (`anotoki/lib`'s `MigrationsRoutes::admin()`, `Migrator::status()`): `{sets: ["piano_academy"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - applied in the order they ran, `applied_at` ISO 8601 UTC ("2026-10-06T10:01:02Z"); pending in the order they will run; missing: recorded, but the file is not there. Reads only the migrations (the role check keeps the caller's users row, as on every signed-in route) - works while behind |
+| `GET /api/admin/migrations/file?set=piano_academy&name=NNN_name.sql` | `{set, name, sql}`: a file of the set as it is; anything else `404 {code: "not_found", message}` - works while behind |
+| `POST /api/admin/migrations/apply` | applies what is pending, in order, each file in its own transaction with its record, under the update lock, stopping at the first that fails (rolled back whole) -> `{applied: [{set, name}], failed: {set, name} \| null, error: string \| null, note: null}` - `error` is what PostgreSQL said, "statement N of M: ..." and the statement's first lines (ADMIN only; logged too, "[db] the migration ... failed"; the owner, 2026-10-04) - a failure is answered 200, so the page can say it; `409 {code: "busy", message}` while setup.php, `php migration.php` or another update runs, nothing applied - works while behind. (Until 2026-10-04: `/api/admin/database` and `.../update` - gone, nothing outside the app used them.) |
