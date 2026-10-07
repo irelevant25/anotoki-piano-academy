@@ -125,18 +125,24 @@ writes).
 In the browser (`@anotoki/lib/migrations`, wired in
 `frontend/src/app/core/state/site-migrations.ts`): the app's initializer asks
 `GET /api/site-status` first; `siteStatusInterceptor` hears any `503
-update_pending`/`not_set_up` later; `<anotoki-site-gate>` around the shell's
-outlet draws the family's status page in the view's place while the site is
-not ready - "The site is being updated" for visitors and learners (their
-language, a quiet Sign in for nobody, a reload once the site is back), "A
-database update is waiting" with "Open Migrations" for the site's ADMIN,
-"This site is not set up yet" with the setup page only while never
-installed, "not available right now" otherwise. The start (`BootService`)
-then reads the sign-in settings and the words, and waits (`waiting`) - no
-move, no progress asked for; the sign-in guard sends nobody to the IAM; an
-ADMIN's Apply that leaves nothing to apply goes on with the start in place
-(`resumeAfterUpdate()`), the Migrations page (`<anotoki-migrations-page>`
-under `/admin/migrations`) staying on the screen.
+update_pending`/`not_set_up` later; `<anotoki-site-gate>` draws the family's
+status page in the view's place while the site is not ready, and takes the
+shell's view as an `<ng-template>` that it makes only while it shows it (the
+library's 0.1.1) - so no page runs behind the status page, also when an
+update comes in the middle of practising: the page is destroyed, and the
+status page loads the site afresh once it is back. It says "The site is
+being updated" for visitors and learners (their language, a quiet Sign in
+for nobody, a reload once the site is back), "A database update is waiting"
+with "Open Migrations" for the site's ADMIN, "This site is not set up yet"
+with the setup page only while never installed, "not available right now"
+otherwise. Inside the template the shell's `pageShown()` picks the page or
+the start's card (loading, the sign-in card, could not load). The start
+(`BootService`) then reads the sign-in settings and the words, and waits
+(`waiting`) - no move, no progress asked for; the sign-in guard sends nobody
+to the IAM; an ADMIN's Apply that leaves nothing to apply goes on with the
+start in place (`resumeAfterUpdate()`), the Migrations page
+(`<anotoki-migrations-page>` under `/admin/migrations`) staying on the
+screen.
 
 ## Settings
 

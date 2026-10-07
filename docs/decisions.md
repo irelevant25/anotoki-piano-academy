@@ -2,6 +2,42 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-07 - versions have three numbers
+
+The owner's rule for every anotoki site: a version is MAJOR.MINOR.PATCH -
+big changes, new features, bug fixes. What's new's entries were renamed
+(0.4 -> 0.4.0, 0.3 -> 0.3.0, 0.2 -> 0.2.0, 0.1 -> 0.1.0) and none was added:
+0.4.0 already holds this round's line. `frontend/package.json` said 0.4.0
+already; its package-lock's root still said 0.3.0 and says 0.4.0 now. A new
+release is a new entry on top with three numbers, and `package.json`'s
+version line the same - `core/changelog/changelog.service.spec.ts` reads
+both files and holds them to it. Nothing here remembers which What's new
+somebody saw (it opens only from the footer's version), so no "0.4" kept in
+a browser had to be read as "0.4.0".
+
+## 2026-10-07 - the gate makes the pages only while the site is open (`@anotoki/lib` 0.1.1)
+
+Given as it is, the content of `<anotoki-site-gate>` (0.1.0) is made by
+Angular whether the gate shows it or not. The shell kept its own
+`@if (pageShown())` around the outlet, so a start that waited for an update
+made no page; but an update that came in the middle of practising (the start
+already `ready`) left the page made behind the status page - its listeners,
+its timers and its requests running while nobody saw it. The library's 0.1.1
+takes the view as an `<ng-template>` and makes it only while it shows it: the
+page goes with the update now, and the status page loads the site afresh
+once it is back. Its PHP half is unchanged and stays at 0.1.0.
+
+The template is not optional here: under 0.1.1, content given as it is would
+be read as a template anyway - the gate's `contentChild(TemplateRef)` takes
+the shell's first `@if` block for it and draws a bare `<router-outlet>`, so
+"Loading…", the sign-in card and "Could not load" would vanish. `pageShown()`
+stays inside the template: it picks the page or the start's card, keeps one
+outlet for an ADMIN's Migrations page across the Apply, and keeps a waiting
+start's page from being made in the moment the site is back, before the
+reload. The notes under the bar (`@if (!site.blocked())`), the bar's
+sections, the sign-in guard and `BootService`'s `waiting` stay as they were:
+they never depended on what the gate makes.
+
 ## 2026-10-07 - one behaviour while the site is not ready: the anotoki family's library
 
 The owner's request, for every anotoki site (the IAM, genshin, the survey

@@ -149,16 +149,20 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   purpose.
 - **One way while the site is not ready (2026-10-07).** Every anotoki site
   now behaves the same while it is being updated, through the family's
-  library (`anotoki-lib` 0.1.0, from GitHub: `vendor/anotoki/lib` and
-  `@anotoki/lib`): visitors and learners read "The site is being updated" in
-  their language - no error, and the page comes back by itself; the site's
-  ADMIN reads "A database update is waiting" and applies it on the admin
-  panel's Migrations page (now the family's page, with each file's SQL);
+  library (`anotoki-lib` from GitHub: `vendor/anotoki/lib` 0.1.0 and
+  `@anotoki/lib` 0.1.1): visitors and learners read "The site is being
+  updated" in their language - no error, no page running behind it (also
+  when the update comes in the middle of practising), and the page comes
+  back by itself; the site's ADMIN reads "A database update is waiting" and
+  applies it on the admin panel's Migrations page (now the family's page,
+  with each file's SQL);
   signing in works meanwhile; the setup page is offered only while the site
   was never installed. The library's engine applies the migrations
   everywhere (setup, `php migration.php`, the Migrations page, the tests).
   Migration 007 takes the old "not set up yet" card's words away; it goes
-  with 005 and 006 at the hand-over.
+  with 005 and 006 at the hand-over. Version 0.4.0 - versions have three
+  numbers now, MAJOR.MINOR.PATCH (What's new's earlier entries are 0.1.0 to
+  0.3.0).
 - **The anotoki account's theme, dates and clock (2026-10-06).** The IAM
   keeps them beside the account's language (its migration 015), and Piano
   Academy follows them for somebody signed in: the theme everywhere (the

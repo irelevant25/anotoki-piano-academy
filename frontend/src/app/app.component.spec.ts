@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { Component, Provider, WritableSignal } from '@angular/core';
+import { Component, DestroyRef, Provider, WritableSignal, inject } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ROUTES, Router, provideRouter } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
@@ -56,6 +56,18 @@ interface Shell {
 /** A page under the shell's outlet, where a spec needs one drawn. */
 @Component({ selector: 'app-stub-page', template: '<p id="stub-page">the page</p>' })
 class StubPageComponent {}
+
+/** A page that counts how often it is made and how often it goes: whether anything runs behind the status page. */
+@Component({ selector: 'app-counted-page', template: '<p id="counted-page">the page</p>' })
+class CountedPageComponent {
+  static made = 0;
+  static gone = 0;
+
+  constructor() {
+    CountedPageComponent.made++;
+    inject(DestroyRef).onDestroy(() => CountedPageComponent.gone++);
+  }
+}
 
 /** The shell, made with the providers given: the real translation service with no bundle unless they say otherwise. */
 function shell(providers: Provider[] = []): Shell {
@@ -740,6 +752,38 @@ describe('the shell with no bundle', () => {
     await go(notSetUp, '/admin/migrations');
     expect(notSetUp.host.querySelector('#stub-page')).toBeNull();
     expect(statusPage(notSetUp)?.title).toBe('The site is not available right now');
+  });
+
+  it('makes no page behind the status page - an update that comes in the middle of practising takes the page away, and a start that waits makes none', async () => {
+    const counted: Provider = { provide: ROUTES, multi: true, useValue: [{ path: '**', component: CountedPageComponent }] };
+    const count = (): number[] => [CountedPageComponent.made, CountedPageComponent.gone];
+    CountedPageComponent.made = CountedPageComponent.gone = 0;
+
+    const practising = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [counted]);
+    await go(practising, '/trainer');
+    expect(practising.host.querySelector('#counted-page')).not.toBeNull();
+    expect(count()).toEqual([1, 0]);
+    // A save is answered that an update waits: the status page - and the page is gone, not hidden and still running
+    // (as the gate's content given as it is would leave it: made by Angular whether it shows or not).
+    practising.site.report('update_pending');
+    await settled(practising);
+    expect(statusPage(practising)?.title).toBe('The site is being updated');
+    expect(count()).toEqual([1, 1]);
+
+    // A start that waits for the update: no page is made, wherever the address goes.
+    CountedPageComponent.made = CountedPageComponent.gone = 0;
+    const waiting = await drawn(STATES['an update waits, a learner signed in'], [counted]);
+    await go(waiting, '/stats');
+    await go(waiting, '/trainer');
+    expect(statusPage(waiting)?.title).toBe('The site is being updated');
+    expect(count()).toEqual([0, 0]);
+    // The site is back - the status page's own check, which loads the site afresh next: the gate opens, but the start
+    // still waits, so the moment until then is a card of the start, not a page on progress that was never loaded.
+    waiting.site.markReady();
+    await settled(waiting);
+    expect(statusPage(waiting)).toBeNull();
+    expect(text(waiting, '#view-root')).toBe('Loading…');
+    expect(count()).toEqual([0, 0]);
   });
 
   it('offers the setup page only while the site was never installed - never once it was, nor while its database is out of reach', async () => {

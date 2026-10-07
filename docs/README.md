@@ -58,3 +58,7 @@ learners and "A database update is waiting" to the site's ADMIN, the setup
 page only while never installed - `architecture.md`, "A request" and "A
 database update"; `decisions.md`. Migration 007 (words only: the old "not set
 up yet" card's four keys go) goes with 005 and 006 at the hand-over.
+Then the library's Angular half 0.1.1 (the PHP half stays 0.1.0): the gate
+makes the shell's view, its template, only while it shows it - no page runs
+behind the status page. And the versions have three numbers,
+MAJOR.MINOR.PATCH: What's new's entries are 0.1.0 to 0.4.0 - `decisions.md`.

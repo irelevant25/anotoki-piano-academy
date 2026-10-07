@@ -38,8 +38,9 @@ import { AuthService } from './auth.service';
  * IAM and lets the navigation go on: the family's status page stands in
  * every page's place, with a quiet Sign in of its own (how an ADMIN gets to
  * the Migrations page), and the address stays - so a sign-in started there
- * comes back to it. Nothing of a learner's page is drawn then (the shell
- * draws its outlet only for a running app, or an ADMIN's Migrations page).
+ * comes back to it. Nothing of a learner's page is made then: the gate makes
+ * the view only while it shows it (an ADMIN's Migrations page, while an
+ * update waits).
  *
  * While the app cannot run otherwise (loading, the progress or the sign-in
  * settings could not be loaded) it lets nothing through and sends nobody

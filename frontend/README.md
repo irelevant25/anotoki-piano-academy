@@ -27,8 +27,9 @@ src/
                                      progress changed elsewhere; a visitor's: the notice on Learn and Stats,
                                      sign-in required meanwhile, a refused sign-in, a save refused, the progress
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
-                                     ready), the family's <anotoki-site-gate> around the page or a boot card, the
-                                     footer's version
+                                     ready), the family's <anotoki-site-gate> with the page or a boot card as its
+                                     <ng-template> (made only while the gate shows it: nothing runs behind the
+                                     status page), the footer's version
     boot/                            the cards drawn instead of the app: sign in (after a failed sign-in
                                      only), could not load. (Not set up, being updated, not available: the
                                      family's status page, @anotoki/lib/migrations)
@@ -71,20 +72,25 @@ src/
     ui/                              the bar's kit (brand, icon, spinner, the piano's widget, language chooser,
                                      theme toggle - each with its note under it -, keep-on-screen), piano
                                      keyboard, notation, changelog and confirm dialogs
-public/                              changelog.json (the version shown), anotoki.png (the family's mark),
-                                     favicon.svg, theme-boot.js
+public/                              changelog.json (the version shown: MAJOR.MINOR.PATCH, the newest entry's -
+                                     package.json's too), anotoki.png (the family's mark), favicon.svg,
+                                     theme-boot.js
 proxy.conf.json                      /api and /setup.php to the backend on :8300
 .npmrc, .nvmrc                       legacy-peer-deps (npm 10.9 and vitest), the Node version
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both, 0.1.0 now): in
-`package.json` as its GitHub release's tarball, in both `bun.lock` and
-`package-lock.json`. Its `@anotoki/lib/migrations` is where the site stands
-(`SiteStatus`, `siteStatusInterceptor`), the gate in front of the pages and
-its status page, and the admin panel's Migrations page. To update it: the new
-release's URL in `package.json`, then `bun install` and `npm install`, with
-the backend's half to the same version (DEV.md).
+half is the backend's `anotoki/lib`; one version for both - 0.1.1 here, the
+backend's 0.1.0, as 0.1.1 changed only this half): in `package.json` as its
+GitHub release's tarball, in both `bun.lock` and `package-lock.json`. Its
+`@anotoki/lib/migrations` is where the site stands (`SiteStatus`,
+`siteStatusInterceptor`), the gate in front of the pages and its status
+page, and the admin panel's Migrations page. The gate takes the shell's view
+as an `<ng-template>` (`app.component.html`) and makes it only while it
+shows it - given as it is, the view would be made behind the status page
+too. To update it: the new release's URL in `package.json`, then `bun
+install` and `npm install --package-lock-only`, with the backend's half to
+the same version where the release changed it (DEV.md).
 
 Components are three files (`.ts`, `.html`, `.scss`); colours come from the
 tokens in `src/styles.scss`; every page works at 390 px. Every word a learner
@@ -125,7 +131,9 @@ is not ready (the family's gate and status page): visitors and learners told
 it is being updated in their language with no error and no setup or
 Migrations link, an ADMIN told an update waits and on the Migrations page,
 a signed-out ADMIN's Sign in coming back to the page, the setup page only
-while never installed, the start waiting and resumed after an Apply; the sign-in
+while never installed, the start waiting and resumed after an Apply, no page
+made behind the status page (an update in the middle of practising takes the
+page away); the sign-in
 guard (the way to the IAM and back, the failure escape, the boot states,
 nobody sent to the IAM while the site is not ready); the
 routes and the admin panel's split by role; every save naming the generation,
@@ -149,7 +157,8 @@ back and said; dates in the account's order and clock, nobody else's
 changed; the language chooser's choice saved, a language the IAM does not
 offer kept silently; the account's language before this device's, a change
 of it followed - not over `?lang=`, not while a save is out) - checked by
-taking each rule out once.
+taking each rule out once; What's new as shipped (every version
+MAJOR.MINOR.PATCH, newest first, the newest `package.json`'s).
 
 The key scan that holds the frontend's keys to the database's is the
 backend's (`php tests/run.php`, `tests/unit/translations.test.php`). Pages in

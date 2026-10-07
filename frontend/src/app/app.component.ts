@@ -37,6 +37,10 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * database update is waiting, and opens the Migrations page - the one page
  * that works then; the setup page only while the site was never installed.
  * The notes under the bar wait meanwhile: nothing but that page is said.
+ * The view is the gate's template (anotoki-lib 0.1.1), made only while the
+ * gate shows it: no page runs behind the status page - not at the start, and
+ * not when an update comes in the middle of practising (the page goes then;
+ * the status page loads the site afresh once it is back).
  *
  * For a VISITOR - practising without signing in, while the IAM does not
  * require it (BootService.visiting) - the notes of core/i18n/visitor-words.ts:
@@ -96,10 +100,14 @@ export class AppComponent {
   );
 
   /**
-   * The page is drawn (where the gate lets it be seen): the app runs - or an
-   * ADMIN is on the Migrations page, which works while the rest of the app
-   * waits for an update. One outlet for both, so that page stays (with what
-   * its Apply said) as the app starts after it.
+   * Inside the gate, the page rather than a card of the start: the app runs -
+   * or an ADMIN is on the Migrations page, which works while the rest of the
+   * app waits for an update. One outlet for both, so that page stays (with
+   * what its Apply said) as the app starts after it. Otherwise the card that
+   * says where the start is (loading, the sign-in card, could not load) - also
+   * in the moment a waiting start's status page finds the site back and loads
+   * it again, so no page is made for that moment. (Whether anything of the
+   * view is made at all is the gate's.)
    */
   protected readonly pageShown = computed(
     () => this.boot.status() === 'ready' || (this.auth.isAdmin() && (this.path() === MIGRATIONS_ROUTE || this.path().startsWith(MIGRATIONS_ROUTE + '/'))),

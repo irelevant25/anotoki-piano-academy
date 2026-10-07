@@ -24,16 +24,20 @@ from GitHub, never from a folder next door: the PHP package `anotoki/lib`
 (`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.1"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.1.0/anotoki-lib-0.1.0.tgz`;
-in both `bun.lock` and `package-lock.json`). Version 0.1.0 is its
-migrations module: the engine, the gate in front of the API, and the pages
-of a site that is not ready (below, *While the site is not ready*). **To
-update it**, both halves together: read its `CHANGELOG.md` (while 0.x a
-minor version may break), then in `backend/` `composer update anotoki/lib
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.1.1/anotoki-lib-0.1.1.tgz`;
+in both `bun.lock` and `package-lock.json`). Its migrations module: the
+engine, the gate in front of the API, and the pages of a site that is not
+ready (below, *While the site is not ready*) - the PHP half at 0.1.0, the
+Angular half at 0.1.1 (0.1.1 changed only the Angular half: the gate takes
+the pages as a template, made only while the site is open). **To update
+it**, both halves together: read its `CHANGELOG.md` (while 0.x a minor
+version may break; a release that leaves a half unchanged may leave it
+where it is), then in `backend/` `composer update anotoki/lib
 --prefer-dist` (change the constraint first when the new version needs
 it) and commit what changed in `vendor/`; in `frontend/` the
-new release's URL in `package.json`, then `bun install` and `npm install`
-(both lock files agree).
+new release's URL in `package.json`, then `bun install` and `npm install
+--package-lock-only` (both lock files agree; npm 10 may crash on it -
+`npx -y npm@11 install --package-lock-only` then).
 
 ## First setup
 
@@ -404,12 +408,13 @@ before this browser's choice. On the host the browser reaches
 allows `https:`).
 
 **The family's library and its pages (migration 007, 2026-10-07, not
-applied anywhere yet)**: the build carries `anotoki-lib` 0.1.0 (the engine,
-the gate, the pages of a site that is not ready - see *While the site is
-not ready*) in place of the app's own "not set up yet" card, whose four
-words 007 deletes (`boot.notSetUp.*`; nothing else). It goes with 005 and
-006 at the hand-over - one Apply takes all three. Nothing to do on the host
-beyond the upload and that Apply; the bookkeeping table stays as it is.
+applied anywhere yet)**: the build carries `anotoki-lib` (the PHP half
+0.1.0, the Angular half 0.1.1: the engine, the gate, the pages of a site
+that is not ready - see *While the site is not ready*) in place of the
+app's own "not set up yet" card, whose four words 007 deletes
+(`boot.notSetUp.*`; nothing else). It goes with 005 and 006 at the
+hand-over - one Apply takes all three. Nothing to do on the host beyond the
+upload and that Apply; the bookkeeping table stays as it is.
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code

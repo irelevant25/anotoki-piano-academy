@@ -79,6 +79,18 @@ own Migrations page. Migration **007** (words only: the card's four
 `boot.notSetUp.*` keys deleted) is written whole and final and goes with 005
 and 006 at the hand-over.
 
+**2026-10-07, later: `@anotoki/lib` 0.1.1, and versions of three numbers.**
+The library's Angular half is 0.1.1 (its PHP half stays 0.1.0: 0.1.1 changed
+nothing there). `<anotoki-site-gate>` takes the shell's view as a template
+and makes it only while the site is open, so no page runs behind the status
+page - also when an update comes in the middle of practising, which the
+shell's own `@if (pageShown())` (0.1.0 made the gate's content whether it
+showed or not) never covered; `pageShown()` stays for the start's cards and
+the one outlet of an ADMIN's Migrations page. The versions are
+MAJOR.MINOR.PATCH (the owner's rule: big changes / new features / bug
+fixes): What's new's entries were renamed 0.1.0 ... 0.4.0 (nothing else
+changed), `frontend/package.json` says 0.4.0, and a spec holds the two equal.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -98,7 +110,9 @@ knowledge base in step - part of finishing the task: the skill, this file (if
 the essentials changed), `.claude/agents/piano-dev.md`, `docs/` (the pages
 the change makes wrong), `README.md` ("Current state"), `DEV.md` (commands),
 `backend/README.md`, `frontend/README.md`, and `frontend/public/changelog.json` (a line in plain
-words for anything a learner would notice).
+words for anything a learner would notice; a new release is a new entry on
+top whose version has three numbers - MAJOR.MINOR.PATCH: big changes / new
+features / bug fixes - and `frontend/package.json`'s version line the same).
 
 ## Essentials
 
@@ -211,8 +225,9 @@ words for anything a learner would notice).
   "update_pending"}` (`Retry-After: 60`) everywhere but `SITE_OPEN_PATHS` -
   `/api/auth/config`, `/api/translations/{code}`, `/api/health`,
   `/api/admin/migrations...` - so somebody can sign in, the pages have their
-  words and an ADMIN reaches Apply. In the browser `<anotoki-site-gate>`
-  around the shell's outlet draws the status page then: "The site is being
+  words and an ADMIN reaches Apply. In the browser `<anotoki-site-gate>` -
+  the shell's view its `<ng-template>`, made only while the gate shows it, so
+  no page runs behind it - draws the status page then: "The site is being
   updated" for visitors and learners (their language, a quiet Sign in for
   nobody, a reload once the site is back), "A database update is waiting"
   for the site's ADMIN, who has the admin panel's **Migrations** page
@@ -304,12 +319,16 @@ words for anything a learner would notice).
   a database as it stood at some point with `test_migrate()` /
   `test_migrate_before()` (`tests/lib.php`: the files after the point held
   back as drafts).
-- **The family's library** (`anotoki-lib`, one version for both halves -
-  0.1.0): PHP `anotoki/lib` (Composer's VCS repository on GitHub, committed in
-  `vendor/`), Angular `@anotoki/lib` (the GitHub release's tarball, in both
-  lock files). Never from a local path. Updating: DEV.md (Prerequisites) -
-  both halves together, after its CHANGELOG.md. Its pages take this app's
-  colours through the `--anotoki-*` properties in `styles.scss`.
+- **The family's library** (`anotoki-lib`, one version for both halves): PHP
+  `anotoki/lib` 0.1.0 (Composer's VCS repository on GitHub, committed in
+  `vendor/`), Angular `@anotoki/lib` 0.1.1 (the GitHub release's tarball, in
+  both lock files; 0.1.1 changed only the Angular half). Never from a local
+  path. Updating: DEV.md (Prerequisites) - both halves together, after its
+  CHANGELOG.md (a release that leaves a half unchanged may leave it where it
+  is). Its pages take this app's colours through the `--anotoki-*`
+  properties in `styles.scss`; its gate takes the shell's view as an
+  `<ng-template>` (given as it is, 0.1.1 would take the view's first `@if`
+  block for the template and lose the start's cards).
 - No piano in dev: dispatch `noteon` on `window.pianoMIDI`; read the staff via
   `.vf-stavenote[data-midi]`; `window.pianoPlayer.expectedTimes` for runs in
   time. `playwright-core` with Edge (`channel: 'msedge'`) works on this

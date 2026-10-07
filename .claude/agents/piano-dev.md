@@ -127,9 +127,10 @@ Working conventions specific to this repo:
   words, the health check, the Migrations page's routes); its
   `<anotoki-site-gate>` draws the status page in the view's place ("being
   updated" for visitors and learners, "A database update is waiting" for the
-  site's ADMIN); `BootService` waits (`waiting`) and the sign-in guard sends
-  nobody to the IAM then. A new route that must answer while an update waits
-  goes into `SITE_OPEN_PATHS`.
+  site's ADMIN) and makes the view - its `<ng-template>` (0.1.1) - only while
+  it shows it, so no page runs behind it; `BootService` waits (`waiting`) and
+  the sign-in guard sends nobody to the IAM then. A new route that must
+  answer while an update waits goes into `SITE_OPEN_PATHS`.
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 - Before reporting done: `php tests/run.php` in `backend/` (and under the
   hosting's PHP 8.2 if you touched PHP), `npm test` and `npm run build` in
@@ -189,4 +190,7 @@ Finishing a change includes updating the knowledge base: the skill,
 `CLAUDE.md`, this agent file (if its summary went stale), `docs/`, README
 "Current state", DEV.md (if a command changed), `backend/README.md`,
 `frontend/README.md` and `frontend/public/changelog.json`
-(for a change a learner would notice). Report which of those you changed.
+(for a change a learner would notice; a new release is a new entry on top,
+its version three numbers - MAJOR.MINOR.PATCH: big changes / new features /
+bug fixes - and `frontend/package.json`'s version the same). Report which of
+those you changed.

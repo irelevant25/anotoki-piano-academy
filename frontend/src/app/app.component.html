@@ -76,29 +76,31 @@
 }
 
 <main id="view-root" class="view-root">
-    <!-- The family's gate (@anotoki/lib/migrations): the view - or, while the site is not ready, its status page in the view's place (an ADMIN still has the Migrations page). -->
+    <!-- The family's gate (@anotoki/lib/migrations): the view - or, while the site is not ready, its status page in the view's place (an ADMIN still has the Migrations page). The view is the gate's template: made only while the gate shows it, so no page runs behind the status page. -->
     <anotoki-site-gate>
-        @if (pageShown()) {
-            <!-- One outlet for both: the Migrations page an ADMIN applies from while an update waits stays as the app starts. -->
-            <router-outlet />
-        } @else {
-            @switch (boot.status()) {
-                @case ('sign-in') {
-                    <!-- Nobody signed in: the sign-in guard is on its way to the IAM - the card only after a sign-in that came back without one, or could not start. -->
-                    @if (signInFailed()) {
-                        <app-sign-in-card />
-                    } @else {
+        <ng-template>
+            @if (pageShown()) {
+                <!-- One outlet for both: the Migrations page an ADMIN applies from while an update waits stays as the app starts. -->
+                <router-outlet />
+            } @else {
+                @switch (boot.status()) {
+                    @case ('sign-in') {
+                        <!-- Nobody signed in: the sign-in guard is on its way to the IAM - the card only after a sign-in that came back without one, or could not start. -->
+                        @if (signInFailed()) {
+                            <app-sign-in-card />
+                        } @else {
+                            <p class="loading">{{ 'common.loading' | translate }}</p>
+                        }
+                    }
+                    @case ('load-error') {
+                        <app-load-error />
+                    }
+                    @default {
                         <p class="loading">{{ 'common.loading' | translate }}</p>
                     }
                 }
-                @case ('load-error') {
-                    <app-load-error />
-                }
-                @default {
-                    <p class="loading">{{ 'common.loading' | translate }}</p>
-                }
             }
-        }
+        </ng-template>
     </anotoki-site-gate>
 </main>
 

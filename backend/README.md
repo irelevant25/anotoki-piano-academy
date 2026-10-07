@@ -62,10 +62,11 @@ vendor/                Slim and its pieces, and anotoki/lib (the anotoki family'
 ```
 
 `anotoki/lib` is the PHP half of the family's library (the Angular half is the
-frontend's `@anotoki/lib`; one version for both, 0.1.0 now). To update it:
-`composer update anotoki/lib --prefer-dist` (its CHANGELOG.md first; the
-constraint in `composer.json` when the version needs it), commit what changed
-in `vendor/`, and update the frontend's half to the same version (DEV.md).
+frontend's `@anotoki/lib`; one version for both - 0.1.0 here, the frontend's
+0.1.1, which changed only the Angular half). To update it: `composer update
+anotoki/lib --prefer-dist` (its CHANGELOG.md first; the constraint in
+`composer.json` when the version needs it), commit what changed in
+`vendor/`, and update the frontend's half to the same version (DEV.md).
 
 ## Entry points
 

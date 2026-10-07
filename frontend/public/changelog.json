@@ -1,6 +1,6 @@
 [
   {
-    "version": "0.4",
+    "version": "0.4.0",
     "date": "2026-10-07",
     "changes": {
       "added": [],
@@ -11,7 +11,7 @@
     }
   },
   {
-    "version": "0.3",
+    "version": "0.3.0",
     "date": "2026-10-06",
     "changes": {
       "added": [
@@ -22,13 +22,12 @@
     }
   },
   {
-    "version": "0.2",
+    "version": "0.2.0",
     "date": "2026-10-04",
     "changes": {
       "added": [
         "Your progress file: at the end of Stats you can download your progress as a file, and bring it back from one - on another computer, for example. If you already have progress, the app asks before it replaces it",
         "Piano Academy in Slovak: choose the language with the button at the top of the page",
-        "For administrators: the menu's \"Admin panel\" opens the admin panel - Translations, Languages, People, and Migrations: the database's updates, waiting and applied, and a button to apply them, even while the app waits for one",
         "If Piano Academy lets you practise without signing in, your progress is kept for this browser for 30 days after your last visit - and when you sign in, it comes with you into your account"
       ],
       "updated": [
@@ -42,12 +41,11 @@
     }
   },
   {
-    "version": "0.1",
+    "version": "0.1.0",
     "date": "2026-09-29",
     "changes": {
       "added": [
         "Sign in with your anotoki account on the website, piano.anotoki.eu - your progress is saved to your account and waits for you on any computer",
-        "On your own computer the app still needs no sign-in, and a setup page asks for the database the first time",
         "A light and a dark look - press the theme button at the bottom of the page to choose, or let your computer decide",
         "The app works on phones and small screens too",
         "This list of what is new: press the version number at the bottom of the page"
