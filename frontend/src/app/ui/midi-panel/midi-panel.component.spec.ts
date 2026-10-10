@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideFamilyKit } from '../../core/family-kit';
 import { MidiService } from '../../core/midi/midi.service';
+import { provideTestKit } from '../../core/testing/test-kit';
 import { provideTestTranslations } from '../../core/testing/test-translations';
 import { MidiPanelComponent } from './midi-panel.component';
 
@@ -21,8 +23,11 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
   let host: HTMLElement;
   let midi: MidiService;
 
+  // The family's box asks jsdom for what it lacks (checkVisibility(), popovers).
+  beforeAll(() => provideTestKit());
+
   beforeEach(async () => {
-    TestBed.configureTestingModule({ providers: [provideTestTranslations(SLOVAK, { language: 'sk' })] });
+    TestBed.configureTestingModule({ providers: [provideTestTranslations(SLOVAK, { language: 'sk' }), provideFamilyKit()] });
     midi = TestBed.inject(MidiService);
     fixture = TestBed.createComponent(MidiPanelComponent);
     host = fixture.nativeElement;
@@ -33,12 +38,18 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
   afterEach(() => host.remove());
 
   const $ = <T extends HTMLElement = HTMLElement>(selector: string): T => host.querySelector<T>(selector)!;
-  const box = (): HTMLElement => $('#midi-box');
+  const box = (): HTMLElement | null => host.querySelector('#midi-box');
+  /** A click, the box drawn and placed after it (the family's popover opens on the next render). */
+  const settle = async (): Promise<void> => {
+    await new Promise((done) => setTimeout(done));
+    await fixture.whenStable();
+  };
 
   it('says the state at a glance - the dot, "no piano" or the device\'s own name - and whole in its name', async () => {
     expect($('#midi-button').classList.contains('is-connected')).toBe(false);
     expect($('#midi-label').textContent?.trim()).toBe('Bez klavíra');
     expect($('#midi-button').getAttribute('aria-label')).toBe('Bez klavíra: Klavír nie je pripojený');
+    expect($('#midi-button').getAttribute('title')).toBe('Klavír nie je pripojený');
 
     midi.connectedName.set('KAWAI ES120');
     await fixture.whenStable();
@@ -53,6 +64,8 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     midi.problem.set({ kind: 'refused', detail: 'Permission denied.' });
     await fixture.whenStable();
     expect($('#midi-button').getAttribute('aria-label')).toBe('Bez klavíra: Prehliadač nepovolil MIDI: Permission denied.');
+    $<HTMLButtonElement>('#midi-button').click();
+    await settle();
     expect($('#midi-status span[lang="en"]').textContent).toBe('Permission denied.');
   });
 
@@ -63,46 +76,48 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     expect($('#midi-button').getAttribute('aria-label')).toBe('Bez klavíra: Klavír nie je pripojený');
   });
 
-  it('opens its box onto the device list; Escape closes it onto the button', async () => {
+  it('opens its box - the family\'s, a named group - onto the device list; Escape closes it onto the button', async () => {
     const button = $<HTMLButtonElement>('#midi-button');
-    expect(box().hidden).toBe(true);
+    expect(box()).toBeNull();
     expect(button.getAttribute('aria-expanded')).toBe('false');
-    expect(button.getAttribute('aria-controls')).toBe('midi-box');
 
     button.click();
-    await fixture.whenStable();
-    expect(box().hidden).toBe(false);
+    await settle();
+    expect(box()).not.toBeNull();
     expect(button.getAttribute('aria-expanded')).toBe('true');
+    const panel = host.querySelector('anotoki-popover [role="group"]')!;
+    expect(button.getAttribute('aria-controls')).toBe(panel.id);
+    expect(panel.getAttribute('aria-label')).toBe('Tvoj klavír');
     expect($('#midi-box-title').textContent).toBe('Tvoj klavír');
     expect(document.activeElement).toBe($('#midi-device-select'));
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    $('#midi-device-select').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await fixture.whenStable();
-    expect(box().hidden).toBe(true);
+    expect(box()).toBeNull();
     expect(document.activeElement).toBe(button);
   });
 
   it('closes on the button again, on a click outside, and when the focus leaves it', async () => {
     const button = $<HTMLButtonElement>('#midi-button');
     button.click();
-    await fixture.whenStable();
+    await settle();
     button.click();
-    await fixture.whenStable();
-    expect(box().hidden).toBe(true);
+    await settle();
+    expect(box()).toBeNull();
 
     button.click();
-    await fixture.whenStable();
+    await settle();
     document.body.click();
-    await fixture.whenStable();
-    expect(box().hidden).toBe(true);
+    await settle();
+    expect(box()).toBeNull();
 
     button.click();
-    await fixture.whenStable();
+    await settle();
     const outside = document.createElement('button');
     document.body.appendChild(outside);
     $('#midi-refresh-btn').dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }));
-    await fixture.whenStable();
-    expect(box().hidden).toBe(true);
+    await settle();
+    expect(box()).toBeNull();
     outside.remove();
   });
 
@@ -110,7 +125,7 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     const connect = vi.spyOn(midi, 'connect').mockImplementation(() => undefined);
     const refresh = vi.spyOn(midi, 'refresh').mockResolvedValue(undefined);
     $<HTMLButtonElement>('#midi-button').click();
-    await fixture.whenStable();
+    await settle();
     $<HTMLButtonElement>('#midi-connect-btn').click();
     $<HTMLButtonElement>('#midi-refresh-btn').click();
     expect(connect).toHaveBeenCalledTimes(1);

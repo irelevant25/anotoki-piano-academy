@@ -1,43 +1,120 @@
 ////
-/// Piano Academy's stylesheet: every colour token, and the few element styles
-/// the whole app shares. Each component's own look is in its .scss.
+/// Piano Academy's stylesheet: its colours, its font, and the few element
+/// styles the whole app shares. Each component's own look is in its .scss.
 ///
-/// Colours exist only as custom properties, and both palettes define the same
-/// names - so no component can reach for a colour one theme lacks. Light is
-/// written onto :root, so a page without data-theme is a complete light page.
-/// Dark applies through data-theme="dark" (the top bar's theme button, or
-/// public/theme-boot.js before the app loads), and through the system
-/// setting for as long as nothing has said "light". The dark palette is the
-/// app's original look.
+/// The colours are the anotoki family's tokens (@anotoki/lib/styles: the
+/// --anotoki-* custom properties that the family's kit - the top bar, its
+/// menus, the dialogs, the status and Migrations pages - draws with), written
+/// by anotoki.root() with Piano Academy's own palette in them, light and dark:
+/// the family has one palette, and a site gives the colours it wants its own
+/// (the owner's decision). What Piano has no colour of its own for keeps the
+/// family's value; a few the family needs and Piano never had are made from
+/// Piano's own (the in-between surface, the 3:1 edge of a control - WCAG
+/// 1.4.11, the family's rule - in Piano's grey-blue). Light is written onto
+/// :root, so a page without data-theme is a whole light page; dark applies
+/// through data-theme="dark" (the family's ThemeService, or the kit's
+/// theme-boot.js before the app loads) and through the system setting for as
+/// long as nothing has said "light".
+///
+/// Piano's components still say the colours by their old names (--panel,
+/// --text-dim, --accent...): each is the family's token it became, so both
+/// themes follow it. Piano's own colours - the keyboard's and the staff's -
+/// stay Piano's alone, in both themes.
+///
+/// The font is the family's, Manrope (anotoki.fonts: its files come with the
+/// package, a subset at a time). The family's base styles (anotoki.base) are
+/// not taken: Piano's pages are written for the browser's own type - its
+/// headings' and paragraphs' margins, 16 px - and keep their look.
 ////
 
-@mixin palette-light {
-  color-scheme: light;
+@use "@anotoki/lib/styles" as anotoki;
 
-  --bg: #f4f5f8;
-  --panel: #ffffff;
-  --panel-alt: #eef0f5;
-  --border: #d6dae3;
-  --text: #1b1d24;
-  --text-dim: #5b6272;
+@include anotoki.root(
+  (
+    light: (
+      bg: #f4f5f8,
+      surface: #ffffff,
+      surface-2: #f7f8fa,
+      surface-3: #eef0f5,
+      surface-raised: #ffffff,
+      border: #d6dae3,
+      border-strong: #80889a,
+      text: #1b1d24,
+      muted: #5b6272,
+      primary: #1f6fd1,
+      primary-hover: #1858a8,
+      primary-contrast: #ffffff,
+      primary-soft: #e3eefc,
+      primary-soft-text: #1858a8,
+      // The person's initial in the bar: one colour, as Piano's was (the family's runs from primary to accent).
+      accent: #1f6fd1,
+      link: #1f6fd1,
+      danger: #c9403a,
+      danger-hover: #ab3631,
+      danger-contrast: #ffffff,
+      success: #1d8a55,
+      warning: #9a6512,
+      info: #1f6fd1,
+      info-soft: #e3eefc,
+      ring: rgb(31 111 209 / 32%),
+      focus: #1f6fd1,
+      backdrop: rgb(20 22 28 / 45%),
+      // Not Piano's: the family's own small shadow (and, in the dark, the mark's halo), as plain values. A site
+      // gives the family its colours only - but anotoki-lib 0.2.0 writes these one-item defaults as they are
+      // in Sass, "(0 1px 2px ...,)", which is no CSS, so a box-shadow or a filter reading them is none (the
+      // theme switch's chosen segment flat, the mark sunk into the dark bar). Fixed in the library's 0.3.0:
+      // these lines go with the move to it.
+      shadow-sm: 0 1px 2px rgb(15 27 51 / 6%),
+    ),
+    dark: (
+      bg: #14161c,
+      surface: #1d2029,
+      surface-2: #222530,
+      surface-3: #262a36,
+      surface-raised: #1d2029,
+      border: #343948,
+      border-strong: #6b7389,
+      text: #eef0f5,
+      muted: #9aa1b4,
+      primary: #5aa9ff,
+      primary-hover: #7fbaff,
+      primary-contrast: #0b1422,
+      primary-soft: #1f3048,
+      primary-soft-text: #9ccbff,
+      accent: #5aa9ff,
+      link: #5aa9ff,
+      danger: #e5615a,
+      danger-hover: #ea817b,
+      danger-contrast: #220b09,
+      danger-soft: rgb(229 97 90 / 12%),
+      danger-border: rgb(229 97 90 / 35%),
+      success: #4cc38a,
+      success-text: #4cc38a,
+      warning: #e5b95a,
+      warning-text: #e5b95a,
+      warning-soft: rgb(229 185 90 / 12%),
+      warning-border: rgb(229 185 90 / 35%),
+      info: #5aa9ff,
+      info-soft: rgb(90 169 255 / 12%),
+      info-border: rgb(90 169 255 / 32%),
+      ring: rgb(90 169 255 / 45%),
+      focus: #5aa9ff,
+      backdrop: rgb(4 6 10 / 70%),
+      skeleton: #262a36,
+      skeleton-shine: #2d3240,
+      // The family's own, as plain values until anotoki-lib 0.3.0 (above, in light).
+      shadow-sm: 0 1px 2px rgb(0 0 0 / 35%),
+      mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%)),
+    ),
+  )
+);
+@include anotoki.fonts;
 
-  --accent: #1f6fd1;
-  --accent-contrast: #ffffff;
-  --link: #1f6fd1;
-  --good: #1d8a55;
+/// Piano's own colours, beside the family's: the "Continue" card's glow, the
+/// text on a good (green) ground, the keyboard and the staff.
+@mixin piano-light {
   --good-contrast: #ffffff;
-  --bad: #c9403a;
-  --bad-contrast: #ffffff;
-  --warn: #9a6512;
   --continue-glow: rgb(31 111 209 / 10%);
-  --backdrop: rgb(20 22 28 / 45%);
-  // The top bar: the section the page is in, and the menus that float over the page.
-  --accent-soft: #e3eefc;
-  --accent-soft-text: #1858a8;
-  --shadow-lg: 0 12px 32px rgb(20 22 28 / 14%);
-  // The anotoki mark (a dark navy picture) in the bar (ui/brand): the family's
-  // soft shadow; in the dark a light halo, or it sinks into the bar.
-  --mark-shadow: drop-shadow(0 2px 6px rgb(0 0 0 / 18%));
 
   --key-white: #ffffff;
   --key-black: #1a1c22;
@@ -57,30 +134,9 @@
   --notation-incorrect: #c9403a;
 }
 
-@mixin palette-dark {
-  color-scheme: dark;
-
-  --bg: #14161c;
-  --panel: #1d2029;
-  --panel-alt: #262a36;
-  --border: #343948;
-  --text: #eef0f5;
-  --text-dim: #9aa1b4;
-
-  --accent: #5aa9ff;
-  --accent-contrast: #0b1422;
-  --link: #5aa9ff;
-  --good: #4cc38a;
+@mixin piano-dark {
   --good-contrast: #0b1a12;
-  --bad: #e5615a;
-  --bad-contrast: #220b09;
-  --warn: #e5b95a;
   --continue-glow: rgb(90 169 255 / 14%);
-  --backdrop: rgb(4 6 10 / 70%);
-  --accent-soft: #1f3048;
-  --accent-soft-text: #9ccbff;
-  --shadow-lg: 0 12px 32px rgb(0 0 0 / 50%);
-  --mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%));
 
   --key-white: #f4f4f4;
   --key-black: #1a1c22;
@@ -102,37 +158,37 @@
 }
 
 :root {
-  @include palette-light;
+  @include piano-light;
 
-  // The top bar's height (layouts/top-bar), which its menus' height is measured against.
-  --topbar-height: 60px;
+  // Piano's names for the family's tokens (above): what its own components say. (The bar's own - the soft
+  // primary, the shadows, the mark's filter, the bar's height - went with its pieces: the family's draw with
+  // the family's names.)
+  --bg: var(--anotoki-bg);
+  --panel: var(--anotoki-surface);
+  --panel-alt: var(--anotoki-surface-3);
+  --border: var(--anotoki-border);
+  // A field's edge (a select, a text box): 3:1 on every ground - WCAG 1.4.11, the family's rule; --border is decorative.
+  --border-strong: var(--anotoki-border-strong);
+  --text: var(--anotoki-text);
+  --text-dim: var(--anotoki-muted);
+  --accent: var(--anotoki-primary);
+  --accent-contrast: var(--anotoki-primary-contrast);
+  --link: var(--anotoki-link);
+  --good: var(--anotoki-success);
+  --bad: var(--anotoki-danger);
+  --warn: var(--anotoki-warning);
+  --backdrop: var(--anotoki-backdrop);
 
-  // The anotoki family's pages (@anotoki/lib/migrations: the page in the view's place while the
-  // site is being updated or not available, and the admin panel's Migrations page) in this app's
-  // colours. Each is a token of the palette in force here, so they follow light and dark with it.
-  --anotoki-bg: var(--bg);
-  --anotoki-surface: var(--panel);
-  --anotoki-text: var(--text);
-  --anotoki-muted: var(--text-dim);
-  --anotoki-border: var(--border);
-  --anotoki-primary: var(--accent);
-  --anotoki-primary-contrast: var(--accent-contrast);
-  --anotoki-danger: var(--bad);
-  --anotoki-danger-contrast: var(--bad-contrast);
-  --anotoki-success: var(--good);
-  --anotoki-warning: var(--warn);
-  --anotoki-radius: 8px;
-
-  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--anotoki-font-sans);
 }
 
 :root[data-theme="dark"] {
-  @include palette-dark;
+  @include piano-dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    @include palette-dark;
+    @include piano-dark;
   }
 }
 
@@ -165,8 +221,17 @@ a {
   color: var(--link);
 }
 
-select,
-button {
+/// Piano's own buttons and selects: on its pages, in the notes under the bar,
+/// in the piano's box, What's new and the footer. Never a control of the
+/// family's kit (anotokiButton, a menu's item) nor anything inside one of its
+/// components - the bar, a menu, a box, a dialog, the status and Migrations
+/// pages - but what Piano puts there itself (the piano, in the bar's widget
+/// slot): the kit sets everything it relies on, and what it leaves unset (a
+/// hover's edge, a disabled button's fade) must not come from here. Written
+/// with :where(), so it weighs nothing: any rule of a component's wins.
+$piano-own: ":where(:not(:is(.anotoki-button, .anotoki-menu-item, anotoki-top-bar *, anotoki-menu *, anotoki-popover *, anotoki-dialog *, anotoki-site-status *, anotoki-migrations-page *)), app-midi-panel *)";
+
+:where(select, button)#{$piano-own} {
   font: inherit;
   color: var(--text);
   background: var(--panel-alt);
@@ -176,18 +241,21 @@ button {
   cursor: pointer;
 }
 
-button:hover {
+// A select is a field: its edge is seen (3:1).
+:where(select)#{$piano-own} {
+  border-color: var(--border-strong);
+}
+
+:where(button)#{$piano-own}:hover {
   border-color: var(--accent);
 }
 
-button:disabled {
+:where(button)#{$piano-own}:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-button:focus-visible,
-select:focus-visible,
-a:focus-visible {
+:where(button, select, a):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

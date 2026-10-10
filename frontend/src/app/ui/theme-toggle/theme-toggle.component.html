@@ -1,7 +1,0 @@
-<button type="button" class="theme-toggle" id="theme-toggle" [attr.aria-label]="words().spoken | translate" [title]="words().label | translate" (click)="theme.cycle()">
-    <app-icon [name]="icon()" [size]="19" />
-</button>
-
-@if (theme.notSaved()) {
-    <p #note class="note" id="theme-not-saved" role="alert">{{ 'theme.notSaved' | translate }}</p>
-}

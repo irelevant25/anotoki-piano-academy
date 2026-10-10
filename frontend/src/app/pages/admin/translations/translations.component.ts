@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, signal, untracked } from '@angular/core';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { ApiService } from '../../../core/api/api.service';
 import { OwnerLanguage, TranslationChanges, TranslationGrid, TranslationKeyRow } from '../../../core/i18n/translation.model';
 import { FALLBACK_LANGUAGE, TranslationService } from '../../../core/i18n/translation.service';
 import { LocalizationDrafts } from '../../../core/admin/localization-drafts.service';
-import { ConfirmDialogComponent } from '../../../ui/confirm-dialog/confirm-dialog.component';
 import { errorCode, errorDetail, otherPerson, adminErrorText, signedOut } from '../admin-error';
 import { saveFile } from '../../../core/util/save-file';
 import { TranslationCellComponent } from '../translation-cell/translation-cell.component';
@@ -69,14 +69,14 @@ const COLUMNS_MAX = 2;
   templateUrl: './translations.component.html',
   styleUrl: './translations.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ConfirmDialogComponent, TranslationCellComponent],
+  imports: [TranslationCellComponent],
 })
 export class TranslationsComponent implements HoldsUnsavedChanges {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(TranslationService);
   private readonly injector = inject(Injector);
 
-  private readonly confirm = viewChild.required(ConfirmDialogComponent);
+  private readonly confirm = inject(ConfirmService);
 
   private readonly grid = signal<TranslationGrid | null>(null);
   /**
@@ -174,13 +174,13 @@ export class TranslationsComponent implements HoldsUnsavedChanges {
     if (!changed) {
       return true;
     }
-    return this.confirm()
+    return this.confirm
       .ask({
         title: 'Leave without saving?',
         message: `${changed === 1 ? '1 changed string is' : `${changed} changed strings are`} not saved yet, and leaving loses ${changed === 1 ? 'it' : 'them'}.`,
         confirmLabel: 'Leave',
         cancelLabel: 'Stay here',
-        danger: true,
+        tone: 'danger',
       })
       .then((leave) => {
         if (leave) {
@@ -259,11 +259,11 @@ export class TranslationsComponent implements HoldsUnsavedChanges {
   /** Every box back to what the app has. */
   protected async discard(): Promise<void> {
     const changed = this.changed();
-    const sure = await this.confirm().ask({
+    const sure = await this.confirm.ask({
       title: changed === 1 ? 'Discard the change?' : `Discard ${changed} changes?`,
       message: `${changed === 1 ? 'The box goes' : 'The boxes go'} back to what the app has now.`,
       confirmLabel: 'Discard',
-      danger: true,
+      tone: 'danger',
     });
     if (sure) {
       this.edits.set({});
@@ -429,7 +429,7 @@ export class TranslationsComponent implements HoldsUnsavedChanges {
       this.notice.set({ heading, message: 'It holds no string: every value in it is empty.' });
       return;
     }
-    const sure = await this.confirm().ask({
+    const sure = await this.confirm.ask({
       title: `Import ${count === 1 ? '1 string' : `${count} strings`} into ${language.name}?`,
       message: 'Each string in the file replaces the one the app has for its key. Keys the file leaves out, or leaves empty, stay as they are.',
       confirmLabel: 'Import',

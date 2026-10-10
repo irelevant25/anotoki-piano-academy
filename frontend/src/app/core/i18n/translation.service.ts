@@ -239,6 +239,8 @@ export class TranslationService {
   /** The token's `locale` as last seen: only a changed one is adopted. */
   private _seenLocale: string | null = null;
   private _watching = false;
+  /** The chooser's choices still on their way (choose()). */
+  private _choosing = 0;
   /** A language save to the account is on its way. */
   private _savingLanguage = false;
   /** The latest language chosen while it is: saved once it settles. */
@@ -386,6 +388,30 @@ export class TranslationService {
   }
 
   /**
+   * A choice in the top bar's language chooser (the anotoki family's,
+   * @anotoki/lib/shell - core/family-kit.ts hands it this): true once the page
+   * reads in the language. A choice of the language already on the page, with
+   * no other choice on its way, loads nothing - but the account may not have
+   * it yet (it came from a link, or the site lacks the account's), so it is
+   * saved to the account all the same (saveToAccount()). Any other choice is
+   * setLanguage()'s: switched to once its strings are here, remembered and
+   * saved - and a choice made while another is on its way overtakes it (back
+   * to the language on the page too).
+   */
+  async choose(code: string): Promise<boolean> {
+    if (code === this._language() && this.ready() && this._choosing === 0) {
+      this.saveToAccount(code);
+      return true;
+    }
+    this._choosing++;
+    try {
+      return await this.setLanguage(code);
+    } finally {
+      this._choosing--;
+    }
+  }
+
+  /**
    * The chooser's choice, for somebody signed in, is the account's language
    * too (the owner's decision of 2026-10-06): saved with the SDK's
    * savePreferences({ language }) - the IAM's mails, its pages and every
@@ -393,7 +419,7 @@ export class TranslationService {
    * keeps the account's preferences (AuthService.preferences: its migration
    * 015), and only when the account does not say this language already; a
    * visitor's choice stays this device's. setLanguage() calls it for a choice
-   * that switched the page; the chooser calls it itself for a choice of the
+   * that switched the page; choose() calls it itself for a choice of the
    * language already on the page, which the account may not have yet.
    *
    * One save at a time, and the last choice is the one saved: two saves on

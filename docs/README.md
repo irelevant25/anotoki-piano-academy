@@ -62,3 +62,11 @@ Then the library's Angular half 0.1.1 (the PHP half stays 0.1.0): the gate
 makes the shell's view, its template, only while it shows it - no page runs
 behind the status page. And the versions have three numbers,
 MAJOR.MINOR.PATCH: What's new's entries are 0.1.0 to 0.4.0 - `decisions.md`.
+Then (2026-10-08 to 11) the library's Angular half 0.2.0, the family's UI
+kit (the PHP half stays 0.1.0): the top bar, its menus, the language
+chooser, the theme switch (light / dark / as the device is set, in the
+round button's place), the questions, `ThemeService` and Manrope are the
+family's, in Piano's own palette; Piano's pages, keyboard, notation and
+What's new stay its own - `architecture.md`, "The frontend" ("The family's
+kit", "The top bar"); `decisions.md`. Migration 008 (words only: the round
+button's three spoken keys go) goes with 005, 006 and 007 at the hand-over.

@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { ApiService } from '../../../core/api/api.service';
 import { LanguageChanges, OwnerLanguage } from '../../../core/i18n/translation.model';
 import { FALLBACK_LANGUAGE, TranslationService } from '../../../core/i18n/translation.service';
 import { LanguageDraft, LocalizationDrafts } from '../../../core/admin/localization-drafts.service';
-import { ConfirmDialogComponent } from '../../../ui/confirm-dialog/confirm-dialog.component';
 import { adminErrorText } from '../admin-error';
 import { HoldsUnsavedChanges } from '../unsaved-changes.guard';
 
@@ -51,13 +51,12 @@ function sameDraft(a: LanguageDraft, b: LanguageDraft): boolean {
   templateUrl: './languages.component.html',
   styleUrl: './languages.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ConfirmDialogComponent],
 })
 export class LanguagesComponent implements HoldsUnsavedChanges {
   private readonly api = inject(ApiService);
   private readonly i18n = inject(TranslationService);
 
-  private readonly confirm = viewChild.required(ConfirmDialogComponent);
+  private readonly confirm = inject(ConfirmService);
 
   private readonly list = signal<OwnerLanguage[] | null>(null);
   /**
@@ -112,13 +111,13 @@ export class LanguagesComponent implements HoldsUnsavedChanges {
     if (!unsaved) {
       return true;
     }
-    return this.confirm()
+    return this.confirm
       .ask({
         title: 'Leave without saving?',
         message: `${unsaved === 1 ? '1 language has' : `${unsaved} languages have`} changes that are not saved yet, and leaving loses them.`,
         confirmLabel: 'Leave',
         cancelLabel: 'Stay here',
-        danger: true,
+        tone: 'danger',
       })
       .then((leave) => {
         if (leave) {
@@ -271,11 +270,11 @@ export class LanguagesComponent implements HoldsUnsavedChanges {
 
   /** Never for a language the app is released in - the server refuses those; any other goes with its strings. */
   protected async remove(language: OwnerLanguage): Promise<void> {
-    const sure = await this.confirm().ask({
+    const sure = await this.confirm.ask({
       title: `Delete ${language.name} (${language.code})?`,
       message: 'Every string of the app written in it goes with it, and none of it can be brought back.',
       confirmLabel: 'Delete',
-      danger: true,
+      tone: 'danger',
     });
     if (!sure) {
       return;

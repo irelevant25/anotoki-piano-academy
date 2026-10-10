@@ -1,24 +1,26 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, DestroyRef, Provider, WritableSignal, inject } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ROUTES, Router, provideRouter } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { AnotokiThemeMode, ThemeService } from '@anotoki/lib/shell';
 import { AppComponent } from './app.component';
 import { ApiService, VISITOR_OWNER } from './core/api/api.service';
 import { type AnotokiUser } from './core/auth/anotoki-auth';
 import { AuthService } from './core/auth/auth.service';
 import { VisitorKey } from './core/auth/visitor-key';
 import { ChangelogEntry, ChangelogService } from './core/changelog/changelog.service';
+import { provideFamilyKit } from './core/family-kit';
 import { KEPT_ENGLISH } from './core/i18n/kept-english';
 import { TranslationService } from './core/i18n/translation.service';
 import { VISITOR_WORDS } from './core/i18n/visitor-words';
 import { MidiService } from './core/midi/midi.service';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
-import { provideSiteMigrations } from './core/state/site-migrations';
+import { SITE_STATUS_URL, provideSiteMigrations } from './core/state/site-migrations';
+import { provideTestKit } from './core/testing/test-kit';
 import { provideTestTranslations } from './core/testing/test-translations';
-import { ThemeMode, ThemeService } from './core/theme/theme.service';
 
 /**
  * A key as it would stand on a page: a namespace, then segments that begin
@@ -72,7 +74,7 @@ class CountedPageComponent {
 /** The shell, made with the providers given: the real translation service with no bundle unless they say otherwise. */
 function shell(providers: Provider[] = []): Shell {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideSiteMigrations(), ...providers] });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideSiteMigrations(), provideFamilyKit(), ...providers] });
   // As the app's initializer leaves it: the site asked, and ready.
   const site = TestBed.inject(SiteStatus);
   site.markReady();
@@ -222,13 +224,15 @@ const STATES: Record<string, (s: Shell) => void> = {
     s.boot.status.set('ready');
     s.midi.connectedName.set('KAWAI ES120');
     s.changelog.entries.set(RELEASES);
-    s.theme.mode.set('light');
+    s.theme.set('light');
   },
   'running, signed in, a theme the anotoki account would not take': (s) => {
-    session(s.auth, PERSON);
+    // The account keeps light; a choice of dark is refused, and the account's light is back with the note.
+    session(s.auth, { ...PERSON, preferences: { theme: 'light', date_format: null, time_format: null } });
+    vi.spyOn(s.auth, 'savePreferences').mockRejectedValue(Object.assign(new Error('refused'), { code: 'access_denied' }));
     s.store.loaded.set(true);
     s.boot.status.set('ready');
-    s.theme.notSaved.set(true);
+    s.theme.set('dark');
   },
   'running, signed in with a token that names nobody, a save that did not get through, no MIDI device': (s) => {
     session(s.auth, { ...PERSON, preferred_username: null });
@@ -236,13 +240,13 @@ const STATES: Record<string, (s: Shell) => void> = {
     s.store.progressFailed.set(true);
     s.boot.status.set('ready');
     s.midi.asked.set(true);
-    s.theme.mode.set('dark');
+    s.theme.set('dark');
   },
   'running, signed out in the middle of practising': (s) => {
     session(s.auth, null);
     s.store.loaded.set(true);
     s.boot.status.set('ready');
-    s.theme.mode.set('auto');
+    s.theme.set('auto');
   },
   'running, signed out in the middle of practising, and a sign-in that could not start': (s) => {
     session(s.auth, null);
@@ -298,10 +302,22 @@ const STATES: Record<string, (s: Shell) => void> = {
   'the piano could not be connected, with the reason': (s) => s.midi.problem.set({ kind: 'failed', detail: 'MIDI input input-1 not found.' }),
 };
 
-/** How the top bar is looked at: on a phone's screen (the menu button), and with a menu opened. */
+/** Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>) draws what the shell's checks read. */
+const BAR = {
+  nav: 'anotoki-top-bar nav',
+  personButton: 'anotoki-top-bar .person-button',
+  personName: 'anotoki-top-bar .person-name',
+  phoneButton: 'anotoki-top-bar .menu-button',
+  menu: 'anotoki-top-bar [role="menu"]',
+  signIn: 'anotoki-top-bar .sign-in',
+  signOut: 'anotoki-top-bar .sign-out-item',
+  theme: 'anotoki-theme-toggle [role="radio"]',
+} as const;
+
+/** How the top bar is looked at: on a phone's screen (the menu button), with a menu opened, the piano's box, or the sign-out question. */
 interface Look {
   phone?: boolean;
-  open?: 'account' | 'phone';
+  open?: 'account' | 'phone' | 'piano' | 'sign-out';
 }
 
 /** The screen as wide as a phone, or not: what the top bar asks matchMedia (jsdom has none). */
@@ -309,19 +325,36 @@ function screen(phone: boolean): void {
   vi.stubGlobal('matchMedia', (media: string) => ({ matches: phone && media.includes('max-width'), media, addEventListener: () => undefined, removeEventListener: () => undefined }));
 }
 
+/** Lets a click, the promises it starts and the change detection after them run out. */
+async function settledAll(s: Shell): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await new Promise((done) => setTimeout(done));
+    await s.fixture.whenStable();
+  }
+}
+
 async function drawn(state: (s: Shell) => void, providers: Provider[] = [], look: Look = {}): Promise<Shell> {
   screen(look.phone ?? false);
   const s = shell(providers);
   state(s);
   await s.fixture.whenStable();
-  if (look.open) {
-    (s.host.querySelector(look.open === 'account' ? '#topbar-user-button' : '#topbar-menu-button') as HTMLButtonElement).click();
+  if (look.open === 'piano') {
+    (s.host.querySelector('#midi-button') as HTMLButtonElement).click();
     await s.fixture.whenStable();
+  } else if (look.open) {
+    (s.host.querySelector(look.open === 'phone' ? BAR.phoneButton : BAR.personButton) as HTMLButtonElement).click();
+    await s.fixture.whenStable();
+    if (look.open === 'sign-out') {
+      // Some progress would be lost: the question, in the learner's words.
+      vi.spyOn(s.boot, 'settleBeforeSignOut').mockResolvedValue(true);
+      (s.host.querySelector(BAR.signOut) as HTMLButtonElement).click();
+      await settledAll(s);
+    }
   }
   return s;
 }
 
-/** The states the bar's menus are looked at in, opened: the person's menu and the phone's, with each role. */
+/** The states the bar's menus are looked at in, opened: the person's menu and the phone's, with each role; the piano's box; the sign-out question. */
 const OPENED: [string, (s: Shell) => void, Look][] = [
   ['the person\'s menu of an ADMIN, a save waiting', (s) => {
     session(s.auth, { ...PERSON, roles: ['ADMIN'] });
@@ -347,9 +380,20 @@ const OPENED: [string, (s: Shell) => void, Look][] = [
     s.store.loaded.set(true);
     s.boot.status.set('ready');
   }, { phone: true, open: 'phone' }],
+  ['the piano\'s box, no MIDI device found', (s) => {
+    s.midi.asked.set(true);
+  }, { open: 'piano' }],
+  ['the sign-out question, some progress not saved', (s) => {
+    session(s.auth, PERSON);
+    s.store.loaded.set(true);
+    s.store.progressFailed.set(true);
+    s.boot.status.set('ready');
+  }, { open: 'sign-out' }],
 ];
 
 describe('the shell with no bundle', () => {
+  // The family's dialogs, menus and boxes ask jsdom for what it lacks (showModal(), checkVisibility(), popovers).
+  beforeAll(() => provideTestKit());
   beforeEach(() => localStorage.clear());
 
   afterEach(() => {
@@ -383,16 +427,21 @@ describe('the shell with no bundle', () => {
       links: ['/setup.php'],
     });
     // Before the app runs there is nothing to practise on: the bar has no sections yet.
-    expect(notSetUp.host.querySelector('#topbar-nav')).toBeNull();
+    expect(notSetUp.host.querySelector(BAR.nav)).toBeNull();
     expect(notSetUp.host.querySelector('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
     expect(notSetUp.host.querySelector('.brand .area')?.textContent).toBe('Piano Academy');
-    expect(notSetUp.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Piano not connected');
     expect(notSetUp.host.querySelector('#midi-label')?.textContent?.trim()).toBe('No piano');
     expect(notSetUp.host.querySelector('#midi-button')?.getAttribute('aria-label')).toBe('No piano: Piano not connected');
-    expect(notSetUp.host.querySelector('#midi-box-title')?.textContent).toBe('Your piano');
-    expect(notSetUp.host.querySelector('#theme-toggle')?.getAttribute('aria-label')).toBe('Theme: automatic (press to change)');
+    expect(notSetUp.host.querySelector('#midi-button')?.getAttribute('title')).toBe('Piano not connected');
+    // The family's theme switch: its three choices named in this app's words (the kit's own "Theme" names the group).
+    expect(Array.from(notSetUp.host.querySelectorAll(BAR.theme)).map((choice) => choice.getAttribute('aria-label'))).toEqual(['Theme: light', 'Theme: dark', 'Theme: automatic']);
+    expect(notSetUp.host.querySelector('anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Theme');
     // No language to choose from while there are no strings: the chooser is not there.
-    expect(notSetUp.host.querySelector('app-language-switcher button')).toBeNull();
+    expect(notSetUp.host.querySelector('anotoki-language-switcher button')).toBeNull();
+    // The piano's box, opened: the state said whole.
+    const box = await drawn(STATES['not set up, never installed: the setup page offered'], [], { open: 'piano' });
+    expect(box.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Piano not connected');
+    expect(box.host.querySelector('#midi-box-title')?.textContent).toBe('Your piano');
 
     const loading = await drawn(STATES['loading, before anything is known']);
     expect(loading.host.querySelector('.loading')?.textContent).toBe('Loading…');
@@ -414,24 +463,28 @@ describe('the shell with no bundle', () => {
     expect(signIn.host.querySelector('.sign-in-card [role="alert"]')?.textContent).toBe('Signing in did not work. Please try again. (state_mismatch)');
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there']);
-    expect(Array.from(running.host.querySelectorAll('#topbar-nav a')).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
-    expect(running.host.querySelector('#topbar-nav')?.getAttribute('aria-label')).toBe('Main');
-    expect(running.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Connected: KAWAI ES120');
+    expect(Array.from(running.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+    expect(running.host.querySelector(BAR.nav)?.getAttribute('aria-label')).toBe('Main');
     expect(running.host.querySelector('#midi-label')?.textContent?.trim()).toBe('KAWAI ES120');
-    expect(running.host.querySelector('#account-name')?.textContent).toBe('mia');
-    expect(running.host.querySelector('#topbar-user-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
+    expect(running.host.querySelector(BAR.personName)?.textContent).toBe('mia');
+    expect(running.host.querySelector(BAR.personButton)?.getAttribute('aria-label')).toBe('Your menu: mia');
     const menu = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { open: 'account' });
-    expect(menu.host.querySelector('#user-menu')?.getAttribute('aria-label')).toBe('Your menu');
-    expect(menu.host.querySelector('#account-link')?.textContent?.trim()).toBe('Your anotoki account');
-    expect(menu.host.querySelector('#sign-out-btn')?.textContent?.trim()).toBe('Sign out');
+    expect(menu.host.querySelector(BAR.menu)?.getAttribute('aria-label')).toBe('Your menu');
+    expect(menu.host.querySelector(`${BAR.menu} a[href="http://localhost:4300/account"]`)?.textContent?.trim()).toBe('Your anotoki account');
+    expect(menu.host.querySelector(BAR.signOut)?.textContent?.trim()).toBe('Sign out');
+    const connected = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { open: 'piano' });
+    expect(connected.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Connected: KAWAI ES120');
     expect(running.host.querySelector('#app-version')?.textContent).toBe('Piano Academy v0.4.0');
     expect(running.host.querySelector('#app-version')?.getAttribute('title')).toBe('What\'s new');
     expect(running.host.querySelector('#changelog-title')?.textContent).toBe('What\'s new');
     expect(running.host.querySelector('.release-date')?.textContent).toBe('28 September 2026');
-    // The sign-out question, drawn in its closed dialog: in the kept English too.
-    expect(running.host.querySelector('#sign-out-confirm-title')?.textContent).toBe('Sign out without your latest progress?');
-    expect(running.host.querySelector('#sign-out-confirm-text')?.textContent).toBe('Some of your progress could not be saved yet. If you sign out now, it is lost.');
     expect(running.host.querySelector('#progress-changed')).toBeNull();
+    // The sign-out question (the family's dialog), asked when some progress would be lost: in the kept English too.
+    const question = await drawn(OPENED.find(([name]) => name.startsWith('the sign-out question'))![1], [], { open: 'sign-out' });
+    expect(question.host.querySelector('anotoki-confirm-host .title')?.textContent).toBe('Sign out without your latest progress?');
+    expect(question.host.querySelector('anotoki-confirm-host .message')?.textContent).toBe('Some of your progress could not be saved yet. If you sign out now, it is lost.');
+    expect(question.host.querySelector('anotoki-confirm-host [data-answer="no"]')?.textContent?.trim()).toBe('Stay signed in');
+    expect(question.host.querySelector('anotoki-confirm-host [data-answer="yes"]')?.textContent?.trim()).toBe('Sign out anyway');
 
     const changed = await drawn(STATES['running, the progress replaced or deleted somewhere else and loaded again']);
     expect(changed.host.querySelector('#progress-changed span')?.textContent).toBe('Your progress was replaced or deleted somewhere else - by a file brought back in another tab, or by an administrator. This page now shows what is saved.');
@@ -440,8 +493,8 @@ describe('the shell with no bundle', () => {
     const signedOut = await drawn(STATES['running, signed out in the middle of practising']);
     expect(signedOut.host.querySelector('#signed-out-banner span')?.textContent).toBe('You are signed out, so your progress is not saved.');
     expect(signedOut.host.querySelector('#signed-out-sign-in')?.textContent).toBe('Sign in');
-    expect(signedOut.host.querySelector('#account-name')).toBeNull();
-    expect(signedOut.host.querySelector('#sign-in-btn')?.textContent?.trim()).toBe('Sign in');
+    expect(signedOut.host.querySelector(BAR.personName)).toBeNull();
+    expect(signedOut.host.querySelector(BAR.signIn)?.textContent?.trim()).toBe('Sign in');
     expect(signedOut.host.querySelector('#signed-out-why')).toBeNull();
 
     // The banner's (or the bar's) Sign in could not even start: the banner says why, as the sign-in card would - the page stays.
@@ -453,9 +506,9 @@ describe('the shell with no bundle', () => {
     // A phone: "Piano" beside the mark, the menu button - and in its menu the sections, then the person's items.
     const phone = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { phone: true, open: 'phone' });
     expect(phone.host.querySelector('.brand .area')?.textContent).toBe('Piano');
-    expect(phone.host.querySelector('#topbar-menu-button')?.getAttribute('aria-label')).toBe('Menu');
-    expect(phone.host.querySelector('#topbar-nav')).toBeNull();
-    expect(Array.from(phone.host.querySelectorAll('#topbar-menu [role="menuitem"]')).map((item) => item.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Sign out']);
+    expect(phone.host.querySelector(BAR.phoneButton)?.getAttribute('aria-label')).toBe('Menu');
+    expect(phone.host.querySelector(BAR.nav)).toBeNull();
+    expect(Array.from(phone.host.querySelectorAll(`${BAR.menu} [role="menuitem"]`)).map((item) => item.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Sign out']);
   });
 
   it('says a visitor’s notes in the English kept in code - the notice on Learn and Stats only, never the signed-out banner', async () => {
@@ -472,7 +525,7 @@ describe('the shell with no bundle', () => {
     expect(signIn).toHaveBeenCalledTimes(1);
     // Nobody's sign-in ended: no signed-out banner. The bar offers Sign in.
     expect(learn.host.querySelector('#signed-out-banner')).toBeNull();
-    expect(text(learn, '#sign-in-btn')).toBe('Sign in');
+    expect(text(learn, BAR.signIn)).toBe('Sign in');
     // Nothing else is said.
     for (const id of ['visitor-sign-in-now', 'visitor-sign-in-why', 'visitor-refused', 'visitor-lost', 'visitor-moved', 'visitor-not-moved', 'progress-changed']) {
       expect(learn.host.querySelector('#' + id)).toBeNull();
@@ -562,56 +615,60 @@ describe('the shell with no bundle', () => {
   it('words what stands in for a name, and a problem with the piano, itself - the services hold no sentence', async () => {
     const nameless = await drawn(STATES['running, signed in with a token that names nobody, a save that did not get through, no MIDI device']);
     expect(nameless.auth.displayName()).toBeNull();
-    expect(nameless.host.querySelector('#account-name')?.textContent).toBe('Signed in');
+    expect(nameless.host.querySelector(BAR.personName)?.textContent).toBe('Signed in');
     expect(nameless.host.querySelector('#save-status')?.textContent).toBe('Not saved yet');
     expect(nameless.host.querySelector('#save-status')?.getAttribute('title')).toBe('Some of your progress is not on the server yet. The app keeps trying.');
     // On a phone: a dot on the menu button, and the sentence as the menu's first line.
     const phone = await drawn(STATES['running, signed in with a token that names nobody, a save that did not get through, no MIDI device'], [], { phone: true, open: 'phone' });
     expect(phone.host.querySelector('#save-status')).toBeNull();
-    expect(phone.host.querySelector('#topbar-unsaved-dot')).not.toBeNull();
-    expect(phone.host.querySelector('#topbar-menu-button')?.getAttribute('aria-describedby')).toBe('topbar-unsaved');
-    expect(phone.host.querySelector('#topbar-unsaved')?.textContent).toBe('Not saved yet');
-    expect(phone.host.querySelector('#topbar-menu-unsaved strong')?.textContent).toBe('Not saved yet');
-    expect(phone.host.querySelector('#topbar-menu-unsaved span')?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
-    expect(nameless.host.querySelector('#midi-device-select option')?.textContent).toBe('No MIDI devices found');
+    const button = phone.host.querySelector(BAR.phoneButton)!;
+    expect(button.querySelector('.mark-dot')).not.toBeNull();
+    const described = button.getAttribute('aria-describedby');
+    expect(described).toBeTruthy();
+    expect(phone.host.querySelector(`#${described}`)?.textContent).toBe('Not saved yet');
+    expect(phone.host.querySelector(`${BAR.menu} .menu-note strong`)?.textContent).toBe('Not saved yet');
+    expect(phone.host.querySelector(`${BAR.menu} .menu-note span`)?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
+    const box = await drawn(STATES['running, signed in with a token that names nobody, a save that did not get through, no MIDI device'], [], { open: 'piano' });
+    expect(box.host.querySelector('#midi-device-select option')?.textContent).toBe('No MIDI devices found');
 
-    const unsupported = await drawn(STATES['running, an editor, in a browser with no Web MIDI']);
+    const unsupported = await drawn(STATES['running, an editor, in a browser with no Web MIDI'], [], { open: 'piano' });
     expect(unsupported.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Web MIDI not supported — use Chrome or Edge');
 
-    const refused = await drawn(STATES['the browser refused MIDI, in its own words']);
+    const refused = await drawn(STATES['the browser refused MIDI, in its own words'], [], { open: 'piano' });
     const status = refused.host.querySelector('#midi-status')!;
     expect(status.textContent?.trim()).toBe('The browser did not allow MIDI: Permission to use Web MIDI API was not granted.');
     // The browser's own words are English whatever the page is in, and say so.
     expect(status.querySelector('span[lang="en"]')?.textContent).toBe('Permission to use Web MIDI API was not granted.');
 
-    const failed = await drawn(STATES['the piano could not be connected']);
+    const failed = await drawn(STATES['the piano could not be connected'], [], { open: 'piano' });
     expect(failed.host.querySelector('#midi-status')?.textContent?.trim()).toBe('The piano could not be connected');
     expect(failed.host.querySelector('#midi-status span')).toBeNull();
   });
 
   it('shows the staff the way to the admin panel in the person\'s menu - an EDITOR and an ADMIN, with their role, and nobody else', async () => {
     const open = { open: 'account' } as const;
+    const adminLink = (s: Shell): Element | null => s.host.querySelector(`${BAR.menu} a[href="/admin"]`);
+    const role = (s: Shell): Element | null => s.host.querySelector(`${BAR.menu} .menu-role`);
     const editor = await drawn(STATES['running, an editor, in a browser with no Web MIDI'], [], open);
-    expect(editor.host.querySelector('#admin-link')?.textContent?.trim()).toBe('Admin panel');
-    expect(editor.host.querySelector('#admin-link')?.getAttribute('href')).toBe('/admin');
-    expect(editor.host.querySelector('#topbar-role')?.textContent).toBe('Editor');
+    expect(adminLink(editor)?.textContent?.trim()).toBe('Admin panel');
+    expect(role(editor)?.textContent).toBe('Editor');
 
     const learner = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], open);
-    expect(learner.host.querySelector('#admin-link')).toBeNull();
-    expect(learner.host.querySelector('#topbar-role')).toBeNull();
+    expect(adminLink(learner)).toBeNull();
+    expect(role(learner)).toBeNull();
 
     const admin = await drawn((s) => {
       STATES['running, signed in, a piano connected, the list of changes there'](s);
       s.auth.user.set({ ...PERSON, roles: ['ADMIN'] });
     }, [], open);
-    expect(admin.host.querySelector('#admin-link')?.textContent?.trim()).toBe('Admin panel');
-    expect(admin.host.querySelector('#topbar-role')?.textContent).toBe('Administrator');
+    expect(adminLink(admin)?.textContent?.trim()).toBe('Admin panel');
+    expect(role(admin)?.textContent).toBe('Administrator');
 
     const member = await drawn((s) => {
       STATES['running, signed in, a piano connected, the list of changes there'](s);
       s.auth.user.set({ ...PERSON, roles: ['MEMBER'] });
     }, [], open);
-    expect(member.host.querySelector('#admin-link')).toBeNull();
+    expect(adminLink(member)).toBeNull();
   });
 
   /** The stub page under every address - and the Migrations page's - for the gate's cases. */
@@ -672,7 +729,7 @@ describe('the shell with no bundle', () => {
       expect(visitor.host.querySelector('#' + id), id).toBeNull();
     }
     // The bar offers no section to go to meanwhile.
-    expect(visitor.host.querySelector('#topbar-nav')).toBeNull();
+    expect(visitor.host.querySelector(BAR.nav)).toBeNull();
   });
 
   it('while an update waits the site\'s ADMIN reads that a database update is waiting, in English, and reaches the Migrations page - nothing else of the app', async () => {
@@ -777,8 +834,18 @@ describe('the shell with no bundle', () => {
     await go(waiting, '/trainer');
     expect(statusPage(waiting)?.title).toBe('The site is being updated');
     expect(count()).toEqual([0, 0]);
-    // The site is back - the status page's own check, which loads the site afresh next: the gate opens, but the start
-    // still waits, so the moment until then is a card of the start, not a page on progress that was never loaded.
+    // The site is back - the status page's own check, which loads the page afresh next (anotoki-lib 0.2.0's
+    // checkForReload): the site is NOT reported ready, so the gate stays shut and no page is made in the moment
+    // before the reload. (0.1.x reported it ready first: then only the shell's own pageShown() held the page back.)
+    const asked = waiting.site.checkForReload();
+    TestBed.inject(HttpTestingController).expectOne(SITE_STATUS_URL).flush({ state: 'ready', installed: true });
+    expect(await asked).toBe('ready');
+    await settled(waiting);
+    expect(statusPage(waiting)?.title).toBe('The site is being updated');
+    expect(count()).toEqual([0, 0]);
+    // An ADMIN's Apply made the site ready (the Migrations page marks it so) while this start still waits: it goes on
+    // in place (resumeAfterUpdate), and the moment until it is done is a card of the start, not a page on progress
+    // that was never loaded.
     waiting.site.markReady();
     await settled(waiting);
     expect(statusPage(waiting)).toBeNull();
@@ -810,20 +877,21 @@ describe('the shell with no bundle', () => {
     expect(unavailable.host.querySelector('a[href="/setup.php"]')).toBeNull();
   });
 
-  it('the theme button says each mode, and that pressing changes it', async () => {
-    const modes: ThemeMode[] = ['auto', 'light', 'dark'];
-    const seen: string[][] = [];
+  it('the theme switch: its three choices named in the app\'s words, the one in force checked and kept for the next first paint', async () => {
+    const modes: AnotokiThemeMode[] = ['light', 'dark', 'auto'];
     for (const mode of modes) {
-      const s = await drawn((made) => made.theme.mode.set(mode));
-      const button = s.host.querySelector('#theme-toggle')!;
-      seen.push([button.textContent?.replace(/\s+/g, ' ').trim() ?? '', button.getAttribute('title') ?? '', button.getAttribute('aria-label') ?? '', button.querySelector('app-icon')?.innerHTML.length ? 'icon' : '']);
+      const s = await drawn((made) => made.theme.set(mode));
+      const choices = Array.from(s.host.querySelectorAll(BAR.theme));
+      // Icons alone in the top bar: each named, with a tooltip - "as the device is set" in the kit's own words.
+      expect(choices.map((choice) => [choice.getAttribute('aria-label'), choice.getAttribute('title'), choice.textContent?.trim(), choice.querySelector('anotoki-icon') ? 'icon' : ''])).toEqual([
+        ['Theme: light', 'Theme: light', '', 'icon'],
+        ['Theme: dark', 'Theme: dark', '', 'icon'],
+        ['Theme: automatic', 'As your device is set', '', 'icon'],
+      ]);
+      expect(choices.map((choice) => choice.getAttribute('aria-checked'))).toEqual(modes.map((one) => String(one === mode)));
+      // The theme on the screen, kept for the next page load's first paint (the kit's theme-boot.js) - none for "as the device is set".
+      expect(localStorage.getItem('piano-academy:theme')).toBe(mode === 'auto' ? null : mode);
     }
-    // Round and icon-only in the top bar: the mode is its title, and its name says pressing changes it.
-    expect(seen).toEqual([
-      ['', 'Theme: automatic', 'Theme: automatic (press to change)', 'icon'],
-      ['', 'Theme: light', 'Theme: light (press to change)', 'icon'],
-      ['', 'Theme: dark', 'Theme: dark (press to change)', 'icon'],
-    ]);
   });
 
   it('draws every string the table keeps: nothing in kept-english.ts is a leftover', async () => {
@@ -836,8 +904,8 @@ describe('the shell with no bundle', () => {
       for (const text of said((await drawn(state, [], look)).host)) texts.add(text);
     }
     // The theme's three modes and the empty list of changes are states of their own.
-    for (const mode of ['auto', 'light', 'dark'] as ThemeMode[]) {
-      for (const text of said((await drawn((s) => s.theme.mode.set(mode))).host)) texts.add(text);
+    for (const mode of ['auto', 'light', 'dark'] as AnotokiThemeMode[]) {
+      for (const text of said((await drawn((s) => s.theme.set(mode))).host)) texts.add(text);
     }
     const all = [...texts];
 
@@ -868,14 +936,15 @@ describe('the shell with a bundle in memory', () => {
     expect(keys).toContain('boot.loadError.title');
     expect(keys).toContain('brand.area');
     expect(keys).toContain('midi.notConnected');
-    expect(keys).toContain('theme.autoSpoken');
+    // The family's theme switch names its choices with this app's keys, as any word of its own.
+    expect(keys).toContain('theme.auto');
     expect(warn).toHaveBeenCalled();
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [provideTestTranslations({ 'nav.learn': 'Learn' })]);
     const shown = keysIn(said(running.host));
     expect(shown).toContain('nav.trainer');
     expect(shown).not.toContain('nav.learn');
-    expect(running.host.querySelector('#topbar-nav a')?.textContent?.trim()).toBe('Learn');
+    expect(running.host.querySelector(`${BAR.nav} a`)?.textContent?.trim()).toBe('Learn');
   });
 
   it('marks what is not the app’s own as such where the page is not: the family\'s status page, the release notes', async () => {

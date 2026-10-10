@@ -70,8 +70,9 @@ export const routes: Routes = [
         path: 'migrations',
         title: 'Migrations',
         canActivate: [adminGuard],
-        // The anotoki family's page (@anotoki/lib/migrations): Pending, Applied with each file's SQL, "Apply pending".
-        loadComponent: () => import('@anotoki/lib/migrations').then((m) => m.MigrationsPageComponent),
+        // The anotoki family's page, in an entry point of its own (@anotoki/lib/migrations/page - never in the
+        // first load): Pending, Applied with each file's SQL, "Apply pending".
+        loadComponent: () => import('@anotoki/lib/migrations/page').then((m) => m.MigrationsPageComponent),
       },
       // The Migrations page's address before it was the family's (the Database page).
       { path: 'database', pathMatch: 'full', redirectTo: 'migrations' },

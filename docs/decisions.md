@@ -2,6 +2,85 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-08 - the anotoki family's kit (`@anotoki/lib` 0.2.0)
+
+The owner asked for one UI kit for every anotoki site (2026-10-07): the
+library's Angular half 0.2.0 holds the family's styles, components and frame,
+built from the IAM's. Its PHP half did not change and stays at 0.1.0. The
+owner's decisions for Piano Academy:
+
+- **One palette in the library, which a site overrides - the colours only.**
+  Piano keeps its own colours, light and dark: `styles.scss` writes the
+  family's tokens through `anotoki.root(...)` with Piano's palette, and
+  Piano's pages say them by their old names (`--panel`, `--accent`...),
+  each the family's token it became. What Piano had no colour for keeps the
+  family's value; the 3:1 edge of a control (`border-strong`, WCAG 1.4.11)
+  is made in Piano's grey-blue, and Piano's own fields and the piano's
+  button in the bar take it too. Everything else is the family's
+  (2026-10-11): its corners (16 px on menus, boxes and cards, 20 on a
+  question), its shadows, its font. Two of the family's own values - the
+  small shadow and the dark mark's halo - are written in `styles.scss` as
+  plain values until the library's 0.3.0: 0.2.0 writes those one-item Sass
+  lists as `(…,)`, which is no CSS (the theme switch's chosen segment flat,
+  the mark sunk into the dark bar).
+- **Manrope on every site** (`anotoki.fonts`). The family's base styles
+  (`anotoki.base`) are not taken: Piano's pages are written for the
+  browser's own type and keep their look.
+- **The family's segmented theme switch** (light / dark / as the device is
+  set) in place of Piano's round button that went round the three. The row
+  is wider, so the bar folds a little earlier: `PHONE_BAR_MAX` 1320 (from
+  1240), measured again with the real labels (the widest row 1314 px, in
+  Slovak, in Manrope; 1293 in English). Migration 008 deletes the
+  round button's three spoken keys (`theme.*Spoken`) - the key scan fails on
+  a key nothing asks for - and tells the other theme keys' descriptions of
+  the switch; the owner's strings stay.
+- **One admin wordmark**: "anotoki Piano Academy · admin panel"; where the
+  bar takes a short form (a phone) Piano's own, "Piano", with "admin panel"
+  under it.
+- **Every word the site shows today still shows.** The kit's built-in
+  Slovak is informal, as Piano's; but where Piano has a string of its own
+  for a kit word, the kit says Piano's - the database's, with the owner's
+  rewordings: `provideAnotokiUi`'s `lookup` asks `TranslationService` for
+  the keys in `core/i18n/kit-words.ts` (written by their two parts, so the
+  key scan never reads a kit key as one of Piano's). The switch's three
+  choices are named with Piano's `theme.light` / `dark` / `auto` ("Theme:
+  light", what the round button said); what Piano never had - the switch's
+  name, "As your device is set", "Saving…" - is the kit's own.
+
+What is the family's now: the top bar (`layouts/top-bar` wraps
+`<anotoki-top-bar>`: Piano's brand, sections, person and menu items, "Not
+saved yet" and the piano as its widgets, the phone's dot and the menus'
+note), the brand, the icons, the spinner, the language chooser, the menus,
+the popover the piano's box sits in, the questions (`ConfirmService`: the
+sign-out question, replacing a progress file, the admin pages'),
+`ThemeService` and `theme-boot.js`. The family's pieces bring the family's
+look and keep it (the owner's decision, 2026-10-11): the question has a
+title row with ×, a footer, 44 px buttons, a filled red yes and a blurred
+backdrop; the bar's Sign in is the family's button, not a pill; the menus'
+"Not saved yet" is a soft amber box. What stays Piano's: the pages, the
+keyboard, the notation, the piano's widget, What's new (until a family
+changelog), the notes under the bar, and - for now - its own controls: bare
+buttons and selects, `.btn-primary`, `.card`, `.chip`, the admin fields.
+They move onto the kit's components in a later phase of this round (the
+kit's buttons are 44 px high: every page changes with them). Meanwhile their
+element rules stay global but never reach the family's components
+(`$piano-own` in `styles.scss`), which set every property they rely on. The
+first load is 0.9 kB over its 500 kB warning with the kit; that is left for
+the library's 0.3.0, whose tree-shaking keeps what only lazy pages use out
+of it.
+
+Two behaviours changed with it. The way into the admin panel is in the
+person's menu only while the site is ready: while an update waits, the
+family's status page links an ADMIN to Migrations, and the rest of the panel
+could not load then (the server answers its routes 503 but the Migrations
+page's). And the gate's template is marked
+(`<ng-template anotokiSitePages>`), the Migrations page comes from
+`@anotoki/lib/migrations/page` (out of the first load), and the status page
+reloads without reopening the gate first (`SiteStatus.checkForReload()`) -
+so the moment before that reload makes no page, which `pageShown()` used to
+cover too; it keeps its other two jobs (the page or the start's card, one
+outlet for an ADMIN's Migrations page across the Apply) and is unchanged.
+
 ## 2026-10-07 - versions have three numbers
 
 The owner's rule for every anotoki site: a version is MAJOR.MINOR.PATCH -
@@ -136,7 +215,10 @@ site has one theme. The theme on the screen is still kept in
 `piano-academy:theme`, which `public/theme-boot.js` reads before the first
 paint. Signed out it is the device's, as before; and the device's earlier
 choice is not carried into the account at sign-in - which of a person's
-devices should win is not knowable (the IAM's reasoning).
+devices should win is not knowable (the IAM's reasoning). (Since 2026-10-08
+the service, the button and the boot script are the family's - its
+`ThemeService`, its switch and its `theme-boot.js` - with the same rules and
+the same key: "the anotoki family's kit", above.)
 
 **Dates and times** (`core/i18n/local-date.pipe.ts`, with the family's four
 orders and two clocks in `date-patterns.ts`): for somebody signed in whose
@@ -743,7 +825,9 @@ the browser check's `--measure`; so `PHONE_BAR_MAX` is 1240, not the
 survey's 760, and above it only the person's name gives way (it shows from
 1441 px). On a phone the brand is "Piano" (`brand.short`: "anotoki Piano
 Academy" does not fit at 360 px beside the piano, the language, the theme and
-the menu button).
+the menu button). (Since 2026-10-08 the bar is the family's own component
+with its segmented theme switch, and the fold is 1320: "the anotoki
+family's kit", above.)
 
 **The piano is an app widget in the bar.** A dot (green: connected) and the
 device's name - "No piano" without one, the dot alone on a phone; the button

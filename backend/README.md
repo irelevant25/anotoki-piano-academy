@@ -63,7 +63,7 @@ vendor/                Slim and its pieces, and anotoki/lib (the anotoki family'
 
 `anotoki/lib` is the PHP half of the family's library (the Angular half is the
 frontend's `@anotoki/lib`; one version for both - 0.1.0 here, the frontend's
-0.1.1, which changed only the Angular half). To update it: `composer update
+0.2.0: 0.1.1 and 0.2.0 changed only the Angular half). To update it: `composer update
 anotoki/lib --prefer-dist` (its CHANGELOG.md first; the constraint in
 `composer.json` when the version needs it), commit what changed in
 `vendor/`, and update the frontend's half to the same version (DEV.md).
@@ -111,7 +111,7 @@ some; `POST /api/oidc/preferences`, as the browser SDK 1.2.0 saves them). No tes
 | --- | --- |
 | `unit/auth` | this computer (setup.php's no-token mode), the browser's sign-in settings and the switch, only Bearer a sign-in, roles (MEMBER a learner), the key cache, no test asking an IAM off this computer |
 | `unit/config` | not set up without the files; an old file with a mode and an owner's id still works; a file PHP cannot run is no setting (named with its line, never with what PHP said); the tests' folder only for `piano_test_` |
-| `unit/migrations` | the engine as the app sets it up (every file once, in order, nothing written to find out, the one lock - busy; the folder as the engine lists it); `php migration.php` building a database from nothing (`--status`, `--dry-run` only read); the first runner's `migrations(name)` read and renamed; a failing file rolled back whole and named; 004's schema part (the progress generation, and nothing else of 001), its gate; its header says it is finished and frozen once applied; 005's visitors (no row changes, what the new check lets in), 004 and 005 run again over visitors, 005's gate; 006's header (words only, the next change is 007); 007 (the card's four words gone, nothing else, its gate) |
+| `unit/migrations` | the engine as the app sets it up (every file once, in order, nothing written to find out, the one lock - busy; the folder as the engine lists it); `php migration.php` building a database from nothing (`--status`, `--dry-run` only read); the first runner's `migrations(name)` read and renamed; a failing file rolled back whole and named; 004's schema part (the progress generation, and nothing else of 001), its gate; its header says it is finished and frozen once applied; 005's visitors (no row changes, what the new check lets in), 004 and 005 run again over visitors, 005's gate; 006's header (words only, the next change is 007); 007 (the card's four words gone, nothing else, its gate); 008 (the round theme button's three spoken words gone, the theme's other descriptions told of the switch and their strings kept, nothing else, again and again, its gate) |
 | `unit/visitors` | the counted address (trusted proxies, IPv6 /64), visitors.local.php and the limits, the key, the 30 days equal in the frontend, the work after the answer |
 | `unit/transfer` | an export into an account, replacing (never a mix), a new generation each time, `not_an_export` / `invalid_export`, a move, `tools/progress.php` (`--replace`) |
 | `unit/translations` | the seeded strings, the migrations' layout, the key scan |

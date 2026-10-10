@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ConfirmOptions, ConfirmService } from '@anotoki/lib/ui/dialog';
 import { ApiError, ApiService, EXPORT_LIMIT, ImportPreview, ImportResult, ProgressCounts } from '../../../core/api/api.service';
 import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { TranslatePluralPipe } from '../../../core/i18n/translate-plural.pipe';
 import { TranslationParams, TranslationService } from '../../../core/i18n/translation.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
 import { saveFile } from '../../../core/util/save-file';
-import { ConfirmDialogComponent } from '../../../ui/confirm-dialog/confirm-dialog.component';
 
 /** The size limit in the learner's words: whole megabytes (EXPORT_LIMIT is 5 MiB). */
 const LIMIT_MB = Math.round(EXPORT_LIMIT / (1024 * 1024));
@@ -71,13 +71,13 @@ interface Looked {
   templateUrl: './own-progress.component.html',
   styleUrl: './own-progress.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslatePipe, TranslatePluralPipe, ConfirmDialogComponent],
+  imports: [TranslatePipe, TranslatePluralPipe],
 })
 export class OwnProgressComponent {
   private readonly api = inject(ApiService);
   private readonly store = inject(ProgressStore);
   private readonly i18n = inject(TranslationService);
-  private readonly confirm = viewChild.required(ConfirmDialogComponent);
+  private readonly confirm = inject(ConfirmService);
 
   /** What is under way: a download, reading and looking at a file, bringing one in. */
   protected readonly busy = signal<'download' | 'look' | 'import' | null>(null);
@@ -164,7 +164,7 @@ export class OwnProgressComponent {
     const looked = this.looked();
     if (!looked || this.busy()) return;
     const replace = looked.preview.hasProgress;
-    if (replace && !(await this.confirm().ask(this.replaceQuestion()))) return;
+    if (replace && !(await this.confirm.ask(this.replaceQuestion()))) return;
     if (this.store.hasUnsaved()) {
       this.problem.set({ key: 'ownProgress.error.unsaved' });
       return;
@@ -195,13 +195,14 @@ export class OwnProgressComponent {
     }
   }
 
-  private replaceQuestion() {
+  /** Asked before the progress there is replaced - the family's question (ConfirmService), in the learner's words, the safe answer first. */
+  private replaceQuestion(): ConfirmOptions {
     return {
       title: this.i18n.t('ownProgress.confirm.title'),
       message: this.i18n.t('ownProgress.confirm.text'),
       confirmLabel: this.i18n.t('ownProgress.confirm.yes'),
       cancelLabel: this.i18n.t('ownProgress.confirm.no'),
-      danger: true,
+      tone: 'danger',
     };
   }
 }

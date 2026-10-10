@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
-import { SiteGateComponent, SiteStatus } from '@anotoki/lib/migrations';
+import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
+import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
 import { LoadErrorComponent } from './boot/load-error/load-error.component';
 import { SignInCardComponent } from './boot/sign-in-card/sign-in-card.component';
@@ -37,10 +38,14 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * database update is waiting, and opens the Migrations page - the one page
  * that works then; the setup page only while the site was never installed.
  * The notes under the bar wait meanwhile: nothing but that page is said.
- * The view is the gate's template (anotoki-lib 0.1.1), made only while the
- * gate shows it: no page runs behind the status page - not at the start, and
- * not when an update comes in the middle of practising (the page goes then;
- * the status page loads the site afresh once it is back).
+ * The view is the gate's marked template (<ng-template anotokiSitePages>,
+ * anotoki-lib 0.2.0), made only while the gate shows it: no page runs behind
+ * the status page - not at the start, and not when an update comes in the
+ * middle of practising (the page goes then; the status page loads the site
+ * afresh once it is back, without opening the gate first).
+ *
+ * The family's "Are you sure?" (<anotoki-confirm-host>, ConfirmService) is
+ * drawn here once, for every question the app asks.
  *
  * For a VISITOR - practising without signing in, while the IAM does not
  * require it (BootService.visiting) - the notes of core/i18n/visitor-words.ts:
@@ -75,6 +80,8 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
     SignInCardComponent,
     LoadErrorComponent,
     SiteGateComponent,
+    SitePagesDirective,
+    ConfirmHostComponent,
   ],
 })
 export class AppComponent {
@@ -104,10 +111,11 @@ export class AppComponent {
    * or an ADMIN is on the Migrations page, which works while the rest of the
    * app waits for an update. One outlet for both, so that page stays (with
    * what its Apply said) as the app starts after it. Otherwise the card that
-   * says where the start is (loading, the sign-in card, could not load) - also
-   * in the moment a waiting start's status page finds the site back and loads
-   * it again, so no page is made for that moment. (Whether anything of the
-   * view is made at all is the gate's.)
+   * says where the start is (loading, the sign-in card, could not load).
+   * (Whether anything of the view is made at all is the gate's - also in the
+   * moment the status page finds the site back: since anotoki-lib 0.2.0 it
+   * reloads without opening the gate first, so no page of a start that waited
+   * is made for that moment.)
    */
   protected readonly pageShown = computed(
     () => this.boot.status() === 'ready' || (this.auth.isAdmin() && (this.path() === MIGRATIONS_ROUTE || this.path().startsWith(MIGRATIONS_ROUTE + '/'))),

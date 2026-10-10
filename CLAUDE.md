@@ -91,6 +91,32 @@ MAJOR.MINOR.PATCH (the owner's rule: big changes / new features / bug
 fixes): What's new's entries were renamed 0.1.0 ... 0.4.0 (nothing else
 changed), `frontend/package.json` says 0.4.0, and a spec holds the two equal.
 
+**2026-10-08 to 11: the anotoki family's kit - `@anotoki/lib` 0.2.0** (its
+PHP half stays 0.1.0: 0.2.0 changed nothing there; the owner's decisions,
+`docs/decisions.md`). The top bar is the family's `<anotoki-top-bar>`
+(`layouts/top-bar` wraps it with Piano's brand, sections, person and menu
+items, "Not saved yet" and the piano as its widgets, the phone's dot and
+the menus' note), with the family's segmented theme switch (light / dark /
+as the device is set) in the round button's place - its row is wider, so
+`PHONE_BAR_MAX` is 1320. The brand, icons, spinner, language chooser,
+menus, the piano's popover, the questions (`ConfirmService`), `ThemeService`
+and `theme-boot.js` are the family's too (`core/family-kit.ts`); the kit's
+words are this app's strings where it has them (`core/i18n/kit-words.ts`).
+A site overrides the family's colours only (the owner's rule): Piano keeps
+its palette (`anotoki.root()` in `styles.scss`) and takes the family's
+corners, shadows, font (Manrope) and the look of the family's pieces;
+`styles.scss` writes two of the family's own values - the small shadow, the
+dark mark's halo - as plain values until the library's 0.3.0 (0.2.0 writes
+those one-item lists as no CSS). Its pages, keyboard, notation, What's new
+and its own buttons stay its own for now (they move onto the kit's
+components in a later phase), their element rules kept off the family's
+components. The gate's
+template is marked (`anotokiSitePages`), the Migrations page is 0.2.0's
+(`@anotoki/lib/migrations/page`). Migration **008** (words only: the round
+button's three spoken keys deleted, four descriptions reworded) is written
+whole and final and goes with 005, 006 and 007 at the hand-over. In What's
+new's 0.4.0 (unreleased): the font, the look and the three-way switch.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -175,15 +201,16 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   account's** for somebody signed in (`AuthService.preferences`: the
   vendored browser SDK 1.2.0's `user().preferences`; null for nobody, a
   visitor, or an IAM before its 015 - then the app keeps its own settings and
-  saves nothing). `ThemeService` shows the account's theme everywhere (taken
-  at sign-in and whenever it changes, never while its own save is out) and
-  the bar's button saves a choice (`savePreferences()`: one at a time, the
+  saves nothing). The family's `ThemeService` (`@anotoki/lib/shell`, wired in
+  `core/family-kit.ts`) shows the account's theme everywhere (taken at
+  sign-in and whenever it changes, never while its own save is out) and the
+  bar's theme switch saves a choice (`savePreferences()`: one at a time, the
   latest last; refused, the account's theme back and `theme.notSaved`); the
   `localDate` pipe follows the account's date order and clock (`stamp` for
   the admin panel's People and Migrations - the family's page takes it as its
   `formatDate`, `localDateText()`);
-  the language chooser saves a signed-in person's choice
-  (`TranslationService.setLanguage()` -> `saveToAccount()`: a language the
+  the language chooser (the family's) saves a signed-in person's choice
+  (`TranslationService.choose()` -> `saveToAccount()`: a language the
   IAM does not offer stays the site's own for the visit, silently; another
   refusal, `access_denied` too, is `language.notSaved`). **Which language**
   (the family's order, the survey's the reference): signed in with
@@ -194,7 +221,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   while a choice made here is on its way to the account. Signed out, or no
   preferences: `?lang=`, this device's choice, the token's `locale`, the
   browser's, as before. `piano-academy:theme` still keeps the theme on the
-  screen for `public/theme-boot.js`. Visitors: each device's own, as before.
+  screen for the family's `theme-boot.js` (`index.html`'s `data-storage-key`).
+  Visitors: each device's own, as before.
 - **Roles, from the token, checked on route groups**: a signed-in person with
   no role but **MEMBER** (every account holds it, in every application; no
   check needs it or refuses it) learns with their own progress - taking
@@ -226,12 +254,13 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `/api/auth/config`, `/api/translations/{code}`, `/api/health`,
   `/api/admin/migrations...` - so somebody can sign in, the pages have their
   words and an ADMIN reaches Apply. In the browser `<anotoki-site-gate>` -
-  the shell's view its `<ng-template>`, made only while the gate shows it, so
-  no page runs behind it - draws the status page then: "The site is being
-  updated" for visitors and learners (their language, a quiet Sign in for
-  nobody, a reload once the site is back), "A database update is waiting"
-  for the site's ADMIN, who has the admin panel's **Migrations** page
-  (`/admin/migrations`, the family's `<anotoki-migrations-page>`: Pending,
+  the shell's view its marked template (`<ng-template anotokiSitePages>`),
+  made only while the gate shows it, so no page runs behind it - draws the
+  status page then: "The site is being updated" for visitors and learners
+  (their language, a quiet Sign in for nobody, a reload once the site is
+  back), "A database update is waiting" for the site's ADMIN, who has the
+  admin panel's **Migrations** page (`/admin/migrations`, the family's
+  `<anotoki-migrations-page>` from `@anotoki/lib/migrations/page`: Pending,
   Applied with each file's SQL, "Apply pending") - the one page that runs;
   `BootService` waits (`waiting`: the sign-in and the words, no state, no
   move), the sign-in guard sends nobody to the IAM, and an Apply that leaves
@@ -276,19 +305,32 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   own progress (`/api/me/export`, `/api/me/import`: replacing only when asked,
   never merging; `EXPORT_LIMIT` both ways).
 - **Angular components are three files** (`.ts`, `.html`, `.scss`) - never an
-  inline template or styles. Standalone, OnPush, signals, zoneless.
-- **One top bar, the anotoki family's** (`layouts/top-bar`, the survey's
-  structure): the brand, the five sections (Learn, Note Trainer, Sheet
-  Practice, Songs, Stats), "Not saved yet", the piano (`ui/midi-panel`), the
-  language, the theme, the person's menu. Up to `PHONE_BAR_MAX` (1240 px,
-  measured with the real labels - the browser check's `--measure`; the same
-  number in the .scss) it is a phone's: "Piano" (`brand.short`) and one
-  menu button. Its menus' keys are the survey's (Tab and Shift+Tab close the
-  menu onto its button). Every control's accessible name holds the words it
-  shows (WCAG 2.5.3, label in name: "Language: {name} ({code})", the
-  piano's "{label}: {status}", "anotoki Piano Academy: Learn"). Under `/admin` it has the admin sections, in
-  English (`TranslationService.effectiveLanguage`), with no chooser and no
-  piano. The footer keeps the version (What's new) only.
+  inline template or styles. Standalone, OnPush, signals, zoneless. Where the
+  family's kit has a piece (`@anotoki/lib`: the bar, a menu, a popover, a
+  question, an icon, the spinner) it is the family's; Piano's own controls
+  (bare `<button>` / `<select>`, `.btn-primary`, `.card`, `.chip`) keep
+  Piano's look through `styles.scss`, whose element rules never reach the
+  family's components (`$piano-own`). Colours are the family's tokens in
+  Piano's palette (`anotoki.root()`), the font the family's Manrope.
+- **One top bar, the anotoki family's** (`<anotoki-top-bar>`, wrapped by
+  `layouts/top-bar`): the brand, the five sections (Learn, Note Trainer,
+  Sheet Practice, Songs, Stats), "Not saved yet" and the piano
+  (`ui/midi-panel`) as its widgets, the language, the theme switch (light /
+  dark / as the device is set), the person's menu (their anotoki account,
+  "Admin panel" for the staff while the site is ready, Sign out - which
+  waits for the saves and asks when progress would be lost). Up to
+  `PHONE_BAR_MAX` (1320 px, measured with the real labels - the browser
+  check's `--measure`; the bar takes it as `phoneMax`) it is a phone's:
+  "Piano" (`brand.short`) and one menu button, "Not saved yet" a dot on it
+  (named for a screen reader) and the first line of both menus. Its menus'
+  keys are the family's (Tab and Shift+Tab close the menu onto its button).
+  Every control's accessible name holds the words it shows (WCAG 2.5.3,
+  label in name: "Language: {name} ({code})", the piano's "{label}:
+  {status}", "anotoki Piano Academy: Learn"). Under `/admin` it has the
+  admin sections and the family's wordmark "anotoki Piano Academy · admin
+  panel", in English (`TranslationService.effectiveLanguage`), with no
+  chooser and no piano, and "Back to Piano Academy". The footer keeps the
+  version (What's new) only.
 - **PHP**: `declare(strict_types=1)`, camelCase functions by area (`store*`,
   `transfer*`, `auth*`, `translation*`, `language*`, `database*`...), `?`
   parameters in every query, every query **on a person's data** scoped to the
@@ -299,7 +341,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the staff's to write (`/api/admin/...`). `setup.php` stays parseable by
   PHP 7.4 (it must be able to say "PHP is too old"); the rest needs 8.2.
 - **The app's words live in the database** (`languages`, `translation_keys`,
-  `translations`; migrations 002 to 006) and are edited in the browser,
+  `translations`; migrations 002 to 008) and are edited in the browser,
   on the admin panel's Translations and Languages pages (English, not
   translated; EDITOR rewords, ADMIN also keeps the languages). English
   and Slovak, English the fallback key by key; **Slovak is informal ("ty")**. A
@@ -308,7 +350,11 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   new or reworded string is a new migration with the key, its English and its
   Slovak (003's layout - a test reads the file); state and stored sessions hold
   keys and ids, never sentences. The shell's English is also kept in code
-  (`core/i18n/kept-english.ts`) for when there is no bundle at all. Note
+  (`core/i18n/kept-english.ts`) for when there is no bundle at all. The
+  family's components say this app's strings where it has them
+  (`core/i18n/kit-words.ts`, the kit's `lookup` - written by their two parts,
+  so the key scan never reads a kit key as one of this app's) and their own
+  built-in English and informal Slovak for the rest. Note
   names (C D E F G A B, B in Slovak too), song titles, MIDI device names and
   the changelog's entries are never translated.
 - **Migrations are the schema**: `backend/migrations/piano_academy/NNN_name.sql`,
@@ -321,14 +367,14 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   back as drafts).
 - **The family's library** (`anotoki-lib`, one version for both halves): PHP
   `anotoki/lib` 0.1.0 (Composer's VCS repository on GitHub, committed in
-  `vendor/`), Angular `@anotoki/lib` 0.1.1 (the GitHub release's tarball, in
-  both lock files; 0.1.1 changed only the Angular half). Never from a local
-  path. Updating: DEV.md (Prerequisites) - both halves together, after its
-  CHANGELOG.md (a release that leaves a half unchanged may leave it where it
-  is). Its pages take this app's colours through the `--anotoki-*`
-  properties in `styles.scss`; its gate takes the shell's view as an
-  `<ng-template>` (given as it is, 0.1.1 would take the view's first `@if`
-  block for the template and lose the start's cards).
+  `vendor/`), Angular `@anotoki/lib` 0.2.0 (the GitHub release's tarball, in
+  both lock files; 0.1.1 and 0.2.0 changed only the Angular half). Never
+  from a local path. Updating: DEV.md (Prerequisites) - both halves
+  together, after its CHANGELOG.md (a release that leaves a half unchanged
+  may leave it where it is). Its components take this app's colours from the
+  `--anotoki-*` tokens `styles.scss` writes (`anotoki.root()`); its gate
+  takes the shell's view as the template marked `anotokiSitePages` (content
+  given as it is would be made behind the status page too).
 - No piano in dev: dispatch `noteon` on `window.pianoMIDI`; read the staff via
   `.vf-stavenote[data-midi]`; `window.pianoPlayer.expectedTimes` for runs in
   time. `playwright-core` with Edge (`channel: 'msedge'`) works on this

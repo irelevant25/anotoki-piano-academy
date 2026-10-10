@@ -1,17 +1,14 @@
 <button
-    #button
     type="button"
     class="midi-button"
     id="midi-button"
     [class.is-connected]="midi.status().connected"
     [class.is-compact]="compact()"
-    [attr.aria-expanded]="open()"
-    aria-controls="midi-box"
+    [anotokiPopoverTrigger]="box"
     [attr.aria-label]="'midi.button' | translate: { label: midi.status().connected ? midi.status().name : ('midi.none' | translate), status: statusText() }"
-    [title]="statusText()"
-    (click)="toggle()">
+    [title]="statusText()">
     <span class="dot" aria-hidden="true"></span>
-    <app-icon name="piano" [size]="18" />
+    <anotoki-icon name="piano" [size]="18" />
     @if (!compact()) {
         <span class="midi-label" id="midi-label">
             @if (midi.status().connected) {
@@ -23,28 +20,31 @@
     }
 </button>
 
-<div #box class="midi-box" id="midi-box" role="group" aria-labelledby="midi-box-title" [hidden]="!open()">
-    <p class="midi-box-title" id="midi-box-title">{{ 'midi.title' | translate }}</p>
-    <p id="midi-status" class="midi-status" [class.midi-status--connected]="midi.status().connected" [class.midi-status--disconnected]="!midi.status().connected" role="status">
-        @if (midi.status().connected) {
-            {{ 'midi.connected' | translate: { name: midi.status().name } }}
-        } @else {
-            {{ problemKey() | translate }}@if (midi.problem()?.detail; as detail) {: <span lang="en">{{ detail }}</span>}
-        }
-    </p>
-    <div class="midi-connect">
-        <select #select id="midi-device-select" [attr.aria-label]="'midi.device' | translate" (change)="choose($event)">
-            @for (device of midi.devices(); track device.id) {
-                <option [value]="device.id" [selected]="device.id === midi.selectedId()">{{ device.name || device.id }}</option>
-            } @empty {
-                @if (midi.asked()) {
-                    <option disabled selected>{{ 'midi.noDevices' | translate }}</option>
-                }
+<!-- The family's popover: drawn over the page while open, under the button and on the screen; the focus onto the device list. -->
+<anotoki-popover #box [label]="'midi.title' | translate" align="end" autoFocus [minWidth]="15">
+    <div class="midi-box" id="midi-box">
+        <p class="midi-box-title" id="midi-box-title">{{ 'midi.title' | translate }}</p>
+        <p id="midi-status" class="midi-status" [class.midi-status--connected]="midi.status().connected" [class.midi-status--disconnected]="!midi.status().connected" role="status">
+            @if (midi.status().connected) {
+                {{ 'midi.connected' | translate: { name: midi.status().name } }}
+            } @else {
+                {{ problemKey() | translate }}@if (midi.problem()?.detail; as detail) {: <span lang="en">{{ detail }}</span>}
             }
-        </select>
-        <button id="midi-connect-btn" type="button" (click)="midi.connect()">{{ 'midi.connect' | translate }}</button>
-        <button id="midi-refresh-btn" type="button" class="icon-only" [title]="'midi.rescan' | translate" [attr.aria-label]="'midi.rescan' | translate" (click)="midi.refresh()">
-            <app-icon name="refresh" [size]="16" />
-        </button>
+        </p>
+        <div class="midi-connect">
+            <select id="midi-device-select" [attr.aria-label]="'midi.device' | translate" (change)="choose($event)">
+                @for (device of midi.devices(); track device.id) {
+                    <option [value]="device.id" [selected]="device.id === midi.selectedId()">{{ device.name || device.id }}</option>
+                } @empty {
+                    @if (midi.asked()) {
+                        <option disabled selected>{{ 'midi.noDevices' | translate }}</option>
+                    }
+                }
+            </select>
+            <button id="midi-connect-btn" type="button" (click)="midi.connect()">{{ 'midi.connect' | translate }}</button>
+            <button id="midi-refresh-btn" type="button" class="icon-only" [title]="'midi.rescan' | translate" [attr.aria-label]="'midi.rescan' | translate" (click)="midi.refresh()">
+                <anotoki-icon name="refresh" [size]="16" />
+            </button>
+        </div>
     </div>
-</div>
+</anotoki-popover>

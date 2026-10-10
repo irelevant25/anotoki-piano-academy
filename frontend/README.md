@@ -15,25 +15,39 @@ the gotchas in the project skill
 
 ```
 src/
-  main.ts, index.html, styles.scss   the start, the page, the colour tokens (light and dark - and the family's
-                                     --anotoki-* properties mapped onto them)
+  main.ts, index.html                the start; the page (the family's theme-boot.js, copied from the library by
+                                     angular.json, with this app's key - data-storage-key)
+  styles.scss                        the family's styles (@anotoki/lib/styles: its tokens in Piano's palette,
+                                     light and dark - the colours only -, through anotoki.root(); its corners,
+                                     shadows, Manrope), Piano's own tokens (the keys, the notation) and the names its
+                                     pages use for the family's (--border-strong: a field's 3:1 edge); Piano's
+                                     own controls - bare buttons and selects, .btn-primary, .card, .chip - by
+                                     rules that never reach the family's components ($piano-own)
   app/
     app.config.ts, app.routes.ts     providers (the interceptors - the family's siteStatusInterceptor first -;
-                                     where the site stands asked, then the start, in the app initializer) and the
-                                     routes: every learner page behind signInGuard (a visitor too, while the IAM
-                                     requires no sign-in), /admin behind adminSignInGuard (always a sign-in);
-                                     /admin/migrations is the family's <anotoki-migrations-page>
+                                     the family's kit and frame, provideFamilyKit(); where the site stands asked,
+                                     then the start, in the app initializer) and the routes: every learner page
+                                     behind signInGuard (a visitor too, while the IAM requires no sign-in), /admin
+                                     behind adminSignInGuard (always a sign-in); /admin/migrations is the family's
+                                     Migrations page (@anotoki/lib/migrations/page, lazy)
     app.component.*                  the frame: the top bar, the notes that cannot be missed (signed out,
                                      progress changed elsewhere; a visitor's: the notice on Learn and Stats,
                                      sign-in required meanwhile, a refused sign-in, a save refused, the progress
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
                                      ready), the family's <anotoki-site-gate> with the page or a boot card as its
-                                     <ng-template> (made only while the gate shows it: nothing runs behind the
-                                     status page), the footer's version
+                                     marked template (<ng-template anotokiSitePages>: made only while the gate
+                                     shows it, so nothing runs behind the status page), the footer's version,
+                                     the family's questions (<anotoki-confirm-host>: ConfirmService)
     boot/                            the cards drawn instead of the app: sign in (after a failed sign-in
                                      only), could not load. (Not set up, being updated, not available: the
                                      family's status page, @anotoki/lib/migrations)
     core/
+      family-kit.ts                  provideFamilyKit(): the anotoki family's kit (@anotoki/lib/ui) and frame
+                                     (@anotoki/lib/shell) wired to this app's - their words (lookup: the
+                                     database's strings, i18n/kit-words.ts), the piano's icon, the theme (the
+                                     family's ThemeService: the account's for somebody signed in, saved from the
+                                     bar's switch; this device's otherwise, under piano-academy:theme), the
+                                     language chooser (TranslationService.choose())
       auth/                          AuthService (the IAM's browser SDK 1.2.0, vendored; loginRequired - the IAM's
                                      switch; preferences - the account's theme, dates and clock while signed in -
                                      and savePreferences()), the sign-in guards, the interceptor (the token for a
@@ -50,61 +64,82 @@ src/
                                      its saves, a 409 settled by loading again)
       music/                         theory, srs, songs, path - ALL the domain logic, pure and tested
       i18n/                          TranslationService (the family's order: signed in with preferences, the account's
-                                     language before this device's; saveToAccount(): the chooser's choice to the account),
-                                     the translate pipes, the localDate pipe and date-patterns (the account's date
-                                     order and clock for somebody signed in), the kept English, error-text,
-                                     visitor-words (the keys of practising without signing in, VISITOR_KEEP_DAYS;
-                                     visitorRefusalKey() - ApiService.visitorRefusal; the shell (app.component)
-                                     and Stats draw them)
-      theme/                         ThemeService: light, dark or the system's - the account's for somebody signed
-                                     in (saved from the bar's button), this device's otherwise; theme-boot.js's key
+                                     language before this device's; choose(): the chooser's choice, saved to the
+                                     account by saveToAccount()), the translate pipes, the localDate pipe and
+                                     date-patterns (the account's date order and clock for somebody signed in),
+                                     kit-words (the family's kit words this app says in its own strings), the
+                                     kept English, error-text, visitor-words (the keys of practising without
+                                     signing in, VISITOR_KEEP_DAYS; visitorRefusalKey() - ApiService.visitorRefusal;
+                                     the shell (app.component) and Stats draw them)
       admin/                         LocalizationDrafts (what the Translations and Languages pages hold unsaved)
-      midi/, notation/, player/, audio/, changelog/, util/, testing/
-    layouts/top-bar/                 the anotoki family's one bar: brand, sections, "Not saved yet", the piano,
-                                     language, theme, the person's menu; a phone's up to PHONE_BAR_MAX (1240);
-                                     under /admin the admin sections, in English
+      testing/                       a spec's strings (provideTestTranslations()), jsdom's missing dialog, popover
+                                     and checkVisibility (provideTestKit()), the family's question read and
+                                     answered (drawTestQuestions())
+      midi/, notation/, player/, audio/, changelog/, util/
+    layouts/top-bar/                 the anotoki family's one bar (@anotoki/lib/shell's <anotoki-top-bar>), told
+                                     Piano's brand, sections, person and menu items; its widgets "Not saved yet"
+                                     and the piano; a phone's up to PHONE_BAR_MAX (1320); under /admin the
+                                     admin sections and the wordmark, in English
     layouts/admin-layout/            /admin's frame: the page, or why there is nothing for you
     pages/                           home (the path), lesson (+ steps), trainer, sheet, songs, stats
                                      (+ own-progress: your progress file - signed in; a visitor gets the sign-in
                                      line in its place), auth-callback
     pages/admin/                     the admin panel: Translations (EDITOR, ADMIN); Languages, People (ADMIN).
-                                     Migrations (ADMIN) is the family's page (@anotoki/lib/migrations)
-    ui/                              the bar's kit (brand, icon, spinner, the piano's widget, language chooser,
-                                     theme toggle - each with its note under it -, keep-on-screen), piano
-                                     keyboard, notation, changelog and confirm dialogs
+                                     Migrations (ADMIN) is the family's page (@anotoki/lib/migrations/page)
+    ui/                              Piano's own: the piano's widget in the bar (midi-panel, its box the family's
+                                     popover), the piano keyboard, the notation, What's new (changelog-dialog)
 public/                              changelog.json (the version shown: MAJOR.MINOR.PATCH, the newest entry's -
-                                     package.json's too), anotoki.png (the family's mark), favicon.svg,
-                                     theme-boot.js
+                                     package.json's too), anotoki.png (the family's mark), favicon.svg
 proxy.conf.json                      /api and /setup.php to the backend on :8300
 .npmrc, .nvmrc                       legacy-peer-deps (npm 10.9 and vitest), the Node version
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.1.1 here, the
-backend's 0.1.0, as 0.1.1 changed only this half): in `package.json` as its
-GitHub release's tarball, in both `bun.lock` and `package-lock.json`. Its
-`@anotoki/lib/migrations` is where the site stands (`SiteStatus`,
-`siteStatusInterceptor`), the gate in front of the pages and its status
-page, and the admin panel's Migrations page. The gate takes the shell's view
-as an `<ng-template>` (`app.component.html`) and makes it only while it
-shows it - given as it is, the view would be made behind the status page
-too. To update it: the new release's URL in `package.json`, then `bun
-install` and `npm install --package-lock-only`, with the backend's half to
-the same version where the release changed it (DEV.md).
+half is the backend's `anotoki/lib`; one version for both - 0.2.0 here, the
+backend's 0.1.0, as 0.1.1 and 0.2.0 changed only this half): in
+`package.json` as its GitHub release's tarball, in both `bun.lock` and
+`package-lock.json`. What this app takes from it:
+
+- `@anotoki/lib/styles` - the family's tokens (`--anotoki-*`) in Piano's
+  palette, Manrope (`styles.scss`; the family's base is not included: Piano's
+  pages keep their own type).
+- `@anotoki/lib/ui`, `/ui/menu`, `/ui/dialog` - icons, the spinner, the
+  menus, the piano's popover, the questions (`ConfirmService`, drawn by
+  `<anotoki-confirm-host>` in `app.component.html`); their words through
+  `provideFamilyKit()`'s `lookup`.
+- `@anotoki/lib/shell` - the top bar, the language chooser, the theme switch
+  and `ThemeService`, the brand; `assets/theme-boot.js` (angular.json).
+- `@anotoki/lib/migrations` - where the site stands (`SiteStatus`,
+  `siteStatusInterceptor`), the gate in front of the pages and its status
+  page. The gate takes the shell's view as its marked template (`<ng-template
+  anotokiSitePages>`, `app.component.html`) and makes it only while it shows
+  it - given as it is, the view would be made behind the status page too.
+- `@anotoki/lib/migrations/page` - the admin panel's Migrations page, lazy.
+
+To update it: the new release's URL in `package.json`, then `bun install` and
+`npm install --package-lock-only`, with the backend's half to the same
+version where the release changed it (DEV.md).
 
 Components are three files (`.ts`, `.html`, `.scss`); colours come from the
-tokens in `src/styles.scss`; every page works at 390 px. Every word a learner
-meets is a key (`'stats.title' | translate`) whose strings are in the
-database (a migration writes each with its English and informal Slovak); what
-the shell draws while there are no strings at all is also in
-`core/i18n/kept-english.ts`. The admin panel is English, written in its
+tokens in `src/styles.scss`; every page works at 390 px. Where the family has
+a piece - the bar, a menu, a popover, a question - it is the family's;
+Piano's own controls (bare `<button>`s and `<select>`s, `.btn-primary`,
+`.card`, `.chip`) keep Piano's look through `styles.scss`, whose element
+rules never reach the family's components. Every word a learner meets is a
+key (`'stats.title' | translate`) whose strings are in the database (a
+migration writes each with its English and informal Slovak); what the shell
+draws while there are no strings at all is also in
+`core/i18n/kept-english.ts`; the family's components say this app's strings
+where it has them (`core/i18n/kit-words.ts`) and their own built-in English
+and informal Slovak for the rest. The admin panel is English, written in its
 templates. State holds keys and ids, never sentences, and a learner never sees
 the server's own sentence.
 
-The top bar is the anotoki family's (the survey's structure). Its fold,
-`PHONE_BAR_MAX`, is measured: `node .claude/skills/check-in-browser/scripts/run.mjs
---measure` prints what the row needs with the real labels - change the
-number in `top-bar.component.ts` and its `.scss` together.
+The top bar is the anotoki family's (`<anotoki-top-bar>`, wrapped by
+`layouts/top-bar`). Its fold, `PHONE_BAR_MAX`, is measured: `node
+.claude/skills/check-in-browser/scripts/run.mjs --measure` prints what the
+row needs with the real labels - change the number in `top-bar.component.ts`
+(the family's bar takes it as `phoneMax`; there is no copy in a `.scss`).
 
 ## Commands
 
@@ -123,8 +158,10 @@ signed out sends you to the IAM first, and back.
 
 `npm test` runs every `*.spec.ts` beside its code: no server, no browser -
 `HttpTestingController` answers the API, stand-ins stand for the IAM's SDK,
-`core/testing/` gives a spec its strings (`provideTestTranslations()`) and
-jsdom the dialog it lacks (`provideTestDialog()`). Among them: the music
+`core/testing/` gives a spec its strings (`provideTestTranslations()`), jsdom
+what it lacks for the family's components (`provideTestKit()`: the dialog,
+the popover, `checkVisibility`) and the family's question to read and answer
+(`drawTestQuestions()`). Among them: the music
 logic; the start and every boot state; the shell drawn with no strings at all
 (no text of a key's shape, every kept English string drawn); while the site
 is not ready (the family's gate and status page): visitors and learners told
@@ -148,17 +185,22 @@ not sent for ever; the admin panel always a sign-in; the visitor's words in
 the shell, Stats' sign-in line, People's visitors line, no "changed elsewhere"
 after a lost key - several of them checked by taking the fix out once);
 the own progress file (the size checked, the dry run, the question before a
-replace, every code worded); the top bar (the row, the sections lit, the
-menus' keys - Tab and Shift+Tab onto the menu button, the phone's menu, the
-admin panel in English, the sign-out question); the piano's widget; the admin
-pages; the anotoki account's preferences (the theme taken at sign-in and
-when it changes, saved one at a time with the latest last, a refusal put
-back and said; dates in the account's order and clock, nobody else's
-changed; the language chooser's choice saved, a language the IAM does not
-offer kept silently; the account's language before this device's, a change
-of it followed - not over `?lang=`, not while a save is out) - checked by
-taking each rule out once; What's new as shipped (every version
-MAJOR.MINOR.PATCH, newest first, the newest `package.json`'s).
+replace, every code worded); the top bar - the family's, told Piano's (the
+row, the sections lit, the menus' keys - Tab and Shift+Tab onto the menu
+button, the phone's menu and its dot, "Not saved yet", the admin panel in
+English with its wordmark, the way into it only while the site is ready, the
+sign-out question); the piano's widget (its box the family's popover); the
+admin pages; the family's kit wired to this app (`core/family-kit.spec.ts`:
+its words this app's strings where it has them - the owner's wording - and
+a key where the database has none; the language chooser on this app's
+languages, its choice saved to the account; the theme switch on the
+family's `ThemeService`, the account's theme, a refusal put back and said);
+the anotoki account's preferences (the theme taken at sign-in and when it
+changes; dates in the account's order and clock, nobody else's changed; a
+language the IAM does not offer kept silently; the account's language
+before this device's, a change of it followed - not over `?lang=`, not while
+a save is out) - checked by taking each rule out once; What's new as shipped
+(every version MAJOR.MINOR.PATCH, newest first, the newest `package.json`'s).
 
 The key scan that holds the frontend's keys to the database's is the
 backend's (`php tests/run.php`, `tests/unit/translations.test.php`). Pages in

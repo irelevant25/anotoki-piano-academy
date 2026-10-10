@@ -2,12 +2,14 @@ import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/c
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy, provideRouter } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { AuthService } from '../../core/auth/auth.service';
+import { provideFamilyKit } from '../../core/family-kit';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { BootService, BootStatus } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { provideSiteMigrations } from '../../core/state/site-migrations';
-import { provideTestDialog } from '../../core/testing/test-dialog';
+import { provideTestKit } from '../../core/testing/test-kit';
 import { provideTestTranslations } from '../../core/testing/test-translations';
 import { PianoTitleStrategy } from '../../core/title.strategy';
 import { PHONE_BAR_MAX, TopBarComponent } from './top-bar.component';
@@ -48,11 +50,17 @@ const ENGLISH: Record<string, string> = {
   'midi.rescan': 'Rescan MIDI devices',
   'midi.noDevices': 'No MIDI devices found',
   'theme.auto': 'Theme: automatic',
-  'theme.autoSpoken': 'Theme: automatic (press to change)',
+  'theme.light': 'Theme: light',
+  'theme.dark': 'Theme: dark',
+  'theme.notSaved': 'The theme could not be saved to your anotoki account.',
   'language.button': 'Language: {name} ({code})',
+  'language.notLoaded': 'The language could not be loaded. Please try again.',
+  'language.notSaved': 'The language could not be saved to your anotoki account - it holds for this visit only.',
+  'common.loading': 'Loading…',
   'title.learn': 'Learn',
 };
 
+/** The owner's own Slovak where it differs from the kit's built-in words ("Správca", "Tvoj účet anotoki"): this app's are the ones shown. */
 const SLOVAK: Record<string, string> = {
   ...ENGLISH,
   'topbar.home': 'anotoki Piano Academy: Učenie',
@@ -79,6 +87,10 @@ const SLOVAK: Record<string, string> = {
   'midi.button': '{label}: {status}',
   'midi.none': 'Bez klavíra',
   'midi.notConnected': 'Klavír nie je pripojený',
+  'theme.auto': 'Vzhľad: systémový',
+  'theme.light': 'Vzhľad: svetlý',
+  'theme.dark': 'Vzhľad: tmavý',
+  'language.button': 'Jazyk: {name} ({code})',
 };
 
 @Component({ selector: 'app-blank', template: '', changeDetection: ChangeDetectionStrategy.OnPush })
@@ -107,7 +119,13 @@ class Screen {
   }
 }
 
-describe('TopBarComponent: the family\'s one bar', () => {
+/**
+ * Piano Academy's wrapper of the family's bar (@anotoki/lib/shell's <anotoki-top-bar>): what it tells the bar -
+ * the brand, the sections, the person, the menu's items, Sign in and Sign out, the widgets, the marks - and in
+ * whose words. The bar's own behaviour (its menus, keys and fold) is the library's, tested there; what is
+ * checked of it here is that it holds with Piano's words and widgets in it.
+ */
+describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
   let fixture: ComponentFixture<TopBarComponent>;
   let host: HTMLElement;
   let router: Router;
@@ -128,7 +146,8 @@ describe('TopBarComponent: the family\'s one bar', () => {
     signOut: vi.fn(),
   };
 
-  beforeAll(() => provideTestDialog());
+  // The family's menus and boxes ask jsdom for what it lacks (checkVisibility(), popovers).
+  beforeAll(() => provideTestKit());
 
   async function bar(options: { phone?: boolean; language?: 'en' | 'sk'; at?: string } = {}): Promise<void> {
     screen = new Screen();
@@ -136,7 +155,7 @@ describe('TopBarComponent: the family\'s one bar', () => {
     asked.length = 0;
     vi.stubGlobal('matchMedia', (media: string) => {
       asked.push(media);
-      // The bar's width; anything else (the theme's prefers-color-scheme) is a list that never changes.
+      // The bar's widths; anything else (the theme's prefers-color-scheme) is a list that never changes.
       return media.includes('max-width') ? screen : { matches: false, media, addEventListener: () => undefined, removeEventListener: () => undefined };
     });
     const slovak = options.language === 'sk';
@@ -165,20 +184,24 @@ describe('TopBarComponent: the family\'s one bar', () => {
             isStaff: computed(() => (person()?.roles ?? []).some((role) => role === 'ADMIN' || role === 'EDITOR')),
             accountUrl: () => 'http://localhost:4300/account',
             signInFailure: signal(null),
-            // The account's theme, dates and clock: none here (an IAM that sends none) - the theme button keeps the device's.
+            // The account's theme, dates and clock: none here (an IAM that sends none) - the theme switch keeps the device's.
             preferences: signal(null),
+            savePreferences: vi.fn(async () => undefined),
           },
         },
         { provide: BootService, useValue: boot },
         { provide: ProgressStore, useValue: { unsaved, loaded } },
         // Where the site stands (the family's SiteStatus): ready, unless a case says otherwise.
         provideSiteMigrations(),
+        // The family's kit with this app's words, theme and languages - as app.config.ts has it.
+        provideFamilyKit(),
       ],
     });
     TestBed.inject(SiteStatus).markReady();
     router = TestBed.inject(Router);
     fixture = TestBed.createComponent(TopBarComponent);
     host = fixture.nativeElement;
+    document.body.appendChild(host);
     await router.navigateByUrl(options.at ?? '/');
     await fixture.whenStable();
   }
@@ -194,48 +217,61 @@ describe('TopBarComponent: the family\'s one bar', () => {
   });
 
   afterEach(() => {
+    host?.remove();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
   const $ = <T extends Element = HTMLElement>(selector: string): T | null => host.querySelector<T>(selector);
   const texts = (selector: string): string[] => Array.from(host.querySelectorAll(selector)).map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
-  /** What the row holds, left to right, by what each thing is. */
+  /** What a thing of the bar is: Piano's own id, a component's name, or the family's class for it (its ids are its own, made up). */
+  const what = (element: Element): string => {
+    if (element.id && !element.id.startsWith('anotoki-')) return element.id;
+    if (element.tagName.includes('-')) return element.tagName.toLowerCase();
+    return ['person-button', 'menu-button', 'sign-in', 'switcher', 'brand', 'nav'].find((name) => element.classList.contains(name)) ?? element.tagName.toLowerCase();
+  };
+  /** What the row holds, left to right, by what each thing is (the menus' own elements take no room in it). */
   const row = (): string[] =>
-    Array.from(host.querySelectorAll('.topbar-inner > *, .topbar-actions > *')).filter((element) => !element.classList.contains('topbar-actions')).map((element) => element.id || element.className || element.tagName.toLowerCase());
+    Array.from(host.querySelectorAll('.row > *, .actions > *'))
+      .filter((element) => !element.classList.contains('actions') && element.tagName !== 'ANOTOKI-MENU')
+      .map(what);
   const settle = async (): Promise<void> => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await fixture.whenStable();
+    for (let i = 0; i < 3; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await fixture.whenStable();
+    }
   };
   const press = (target: Element, key: string, shift = false): KeyboardEvent => {
     const event = new KeyboardEvent('keydown', { key, shiftKey: shift, bubbles: true, cancelable: true });
     target.dispatchEvent(event);
     return event;
   };
-  const items = (): HTMLElement[] => Array.from(host.querySelectorAll<HTMLElement>('.menu [role="menuitem"]'));
+  const menu = (): HTMLElement | null => $('anotoki-menu [role="menu"]');
+  const items = (): HTMLElement[] => Array.from(host.querySelectorAll<HTMLElement>('anotoki-menu [role="menuitem"]'));
   async function open(which: 'account' | 'phone'): Promise<HTMLButtonElement> {
-    const button = $<HTMLButtonElement>(which === 'account' ? '#topbar-user-button' : '#topbar-menu-button')!;
+    const button = $<HTMLButtonElement>(which === 'account' ? '.person-button' : '.menu-button')!;
     button.click();
-    await fixture.whenStable();
+    await settle();
     return button;
   }
 
   describe('on a wide screen', () => {
     it('is one row in the family\'s order: brand, sections, the piano, language, theme, the person', async () => {
       await bar();
-      expect(row()).toEqual(['app-brand', 'topbar-nav', 'app-midi-panel', 'app-language-switcher', 'app-theme-toggle', 'user-menu']);
+      expect(row()).toEqual(['anotoki-brand', 'nav', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'person-button']);
       expect($('.brand')?.getAttribute('href')).toBe('/');
       expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
-      expect(texts('.brand .wordmark span')).toEqual(['anotoki', 'Piano Academy']);
-      expect($('#topbar-nav')?.getAttribute('aria-label')).toBe('Main');
-      expect(texts('#topbar-nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+      expect(texts('.brand .wordmark > span')).toEqual(['anotoki', 'Piano Academy']);
+      expect($('nav')?.getAttribute('aria-label')).toBe('Main');
+      expect(texts('nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+      // The family's bar folds at Piano's own width.
       expect(asked).toContain(`(max-width: ${PHONE_BAR_MAX}px)`);
     });
 
     it('lights the section the page is in - a lesson under Learn, a song under Songs - and marks the page\'s own link', async () => {
       await bar({ at: '/lesson/rh-1/drill' });
-      const active = (): string[] => texts('#topbar-nav a.is-active');
-      const current = (): string[] => texts('#topbar-nav a[aria-current="page"]');
+      const active = (): string[] => texts('nav a.is-active');
+      const current = (): string[] => texts('nav a[aria-current="page"]');
       expect(active()).toEqual(['Learn']);
       expect(current()).toEqual([]);
 
@@ -253,58 +289,77 @@ describe('TopBarComponent: the family\'s one bar', () => {
     it('has no sections before the app runs: there is nothing to practise on yet', async () => {
       status.set('not-set-up');
       await bar();
-      expect($('#topbar-nav')).toBeNull();
+      expect($('nav')).toBeNull();
       expect($('app-midi-panel')).not.toBeNull();
     });
 
-    it('"Not saved yet" stands beside the piano while some progress waits, and leads the person\'s menu', async () => {
+    it('"Not saved yet" stands beside the piano while some progress waits, and heads the person\'s menu', async () => {
       unsaved.set(true);
       await bar();
       expect(row().slice(2, 4)).toEqual(['save-status', 'app-midi-panel']);
       expect($('#save-status')?.textContent).toBe('Not saved yet');
+      expect($('#save-status')?.getAttribute('title')).toBe('Some of your progress is not on the server yet. The app keeps trying.');
       await open('account');
-      expect($('#user-menu .menu-note strong')?.textContent).toBe('Not saved yet');
+      expect(menu()?.firstElementChild?.classList.contains('menu-note')).toBe(true);
+      expect($('.menu-note strong')?.textContent).toBe('Not saved yet');
+      expect($('.menu-note span')?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
     });
 
-    it('the person\'s menu: name, address, role; their account, the admin panel for the staff, Sign out', async () => {
+    it('the person\'s menu: name, address, role; their account (a new tab), the admin panel for the staff, Sign out', async () => {
       person.set({ name: 'mia', roles: ['ADMIN'], email: 'mia@example.com' });
       await bar();
-      expect($('#topbar-user-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
-      expect($('#account-name')?.textContent).toBe('mia');
-      expect($('.avatar')?.textContent).toBe('M');
+      expect($('.person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
+      expect($('.person-name')?.textContent).toBe('mia');
+      expect($('.initial')?.textContent).toBe('M');
       const button = await open('account');
       expect(button.getAttribute('aria-expanded')).toBe('true');
-      expect($('#user-menu')?.getAttribute('aria-label')).toBe('Your menu');
+      expect(menu()?.getAttribute('aria-label')).toBe('Your menu');
       expect(texts('.menu-head > span')).toEqual(['mia', 'mia@example.com', 'Administrator']);
-      expect(texts('#user-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Admin panel', 'Sign out']);
-      expect($('#account-link')?.getAttribute('href')).toBe('http://localhost:4300/account');
-      expect($('#account-link')?.getAttribute('target')).toBe('_blank');
-      expect($('#admin-link')?.getAttribute('href')).toBe('/admin');
+      expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Admin panel', 'Sign out']);
+      const account = $<HTMLAnchorElement>('anotoki-menu a[href="http://localhost:4300/account"]');
+      expect(account?.getAttribute('target')).toBe('_blank');
+      expect($('anotoki-menu a[href="/admin"]')?.textContent?.trim()).toBe('Admin panel');
     });
 
     it('an EDITOR is named so and gets the admin panel; a learner, or a MEMBER of old, neither', async () => {
       person.set({ name: 'ed', roles: ['EDITOR'] });
       await bar();
       await open('account');
-      expect($('#topbar-role')?.textContent).toBe('Editor');
-      expect($('#admin-link')).not.toBeNull();
+      expect($('.menu-role')?.textContent).toBe('Editor');
+      expect($('anotoki-menu a[href="/admin"]')).not.toBeNull();
 
       for (const roles of [[], ['MEMBER']]) {
         TestBed.resetTestingModule();
         person.set({ name: 'mia', roles });
         await bar();
         await open('account');
-        expect($('#topbar-role')).toBeNull();
-        expect($('#admin-link')).toBeNull();
-        expect(texts('#user-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Sign out']);
+        expect($('.menu-role')).toBeNull();
+        expect($('anotoki-menu a[href="/admin"]')).toBeNull();
+        expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Sign out']);
       }
+    });
+
+    it('the way into the admin panel only while the site is ready: an update waiting, the family\'s page links to Migrations', async () => {
+      person.set({ name: 'mia', roles: ['ADMIN'] });
+      await bar();
+      TestBed.inject(SiteStatus).report('update_pending');
+      await fixture.whenStable();
+      await open('account');
+      expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Sign out']);
+      press(items()[0], 'Escape');
+      await fixture.whenStable();
+      // In the admin panel (its Migrations page), the way back stays.
+      await router.navigateByUrl('/admin/migrations');
+      await fixture.whenStable();
+      await open('account');
+      expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Back to Piano Academy', 'Sign out']);
     });
 
     it('names somebody whose token names nobody in the app\'s words, and gives no e-mail that is the name itself', async () => {
       person.set({ name: null, roles: [] });
       await bar();
-      expect($('#account-name')?.textContent).toBe('Signed in');
-      expect($('.avatar')?.textContent).toBe('?');
+      expect($('.person-name')?.textContent).toBe('Signed in');
+      expect($('.initial')?.textContent).toBe('S');
       TestBed.resetTestingModule();
       person.set({ name: 'mia@example.com', roles: [], email: 'mia@example.com' });
       await bar();
@@ -315,37 +370,40 @@ describe('TopBarComponent: the family\'s one bar', () => {
     it('signed out in the middle of practising: Sign in - and before the app ran, nothing (the guard is on its way to the IAM)', async () => {
       person.set(null);
       await bar();
-      expect(row().at(-1)).toBe('sign-in-btn');
-      $<HTMLButtonElement>('#sign-in-btn')!.click();
+      expect(row().at(-1)).toBe('sign-in');
+      expect($('.sign-in')?.textContent?.trim()).toBe('Sign in');
+      $<HTMLButtonElement>('.sign-in')!.click();
+      await settle();
       expect(boot.signIn).toHaveBeenCalledTimes(1);
 
       TestBed.resetTestingModule();
       loaded.set(false);
       status.set('sign-in');
       await bar();
-      expect($('#sign-in-btn')).toBeNull();
-      expect($('.user-menu')).toBeNull();
+      expect($('.sign-in')).toBeNull();
+      expect($('.person-button')).toBeNull();
     });
 
     it('a visitor - practising without signing in, the app running on their progress -: Sign in, in the row and in the phone’s menu after the sections', async () => {
       // The bar asks only whether somebody is signed in and the progress is loaded: a visitor is both "not" and "yes".
       person.set(null);
       await bar({ at: '/trainer' });
-      expect(row().at(-1)).toBe('sign-in-btn');
-      expect($('#topbar-user-button')).toBeNull();
-      $<HTMLButtonElement>('#sign-in-btn')!.click();
+      expect(row().at(-1)).toBe('sign-in');
+      expect($('.person-button')).toBeNull();
+      $<HTMLButtonElement>('.sign-in')!.click();
+      await settle();
       expect(boot.signIn).toHaveBeenCalledTimes(1);
 
       TestBed.resetTestingModule();
       await bar({ phone: true, at: '/trainer' });
       await open('phone');
-      expect(texts('#topbar-menu [role="menuitem"]').slice(-1)).toEqual(['Sign in']);
-      expect($('#topbar-sign-in-item')).not.toBeNull();
+      expect(texts('anotoki-menu [role="menuitem"]').slice(-1)).toEqual(['Sign in']);
+      expect($('.sign-in-item')).not.toBeNull();
     });
   });
 
-  describe('the menus\' keys and focus', () => {
-    it('opens into its first item; arrows, Home and End move round it; Escape closes it onto its button', async () => {
+  describe('the menus\' keys and focus (the family\'s menus, with Piano\'s items)', () => {
+    it('opens into its first item; arrows move round it; Escape closes it onto its button', async () => {
       await bar();
       const button = await open('account');
       expect(document.activeElement).toBe(items()[0]);
@@ -353,16 +411,9 @@ describe('TopBarComponent: the family\'s one bar', () => {
       expect(document.activeElement).toBe(items()[1]);
       press(items()[1], 'ArrowDown');
       expect(document.activeElement).toBe(items()[0]);
-      press(items()[0], 'ArrowUp');
-      expect(document.activeElement).toBe(items()[1]);
-      press(items()[1], 'Home');
-      expect(document.activeElement).toBe(items()[0]);
-      press(items()[0], 'End');
-      expect(document.activeElement).toBe(items()[1]);
-
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      press(items()[0], 'Escape');
       await fixture.whenStable();
-      expect($('#user-menu')).toBeNull();
+      expect(menu()).toBeNull();
       expect(button.getAttribute('aria-expanded')).toBe('false');
       expect(document.activeElement).toBe(button);
     });
@@ -380,31 +431,19 @@ describe('TopBarComponent: the family\'s one bar', () => {
           const event = press(item, 'Tab', shift);
           await fixture.whenStable();
           expect(event.defaultPrevented, `${shift ? 'Shift+' : ''}Tab from the ${at}`).toBe(true);
-          expect($('#user-menu'), `${shift ? 'Shift+' : ''}Tab from the ${at}`).toBeNull();
+          expect(menu(), `${shift ? 'Shift+' : ''}Tab from the ${at}`).toBeNull();
           expect(document.activeElement, `${shift ? 'Shift+' : ''}Tab from the ${at}`).toBe(button);
         }
       }
     });
 
-    it('the button again closes it onto the button; a click outside closes it and leaves the focus be; choosing an item closes it', async () => {
-      await bar();
-      const button = await open('account');
-      button.click();
-      await fixture.whenStable();
-      expect($('#user-menu')).toBeNull();
-      expect(document.activeElement).toBe(button);
-
-      await open('account');
-      document.body.click();
-      await fixture.whenStable();
-      expect($('#user-menu')).toBeNull();
-
+    it('choosing an item closes the menu and goes there', async () => {
       person.set({ name: 'ed', roles: ['EDITOR'] });
-      await fixture.whenStable();
+      await bar();
       await open('account');
-      $<HTMLAnchorElement>('#admin-link')!.click();
+      $<HTMLAnchorElement>('anotoki-menu a[href="/admin"]')!.click();
       await settle();
-      expect($('#user-menu')).toBeNull();
+      expect(menu()).toBeNull();
       expect(router.url).toBe('/admin');
     });
   });
@@ -412,40 +451,19 @@ describe('TopBarComponent: the family\'s one bar', () => {
   describe('on a phone', () => {
     it('is the brand ("Piano"), the piano\'s dot, the language, the theme and the menu button - the sections and the person inside it', async () => {
       await bar({ phone: true });
-      expect(row()).toEqual(['app-brand', 'app-midi-panel', 'app-language-switcher', 'app-theme-toggle', 'phone-menu']);
-      expect(texts('.brand .wordmark span')).toEqual(['Piano']);
+      expect(row()).toEqual(['anotoki-brand', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'menu-button']);
+      expect(texts('.brand .wordmark > span')).toEqual(['Piano']);
       expect($('#midi-label')).toBeNull();
-      expect($('#topbar-menu-button')?.getAttribute('aria-label')).toBe('Menu');
+      expect($('.menu-button')?.getAttribute('aria-label')).toBe('Menu');
 
       const button = await open('phone');
       expect(button.getAttribute('aria-expanded')).toBe('true');
-      expect($('#topbar-menu')?.getAttribute('aria-label')).toBe('Menu');
-      expect(texts('#topbar-menu [role="menuitem"]')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Sign out']);
-      expect(host.querySelectorAll('#topbar-menu [role="separator"]').length).toBe(2);
-      expect(texts('#topbar-menu .menu-link.is-active')).toEqual(['Learn']);
-      expect(texts('#topbar-menu .menu-link[aria-current="page"]')).toEqual(['Learn']);
+      expect(menu()?.getAttribute('aria-label')).toBe('Menu');
+      expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Sign out']);
+      expect(host.querySelectorAll('anotoki-menu [role="separator"]').length).toBe(2);
+      expect(texts('anotoki-menu [role="menuitem"].is-active')).toEqual(['Learn']);
+      expect(texts('anotoki-menu [role="menuitem"][aria-current="page"]')).toEqual(['Learn']);
       expect(document.activeElement).toBe(items()[0]);
-    });
-
-    it('keys: arrows round the menu, and Tab and Shift+Tab from the first, a middle and the last item onto the menu button', async () => {
-      await bar({ phone: true });
-      let button = await open('phone');
-      press(items()[0], 'ArrowUp');
-      expect(document.activeElement).toBe(items().at(-1));
-      press(items().at(-1)!, 'ArrowDown');
-      expect(document.activeElement).toBe(items()[0]);
-      for (const shift of [false, true]) {
-        for (const index of [0, 3, 6]) {
-          if (!$('#topbar-menu')) button = await open('phone');
-          const item = items()[index];
-          item.focus();
-          const event = press(item, 'Tab', shift);
-          await fixture.whenStable();
-          expect(event.defaultPrevented).toBe(true);
-          expect($('#topbar-menu')).toBeNull();
-          expect(document.activeElement).toBe(button);
-        }
-      }
     });
 
     it('a section chosen goes there and closes the menu', async () => {
@@ -454,26 +472,29 @@ describe('TopBarComponent: the family\'s one bar', () => {
       (items().find((item) => item.textContent?.trim() === 'Stats') as HTMLAnchorElement).click();
       await settle();
       expect(router.url).toBe('/stats');
-      expect($('#topbar-menu')).toBeNull();
+      expect(menu()).toBeNull();
     });
 
     it('"Not saved yet" is a dot on the menu button, said to a screen reader, and the menu\'s first line', async () => {
       unsaved.set(true);
       await bar({ phone: true });
       expect($('#save-status')).toBeNull();
-      expect($('#topbar-unsaved-dot')).not.toBeNull();
-      expect($('#topbar-menu-button')?.getAttribute('aria-describedby')).toBe('topbar-unsaved');
-      expect($('#topbar-unsaved')?.textContent).toBe('Not saved yet');
+      expect($('.menu-button .mark-dot')).not.toBeNull();
+      const described = $('.menu-button')?.getAttribute('aria-describedby');
+      expect(described).toBeTruthy();
+      expect($(`#${described}`)?.textContent).toBe('Not saved yet');
       await open('phone');
-      expect($('#topbar-menu')?.firstElementChild?.id).toBe('topbar-menu-unsaved');
+      expect(menu()?.firstElementChild?.classList.contains('menu-note')).toBe(true);
+      expect($('.menu-note strong')?.textContent).toBe('Not saved yet');
     });
 
     it('signed out: the sections, then Sign in', async () => {
       person.set(null);
       await bar({ phone: true });
       await open('phone');
-      expect(texts('#topbar-menu [role="menuitem"]').slice(-1)).toEqual(['Sign in']);
-      $<HTMLButtonElement>('#topbar-sign-in-item')!.click();
+      expect(texts('anotoki-menu [role="menuitem"]').slice(-1)).toEqual(['Sign in']);
+      $<HTMLButtonElement>('.sign-in-item')!.click();
+      await settle();
       expect(boot.signIn).toHaveBeenCalledTimes(1);
     });
 
@@ -482,18 +503,17 @@ describe('TopBarComponent: the family\'s one bar', () => {
       loaded.set(false);
       status.set('sign-in');
       await bar({ phone: true });
-      expect($('#topbar-menu-button')).toBeNull();
+      expect($('.menu-button')).toBeNull();
       for (const state of ['not-set-up', 'load-error', 'loading'] as BootStatus[]) {
         status.set(state);
         await fixture.whenStable();
-        expect($('#topbar-menu-button')).toBeNull();
+        expect($('.menu-button')).toBeNull();
       }
-      // An administrator on the "not set up yet" card: their own menu is there.
-      status.set('not-set-up');
+      // Somebody signed in before the app runs: their own menu is there.
       person.set({ name: 'mia', roles: ['ADMIN'] });
       await fixture.whenStable();
       await open('phone');
-      expect(texts('#topbar-menu [role="menuitem"]').slice(-1)).toEqual(['Sign out']);
+      expect(texts('anotoki-menu [role="menuitem"]').slice(-1)).toEqual(['Sign out']);
     });
 
     it('a screen turned past the fold closes the open menu, and the desktop\'s row comes', async () => {
@@ -501,18 +521,18 @@ describe('TopBarComponent: the family\'s one bar', () => {
       await open('phone');
       screen.turn(false);
       await fixture.whenStable();
-      expect($('#topbar-menu')).toBeNull();
-      expect($('#topbar-menu-button')).toBeNull();
-      expect(row()).toEqual(['app-brand', 'topbar-nav', 'app-midi-panel', 'app-language-switcher', 'app-theme-toggle', 'user-menu']);
+      expect(menu()).toBeNull();
+      expect($('.menu-button')).toBeNull();
+      expect(row()).toEqual(['anotoki-brand', 'nav', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'person-button']);
     });
   });
 
   describe('the words', () => {
-    /** What a control shows: its text, but for what is hidden from everybody (the avatar's initial, the icons). */
+    /** What a control shows: its text, but for what is hidden from everybody (the initial, the icons, a mark's description). */
     const shown = (element: Element): string => {
       const copy = element.cloneNode(true) as Element;
-      copy.querySelectorAll('[aria-hidden="true"], .visually-hidden, app-icon').forEach((hidden) => hidden.remove());
-      // Each piece apart: "anotoki" and "Piano Academy" are two spans the styles set apart, with no space between them in the DOM.
+      copy.querySelectorAll('[aria-hidden="true"], .visually-hidden, anotoki-icon').forEach((hidden) => hidden.remove());
+      // Each piece apart: "anotoki" and "Piano Academy" are two spans the styles set apart.
       const pieces: string[] = [];
       const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) pieces.push(node.textContent ?? '');
@@ -530,44 +550,54 @@ describe('TopBarComponent: the family\'s one bar', () => {
             const words = shown(control);
             if (words === '') continue;
             expect(control.getAttribute('aria-label')?.toLowerCase(), control.id || control.className).toContain(words.toLowerCase());
-            checked.push(control.id || control.className);
+            checked.push(what(control));
           }
           // The brand, the piano (but on a phone, where it shows no words) and the language at least.
-          expect(checked).toEqual(expect.arrayContaining(phone ? ['brand'] : ['brand', 'midi-button']));
-          expect(checked.some((id) => id.startsWith('language-button'))).toBe(true);
+          expect(checked).toEqual(expect.arrayContaining(phone ? ['brand', 'switcher'] : ['brand', 'midi-button', 'switcher']));
         });
       }
     }
 
-    it('reads the learner\'s language - and English in the admin panel, with its own sections, no chooser and no piano', async () => {
+    it('reads the learner\'s language - the family\'s words in this app\'s strings - and English in the admin panel, with its own sections, no chooser and no piano', async () => {
       await bar({ language: 'sk' });
-      expect(texts('#topbar-nav a')).toEqual(['Učenie', 'Tréning nôt', 'Hra z nôt', 'Skladby', 'Štatistiky']);
-      expect($('#topbar-user-button')?.getAttribute('aria-label')).toBe('Tvoja ponuka: mia');
-      expect($('app-language-switcher')).not.toBeNull();
-
+      expect(texts('nav a')).toEqual(['Učenie', 'Tréning nôt', 'Hra z nôt', 'Skladby', 'Štatistiky']);
+      expect($('.person-button')?.getAttribute('aria-label')).toBe('Tvoja ponuka: mia');
+      expect($('anotoki-language-switcher .switcher')?.getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
+      expect(Array.from(host.querySelectorAll('anotoki-theme-toggle [role="radio"]')).map((choice) => choice.getAttribute('aria-label'))).toEqual(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']);
       person.set({ name: 'mia', roles: ['ADMIN'] });
+      await fixture.whenStable();
+      await open('account');
+      // The owner's Slovak, where the kit's own would say "Administrátor", "Tvoj anotoki účet".
+      expect(texts('.menu-role')).toEqual(['Správca']);
+      expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Tvoj účet anotoki', 'Administrátorský panel', 'Odhlásiť sa']);
+      press(items()[0], 'Escape');
+      await fixture.whenStable();
+
       await router.navigateByUrl('/admin/people');
       await fixture.whenStable();
       expect(TestBed.inject(TranslationService).effectiveLanguage()).toBe('en');
-      expect(texts('#topbar-nav a')).toEqual(['Translations', 'Languages', 'People', 'Migrations']);
-      expect(texts('#topbar-nav a[aria-current="page"]')).toEqual(['People']);
+      expect(texts('nav a')).toEqual(['Translations', 'Languages', 'People', 'Migrations']);
+      expect(texts('nav a[aria-current="page"]')).toEqual(['People']);
       expect($('.brand')?.getAttribute('href')).toBe('/admin');
-      expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy - admin panel');
-      expect(texts('.brand .wordmark span')).toEqual(['anotoki', 'Piano Academy - admin panel']);
-      expect($('app-language-switcher')).toBeNull();
+      // The family's admin wordmark: "anotoki Piano Academy · admin panel".
+      expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy · admin panel');
+      expect(texts('.brand .wordmark > span')).toEqual(['anotoki', 'Piano Academy', '·', 'admin panel']);
+      expect($('anotoki-language-switcher')).toBeNull();
       expect($('app-midi-panel')).toBeNull();
-      expect($('#topbar-user-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
+      expect($('.person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
       await open('account');
-      expect(texts('#user-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Back to Piano Academy', 'Sign out']);
-      expect($('#topbar-back')?.getAttribute('href')).toBe('/');
-      expect($('#topbar-role')?.textContent).toBe('Administrator');
+      expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Back to Piano Academy', 'Sign out']);
+      expect($('anotoki-menu a[href="/"]')?.textContent?.trim()).toBe('Back to Piano Academy');
+      expect($('.menu-role')?.textContent).toBe('Administrator');
     });
 
-    it('the admin panel on a phone: "admin panel" beside the mark, inside the brand link\'s name', async () => {
+    it('the admin panel on a phone: Piano\'s own short form beside the mark, "admin panel" under it, both in the brand link\'s name', async () => {
       person.set({ name: 'mia', roles: ['ADMIN'] });
       await bar({ phone: true, at: '/admin/people' });
-      expect(texts('.brand .wordmark span')).toEqual(['admin panel']);
-      expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy - admin panel');
+      expect(texts('.brand .area')).toEqual(['Piano']);
+      expect(texts('.brand .panel')).toEqual(['admin panel']);
+      expect($('.brand .name')).toBeNull();
+      expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy · admin panel');
     });
 
     it('while an update waits: an ADMIN in the admin panel has Migrations alone; elsewhere, and anybody else, no sections', async () => {
@@ -578,15 +608,15 @@ describe('TopBarComponent: the family\'s one bar', () => {
         await bar({ at: '/admin/migrations' });
         TestBed.inject(SiteStatus).report('update_pending');
         await fixture.whenStable();
-        expect(texts('#topbar-nav a')).toEqual(['Migrations']);
-        expect(texts('#topbar-nav a[aria-current="page"]')).toEqual(['Migrations']);
+        expect(texts('nav a')).toEqual(['Migrations']);
+        expect(texts('nav a[aria-current="page"]')).toEqual(['Migrations']);
         await router.navigateByUrl('/');
         await fixture.whenStable();
-        expect($('#topbar-nav')).toBeNull();
+        expect($('nav')).toBeNull();
         TestBed.resetTestingModule();
         onlyMigrations.set(false);
         await bar({ at: '/admin/migrations' });
-        expect($('#topbar-nav')).toBeNull();
+        expect($('nav')).toBeNull();
       } finally {
         status.set('ready');
         onlyMigrations.set(false);
@@ -595,77 +625,85 @@ describe('TopBarComponent: the family\'s one bar', () => {
 
     it('an update that comes in the middle of practising: the sections go while the status page stands in the view\'s place - and come back with the site', async () => {
       await bar({ at: '/trainer' });
-      expect(texts('#topbar-nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+      expect(texts('nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
       const site = TestBed.inject(SiteStatus);
       site.report('update_pending');
       await fixture.whenStable();
-      expect($('#topbar-nav')).toBeNull();
+      expect($('nav')).toBeNull();
       site.markReady();
       await fixture.whenStable();
-      expect(texts('#topbar-nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+      expect(texts('nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
     });
 
     it('the admin panel\'s sections by role: an EDITOR has Translations alone, somebody with no role none', async () => {
       person.set({ name: 'ed', roles: ['EDITOR'] });
       await bar({ at: '/admin/translations' });
-      expect(texts('#topbar-nav a')).toEqual(['Translations']);
+      expect(texts('nav a')).toEqual(['Translations']);
       TestBed.resetTestingModule();
       person.set({ name: 'mia', roles: [] });
       await bar({ at: '/admin/translations' });
-      expect($('#topbar-nav')).toBeNull();
+      expect($('nav')).toBeNull();
     });
   });
 
   describe('signing out', () => {
-    const signOutButton = (): HTMLButtonElement => $<HTMLButtonElement>('#sign-out-btn')!;
-    const dialog = (): HTMLDialogElement => $<HTMLDialogElement>('dialog.confirm')!;
+    const signOutItem = (): HTMLButtonElement => $<HTMLButtonElement>('.sign-out-item')!;
 
-    it('settles what is waiting first, with a spinner on the item - then signs out when nothing would be lost', async () => {
+    it('settles what is waiting first - the family\'s item waits, "Saving…" - then signs out when nothing would be lost', async () => {
       await bar({ language: 'sk' });
-      await open('account');
-      signOutButton().click();
+      const button = await open('account');
+      signOutItem().click();
       await fixture.whenStable();
       expect(boot.settleBeforeSignOut).toHaveBeenCalledTimes(1);
-      expect(signOutButton().disabled).toBe(true);
-      expect(signOutButton().getAttribute('aria-busy')).toBe('true');
-      expect(signOutButton().querySelector('app-spinner')).not.toBeNull();
+      expect(signOutItem().disabled).toBe(true);
+      expect(signOutItem().getAttribute('aria-busy')).toBe('true');
+      expect(signOutItem().querySelector('anotoki-spinner')).not.toBeNull();
+      // The kit's own word while it waits, in its (informal) Slovak.
+      expect(signOutItem().textContent?.trim()).toBe('Ukladá sa…');
+      expect(document.activeElement).toBe(button);
       expect(boot.signOut).not.toHaveBeenCalled();
 
       settled(false);
       await settle();
-      expect(dialog().hasAttribute('open')).toBe(false);
+      expect(TestBed.inject(ConfirmService).pending()).toBeNull();
       expect(boot.signOut).toHaveBeenCalledTimes(1);
     });
 
-    it('asks in the learner\'s language when progress would be lost - and stays signed in on no', async () => {
+    it('asks in the learner\'s language when progress would be lost - the safe answer first - and stays signed in on no', async () => {
       await bar({ language: 'sk' });
-      // The question is drawn while closed (the shell's checks read it).
-      expect($('#sign-out-confirm-title')?.textContent).toBe('Odhlásiť sa bez posledného postupu?');
       await open('account');
-      signOutButton().click();
+      signOutItem().click();
       settled(true);
       await settle();
-      expect($('#user-menu')).toBeNull();
-      expect(dialog().hasAttribute('open')).toBe(true);
-      expect(dialog().querySelector('p')?.textContent).toBe('Časť tvojho postupu sa zatiaľ nepodarilo uložiť. Ak sa teraz odhlásiš, stratí sa.');
-      expect(dialog().querySelector('[data-answer="yes"]')?.textContent?.trim()).toBe('Aj tak sa odhlásiť');
-      expect(dialog().querySelector('[data-answer="no"]')?.textContent?.trim()).toBe('Neodhlasovať sa');
+      // The menu goes; the family's question (ConfirmService) asks, in the learner's words.
+      expect(menu()).toBeNull();
+      const confirm = TestBed.inject(ConfirmService);
+      expect(confirm.pending()).toEqual(
+        expect.objectContaining({
+          title: 'Odhlásiť sa bez posledného postupu?',
+          message: 'Časť tvojho postupu sa zatiaľ nepodarilo uložiť. Ak sa teraz odhlásiš, stratí sa.',
+          confirmLabel: 'Aj tak sa odhlásiť',
+          cancelLabel: 'Neodhlasovať sa',
+          tone: 'danger',
+        }),
+      );
 
-      (dialog().querySelector('[data-answer="no"]') as HTMLButtonElement).click();
+      confirm.settle(false);
       await settle();
       expect(boot.signOut).not.toHaveBeenCalled();
       await open('account');
-      expect(signOutButton().disabled).toBe(false);
-      expect(signOutButton().querySelector('app-spinner')).toBeNull();
+      expect(signOutItem().disabled).toBe(false);
+      expect(signOutItem().querySelector('anotoki-spinner')).toBeNull();
+      expect(signOutItem().textContent?.trim()).toBe('Odhlásiť sa');
     });
 
     it('signs out on yes', async () => {
       await bar();
       await open('account');
-      signOutButton().click();
+      signOutItem().click();
       settled(true);
       await settle();
-      (dialog().querySelector('[data-answer="yes"]') as HTMLButtonElement).click();
+      TestBed.inject(ConfirmService).settle(true);
       await settle();
       expect(boot.signOut).toHaveBeenCalledTimes(1);
     });

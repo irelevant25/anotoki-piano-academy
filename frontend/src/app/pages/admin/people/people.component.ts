@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { ApiError, ApiService, PeopleList, Person } from '../../../core/api/api.service';
 import { LocalDatePipe } from '../../../core/i18n/local-date.pipe';
 import { VISITOR_KEEP_DAYS } from '../../../core/i18n/visitor-words';
 import { ProgressStore } from '../../../core/state/progress-store.service';
-import { ConfirmDialogComponent } from '../../../ui/confirm-dialog/confirm-dialog.component';
 import { adminErrorText } from '../admin-error';
 
 /**
@@ -29,12 +29,12 @@ import { adminErrorText } from '../admin-error';
   templateUrl: './people.component.html',
   styleUrl: './people.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [LocalDatePipe, ConfirmDialogComponent],
+  imports: [LocalDatePipe],
 })
 export class PeopleComponent {
   private readonly api = inject(ApiService);
   private readonly store = inject(ProgressStore);
-  private readonly confirm = viewChild.required(ConfirmDialogComponent);
+  private readonly confirm = inject(ConfirmService);
 
   protected readonly people = signal<Person[] | null>(null);
   /** How many visitors there are, and their rounds (null until loaded). */
@@ -67,13 +67,13 @@ export class PeopleComponent {
 
   protected async remove(person: Person): Promise<void> {
     const name = person.username ?? `the person with IAM id ${person.id}`;
-    const yes = await this.confirm().ask({
+    const yes = await this.confirm.ask({
       title: `Delete the progress of ${name}?`,
       message:
         `Everything Piano Academy keeps of ${name} goes: ${person.notes} notes, ${person.steps} steps of the path and ${person.sessions} rounds. ` +
         'It cannot be brought back. Their anotoki account stays; if they sign in again, they start from nothing.',
       confirmLabel: 'Delete their progress',
-      danger: true,
+      tone: 'danger',
     });
     if (!yes) return;
 

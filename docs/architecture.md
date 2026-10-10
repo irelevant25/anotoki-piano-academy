@@ -127,10 +127,12 @@ In the browser (`@anotoki/lib/migrations`, wired in
 `GET /api/site-status` first; `siteStatusInterceptor` hears any `503
 update_pending`/`not_set_up` later; `<anotoki-site-gate>` draws the family's
 status page in the view's place while the site is not ready, and takes the
-shell's view as an `<ng-template>` that it makes only while it shows it (the
-library's 0.1.1) - so no page runs behind the status page, also when an
-update comes in the middle of practising: the page is destroyed, and the
-status page loads the site afresh once it is back. It says "The site is
+shell's view as its marked template (`<ng-template anotokiSitePages>`, the
+library's 0.2.0) that it makes only while it shows it - so no page runs
+behind the status page, also when an update comes in the middle of
+practising: the page is destroyed, and the status page loads the site
+afresh once it is back (without reopening the gate first:
+`SiteStatus.checkForReload()`). It says "The site is
 being updated" for visitors and learners (their language, a quiet Sign in
 for nobody, a reload once the site is back), "A database update is waiting"
 with "Open Migrations" for the site's ADMIN, "This site is not set up yet"
@@ -141,8 +143,8 @@ the start's card (loading, the sign-in card, could not load). The start
 (`waiting`) - no move, no progress asked for; the sign-in guard sends nobody
 to the IAM; an ADMIN's Apply that leaves nothing to apply goes on with the
 start in place (`resumeAfterUpdate()`), the Migrations page
-(`<anotoki-migrations-page>` under `/admin/migrations`) staying on the
-screen.
+(`<anotoki-migrations-page>` under `/admin/migrations`, lazy from
+`@anotoki/lib/migrations/page`) staying on the screen.
 
 ## Settings
 
@@ -283,32 +285,53 @@ ADMIN gets in and back to the page. While the status is otherwise `loading`
 or `load-error` they let nothing through and send nobody anywhere. The IAM's
 redirect route (`/auth/callback`) has no guard.
 
+**The family's kit** (`@anotoki/lib` 0.2.0, `core/family-kit.ts`): the top
+bar, its menus and popovers, the language chooser, the theme switch and
+`ThemeService`, the brand, the icons, the spinner and the questions
+(`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
+the anotoki family's. They draw with the family's tokens, which
+`styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
+a site gives the colours only), with the family's corners, shadows and
+font, Manrope; Piano's own element rules (bare buttons and selects) are
+kept off them. Their words are this app's strings where it has
+them - the database's, as the owner worded them (`core/i18n/kit-words.ts`,
+the kit's `lookup`) - and the kit's own English and informal Slovak for the
+rest. Piano's own stay its own for now: the pages, the keyboard, the
+notation, the piano's widget (on the family's popover), What's new,
+`.btn-primary`, `.card`, `.chip` (those three onto the kit's components in
+a later phase).
+
 **The top bar** (`layouts/top-bar/`, drawn once by `AppComponent` above every
-page and boot card): the anotoki family's bar, the survey's structure - the
-brand (`ui/brand`, the mark in `public/anotoki.png`), the five sections as
-links (`APP_LINKS`: a lesson is under Learn, a song under Songs; drawn once
-the app runs), "Not saved yet" while a save waits, the piano
+page and boot card): the anotoki family's `<anotoki-top-bar>`, told what is
+Piano's - the brand (the mark in `public/anotoki.png`, "anotoki Piano
+Academy"), the five sections as links (`APP_LINKS`: a lesson is under Learn,
+a song under Songs; drawn once the app runs), and two widgets of the app's
+own before the language: "Not saved yet" while a save waits and the piano
 (`ui/midi-panel`: a dot and the device's name; its box holds the state, the
-devices, Connect and Rescan), the language, the theme and the person's menu
-(name, e-mail, role; their anotoki account; Admin for the staff; Sign out) -
-or Sign in once the sign-in ran out mid-session. Up to `PHONE_BAR_MAX` (1240
-px, measured with the real labels) it is a phone's: "Piano"
-(`brand.short`), the piano's dot, the language, the theme and one menu button
-holding the sections and the person's menu; "Not saved yet" is a dot on that
-button and the menu's first line. Its menus' keys are the survey's: arrows,
-Home and End; Escape, a click outside, Tab and Shift+Tab close the menu - Tab
-with the focus on its button. Under `/admin` it has the admin sections
-(`ADMIN_LINKS`, English), "Back to Piano Academy" in the menu, no chooser and
-no piano; `TranslationService` reads every key in English there
-(`effectiveLanguage`, the bundle's `english`), so the bar has no case of its
-own. The footer keeps the version, which opens What's new.
+devices, Connect and Rescan); then the language, the theme switch (light,
+dark, as the device is set) and the person's menu (name, e-mail, role; their
+anotoki account; "Admin panel" for the staff while the site is ready; Sign
+out) - or Sign in once the sign-in ran out mid-session. Up to
+`PHONE_BAR_MAX` (1320 px, measured with the real labels) it is a
+phone's: "Piano" (`brand.short`), the piano's dot, the language, the theme
+switch and one menu button holding the sections and the person's menu; "Not
+saved yet" is a dot on that button (`phoneMark`, its words for a screen
+reader) and the first line of both menus (`menuNote`). Its menus' keys are
+the family's: arrows, Home and End; Escape, a click outside, Tab and
+Shift+Tab close the menu - Tab with the focus on its button. Under `/admin`
+it has the admin sections (`ADMIN_LINKS`, English), the family's wordmark
+"anotoki Piano Academy · admin panel" ("Piano" with "admin panel" under it
+on a phone), "Back to Piano Academy" in the menu, no chooser and no piano;
+`TranslationService` reads every key in English there (`effectiveLanguage`,
+the bundle's `english`), so the bar has no case of its own. The footer keeps
+the version, which opens What's new.
 
 **The admin panel** (`/admin`, English): its sections are the top bar's links
 there - Translations (EDITOR, ADMIN); Languages, People, Migrations (ADMIN,
 `pages/admin/admin.guard.ts`; the Migrations page is the family's
 `<anotoki-migrations-page>`; `/admin/database` redirects to Migrations);
-the person's menu calls it "Admin panel", its brand "Piano Academy - admin
-panel" and its titles "Translations · Admin panel · Piano Academy", as on
+the person's menu calls it "Admin panel", its brand "anotoki Piano Academy ·
+admin panel" and its titles "Translations · Admin panel · Piano Academy", as on
 every anotoki site; `layouts/admin-layout/` draws the page, or
 says why there is nothing (signed out; signed in without a role). `/translations` and `/languages`
 redirect there. The pages show the server's own English sentence when a call
@@ -374,23 +397,26 @@ progress loaded again and the other tabs told. Each code is a key of its own
 
 **Signing out** (the top bar's menu):
 `BootService.settleBeforeSignOut()` sends a failed save once more and waits for
-what is on its way (a spinner); if progress or the path still did not get
-through, the learner is asked (`signOut.*`, their language) before
-`AuthService.signOut()`.
+what is on its way (the family's item says "Saving…" meanwhile); if progress
+or the path still did not get through, the menu closes and the learner is
+asked (`signOut.*`, their language, the family's `ConfirmService` - the safe
+answer first) before `AuthService.signOut()`.
 
 **The account's theme, dates, clock and language** (the IAM's migration 015,
 its browser SDK 1.2.0; `decisions.md`, 2026-10-06): `AuthService.preferences`
 is the account's `{theme, date_format, time_format}` while somebody is signed
 in - null for nobody, a visitor, or an IAM that sends none, and then the app
 keeps its own settings as before and saves nothing to the account.
-`ThemeService` shows the account's theme (taken at sign-in and whenever it
-changes - another tab, another site, a token refresh - but not while a save
-of its own is out), and the bar's theme button saves a choice to the account
-through the SDK's `savePreferences()`: shown at once, one save at a time, the
-latest last; refused, the account's theme comes back and `theme.notSaved` is
-said under the button. The whole site, the admin panel too, has that one
-theme; `piano-academy:theme` keeps the theme on the screen for
-`public/theme-boot.js`. The `localDate` pipe writes a signed-in person's
+The family's `ThemeService` (`@anotoki/lib/shell`, given the account's theme
+and the save in `core/family-kit.ts`) shows the account's theme (taken at
+sign-in and whenever it changes - another tab, another site, a token refresh
+- but not while a save of its own is out), and the bar's theme switch saves
+a choice to the account through the SDK's `savePreferences()`: shown at
+once, one save at a time, the latest last; refused, the account's theme
+comes back and `theme.notSaved` is said under the switch. The whole site,
+the admin panel too, has that one theme; `piano-academy:theme` keeps the
+theme on the screen for the family's `theme-boot.js` (`index.html`,
+`data-storage-key`). The `localDate` pipe writes a signed-in person's
 dates in the account's order and clock when it chose them (a moment: the
 date and the time side by side, each half the language's own where left
 automatic), the admin panel's People and Migrations included (`stamp`: their
@@ -401,9 +427,10 @@ the survey site's the reference): for somebody signed in whose account sends
 its preferences, this tab's `?lang=` and a choice made on the page this
 visit come first, then the account's language (when the site has it), then
 the choice this device remembered, the browser's languages, English. A
-choice that won in the chooser is saved to the account as well
-(`setLanguage()` -> `saveToAccount()` - and the chooser's own call for the
-language already on the page), so every anotoki site follows it: one save at
+choice that won in the chooser (the family's, which calls `choose()`) is
+saved to the account as well (`setLanguage()` -> `saveToAccount()` - or
+`saveToAccount()` alone for the language already on the page), so every
+anotoki site follows it: one save at
 a time, the latest choice last, and the answer to an earlier save never
 turns the page back. The page stays in the chosen language for the visit
 whatever the account answers - silently when the IAM does not offer that

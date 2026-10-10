@@ -76,9 +76,9 @@
 }
 
 <main id="view-root" class="view-root">
-    <!-- The family's gate (@anotoki/lib/migrations): the view - or, while the site is not ready, its status page in the view's place (an ADMIN still has the Migrations page). The view is the gate's template: made only while the gate shows it, so no page runs behind the status page. -->
+    <!-- The family's gate (@anotoki/lib/migrations): the view - or, while the site is not ready, its status page in the view's place (an ADMIN still has the Migrations page). The view is the gate's marked template (anotokiSitePages): made only while the gate shows it, so no page runs behind the status page. -->
     <anotoki-site-gate>
-        <ng-template>
+        <ng-template anotokiSitePages>
             @if (pageShown()) {
                 <!-- One outlet for both: the Migrations page an ADMIN applies from while an update waits stays as the app starts. -->
                 <router-outlet />
@@ -111,3 +111,6 @@
 </footer>
 
 <app-changelog-dialog />
+
+<!-- The family's "Are you sure?" (@anotoki/lib/ui/dialog's ConfirmService): signing out with progress not saved, bringing back a progress file over the one there, the admin panel's questions. -->
+<anotoki-confirm-host />

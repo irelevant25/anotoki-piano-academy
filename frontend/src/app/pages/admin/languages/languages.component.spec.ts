@@ -5,7 +5,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { OwnerLanguage } from '../../../core/i18n/translation.model';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { LOCALIZATION_DRAFTS_KEY, LocalizationDrafts } from '../../../core/admin/localization-drafts.service';
-import { provideTestDialog } from '../../../core/testing/test-dialog';
+import { TestQuestions, drawTestQuestions, provideTestKit } from '../../../core/testing/test-kit';
 import { LanguagesComponent } from './languages.component';
 
 const ENGLISH: OwnerLanguage = { code: 'en', name: 'English', nativeName: 'English', enabled: true, sortOrder: 1, seeded: true };
@@ -59,7 +59,9 @@ describe('LanguagesComponent', () => {
   const error = (within: ParentNode) => text('.field-error', within);
   /** What the last change did: the line that stays in view. */
   const said = () => text('.bar-state');
-  const question = () => host.querySelector<HTMLDialogElement>('dialog.confirm')!;
+  /** The family's question (ConfirmService), drawn beside the page as the app's root draws it. */
+  let questions: TestQuestions;
+  const asked = () => questions.open() !== null;
 
   /** Lets the promises of a click run out, then the page draw. */
   async function settle(): Promise<void> {
@@ -79,10 +81,8 @@ describe('LanguagesComponent', () => {
   }
 
   async function answer(yes: boolean): Promise<string> {
-    const title = question().hasAttribute('open') ? text('#ow-confirm-title') : '';
-    question()
-      .querySelector<HTMLButtonElement>(`[data-answer="${yes ? 'yes' : 'no'}"]`)!
-      .click();
+    const title = questions.title();
+    questions.answer(yes);
     await settle();
     return title;
   }
@@ -108,18 +108,22 @@ describe('LanguagesComponent', () => {
 
   /** The page drawn - the first time, or again after it was left. */
   async function draw(): Promise<void> {
+    questions?.remove();
+    questions = drawTestQuestions();
     fixture = TestBed.createComponent(LanguagesComponent);
     host = fixture.nativeElement;
     document.body.appendChild(host);
     await settle();
   }
 
-  beforeAll(() => provideTestDialog());
+  // The family's dialog asks jsdom for what it lacks (showModal(), checkVisibility()).
+  beforeAll(() => provideTestKit());
 
   beforeEach(() => sessionStorage.clear());
 
   afterEach(() => {
     host.remove();
+    questions.remove();
     vi.restoreAllMocks();
     sessionStorage.clear();
   });
@@ -148,7 +152,7 @@ describe('LanguagesComponent', () => {
     // The root says so: the shell around it may be Slovak.
     const root = host.firstElementChild!;
     expect(root.getAttribute('lang')).toBe('en');
-    expect(root.contains(question())).toBe(true);
+    // Everything the page draws is inside it (the question it asks is the family's, drawn once in the app's root).
     expect(Array.from(host.children)).toHaveLength(1);
     expect(host.querySelectorAll('.page-head a')).toHaveLength(0);
   });
@@ -366,9 +370,9 @@ describe('LanguagesComponent', () => {
     button('Delete', row('cs'))!.click();
     await settle();
     expect(api.deleteLanguage).not.toHaveBeenCalled();
-    expect(question().hasAttribute('open')).toBe(true);
-    expect(text('#ow-confirm-text')).toBe('Every string of the app written in it goes with it, and none of it can be brought back.');
-    expect(all('dialog.confirm button')).toEqual(['Cancel', 'Delete']);
+    expect(asked()).toBe(true);
+    expect(questions.text()).toBe('Every string of the app written in it goes with it, and none of it can be brought back.');
+    expect(questions.answers()).toEqual(['Cancel', 'Delete']);
     expect(await answer(true)).toBe('Delete Czech (cs)?');
 
     expect(api.deleteLanguage).toHaveBeenCalledWith('cs');
@@ -513,9 +517,9 @@ describe('LanguagesComponent', () => {
     await type(fields(row('sk'))[0], 'Slovakian');
     const stay = component.canLeave() as Promise<boolean>;
     await settle();
-    expect(question().hasAttribute('open')).toBe(true);
-    expect(text('#ow-confirm-text')).toBe('1 language has changes that are not saved yet, and leaving loses them.');
-    expect(all('dialog.confirm button')).toEqual(['Stay here', 'Leave']);
+    expect(asked()).toBe(true);
+    expect(questions.text()).toBe('1 language has changes that are not saved yet, and leaving loses them.');
+    expect(questions.answers()).toEqual(['Stay here', 'Leave']);
     expect(await answer(false)).toBe('Leave without saving?');
     expect(await stay).toBe(false);
     // Staying keeps what was typed.

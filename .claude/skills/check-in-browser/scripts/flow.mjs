@@ -88,8 +88,32 @@ const MIA = { id: 7, username: 'mia', roles: ['MEMBER'] };
 const ED = { id: 8, username: 'ed', roles: ['MEMBER', 'EDITOR'] };
 const ADA = { id: 1, username: 'ada', roles: ['MEMBER', 'ADMIN'] };
 
-/** The admin panel's Migrations page: the anotoki family's (@anotoki/lib/migrations). */
+/** The admin panel's Migrations page: the anotoki family's (@anotoki/lib/migrations/page). */
 const MIGRATIONS = 'anotoki-migrations-page';
+
+/** Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in layouts/top-bar) draws what the tours read. */
+const BAR = {
+  /** Somebody is signed in: the person's button on a wide bar, the menu button on a phone's. */
+  signedIn: 'anotoki-top-bar .person-button, anotoki-top-bar .menu-button',
+  person: 'anotoki-top-bar .person-button',
+  name: 'anotoki-top-bar .person-name',
+  phoneButton: 'anotoki-top-bar .menu-button',
+  /** The open menu (the person's or the phone's). */
+  menu: 'anotoki-top-bar [role="menu"]',
+  nav: 'anotoki-top-bar nav',
+  signIn: 'anotoki-top-bar .sign-in',
+  language: 'anotoki-language-switcher .switcher',
+  /** The theme switch's choices, and the one in force. */
+  theme: 'anotoki-theme-toggle [role="radio"]',
+  themeChosen: 'anotoki-theme-toggle [role="radio"][aria-checked="true"]',
+  themeNote: 'anotoki-theme-toggle [role="alert"]',
+};
+
+/** The family's question (ConfirmService's <anotoki-confirm-host>, in the app's root), while one is asked. */
+const QUESTION = 'anotoki-confirm-host dialog[open]';
+
+/** A desktop's window: wide enough for the whole bar (the sections beside the brand), the person's name not yet beside the initial. */
+const DESKTOP = 1440;
 
 /**
  * The family's status page (<anotoki-site-status>, in the view's place while the site is not ready), as it is
@@ -118,7 +142,7 @@ const KEY_SHAPE = new RegExp(`(?<![\\w.@/-])(?:${NAMESPACES.join('|')})\\.[A-Za-
 const browser = await chromium.launch({ channel: process.env.BROWSER === 'chrome' ? 'chrome' : 'msedge', headless: true });
 const errors = [];
 
-async function newContext({ width = 1280, height = 900, scheme = 'light' } = {}) {
+async function newContext({ width = DESKTOP, height = 900, scheme = 'light' } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, locale: 'en-GB', colorScheme: scheme, acceptDownloads: true });
   context.on('page', (page) => page.on('pageerror', (error) => errors.push(error.message)));
   return context;
@@ -129,7 +153,7 @@ async function signedIn(context, user, address = '/') {
   await iamAs(user);
   const page = await context.newPage();
   await page.goto(`${APP}${address}`);
-  await page.waitForSelector('app-top-bar .user-menu, app-top-bar .phone-menu', { timeout: 20000 });
+  await page.waitForSelector(BAR.signedIn, { timeout: 20000 });
   await page.waitForFunction(() => document.querySelector('#view-root .loading') === null, null, { timeout: 20000 });
   return page;
 }
@@ -149,14 +173,24 @@ async function keysOnPage(page) {
   return [...new Set(said.match(KEY_SHAPE) ?? [])];
 }
 
-/** The bar's row, thing by thing, left to right: what is drawn, and where. */
+/**
+ * The bar's row, thing by thing, left to right: what is drawn, and where. A thing is named by Piano's own id
+ * (save-status), by its component (anotoki-brand, app-midi-panel), or by the family's class for it
+ * (nav, person-button, menu-button, sign-in) - the family's ids are made up as the page is drawn. The menus'
+ * own elements take no room in the row.
+ */
 async function barRow(page) {
   return page.evaluate(() => {
-    const things = [...document.querySelectorAll('.topbar-inner > *, .topbar-actions > *')].filter((element) => !element.classList.contains('topbar-actions'));
+    const what = (element) => {
+      if (element.id && !element.id.startsWith('anotoki-')) return element.id;
+      if (element.tagName.includes('-')) return element.tagName.toLowerCase();
+      return ['person-button', 'menu-button', 'sign-in', 'nav'].find((name) => element.classList.contains(name)) ?? element.tagName.toLowerCase();
+    };
+    const things = [...document.querySelectorAll('anotoki-top-bar .row > *, anotoki-top-bar .actions > *')].filter((element) => !element.classList.contains('actions') && element.tagName !== 'ANOTOKI-MENU');
     return things
       .map((element) => {
         const box = element.getBoundingClientRect();
-        return { what: element.id || element.className.split(' ')[0] || element.tagName.toLowerCase(), left: Math.round(box.left), right: Math.round(box.right), top: Math.round(box.top), bottom: Math.round(box.bottom), width: box.width };
+        return { what: what(element), left: Math.round(box.left), right: Math.round(box.right), top: Math.round(box.top), bottom: Math.round(box.bottom), width: box.width };
       })
       .filter((thing) => thing.width > 0);
   });
@@ -167,23 +201,23 @@ async function checkBar(page, label, width) {
   const phone = width <= PHONE_BAR_MAX;
   const row = await barRow(page);
   const bar = await page.evaluate(() => {
-    const box = document.querySelector('.topbar').getBoundingClientRect();
+    const box = document.querySelector('anotoki-top-bar .topbar').getBoundingClientRect();
     return { top: box.top, bottom: box.bottom, scroll: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth };
   });
   const order = row.map((thing) => thing.what);
   const expected = phone
-    ? ['app-brand', 'app-midi-panel', 'app-language-switcher', 'app-theme-toggle', 'phone-menu']
-    : ['app-brand', 'topbar-nav', 'app-midi-panel', 'app-language-switcher', 'app-theme-toggle', 'user-menu'];
+    ? ['anotoki-brand', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'menu-button']
+    : ['anotoki-brand', 'nav', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'person-button'];
   check(JSON.stringify(order) === JSON.stringify(expected), `${label}: the row in the family's order (${phone ? 'a phone\'s' : 'a desktop\'s'})`, order);
   check(row.every((thing) => thing.left >= 0 && thing.right <= width), `${label}: everything inside the screen`, row);
   check(row.every((thing) => thing.top >= bar.top - 1 && thing.bottom <= bar.bottom + 1), `${label}: one row, inside the bar's height`, row);
   check(row.every((thing, i) => i === 0 || row[i - 1].right <= thing.left + 1), `${label}: nothing on top of anything`, row);
   check(bar.scroll <= bar.screen, `${label}: no sideways scroll`, bar);
   if (!phone) {
-    const nameShown = await page.evaluate(() => getComputedStyle(document.querySelector('.user-name')).display !== 'none');
+    const nameShown = await page.evaluate((selector) => getComputedStyle(document.querySelector(selector)).display !== 'none', BAR.name);
     check(nameShown === width >= NAME_BAR_MIN, `${label}: the person's name ${width >= NAME_BAR_MIN ? 'beside' : 'not beside'} the initial`);
   } else {
-    check((await page.textContent('.brand .wordmark'))?.trim() === 'Piano', `${label}: "Piano" beside the mark`);
+    check((await page.textContent('anotoki-top-bar .brand .wordmark'))?.trim() === 'Piano', `${label}: "Piano" beside the mark`);
   }
   const named = await labelsInNames(page);
   check(named.length >= (phone ? 2 : 3) && named.every((control) => control.ok), `${label}: every bar control's name holds the words it shows (label in name)`, named);
@@ -277,13 +311,13 @@ if (MEASURE) {
         await makeUnsaved(page);
         await page.waitForSelector('#save-status', { timeout: 10000 }).catch(() => undefined);
         if (area !== '/stats') {
-          await page.click('#topbar-user-button');
-          await page.click('#admin-link');
-          await page.waitForSelector('#topbar-nav a[href="/admin/translations"]');
+          await page.click(BAR.person);
+          await page.click(`${BAR.menu} a[href="/admin"]`);
+          await page.waitForSelector(`${BAR.nav} a[href="/admin/translations"]`);
         }
         const need = await page.evaluate(() => {
-          const inner = document.querySelector('.topbar-inner');
-          const actions = document.querySelector('.topbar-actions');
+          const inner = document.querySelector('anotoki-top-bar .row');
+          const actions = document.querySelector('anotoki-top-bar .actions');
           const px = (element, name) => parseFloat(getComputedStyle(element)[name]);
           const outer = [...inner.children].filter((element) => element.getBoundingClientRect().width > 0);
           const inside = [...actions.children].filter((element) => element.getBoundingClientRect().width > 0);
@@ -296,6 +330,8 @@ if (MEASURE) {
             row: Math.ceil(px(inner, 'paddingLeft') + px(inner, 'paddingRight') + own + acts + px(inner, 'columnGap') * (outer.length - 1)),
             deviceRoom: label ? Math.ceil(parseFloat(getComputedStyle(label).maxWidth) - label.getBoundingClientRect().width) : 0,
             unsaved: !!document.querySelector('#save-status'),
+            // The family's bar draws its row no wider than this (84rem): what it needs must fit in it too.
+            rowMax: Math.floor(parseFloat(getComputedStyle(inner).maxWidth)),
           };
         });
         results.push({ language, who, area, ...need, withDevice: need.row + need.deviceRoom });
@@ -305,9 +341,10 @@ if (MEASURE) {
   }
   console.table(results);
   const widest = Math.max(...results.map((result) => result.withDevice));
-  console.log(`The widest row: ${widest} px (with a device name at its widest). PHONE_BAR_MAX now: ${PHONE_BAR_MAX}.`);
+  const rowMax = Math.min(...results.map((result) => result.rowMax));
+  console.log(`The widest row: ${widest} px (with a device name at its widest). PHONE_BAR_MAX now: ${PHONE_BAR_MAX}. The row's own limit: ${rowMax} px.`);
   await browser.close();
-  process.exit(widest <= PHONE_BAR_MAX ? 0 : 1);
+  process.exit(widest <= PHONE_BAR_MAX && widest <= rowMax ? 0 : 1);
 }
 
 /* ------------------------------------------------------------------ the tours */
@@ -334,9 +371,9 @@ try {
     check(learnerCalls.length === 0, 'before the trip to the IAM: no call for a learner\'s data (/api/state, saves, /api/me) - only where the site stands, the sign-in\'s settings and the words', before);
     check(calls.some((call) => call.afterCallback && call.api === '/api/state'), 'the progress loaded only after the way back', calls);
     check(new URL(page.url()).pathname === '/stats' && new URL(page.url()).search === '?from=deep', 'and came back to /stats?from=deep', page.url());
-    check((await page.textContent('#account-name')) === 'mia', 'signed in as the learner, named in the bar');
+    check((await page.textContent(BAR.name)) === 'mia', 'signed in as the learner, named in the bar');
     check((await page.textContent('#app-version'))?.trim() === `Piano Academy v${VERSION}`, `the footer says the version (${VERSION})`);
-    await page.screenshot({ path: join(shots, 'stats-1280-light.png'), fullPage: true });
+    await page.screenshot({ path: join(shots, `stats-${DESKTOP}-light.png`), fullPage: true });
     await context.close();
   }
 
@@ -345,7 +382,7 @@ try {
     for (const scheme of ['light', 'dark']) {
       const context = await newContext({ scheme });
       const page = await signedIn(context, MIA, `/?lang=${language}`);
-      for (const width of [360, 390, PHONE_BAR_MAX, PHONE_BAR_MAX + 1, 1280, NAME_BAR_MIN]) {
+      for (const width of [360, 390, 1280, PHONE_BAR_MAX, PHONE_BAR_MAX + 1, DESKTOP, NAME_BAR_MIN]) {
         await page.setViewportSize({ width, height: 800 });
         await page.waitForTimeout(150);
         const label = `${language} ${scheme} ${width}`;
@@ -362,14 +399,15 @@ try {
   {
     const context = await newContext({ width: 360 });
     const page = await signedIn(context, ED, '/songs');
-    await page.click('#topbar-menu-button');
-    await page.waitForSelector('#topbar-menu');
-    const items = await page.$$eval('#topbar-menu [role="menuitem"]', (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
+    const onTheButton = () => page.evaluate((selector) => document.activeElement === document.querySelector(selector), BAR.phoneButton);
+    await page.click(BAR.phoneButton);
+    await page.waitForSelector(BAR.menu);
+    const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
     check(JSON.stringify(items) === JSON.stringify(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Admin panel', 'Sign out']), 'the sections, then the person\'s items', items);
-    check((await page.$$eval('#topbar-menu .menu-link.is-active', (all) => all.map((item) => item.textContent.trim()))).join() === 'Songs', 'the page\'s section stands out');
-    check((await page.textContent('#topbar-menu .menu-role'))?.trim() === 'Editor', 'an EDITOR is named so');
-    await onTop(page, '#topbar-menu', "the phone's menu");
-    const box = await page.$eval('#topbar-menu', (menu) => menu.getBoundingClientRect().toJSON());
+    check((await page.$$eval(`${BAR.menu} [role="menuitem"].is-active`, (all) => all.map((item) => item.textContent.trim()))).join() === 'Songs', 'the page\'s section stands out');
+    check((await page.textContent(`${BAR.menu} .menu-role`))?.trim() === 'Editor', 'an EDITOR is named so');
+    await onTop(page, BAR.menu, "the phone's menu");
+    const box = await page.$eval(BAR.menu, (menu) => menu.getBoundingClientRect().toJSON());
     check(box.left >= 0 && box.right <= 360, 'the menu inside the 360 px screen', box);
     check((await page.evaluate(() => document.activeElement.textContent.trim())) === 'Learn', 'the focus on its first item');
     await page.keyboard.press('ArrowDown');
@@ -379,42 +417,42 @@ try {
     await page.screenshot({ path: join(shots, 'phone-menu-360.png') });
     await page.keyboard.press('Tab');
     await page.waitForTimeout(150);
-    check(!(await page.$('#topbar-menu')), 'a real Tab closes the menu');
-    check((await page.evaluate(() => document.activeElement?.id)) === 'topbar-menu-button', 'and the focus is on the menu button - not <body>', await page.evaluate(() => document.activeElement?.tagName));
+    check(!(await page.$(BAR.menu)), 'a real Tab closes the menu');
+    check(await onTheButton(), 'and the focus is on the menu button - not <body>', await page.evaluate(() => document.activeElement?.tagName));
     await page.keyboard.press('Enter');
-    await page.waitForSelector('#topbar-menu');
+    await page.waitForSelector(BAR.menu);
     await page.keyboard.press('Shift+Tab');
     await page.waitForTimeout(150);
-    check((await page.evaluate(() => document.activeElement?.id)) === 'topbar-menu-button', 'Shift+Tab: the same');
+    check(await onTheButton(), 'Shift+Tab: the same');
     await page.keyboard.press('Enter');
-    await page.waitForSelector('#topbar-menu');
-    await page.click('#topbar-menu a[href="/stats"]');
+    await page.waitForSelector(BAR.menu);
+    await page.click(`${BAR.menu} a[href="/stats"]`);
     await page.waitForSelector('#own-progress');
-    check(new URL(page.url()).pathname === '/stats' && !(await page.$('#topbar-menu')), 'a section chosen: there, and the menu closed');
+    check(new URL(page.url()).pathname === '/stats' && !(await page.$(BAR.menu)), 'a section chosen: there, and the menu closed');
     await context.close();
   }
 
   step('The person\'s menu on a desktop: a real Tab from its last item');
   {
-    const context = await newContext({ width: 1280 });
+    const context = await newContext();
     const page = await signedIn(context, MIA, '/');
-    await page.click('#topbar-user-button');
-    await page.waitForSelector('#user-menu');
-    await onTop(page, '#user-menu', "the person's menu");
-    await page.screenshot({ path: join(shots, 'account-menu-1280.png'), clip: { x: 0, y: 0, width: 1280, height: 320 } });
+    await page.click(BAR.person);
+    await page.waitForSelector(BAR.menu);
+    await onTop(page, BAR.menu, "the person's menu");
+    await page.screenshot({ path: join(shots, `account-menu-${DESKTOP}.png`), clip: { x: 0, y: 0, width: DESKTOP, height: 320 } });
     await page.keyboard.press('End');
     await page.keyboard.press('Tab');
     await page.waitForTimeout(150);
-    check(!(await page.$('#user-menu')) && (await page.evaluate(() => document.activeElement?.id)) === 'topbar-user-button', 'Tab from Sign out: closed, the focus on the person\'s button');
+    check(!(await page.$(BAR.menu)) && (await page.evaluate((selector) => document.activeElement === document.querySelector(selector), BAR.person)), 'Tab from Sign out: closed, the focus on the person\'s button');
     await context.close();
   }
 
-  step('The piano\'s box: inside the screen at 360 px, Escape and the focus back');
-  for (const width of [360, 1280]) {
+  step('The piano\'s box (the family\'s popover): inside the screen at 360 px, Escape and the focus back');
+  for (const width of [360, DESKTOP]) {
     const context = await newContext({ width });
     const page = await signedIn(context, MIA, '/');
     await page.click('#midi-button');
-    await page.waitForSelector('#midi-box:not([hidden])');
+    await page.waitForSelector('#midi-box');
     await page.waitForTimeout(100);
     const box = await page.$eval('#midi-box', (element) => element.getBoundingClientRect().toJSON());
     check(box.left >= 0 && box.right <= width, `${width}: the box inside the screen`, box);
@@ -431,18 +469,24 @@ try {
 
   step('"Not saved yet": a pill beside the piano on a desktop; a dot on the menu button on a phone, its sentence in the menu');
   {
-    const context = await newContext({ width: 1280 });
+    const context = await newContext();
     const page = await signedIn(context, MIA, '/');
     await makeUnsaved(page);
     await page.waitForSelector('#save-status', { timeout: 15000 }).catch(() => undefined);
     check((await page.textContent('#save-status').catch(() => null)) === 'Not saved yet', 'the pill, while the save does not get through');
-    await page.screenshot({ path: join(shots, 'unsaved-1280.png'), clip: { x: 0, y: 0, width: 1280, height: 120 } });
+    await page.screenshot({ path: join(shots, `unsaved-${DESKTOP}.png`), clip: { x: 0, y: 0, width: DESKTOP, height: 120 } });
     await page.setViewportSize({ width: 360, height: 800 });
     await page.waitForTimeout(150);
-    check(!!(await page.$('#topbar-unsaved-dot')), 'on a phone: the dot on the menu button');
-    await page.click('#topbar-menu-button');
-    check((await page.textContent('#topbar-menu-unsaved strong').catch(() => null)) === 'Not saved yet', 'and the menu\'s first line says it');
-    await onTop(page, '#topbar-menu', 'that menu');
+    check(!!(await page.$(`${BAR.phoneButton} .mark-dot`)), 'on a phone: the dot on the menu button');
+    const described = await page.evaluate((selector) => {
+      const id = document.querySelector(selector)?.getAttribute('aria-describedby');
+      return id ? document.getElementById(id)?.textContent?.trim() : null;
+    }, BAR.phoneButton);
+    check(described === 'Not saved yet', 'its words for a screen reader, tied to the button', described);
+    await page.click(BAR.phoneButton);
+    await page.waitForSelector(BAR.menu);
+    check((await page.textContent(`${BAR.menu} .menu-note strong`).catch(() => null)) === 'Not saved yet', 'and the menu\'s first line says it');
+    await onTop(page, BAR.menu, 'that menu');
     await page.screenshot({ path: join(shots, 'unsaved-360-menu.png') });
     await checkBar(page, 'unsaved 360', 360);
     await context.close();
@@ -486,10 +530,12 @@ try {
     await a.setInputFiles('#own-file', file);
     await a.waitForSelector('#own-replaces');
     await a.click('#own-bring-in');
-    await a.waitForSelector('dialog.confirm[open]');
-    check((await a.textContent('#own-progress-confirm-title')) === 'Replace your progress?', 'over progress: a question first');
+    await a.waitForSelector(QUESTION);
+    check((await a.textContent(`${QUESTION} .title`))?.trim() === 'Replace your progress?', 'over progress: a question first (the family\'s)');
+    check((await a.evaluate(() => document.activeElement?.getAttribute('data-answer'))) === 'no', 'the focus on the safe answer');
+    await a.waitForTimeout(250);
     await a.screenshot({ path: join(shots, 'replace-question.png') });
-    await a.click('dialog.confirm[open] [data-answer="yes"]');
+    await a.click(`${QUESTION} [data-answer="yes"]`);
     await a.waitForSelector('#own-done');
     check(true, 'replaced');
     await b.waitForSelector('#progress-changed', { timeout: 10000 }).catch(() => undefined);
@@ -537,68 +583,76 @@ try {
   {
     const context = await newContext();
     const page = await signedIn(context, ED, '/?lang=sk');
-    check((await page.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Učenie|Tréning nôt|Hra z nôt|Skladby|Štatistiky', 'Slovak sections for an EDITOR who chose Slovak');
-    await page.click('#topbar-user-button');
-    check((await page.textContent('#admin-link'))?.trim() === 'Administrátorský panel', 'the way in, in Slovak: "Administrátorský panel"');
-    await page.click('#admin-link');
-    await page.waitForSelector('#topbar-nav a[href="/admin/translations"]');
+    const sections = (on) => on.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()));
+    check((await sections(page)).join('|') === 'Učenie|Tréning nôt|Hra z nôt|Skladby|Štatistiky', 'Slovak sections for an EDITOR who chose Slovak');
+    await page.click(BAR.person);
+    await page.waitForSelector(BAR.menu);
+    check((await page.textContent(`${BAR.menu} a[href="/admin"]`))?.trim() === 'Administrátorský panel', 'the way in, in Slovak: "Administrátorský panel"');
+    await page.click(`${BAR.menu} a[href="/admin"]`);
+    await page.waitForSelector(`${BAR.nav} a[href="/admin/translations"]`);
     check(new URL(page.url()).pathname === '/admin/translations', 'into the admin panel, on Translations');
-    check((await page.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations', 'an EDITOR\'s section: Translations alone');
+    check((await sections(page)).join('|') === 'Translations', 'an EDITOR\'s section: Translations alone');
     check((await page.getAttribute('html', 'lang')) === 'en', '<html lang="en"> in the admin panel');
-    check((await page.$$eval('.brand .wordmark span', (all) => all.map((span) => span.textContent.trim()))).join('|') === 'anotoki|Piano Academy - admin panel', 'the brand: "anotoki Piano Academy - admin panel"');
-    check((await page.getAttribute('.brand', 'aria-label')) === 'anotoki Piano Academy - admin panel', 'the brand link\'s name holds it');
+    check((await page.$$eval('anotoki-top-bar .brand .wordmark > span', (all) => all.map((span) => span.textContent.trim()))).join('|') === 'anotoki|Piano Academy|·|admin panel', 'the brand: the family\'s "anotoki Piano Academy · admin panel"');
+    check((await page.getAttribute('anotoki-top-bar .brand', 'aria-label')) === 'anotoki Piano Academy · admin panel', 'the brand link\'s name holds it');
     check((await page.title()) === 'Translations · Admin panel · Piano Academy', 'the title names the admin panel', await page.title());
-    check(!(await page.$('app-language-switcher')) && !(await page.$('app-midi-panel')), 'no language chooser, no piano');
-    check((await page.getAttribute('#topbar-user-button', 'aria-label')) === 'Your menu: ed', 'the bar\'s words in English');
-    await page.click('#topbar-user-button');
-    await page.waitForSelector('#user-menu');
-    const items = await page.$$eval('#user-menu [role="menuitem"]', (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
+    check(!(await page.$('anotoki-language-switcher')) && !(await page.$('app-midi-panel')), 'no language chooser, no piano');
+    check((await page.getAttribute(BAR.person, 'aria-label')) === 'Your menu: ed', 'the bar\'s words in English');
+    await page.click(BAR.person);
+    await page.waitForSelector(BAR.menu);
+    const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
     check(JSON.stringify(items) === JSON.stringify(['Your anotoki account', 'Back to Piano Academy', 'Sign out']), 'the person\'s menu in English, with the way back', items);
     check(!(await page.$('#admin-nav')), 'the admin layout draws no section nav of its own');
-    await page.screenshot({ path: join(shots, 'admin-editor.png'), clip: { x: 0, y: 0, width: 1280, height: 400 } });
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: join(shots, 'admin-editor.png'), clip: { x: 0, y: 0, width: DESKTOP, height: 400 } });
     await page.keyboard.press('Escape');
     await page.goto(`${APP}/admin/people`);
     await page.waitForURL('**/admin/translations', { timeout: 10000 }).catch(() => undefined);
     check(new URL(page.url()).pathname === '/admin/translations', 'an EDITOR on /admin/people lands on Translations', page.url());
     check(await page.evaluate(async () => (await fetch('/api/admin/people')).status === 401), 'the API itself answers no token with 401');
-    await page.click('#topbar-user-button');
-    await page.click('#topbar-back');
-    await page.waitForSelector('#topbar-nav a[href="/stats"]');
+    await page.waitForSelector(BAR.person);
+    await page.click(BAR.person);
+    await page.click(`${BAR.menu} a[href="/"]`);
+    await page.waitForSelector(`${BAR.nav} a[href="/stats"]`);
     check((await page.getAttribute('html', 'lang')) === 'sk', 'back: Slovak again');
     await context.close();
 
     const adminContext = await newContext();
     const admin = await signedIn(adminContext, ADA, '/admin/people');
     await admin.waitForSelector('#people-table');
-    check((await admin.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations|Languages|People|Migrations', 'an ADMIN\'s sections');
-    check((await admin.$$eval('#topbar-nav a[aria-current="page"]', (all) => all.map((a) => a.textContent.trim()))).join() === 'People', 'People is the page');
+    check((await sections(admin)).join('|') === 'Translations|Languages|People|Migrations', 'an ADMIN\'s sections');
+    check((await admin.$$eval(`${BAR.nav} a[aria-current="page"]`, (all) => all.map((a) => a.textContent.trim()))).join() === 'People', 'People is the page');
     await admin.screenshot({ path: join(shots, 'admin-people.png'), fullPage: true });
-    // Migrations: the anotoki family's page (@anotoki/lib/migrations), in the admin panel's frame.
-    await admin.click('#topbar-nav a[href="/admin/migrations"]');
+    // Migrations: the anotoki family's page (@anotoki/lib/migrations/page), in the admin panel's frame.
+    await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-pending]`);
     check((await admin.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'Migrations (the family\'s page): nothing pending');
     check(await admin.isDisabled(`${MIGRATIONS} [data-apply]`), 'Apply pending is off with nothing pending');
+    await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
     const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.when')?.textContent.trim() ?? '']));
-    check(applied.length >= 7 && applied.at(-1)[0] === '007_site_status_words.sql' && applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)), 'Applied: every file with when (the admin panel\'s stamp), 007 last', applied);
+    check(applied.length >= 8 && applied.at(-1)[0] === '008_family_theme_switch_words.sql' && applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)), 'Applied: every file with when (the admin panel\'s stamp), 008 last', applied);
     check((await admin.title()) === 'Migrations · Admin panel · Piano Academy', 'its title', await admin.title());
-    // Each applied file's SQL, read from the server, in a dialog: the focus on Close, Escape closes it.
+    // Each applied file's SQL, read from the server, in the family's dialog: the focus on Close, Escape closes it.
+    const sql = `${MIGRATIONS} anotoki-dialog[data-sql] dialog[open]`;
     await admin.click(`${MIGRATIONS} [data-applied] li:last-child button`);
-    await admin.waitForSelector(`${MIGRATIONS} dialog[data-sql][open] pre.sql`, { timeout: 10000 });
-    check((await admin.textContent(`${MIGRATIONS} dialog[data-sql] pre.sql`)).includes("'boot.notSetUp.title'"), 'View: 007\'s SQL from the server', (await admin.textContent(`${MIGRATIONS} dialog[data-sql]`)).slice(0, 200));
+    await admin.waitForSelector(`${sql} pre.sql`, { timeout: 10000 });
+    check((await admin.textContent(`${sql} pre.sql`)).includes("'theme.autoSpoken'"), 'View: 008\'s SQL from the server', (await admin.textContent(sql)).slice(0, 200));
     check((await admin.evaluate(() => document.activeElement?.hasAttribute('data-close'))) === true, 'the focus on Close');
-    await admin.screenshot({ path: join(shots, 'admin-migrations-sql-1280.png') });
+    await admin.waitForTimeout(250);
+    await admin.screenshot({ path: join(shots, `admin-migrations-sql-${DESKTOP}.png`) });
     await admin.keyboard.press('Escape');
-    await admin.waitForSelector(`${MIGRATIONS} dialog[data-sql][open]`, { state: 'detached', timeout: 3000 }).catch(() => undefined);
-    check(!(await admin.$(`${MIGRATIONS} dialog[data-sql][open]`)), 'Escape closes it');
-    await admin.screenshot({ path: join(shots, 'admin-migrations-1280.png'), fullPage: true });
+    await admin.waitForSelector(sql, { state: 'detached', timeout: 3000 }).catch(() => undefined);
+    check(!(await admin.$(sql)), 'Escape closes it');
+    await admin.screenshot({ path: join(shots, `admin-migrations-${DESKTOP}.png`), fullPage: true });
     // The Database page's old address.
     await admin.goto(`${APP}/admin/database`);
     await admin.waitForSelector(`${MIGRATIONS} [data-pending]`);
     check(new URL(admin.url()).pathname === '/admin/migrations', '/admin/database goes to /admin/migrations', admin.url());
-    // A phone: the admin panel's bar ("admin panel" beside the mark) and the page, nothing wider than the screen.
+    // A phone: the admin panel's bar (Piano's own short form beside the mark, "admin panel" under it) and the page, nothing wider than the screen.
     await admin.setViewportSize({ width: 360, height: 800 });
     await admin.waitForTimeout(200);
-    check((await admin.textContent('.brand .wordmark'))?.trim() === 'admin panel', 'at 360: "admin panel" beside the mark');
+    const shortBrand = await admin.evaluate(() => [...document.querySelectorAll('anotoki-top-bar .brand .wordmark > span')].filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
+    check(JSON.stringify(shortBrand) === JSON.stringify(['Piano', 'admin panel']), 'at 360: "Piano" beside the mark, "admin panel" under it', shortBrand);
     check(await admin.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'at 360: no sideways scroll');
     await admin.screenshot({ path: join(shots, 'admin-migrations-360.png'), fullPage: true });
     await adminContext.close();
@@ -606,7 +660,7 @@ try {
     const learnerContext = await newContext();
     const learner = await signedIn(learnerContext, MIA, '/admin/people');
     await learner.waitForSelector('#admin-no-role');
-    check(!(await learner.$('#topbar-nav')), 'a learner in the admin panel: no sections, and the card says whose it is');
+    check(!(await learner.$(BAR.nav)), 'a learner in the admin panel: no sections, and the card says whose it is');
     await learnerContext.close();
   }
 
@@ -614,7 +668,7 @@ try {
   {
     const context = await newContext({ width: 390 });
     const page = await signedIn(context, MIA, '/');
-    await page.click('app-language-switcher .switcher');
+    await page.click(BAR.language);
     await page.click('[role="menuitemradio"][lang="sk"]');
     await page.waitForFunction(() => document.documentElement.lang === 'sk');
     const pages = ['/', '/lesson/rh-1/meet', '/trainer', '/sheet', '/songs', '/songs/hot-cross-buns', '/stats'];
@@ -634,14 +688,18 @@ try {
     await page.setInputFiles('#own-file', file);
     await page.waitForSelector('#own-replaces');
     await page.click('#own-bring-in');
-    await page.waitForSelector('dialog.confirm[open]');
-    check((await page.textContent('#own-progress-confirm-title')) === 'Nahradiť tvoj postup?', 'the question before replacing, in Slovak');
+    await page.waitForSelector(QUESTION);
+    check((await page.textContent(`${QUESTION} .title`))?.trim() === 'Nahradiť tvoj postup?', 'the question before replacing, in Slovak');
     check((await keysOnPage(page)).length === 0, 'and no key in it');
-    await page.click('dialog.confirm[open] [data-answer="no"]');
-    await page.click('#topbar-menu-button');
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: join(shots, 'sk-390-question.png') });
+    await page.click(`${QUESTION} [data-answer="no"]`);
+    await page.waitForSelector(QUESTION, { state: 'detached', timeout: 3000 }).catch(() => undefined);
+    await page.click(BAR.phoneButton);
+    await page.waitForSelector(BAR.menu);
     check((await keysOnPage(page)).length === 0, 'the phone\'s menu in Slovak: no key');
-    check((await page.textContent('#topbar-menu a[href="/"]'))?.trim() === 'Učenie', 'its sections in Slovak');
-    await onTop(page, '#topbar-menu', 'the Slovak menu');
+    check((await page.textContent(`${BAR.menu} a[href="/"]`))?.trim() === 'Učenie', 'its sections in Slovak');
+    await onTop(page, BAR.menu, 'the Slovak menu');
     await page.screenshot({ path: join(shots, 'sk-390-menu.png') });
     await context.close();
 
@@ -663,7 +721,7 @@ try {
     // Narrow: nobody signed in and the app not running - the bar has no menu button, whose menu would be empty.
     await d.setViewportSize({ width: 390, height: 800 });
     await d.waitForTimeout(150);
-    check(!(await d.$('#topbar-menu-button')), 'the card at 390: no menu button with an empty menu');
+    check(!(await d.$(BAR.phoneButton)), 'the card at 390: no menu button with an empty menu');
     await d.screenshot({ path: join(shots, 'sk-sign-in-refused-390.png') });
     await denied.close();
     await iamAs(MIA);
@@ -698,9 +756,9 @@ try {
     await page.waitForSelector('#visitor-notice', { timeout: 20000 });
     check(!navigations.some((url) => url.startsWith(IAM)), 'the Learn page opens without the IAM', navigations);
     check((await page.textContent('#visitor-notice span'))?.trim() === 'You are practising without signing in. Your progress is kept for this browser for 30 days after your last visit. Sign in to keep it in your account.', 'the notice says how long this browser keeps the progress');
-    check(!!(await page.$('#visitor-notice-sign-in')) && !!(await page.$('#sign-in-btn')) && !(await page.$('#signed-out-banner')), 'Sign in beside it and in the bar; no "signed out" banner');
+    check(!!(await page.$('#visitor-notice-sign-in')) && !!(await page.$(BAR.signIn)) && !(await page.$('#signed-out-banner')), 'Sign in beside it and in the bar; no "signed out" banner');
     check((await page.evaluate(() => localStorage.getItem('piano-academy:visitor'))) === null && visitorIds().length === 0, 'looking makes nobody: no key, no visitor row');
-    await page.screenshot({ path: join(shots, 'visitor-learn-1280.png'), fullPage: true });
+    await page.screenshot({ path: join(shots, `visitor-learn-${DESKTOP}.png`), fullPage: true });
 
     // A lesson's first two steps: the meet's save (the path) is the first - held -, then the drill's notes, its path and its round.
     await page.goto(`${APP}/lesson/rh-1/meet`);
@@ -734,7 +792,7 @@ try {
     check(!!(await page.$('#visitor-notice')), 'Stats: the notice');
     const tiles = await page.$$eval('.stat-tile .value', (all) => all.map((tile) => tile.textContent.trim()));
     check(tiles[4] === '1', 'a reload keeps the visitor\'s progress (its round)', tiles);
-    await page.screenshot({ path: join(shots, 'visitor-stats-1280.png'), fullPage: true });
+    await page.screenshot({ path: join(shots, `visitor-stats-${DESKTOP}.png`), fullPage: true });
 
     // Another browser starts empty, and the admin panel is never a visitor's: it goes to the IAM.
     const other = await newContext();
@@ -748,7 +806,7 @@ try {
     const oTiles = await o.$$eval('.stat-tile .value', (all) => all.map((tile) => tile.textContent.trim()));
     check(oTiles[4] === '0', 'another browser starts empty', oTiles);
     await o.goto(`${APP}/admin`);
-    await o.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await o.waitForSelector(BAR.signedIn, { timeout: 20000 });
     check(oNavigations.some((url) => url.startsWith(IAM)), '/admin goes to the IAM, never to a visitor', oNavigations);
     await other.close();
 
@@ -760,14 +818,14 @@ try {
     await page.waitForSelector('#visitor-moved', { timeout: 20000 });
     check((await page.textContent('#visitor-moved span'))?.trim() === 'Your progress from practising without signing in is now in your account.', 'signed in: the progress of this browser is in the account, and the page says so');
     check((await page.textContent('#visitor-kept'))?.trim() === 'Where your account already had progress, it was kept.', 'and that the account kept its own where it had some (C, D, E)');
-    check((await page.textContent('#account-name')) === 'mia' && !!(await page.$('#own-progress')) && !(await page.$('#visitor-notice')), 'mia\'s page now: her progress file, no notice');
+    check((await page.textContent(BAR.name)) === 'mia' && !!(await page.$('#own-progress')) && !(await page.$('#visitor-notice')), 'mia\'s page now: her progress file, no notice');
     check((await page.evaluate(() => localStorage.getItem('piano-academy:visitor'))) === null, 'the key is gone from the browser');
     const after = mine();
     check(visitorIds().length === 0, 'and the visitor from the database', visitorIds());
     check(after.c === mia.c, 'her note C is byte for byte what it was', { before: mia.c, after: after.c });
     const steps = JSON.parse(after.steps ?? '{}');
     check(Number(after.sessions) === Number(mia.sessions) + 1 && 'rh-1/meet' in steps && 'rh-1/drill' in steps, 'the visitor\'s round and both steps are hers', { sessions: [mia.sessions, after.sessions], steps: Object.keys(steps) });
-    await page.screenshot({ path: join(shots, 'visitor-moved-1280.png'), fullPage: true });
+    await page.screenshot({ path: join(shots, `visitor-moved-${DESKTOP}.png`), fullPage: true });
     await page.click('#visitor-moved-close');
     await page.waitForSelector('#visitor-moved', { state: 'detached', timeout: 5000 }).catch(() => undefined);
     check(!(await page.$('#visitor-moved')), 'closed');
@@ -788,14 +846,14 @@ try {
         return { right: box.right, height: box.height, scroll: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth };
       });
       check(notice.scroll <= notice.screen && notice.right <= width && notice.height > 40, `${width}: the notice wraps inside the screen, no sideways scroll`, notice);
-      check(!!(await page.$('#topbar-menu-button')), `${width}: the menu button (Sign in is in its menu)`);
+      check(!!(await page.$(BAR.phoneButton)), `${width}: the menu button (Sign in is in its menu)`);
       await page.screenshot({ path: join(shots, `visitor-sk-${width}.png`), fullPage: true });
       if (width === 390) {
-        await page.click('#topbar-menu-button');
-        await page.waitForSelector('#topbar-menu');
-        const items = await page.$$eval('#topbar-menu [role="menuitem"]', (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
+        await page.click(BAR.phoneButton);
+        await page.waitForSelector(BAR.menu);
+        const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
         check(items.at(-1) === 'Prihlásiť sa' && (await keysOnPage(page)).length === 0, 'the phone\'s menu: the sections, then Sign in', items);
-        await onTop(page, '#topbar-menu', 'the visitor\'s phone menu');
+        await onTop(page, BAR.menu, 'the visitor\'s phone menu');
         await page.screenshot({ path: join(shots, 'visitor-sk-390-menu.png') });
         await page.keyboard.press('Escape');
       }
@@ -860,7 +918,7 @@ try {
     });
     await iamAs(ED);
     await f.goto(`${APP}/songs`);
-    await f.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await f.waitForSelector(BAR.signedIn, { timeout: 20000 });
     check(fNavigations.some((url) => url.startsWith(IAM)) && !(await f.$('#visitor-notice')), 'sign-in required: a new browser is sent to sign in, no notice', fNavigations);
     await fresh.close();
 
@@ -902,7 +960,9 @@ try {
       return false;
     };
     const theme = (page) => page.evaluate(() => document.documentElement.dataset.theme);
-    const shown = (page) => page.getAttribute('#theme-toggle', 'title');
+    /** The theme switch's choice in force, by its name ("Theme: dark"). */
+    const shown = (page) => page.getAttribute(BAR.themeChosen, 'aria-label');
+    const choose = (page, mode) => page.click(`${BAR.theme}[data-value="${mode}"]`);
 
     // The account chose dark, its dates day first with dots, and the 12-hour clock; this browser had light.
     await iamAs(MIA, { preferences: { theme: 'dark', date_format: 'dmy_dot', time_format: '12' }, preferences_refuse: false });
@@ -911,7 +971,7 @@ try {
     await page.goto(`${APP}/api/health`);
     await page.evaluate(() => localStorage.setItem('piano-academy:theme', 'light'));
     await page.goto(`${APP}/stats`);
-    await page.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await page.waitForSelector(BAR.signedIn, { timeout: 20000 });
     await page.waitForFunction(() => document.querySelector('#view-root .loading') === null, null, { timeout: 20000 });
     await until(async () => (await theme(page)) === 'dark');
     check((await theme(page)) === 'dark' && (await shown(page)) === 'Theme: dark', 'signed in: the account’s dark, over this browser’s light', [await theme(page), await shown(page)]);
@@ -922,51 +982,52 @@ try {
     await page.waitForSelector('.release-date');
     const [year, month, day] = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0].date.split('-').map(Number);
     check((await page.textContent('.release-date'))?.trim() === `${day}.${month}.${year}`, 'What’s new: the release day in the account’s order', await page.textContent('.release-date'));
-    await page.screenshot({ path: join(shots, 'account-dark-whats-new-1280.png') });
+    await page.screenshot({ path: join(shots, `account-dark-whats-new-${DESKTOP}.png`) });
     await page.keyboard.press('Escape');
 
-    // The bar's button: dark -> automatic, saved to the account - and another tab of the site follows the next choice at once.
-    await page.click('#theme-toggle');
-    check(await until(async () => (await iamState()).preferences?.theme === 'auto'), 'the button saved "automatic" to the account', (await iamState()).preferences);
+    // The bar's switch: automatic, saved to the account - and another tab of the site follows the next choice at once.
+    await choose(page, 'auto');
+    check(await until(async () => (await iamState()).preferences?.theme === 'auto'), 'the switch saved "automatic" to the account', (await iamState()).preferences);
     check((await theme(page)) === 'light' && (await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === null, 'automatic: the system’s light, nothing kept for the first paint', await theme(page));
     const other = await context.newPage();
     await other.goto(`${APP}/`);
-    await other.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
-    await page.click('#theme-toggle');
+    await other.waitForSelector(BAR.signedIn, { timeout: 20000 });
+    await choose(page, 'light');
     check(await until(async () => (await iamState()).preferences?.theme === 'light'), 'light saved to the account');
     await until(async () => (await shown(other)) === 'Theme: light');
     check((await shown(other)) === 'Theme: light', 'the other tab shows it too (the SDK tells every tab)', await shown(other));
     await other.close();
 
-    // The account would not take it: the account's theme back, and a note under the button - on a phone too.
+    // The account would not take it: the account's theme back, and a note under the switch - on a phone too.
     await iamSet({ preferences_refuse: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(150);
-    await page.click('#theme-toggle');
-    await page.waitForSelector('#theme-not-saved', { timeout: 5000 }).catch(() => undefined);
-    check((await page.textContent('#theme-not-saved'))?.trim() === 'The theme could not be saved to your anotoki account.', 'refused: said under the button, promising nothing', await page.textContent('#theme-not-saved').catch(() => null));
+    await choose(page, 'dark');
+    await page.waitForSelector(BAR.themeNote, { timeout: 5000 }).catch(() => undefined);
+    check((await page.textContent(BAR.themeNote))?.trim() === 'The theme could not be saved to your anotoki account.', 'refused: said under the switch, promising nothing', await page.textContent(BAR.themeNote).catch(() => null));
     check((await shown(page)) === 'Theme: light' && (await theme(page)) === 'light' && (await iamState()).preferences?.theme === 'light', 'refused: the account’s light on the screen again', [await shown(page), await theme(page)]);
     await page.waitForTimeout(150);
-    const note = await page.evaluate(() => {
-      const box = document.querySelector('#theme-not-saved').getBoundingClientRect();
+    const note = await page.evaluate((selector) => {
+      const element = document.querySelector(selector);
+      const box = element.getBoundingClientRect();
       const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-      return { left: Math.round(box.left), right: Math.round(box.right), screen: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, onTop: !!hit?.closest('#theme-not-saved') };
-    });
+      return { left: Math.round(box.left), right: Math.round(box.right), screen: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, onTop: !!hit && element.contains(hit) };
+    }, BAR.themeNote);
     check(note.left >= 0 && note.right <= note.screen && note.scroll <= note.screen && note.onTop, 'the note at 390: inside the screen, on top of the page, no sideways scroll', note);
     await page.screenshot({ path: join(shots, 'account-theme-refused-390.png') });
     // Elsewhere: Stats' second heading, clear of the bar (its first stands under the bar and the note at 390).
     await page.locator('#view-root h2').nth(1).click();
-    await page.waitForSelector('#theme-not-saved', { state: 'detached', timeout: 3000 }).catch(() => undefined);
-    check(!(await page.$('#theme-not-saved')), 'a click elsewhere: the note goes');
+    await page.waitForSelector(BAR.themeNote, { state: 'detached', timeout: 3000 }).catch(() => undefined);
+    check(!(await page.$(BAR.themeNote)), 'a click elsewhere: the note goes');
     await iamSet({ preferences_refuse: false });
 
     // The language chosen in the bar is the account's too - another tab of the site follows it, over this browser's
     // remembered choice; the dates keep the account's order and clock, in Slovak's words.
     const twin = await context.newPage();
     await twin.goto(`${APP}/`);
-    await twin.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await twin.waitForSelector(BAR.signedIn, { timeout: 20000 });
     check((await twin.getAttribute('html', 'lang')) === 'en', 'another tab, in English');
-    await page.click('app-language-switcher .switcher');
+    await page.click(BAR.language);
     await page.click('[role="menuitemradio"][lang="sk"]');
     check(await until(async () => (await iamState()).user?.locale === 'sk'), 'Slovak chosen in the bar: the account’s language now', (await iamState()).user);
     await until(async () => (await page.getAttribute('html', 'lang')) === 'sk');
@@ -986,7 +1047,7 @@ try {
     await reader.goto(`${APP}/api/health`);
     await reader.evaluate(() => localStorage.setItem('piano-academy:language', 'sk'));
     await reader.goto(`${APP}/`);
-    await reader.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await reader.waitForSelector(BAR.signedIn, { timeout: 20000 });
     await reader.waitForFunction(() => document.querySelector('#view-root .loading') === null, null, { timeout: 20000 });
     check((await reader.getAttribute('html', 'lang')) === 'en', 'signed in: the account’s English over this browser’s Slovak', await reader.getAttribute('html', 'lang'));
     check((await reader.evaluate(() => localStorage.getItem('piano-academy:language'))) === 'sk', 'this browser keeps its choice, for when nobody is signed in');
@@ -1001,7 +1062,7 @@ try {
     check((await theme(admin)) === 'dark', 'the admin panel: the account’s dark too', await theme(admin));
     const seen = await admin.$$eval('#people-table tbody tr[data-person] td:nth-child(3)', (cells) => cells.map((cell) => cell.textContent.trim()));
     check(seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'People: first seen in the account’s order, on its 24-hour clock', seen);
-    await admin.click('#topbar-nav a[href="/admin/migrations"]');
+    await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
     const ran = await admin.$$eval(`${MIGRATIONS} [data-applied] .when`, (all) => all.map((when) => when.textContent.trim()));
     check(ran.length > 0 && ran.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'Migrations (the family’s page, the app’s way of writing dates): when each ran, in the account’s order', ran);
@@ -1013,7 +1074,7 @@ try {
 
   step('A database behind the code: everybody else reads that the site is being updated, an ADMIN signs in from that page and applies it on the Migrations page - one Apply failing with what PostgreSQL said - and the pages come back');
   {
-    // 005 - the newest with a schema part (006 and 007 are words only, and stay applied) - taken off the record: the
+    // 005 - the newest with a schema part (006, 007 and 008 are words only, and stay applied) - taken off the record: the
     // code is ahead of the database, and the site's gate (anotoki/lib's SiteGate) answers 503 update_pending but on its
     // open paths. 005 runs again cleanly - every statement steps aside for what is there, and its gates hold with
     // visitors in the database; tests/unit/migrations.test.php runs 004 and 005 again too.
@@ -1044,17 +1105,17 @@ try {
     check(JSON.stringify(shown.controls) === JSON.stringify(['Sign in']) && shown.links.length === 0, 'nothing to press but a quiet Sign in: no setup page, no Migrations, no error', shown);
     check(!learnerSeen.navigations.some((url) => url.startsWith(IAM)), 'nobody is sent to the IAM while the site is being updated', learnerSeen.navigations);
     check(learnerSeen.answers.every((answer) => answer.startsWith('200 ') || answer.startsWith('304 ')), 'and nothing the page asked failed (where the site stands, the sign-in\'s settings, the words)', learnerSeen.answers);
-    check(!(await learner.$('app-load-error, app-sign-in-card, #signed-out-banner')) && !(await learner.$('#topbar-nav')), 'no error card, no banner, no sections in the bar');
-    await learner.screenshot({ path: join(shots, 'behind-signed-out-1280.png'), fullPage: true });
+    check(!(await learner.$('app-load-error, app-sign-in-card, #signed-out-banner')) && !(await learner.$(BAR.nav)), 'no error card, no banner, no sections in the bar');
+    await learner.screenshot({ path: join(shots, `behind-signed-out-${DESKTOP}.png`), fullPage: true });
 
     // Signing in works meanwhile: to the IAM and back to the page it started from - still being updated, now with nothing to press.
     await learner.click('anotoki-site-status button');
-    await learner.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await learner.waitForSelector(BAR.signedIn, { timeout: 20000 });
     check(learnerSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(learner.url()).pathname === '/stats', 'its Sign in: to the IAM and back to /stats', learnerSeen.navigations);
-    check((await learner.textContent('#account-name')) === 'mia', 'signed in as the learner, named in the bar');
+    check((await learner.textContent(BAR.name)) === 'mia', 'signed in as the learner, named in the bar');
     shown = await siteStatus(learner);
     check(shown?.title === 'The site is being updated' && shown.controls.length === 0, 'a learner signed in: still being updated, nothing to press', shown);
-    await learner.screenshot({ path: join(shots, 'behind-learner-1280.png'), fullPage: true });
+    await learner.screenshot({ path: join(shots, `behind-learner-${DESKTOP}.png`), fullPage: true });
     // The Migrations page is not a learner's: the same status page on its address, and nothing of it drawn.
     await learner.goto(`${APP}/admin/migrations`);
     await learner.waitForSelector('anotoki-site-status section', { timeout: 20000 });
@@ -1087,37 +1148,37 @@ try {
     await page.waitForSelector('anotoki-site-status section', { timeout: 20000 });
     check(JSON.stringify((await siteStatus(page)).controls) === JSON.stringify(['Sign in']), 'an ADMIN not signed in yet: the same page, with Sign in', await siteStatus(page));
     await page.click('anotoki-site-status button');
-    await page.waitForSelector('app-top-bar .user-menu', { timeout: 20000 });
+    await page.waitForSelector(BAR.signedIn, { timeout: 20000 });
     await page.waitForFunction(() => document.querySelector('anotoki-site-status h1')?.textContent.trim() === 'A database update is waiting', null, { timeout: 10000 }).catch(() => undefined);
     shown = await siteStatus(page);
     check(adminSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(page.url()).pathname === '/', 'its Sign in: to the IAM and back to the same page', adminSeen.navigations);
     check(shown?.title === 'A database update is waiting' && shown.lang === 'en' && JSON.stringify(shown.controls) === JSON.stringify(['Open Migrations']), 'signed in, the site\'s ADMIN: "A database update is waiting", in English, with "Open Migrations"', shown);
-    check(!(await page.$('#topbar-nav')), 'the bar: no sections outside the admin panel');
-    await page.screenshot({ path: join(shots, 'behind-admin-1280.png'), fullPage: true });
+    check(!(await page.$(BAR.nav)), 'the bar: no sections outside the admin panel');
+    await page.screenshot({ path: join(shots, `behind-admin-${DESKTOP}.png`), fullPage: true });
     await page.click('anotoki-site-status a');
     await page.waitForSelector(`${MIGRATIONS} [data-pending] li`, { timeout: 20000 });
     check(new URL(page.url()).pathname === '/admin/migrations', 'on the Migrations page', page.url());
-    const pending = await page.$$eval(`${MIGRATIONS} [data-pending] li`, (all) => all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('.badge').textContent.trim()}`));
+    const pending = await page.$$eval(`${MIGRATIONS} [data-pending] li`, (all) => all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('anotoki-badge').textContent.trim()}`));
     check(JSON.stringify(pending) === JSON.stringify(['005_visitors.sql pending']), 'Pending: 005', pending);
-    check((await page.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Migrations', 'the bar: Migrations alone while the database is behind');
-    await page.screenshot({ path: join(shots, 'migrations-behind-1280.png'), fullPage: true });
+    check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Migrations', 'the bar: Migrations alone while the database is behind');
+    await page.screenshot({ path: join(shots, `migrations-behind-${DESKTOP}.png`), fullPage: true });
 
     // An Apply that fails: users.visitor_key_hash made a text, so 005's gate refuses - the page shows what PostgreSQL said.
     onTheDatabase('ALTER TABLE users ALTER COLUMN visitor_key_hash TYPE TEXT');
     await page.click(`${MIGRATIONS} [data-apply]`);
-    await page.waitForSelector(`${MIGRATIONS} dialog[data-confirm][open]`);
+    await page.waitForSelector(`${MIGRATIONS} anotoki-dialog[data-confirm] dialog[open]`);
     check((await page.evaluate(() => document.activeElement?.hasAttribute('data-confirm-cancel'))) === true, 'the question: the focus on Cancel (the safe answer first)');
     await page.click(`${MIGRATIONS} [data-confirm-apply]`);
     await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="danger"]`, { timeout: 20000 });
     const result = `${MIGRATIONS} [data-result]`;
-    check((await page.textContent(`${result} .result-title`))?.trim() === 'Stopped at 005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
+    check((await page.textContent(`${result} .heading`))?.trim() === 'Stopped at 005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
     check((await page.textContent(`${result} .result-text`)).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.', 'nothing applied, rolled back whole', await page.textContent(result));
     const said = (await page.textContent(`${result} pre.error`)) ?? '';
     check(said.includes('users.visitor_key_hash is not a char(64) that may be null') && /^statement \d+ of \d+: SQLSTATE\[P0001\]/.test(said), 'what PostgreSQL said, word for word, on the page', said);
     await page.waitForFunction((apply) => document.querySelector(apply)?.disabled === false, `${MIGRATIONS} [data-apply]`, { timeout: 10000 }).catch(() => undefined);
     check(!(await page.isDisabled(`${MIGRATIONS} [data-apply]`)) && (await page.$$(`${MIGRATIONS} [data-pending] li`)).length === 1, 'still pending: Apply pending is on again');
     check((await siteStatus(learner))?.title === 'The site is being updated', 'meanwhile the learner\'s page still says the site is being updated');
-    await page.screenshot({ path: join(shots, 'migrations-failed-1280.png'), fullPage: true });
+    await page.screenshot({ path: join(shots, `migrations-failed-${DESKTOP}.png`), fullPage: true });
     await page.setViewportSize({ width: 360, height: 800 });
     await page.waitForTimeout(150);
     const wider = await page.evaluate(() => {
@@ -1127,24 +1188,25 @@ try {
     });
     check(wider.scroll <= wider.screen, 'the error at 360: no sideways scroll', wider);
     await page.screenshot({ path: join(shots, 'migrations-failed-360.png'), fullPage: true });
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize({ width: DESKTOP, height: 900 });
     onTheDatabase('ALTER TABLE users ALTER COLUMN visitor_key_hash TYPE CHAR(64)');
 
     await page.click(`${MIGRATIONS} [data-apply]`);
-    await page.waitForSelector(`${MIGRATIONS} dialog[data-confirm][open]`);
-    check((await page.textContent(`${MIGRATIONS} dialog[data-confirm] .dialog-title`))?.trim() === 'Apply 1 pending migration?', 'asked first');
+    await page.waitForSelector(`${MIGRATIONS} anotoki-dialog[data-confirm] dialog[open]`);
+    check((await page.textContent(`${MIGRATIONS} anotoki-dialog[data-confirm] .title`))?.trim() === 'Apply 1 pending migration?', 'asked first');
+    await page.waitForTimeout(250);
     await page.screenshot({ path: join(shots, 'migrations-question.png') });
     await page.click(`${MIGRATIONS} [data-confirm-apply]`);
     await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="success"]`, { timeout: 20000 });
-    check((await page.textContent(`${result} .result-title`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
+    check((await page.textContent(`${result} .heading`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
     check((await page.textContent(`${result} .result-text`))?.trim() === 'Applied: 005_visitors.sql.', 'Applied: 005', await page.textContent(result));
-    await page.waitForSelector('#topbar-nav a[href="/admin/people"]', { timeout: 20000 });
-    check((await page.$$eval('#topbar-nav a', (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations|Languages|People|Migrations', 'the app started where it stands: every section, the result still on the page');
+    await page.waitForSelector(`${BAR.nav} a[href="/admin/people"]`, { timeout: 20000 });
+    check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations|Languages|People|Migrations', 'the app started where it stands: every section, the result still on the page');
     check((await page.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'nothing pending now');
-    await page.screenshot({ path: join(shots, 'migrations-applied-1280.png'), fullPage: true });
-    await page.click('#topbar-user-button');
-    await page.click('#topbar-back');
-    await page.waitForSelector('#topbar-nav a[href="/stats"]');
+    await page.screenshot({ path: join(shots, `migrations-applied-${DESKTOP}.png`), fullPage: true });
+    await page.click(BAR.person);
+    await page.click(`${BAR.menu} a[href="/"]`);
+    await page.waitForSelector(`${BAR.nav} a[href="/stats"]`);
     check(!(await siteStatus(page)), 'back to Piano Academy: the app runs');
     // The strings in memory are from before the update: the Learn page has every word only if the resume asked again.
     await page.waitForFunction(() => !!document.querySelector('#view-root router-outlet')?.nextElementSibling, null, { timeout: 20000 });
@@ -1154,14 +1216,14 @@ try {
       keysAfter = await keysOnPage(page);
     }
     check(keysAfter.length === 0, 'back to Piano Academy: the Learn page in words, no key (the strings were asked for again)', keysAfter);
-    await page.screenshot({ path: join(shots, 'after-apply-learn-1280.png'), fullPage: true });
+    await page.screenshot({ path: join(shots, `after-apply-learn-${DESKTOP}.png`), fullPage: true });
     await context.close();
 
     // The learner's page came back by itself: it asks again every 30 seconds, and loads the page afresh once the site is ready.
     await learner.waitForSelector('#own-progress', { timeout: 45000 }).catch(() => undefined);
     check(!!(await learner.$('#own-progress')) && !(await siteStatus(learner)), 'the learner\'s page came back by itself: Stats, the learner\'s own', await siteStatus(learner));
     check((await learner.evaluate(() => window.beforeTheUpdate)) === undefined && new URL(learner.url()).pathname === '/stats', 'loaded afresh, on the same address', learner.url());
-    await learner.screenshot({ path: join(shots, 'behind-learner-back-1280.png'), fullPage: true });
+    await learner.screenshot({ path: join(shots, `behind-learner-back-${DESKTOP}.png`), fullPage: true });
     await learnerContext.close();
     await iamAs(MIA);
   }

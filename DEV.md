@@ -24,12 +24,16 @@ from GitHub, never from a folder next door: the PHP package `anotoki/lib`
 (`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.1"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.1.1/anotoki-lib-0.1.1.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.2.0/anotoki-lib-0.2.0.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
-ready (below, *While the site is not ready*) - the PHP half at 0.1.0, the
-Angular half at 0.1.1 (0.1.1 changed only the Angular half: the gate takes
-the pages as a template, made only while the site is open). **To update
+ready (below, *While the site is not ready*); and the family's UI kit, its
+styles and its frame (the top bar, the theme switch, the language chooser,
+the menus, the questions, Manrope - `frontend/README.md`). The PHP half is
+at 0.1.0, the Angular half at 0.2.0 (0.1.1 and 0.2.0 changed only the
+Angular half: 0.1.1 made the pages a template, made only while the site is
+open; 0.2.0 marks that template - `anotokiSitePages` - gives the Migrations
+page an entry point of its own and adds the kit). **To update
 it**, both halves together: read its `CHANGELOG.md` (while 0.x a minor
 version may break; a release that leaves a half unchanged may leave it
 where it is), then in `backend/` `composer update anotoki/lib
@@ -415,6 +419,19 @@ app's own "not set up yet" card, whose four words 007 deletes
 (`boot.notSetUp.*`; nothing else). It goes with 005 and 006 at the
 hand-over - one Apply takes all three. Nothing to do on the host beyond the
 upload and that Apply; the bookkeeping table stays as it is.
+
+**The family's kit (migration 008, 2026-10-08, not applied anywhere yet)**:
+the build carries `@anotoki/lib` 0.2.0 (the PHP half stays 0.1.0, nothing
+to do in `vendor/`): the family's top bar, theme switch, language chooser,
+menus and questions, and Manrope. Its theme switch (light / dark / as the
+device is set) takes the place of the round theme button, whose three
+spoken words 008 deletes (`theme.autoSpoken`, `theme.lightSpoken`,
+`theme.darkSpoken`); it also tells the descriptions of `theme.light`,
+`theme.dark`, `theme.auto` and `theme.notSaved` of the switch - the strings
+themselves, as the owner worded them, stay. It goes with 005, 006 and 007
+at the hand-over - one Apply takes all four. The family's words the app has
+no string of are the kit's own (English and informal Slovak), not in the
+database.
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code

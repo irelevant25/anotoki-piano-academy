@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ApiError, ApiService, Person } from '../../../core/api/api.service';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
-import { provideTestDialog } from '../../../core/testing/test-dialog';
+import { TestQuestions, drawTestQuestions, provideTestKit } from '../../../core/testing/test-kit';
 import { PeopleComponent } from './people.component';
 
 const MIA: Person = { id: 7, username: 'mia', firstSeen: '2026-10-01T10:00:00.000Z', lastSeen: '2026-10-04T10:00:00.000Z', notes: 12, steps: 4, sessions: 30 };
@@ -16,7 +16,12 @@ describe('PeopleComponent (ADMIN): everybody the app keeps anything of, and dele
   const api = { people: vi.fn(), deletePerson: vi.fn(), dataOwner: () => '1' };
   const store = { announceReplaced: vi.fn(), reloadFromServer: vi.fn(async () => undefined), changedElsewhere: { set: vi.fn() } };
 
-  beforeAll(() => provideTestDialog());
+  /** The family's question (ConfirmService), drawn beside the page as the app's root draws it. */
+  let questions: TestQuestions;
+
+  // The family's dialog asks jsdom for what it lacks (showModal(), checkVisibility()).
+  beforeAll(() => provideTestKit());
+  afterEach(() => questions.remove());
 
   beforeEach(async () => {
     api.people.mockReset().mockResolvedValue({ people: [ME, MIA, NAMELESS], visitors: { count: 3, sessions: 41 } });
@@ -24,6 +29,7 @@ describe('PeopleComponent (ADMIN): everybody the app keeps anything of, and dele
     store.announceReplaced.mockClear();
     store.reloadFromServer.mockClear();
     TestBed.configureTestingModule({ providers: [{ provide: ApiService, useValue: api }, { provide: ProgressStore, useValue: store }] });
+    questions = drawTestQuestions();
     fixture = TestBed.createComponent(PeopleComponent);
     host = fixture.nativeElement;
     await fixture.whenStable();
@@ -35,13 +41,12 @@ describe('PeopleComponent (ADMIN): everybody the app keeps anything of, and dele
   };
   const rows = (): string[][] =>
     Array.from(host.querySelectorAll('#people-table tbody tr[data-person]')).map((row) => Array.from(row.querySelectorAll('td')).slice(0, 7).map((cell) => cell.textContent?.replace(/\s+/g, ' ').trim() ?? ''));
-  const dialog = (): HTMLDialogElement => host.querySelector('dialog.confirm')!;
   const remove = async (id: number): Promise<void> => {
     (host.querySelector(`tr[data-person="${id}"] button.delete`) as HTMLButtonElement).click();
     await flush();
   };
   const answer = async (yes: boolean): Promise<void> => {
-    (dialog().querySelector(`[data-answer="${yes ? 'yes' : 'no'}"]`) as HTMLButtonElement).click();
+    questions.answer(yes);
     await flush();
   };
 
@@ -78,9 +83,9 @@ describe('PeopleComponent (ADMIN): everybody the app keeps anything of, and dele
 
   it('deletes nobody without a yes - and names the person and the counts in the question', async () => {
     await remove(7);
-    expect(dialog().hasAttribute('open')).toBe(true);
-    expect(dialog().querySelector('h2')?.textContent).toBe('Delete the progress of mia?');
-    expect(dialog().querySelector('p')?.textContent).toContain('12 notes, 4 steps of the path and 30 rounds');
+    expect(questions.open()).not.toBeNull();
+    expect(questions.title()).toBe('Delete the progress of mia?');
+    expect(questions.text()).toContain('12 notes, 4 steps of the path and 30 rounds');
     await answer(false);
     expect(api.deletePerson).not.toHaveBeenCalled();
     expect(rows()).toHaveLength(3);

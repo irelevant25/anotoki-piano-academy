@@ -61,12 +61,12 @@
   overflow-wrap: anywhere;
 }
 
-// A text or number box - the look of the app's select.
+// A text or number box - the look of the app's select, its edge seen (3:1).
 .field-input {
   width: 100%;
   min-width: 0;
   padding: 0.45rem 0.6rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   background: var(--panel-alt);
   color: var(--text);

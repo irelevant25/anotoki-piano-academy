@@ -1,21 +1,16 @@
-import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, Signal, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { TopBarComponent as FamilyTopBarComponent, TopBarBrand, TopBarLink, TopBarMenuItem, TopBarMenuNote, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
+import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { TranslationService } from '../../core/i18n/translation.service';
 import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
-import { BrandComponent } from '../../ui/brand/brand.component';
-import { ConfirmDialogComponent, Question } from '../../ui/confirm-dialog/confirm-dialog.component';
-import { IconComponent } from '../../ui/icon/icon.component';
-import { LanguageSwitcherComponent } from '../../ui/language-switcher/language-switcher.component';
 import { MidiPanelComponent } from '../../ui/midi-panel/midi-panel.component';
-import { SpinnerComponent } from '../../ui/spinner/spinner.component';
-import { ThemeToggleComponent } from '../../ui/theme-toggle/theme-toggle.component';
 
 /**
  * A section in the bar: its words - a key where learners read it, English
@@ -51,88 +46,91 @@ export const ADMIN_LINKS: readonly BarLink[] = [
   { english: 'Migrations', path: '/admin/migrations', under: [], adminOnly: true },
 ];
 
+/** The admin panel's wordmark: the family's one form, "anotoki {site} · admin panel" (English, as the panel is). */
+export const ADMIN_BRAND = { area: 'Piano Academy', panel: 'admin panel', label: 'anotoki Piano Academy · admin panel' } as const;
+
 /**
  * Up to this width the bar is a phone's: the links and the person's menu fold
  * into one menu button. Piano's own number (the survey's is 760), measured
  * with the real labels in English and Slovak (the browser check's --measure):
  * the widest row - "anotoki Piano Academy", the five sections, "Not saved
  * yet", the piano with a device name at its widest (8rem), the language, the
- * theme and the person's initial - needs 1210 px in English and 1237 px in
- * Slovak (1139 and 1174 with "No piano"). The same number is in the .scss.
+ * family's theme switch and the person's initial - needs 1293 px in English
+ * and 1314 px in Slovak, in Manrope (1221 and 1254 with "No piano"; the
+ * admin panel's row 1098) - inside the family's row too, which is never
+ * wider than 84rem (1344 px).
  */
-export const PHONE_BAR_MAX = 1240;
+export const PHONE_BAR_MAX = 1320;
 /** From this width the person's name stands beside the initial (200 px for it, as in the family's bar). */
 export const NAME_BAR_MIN = PHONE_BAR_MAX + 201;
 
-/** Which of the bar's two menus is open: the person's (account) or the phone's (links and account). */
-type OpenMenu = 'account' | 'phone' | null;
-
 /**
- * The bar across the top of every page - the anotoki family's one bar
- * (the survey's layouts/top-bar), in one row, in this order: the brand (the
- * mark, "anotoki" and "Piano Academy", linking home); the sections as links;
- * then "Not saved yet" while some progress waits, the piano (the MIDI widget),
- * the language, the theme, and the person's menu (name, address, role; their
- * anotoki account; the way into the admin panel for the staff, or back from
- * it; signing out) - or the button to sign in.
+ * The bar across the top of every page: the anotoki family's one bar
+ * (@anotoki/lib/shell's <anotoki-top-bar>), told what is Piano Academy's -
+ * its brand, its sections, who is signed in and what they may do, and the
+ * two widgets it carries before the language: "Not saved yet" while some
+ * progress waits, and the piano (ui/midi-panel). The family's bar draws the
+ * row in the family's order, folds into one menu button up to PHONE_BAR_MAX
+ * ("Piano", brand.short, beside the mark), and has the family's menus, keys,
+ * language chooser and theme switch (light / dark / as the device is set).
  *
- * On a phone (up to PHONE_BAR_MAX) the brand is the mark and "Piano"
- * (brand.short), the piano is its dot and icon, and the links and the
- * person's menu (or Sign in) are inside one menu button at the right; "Not
- * saved yet" is a dot on that button, and its sentence the menu's first line.
+ * On a phone "Not saved yet" is a dot on the menu button, named for a screen
+ * reader (the bar's phoneMark), and both menus open with it and what it means
+ * (menuNote). Signing out settles what is waiting first - the family's item
+ * says "Saving…" meanwhile - and asks, in the learner's words (signOut.*),
+ * when progress would be lost (the family's ConfirmService). Sign in is
+ * offered once the app has run (in the middle of practising, or to a
+ * visitor); before, the guard is on its way to the IAM, or the sign-in card
+ * has its own button.
  *
- * Both menus are the IAM's own pattern, as the survey's bar has them: a menu
- * button, focus into the menu when it opens, arrow keys, Home and End between
- * its items, Escape and a click outside to close it - Escape gives the focus
- * back to the button. Tab and Shift+Tab close it with the focus on the button
- * too, so the next Tab moves on from there (not to <body>).
- *
- * The admin panel (/admin) has the same bar with its own sections, in English,
- * no language chooser and no piano: TranslationService reads every key in
- * English there (effectiveLanguage), so the bar has no case of its own for
- * that. Every word a learner meets here is a key, and in kept-english.ts too
- * (the bar is drawn while the app has no strings).
+ * The admin panel (/admin) has the same bar with its own sections, in English
+ * (TranslationService reads every key in English there - effectiveLanguage),
+ * the family's wordmark "anotoki Piano Academy · admin panel", no language
+ * chooser and no piano, and "Back to Piano Academy" in the person's menu.
+ * The way into it is in the person's menu for the staff, while the site is
+ * ready. Every word a learner meets here is a key, and in kept-english.ts too
+ * (the bar is drawn while the app has no strings); the family's own words are
+ * the database's where this app has them (core/i18n/kit-words.ts).
  */
 @Component({
   selector: 'app-top-bar',
-  imports: [NgTemplateOutlet, RouterLink, BrandComponent, ConfirmDialogComponent, IconComponent, LanguageSwitcherComponent, MidiPanelComponent, SpinnerComponent, ThemeToggleComponent, TranslatePipe],
+  imports: [FamilyTopBarComponent, MidiPanelComponent, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './top-bar.component.html',
   styleUrl: './top-bar.component.scss',
-  host: {
-    '(document:click)': 'onDocumentClick($event)',
-    '(document:keydown.escape)': 'closeMenu(true)',
-  },
 })
 export class TopBarComponent {
   protected readonly auth = inject(AuthService);
   protected readonly boot = inject(BootService);
   protected readonly store = inject(ProgressStore);
-  private readonly _site = inject(SiteStatus);
-  private readonly _i18n = inject(TranslationService);
-  private readonly _router = inject(Router);
-  private readonly _host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly _injector = inject(Injector);
-  private readonly _question = viewChild.required(ConfirmDialogComponent);
+  private readonly site = inject(SiteStatus);
+  private readonly i18n = inject(TranslationService);
+  private readonly router = inject(Router);
+  private readonly confirm = inject(ConfirmService);
 
-  /** Which menu is open, if one is. */
-  protected readonly openMenu = signal<OpenMenu>(null);
-  protected readonly signingOut = signal(false);
-  /** The bar of a phone: the links and the person's menu inside the menu button. */
-  protected readonly phone = this._matches(`(max-width: ${PHONE_BAR_MAX}px)`);
+  private readonly bar = viewChild.required(FamilyTopBarComponent);
 
-  /** The address of the page, without its query: which area, which link. */
-  private readonly _path = toSignal(
-    this._router.events.pipe(
+  protected readonly phoneMax = PHONE_BAR_MAX;
+  protected readonly nameMin = NAME_BAR_MIN;
+
+  /** The address of the page, without its query: which area. */
+  private readonly path = toSignal(
+    this.router.events.pipe(
       filter((event) => event instanceof NavigationEnd),
-      map(() => this._router.url),
+      map(() => this.router.url),
     ),
-    { initialValue: this._router.url },
+    { initialValue: this.router.url },
   );
-  private readonly _here = computed(() => this._path().split(/[?#]/)[0] || '/');
+  private readonly here = computed(() => this.path().split(/[?#]/)[0] || '/');
 
   /** The admin panel: its own sections, English, no chooser, no piano. */
-  protected readonly inAdmin = computed(() => this._here() === '/admin' || this._here().startsWith('/admin/'));
+  protected readonly inAdmin = computed(() => this.here() === '/admin' || this.here().startsWith('/admin/'));
+
+  protected readonly brand = computed<TopBarBrand>(() =>
+    this.inAdmin()
+      ? { ...ADMIN_BRAND, short: this.i18n.t('brand.short'), link: '/admin' }
+      : { area: this.i18n.t('brand.area'), short: this.i18n.t('brand.short'), link: '/', label: this.i18n.t('topbar.home') },
+  );
 
   /**
    * The sections: the learner's once the app runs (before, there is nothing
@@ -142,175 +140,90 @@ export class TopBarComponent {
    * none - but while an update waits an ADMIN there has the Migrations page
    * alone.
    */
-  protected readonly links = computed<readonly BarLink[]>(() => {
-    if (this.boot.status() !== 'ready' || this._site.blocked()) return this.boot.onlyMigrations() && this.inAdmin() ? ADMIN_LINKS.filter((link) => link.path === '/admin/migrations') : [];
-    if (!this.inAdmin()) return APP_LINKS;
-    if (!this.auth.isStaff()) return [];
-    return ADMIN_LINKS.filter((link) => !link.adminOnly || this.auth.isAdmin());
+  protected readonly links = computed<TopBarLink[]>(() => {
+    let links: readonly BarLink[];
+    if (this.boot.status() !== 'ready' || this.site.blocked()) {
+      links = this.boot.onlyMigrations() && this.inAdmin() ? ADMIN_LINKS.filter((link) => link.path === '/admin/migrations') : [];
+    } else if (!this.inAdmin()) {
+      links = APP_LINKS;
+    } else if (!this.auth.isStaff()) {
+      links = [];
+    } else {
+      links = ADMIN_LINKS.filter((link) => !link.adminOnly || this.auth.isAdmin());
+    }
+    return links.map((link) => ({ id: link.path, label: link.key ? this.i18n.t(link.key) : (link.english ?? ''), path: link.path, under: link.under }));
   });
 
-  /** The person's name: their own, as it is; worded only when the token names nobody. */
-  protected readonly name = computed(() => this.auth.displayName() ?? this._i18n.t('account.signedIn'));
-  protected readonly initial = computed(() => (this.auth.displayName()?.trim()[0] ?? '?').toUpperCase());
-  /** The e-mail address under the name, when it is not the name itself. */
-  protected readonly email = computed(() => {
-    const email = this.auth.signedIn() ? this.auth.user()?.email : null;
-    return email && email !== this.auth.displayName() ? email : null;
+  /** Who is signed in: their name as it is (worded only when the token names nobody), the address under it when it is not the name, the role. */
+  protected readonly person = computed<TopBarPerson | null>(() => {
+    if (!this.auth.signedIn()) return null;
+    const name = this.auth.displayName();
+    const email = this.auth.user()?.email ?? null;
+    return {
+      name: name ?? this.i18n.t('account.signedIn'),
+      email: email && email !== name ? email : null,
+      role: this.auth.isAdmin() ? this.i18n.t('topbar.roleAdmin') : this.auth.isStaff() ? this.i18n.t('topbar.roleEditor') : null,
+    };
   });
-  protected readonly accountUrl = computed(() => (this.auth.signedIn() ? this.auth.accountUrl() : null));
+
+  /** Between the person's name and Sign out: their anotoki account (a new tab), and the admin panel for the staff - or the way back from it. */
+  protected readonly menuItems = computed<TopBarMenuItem[]>(() => {
+    const items: TopBarMenuItem[] = [];
+    const account = this.auth.signedIn() ? this.auth.accountUrl() : null;
+    if (account) items.push({ id: 'account', label: this.i18n.t('topbar.account'), icon: 'user', href: account, newTab: true });
+    if (this.auth.isStaff()) {
+      if (this.inAdmin()) {
+        items.push({ id: 'back', label: 'Back to Piano Academy', icon: 'arrowLeft', path: '/' });
+      } else if (!this.site.blocked()) {
+        items.push({ id: 'admin', label: this.i18n.t('topbar.admin'), icon: 'shield', path: '/admin' });
+      }
+    }
+    return items;
+  });
+
   /**
    * Sign in: only once the app has run and the sign-in ended (in the middle
-   * of practising). Before, a signed-out visitor is on the way to the IAM, or
-   * has the sign-in card with its own button.
+   * of practising), or for a visitor. Before, a signed-out visitor is on the
+   * way to the IAM, or has the sign-in card with its own button. To the IAM
+   * and back to this page, its pages in the learner's language (BootService:
+   * a visitor's saves arrive first - the family's item waits for them).
    */
-  protected readonly offerSignIn = computed(() => !this.auth.signedIn() && this.store.loaded());
-  /**
-   * The phone's menu button, only when its menu would hold something: before
-   * the app runs a signed-out visitor (the sign-in card, not set up, could
-   * not load) has no section, no person and no Sign in - an empty menu.
-   */
-  protected readonly phoneMenu = computed(() => this.links().length > 0 || this.auth.signedIn() || this.offerSignIn());
-
-  /** The sign-out question, worded in a computed(): it follows the language, and is drawn in the closed dialog too. */
-  protected readonly signOutWords = computed<Question>(() => ({
-    title: this._i18n.t('signOut.title'),
-    message: this._i18n.t('signOut.text'),
-    confirmLabel: this._i18n.t('signOut.confirm'),
-    cancelLabel: this._i18n.t('signOut.cancel'),
-    danger: true,
-  }));
-
-  private readonly _accountButton = viewChild<ElementRef<HTMLButtonElement>>('accountButton');
-  private readonly _phoneButton = viewChild<ElementRef<HTMLButtonElement>>('phoneButton');
-  private readonly _menu = viewChild<ElementRef<HTMLElement>>('menu');
-
-  constructor() {
-    // From a phone's bar to a desktop's (a turned tablet, a wider window): the open menu would belong to neither.
-    // And a phone's menu that has nothing left to hold is gone with its button.
-    effect(() => {
-      this.phone();
-      this.phoneMenu();
-      untracked(() => this.closeMenu(false));
-    });
-  }
-
-  /** Whether the screen matches a media query, kept current while the bar is there. */
-  private _matches(media: string): Signal<boolean> {
-    const matches = signal(false);
-    const query = globalThis.matchMedia?.(media);
-    if (query) {
-      const update = () => matches.set(query.matches);
-      update();
-      query.addEventListener('change', update);
-      inject(DestroyRef).onDestroy(() => query.removeEventListener('change', update));
-    }
-    return matches.asReadonly();
-  }
-
-  /** The page is this link's own address. */
-  protected isPage(link: BarLink): boolean {
-    return this._here() === link.path;
-  }
-
-  /** The page is in this link's section: its own address or one under it. */
-  protected inSection(link: BarLink): boolean {
-    const here = this._here();
-    return here === link.path || link.under.some((start) => here.startsWith(start));
-  }
-
-  /** To the IAM and back to this page, its pages in the learner's language (BootService); the card says why when it cannot start. */
-  protected signIn(): void {
-    this.closeMenu(false);
-    void this.boot.signIn();
-  }
-
-  protected toggleMenu(which: 'account' | 'phone'): void {
-    if (this.openMenu() === which) {
-      this.closeMenu(true);
-      return;
-    }
-    this.openMenu.set(which);
-    // Into the menu once it is drawn, as a menu button is expected to do. Drawn
-    // means after the next render: with no zone, a microtask runs before it.
-    afterNextRender(() => this._menuItems()[0]?.focus(), { injector: this._injector });
-  }
-
-  /** Closes the open menu; `returnFocus`: back to the button that opened it (Escape, Tab, the button again). */
-  closeMenu(returnFocus: boolean): void {
-    const open = this.openMenu();
-    if (!open) {
-      return;
-    }
-    this.openMenu.set(null);
-    if (returnFocus) {
-      (open === 'account' ? this._accountButton() : this._phoneButton())?.nativeElement.focus();
-    }
-  }
-
-  protected onDocumentClick(event: MouseEvent): void {
-    const open = this.openMenu();
-    if (!open) {
-      return;
-    }
-    const root = this._host.nativeElement.querySelector(open === 'account' ? '.user-menu' : '.phone-menu');
-    if (!root || !root.contains(event.target as Node)) {
-      this.closeMenu(false);
-    }
-  }
-
-  protected onMenuKeydown(event: KeyboardEvent): void {
-    const items = this._menuItems();
-    const index = items.indexOf(document.activeElement as HTMLElement);
-    let next = -1;
-    if (event.key === 'ArrowDown') {
-      next = (index + 1) % items.length;
-    } else if (event.key === 'ArrowUp') {
-      next = (index - 1 + items.length) % items.length;
-    } else if (event.key === 'Home') {
-      next = 0;
-    } else if (event.key === 'End') {
-      next = items.length - 1;
-    } else if (event.key === 'Tab') {
-      // Tab (or Shift+Tab) leaves the menu from its button. Left to the browser,
-      // the focus would move to the next item of a menu still drawn - with no
-      // zone it is removed only at the next render - and then fall to <body>.
-      event.preventDefault();
-      this.closeMenu(true);
-      return;
-    }
-    if (next >= 0) {
-      event.preventDefault();
-      items[next]?.focus();
-    }
-  }
+  private readonly offerSignIn = computed(() => !this.auth.signedIn() && this.store.loaded());
+  protected readonly signIn = computed(() => (this.offerSignIn() ? () => this.boot.signIn() : null));
 
   /**
    * Signs out everywhere (the IAM ends its session) - after what is waiting is
-   * settled (a spinner meanwhile): a failed save goes once more and what is on
-   * its way arrives. If progress or the path still did not get through - or
-   * finished rounds the browser could not keep - signing out would lose them,
-   * and the learner is asked first, in their language (signOut.*).
+   * settled (the family's item says "Saving…" meanwhile): a failed save goes
+   * once more and what is on its way arrives. If progress or the path still
+   * did not get through - or finished rounds the browser could not keep -
+   * signing out would lose them, and the learner is asked first, in their
+   * language (signOut.*), the safe answer first.
    */
-  protected async signOut(): Promise<void> {
-    if (this.signingOut()) return;
-    this.signingOut.set(true);
+  protected readonly signOut = async (): Promise<void> => {
     try {
       if (await this.boot.settleBeforeSignOut()) {
-        this.closeMenu(false);
-        if (!(await this._question().ask())) {
-          this.signingOut.set(false);
-          return;
-        }
+        // The question stands alone: the menu that asked goes first.
+        this.bar().closeMenu(false);
+        const yes = await this.confirm.ask({
+          title: this.i18n.t('signOut.title'),
+          message: this.i18n.t('signOut.text'),
+          confirmLabel: this.i18n.t('signOut.confirm'),
+          cancelLabel: this.i18n.t('signOut.cancel'),
+          tone: 'danger',
+        });
+        if (!yes) return;
       }
       this.boot.signOut();
     } catch (error) {
       console.error('Signing out failed.', error);
-      this.signingOut.set(false);
     }
-  }
+  };
 
-  private _menuItems(): HTMLElement[] {
-    const menu = this._menu()?.nativeElement;
-    return menu ? Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')) : [];
-  }
+  /** "Not saved yet" on a phone: a dot on the menu button, its words for a screen reader. */
+  protected readonly phoneMark = computed<TopBarPhoneMark | null>(() => (this.store.unsaved() ? { dot: true, description: this.i18n.t('account.notSaved') } : null));
+
+  /** "Not saved yet", and what it means, heading both menus. */
+  protected readonly menuNote = computed<TopBarMenuNote | null>(() =>
+    this.store.unsaved() ? { title: this.i18n.t('account.notSaved'), text: this.i18n.t('account.notSavedHint') } : null,
+  );
 }

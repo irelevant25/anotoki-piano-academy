@@ -13,7 +13,10 @@
 // a database that has visitors already, their gates holding. And 006's
 // header: words only (the account's theme and language not taken), frozen
 // once applied. And 007: the "not set up yet" card's words, gone with the
-// card (the family's page took its place) - and nothing else.
+// card (the family's page took its place) - and nothing else. And 008: the
+// round theme button's three spoken words, gone with the button (the family's
+// switch took its place), and the theme's other words told of the switch -
+// and nothing else.
 
 declare(strict_types=1);
 
@@ -25,9 +28,14 @@ const FAMILY_MIGRATION = '004_family_shell.sql';
 const VISITORS_MIGRATION = '005_visitors.sql';
 const PREFERENCES_MIGRATION = '006_account_preferences.sql';
 const CARD_WORDS_MIGRATION = '007_site_status_words.sql';
+const THEME_SWITCH_MIGRATION = '008_family_theme_switch_words.sql';
 
 /** The words of the card 007 takes away. */
 const CARD_KEYS = ['boot.notSetUp.after', 'boot.notSetUp.open', 'boot.notSetUp.text', 'boot.notSetUp.title'];
+
+/** The round theme button's words 008 takes away, and the theme's words whose descriptions it writes over. */
+const ROUND_BUTTON_KEYS = ['theme.autoSpoken', 'theme.darkSpoken', 'theme.lightSpoken'];
+const THEME_SWITCH_KEYS = ['theme.auto', 'theme.dark', 'theme.light', 'theme.notSaved'];
 
 function server_pdo(string $name): PDO
 {
@@ -431,5 +439,56 @@ test('007 says it is finished and how the owner applies it, and takes the card\'
     assert_same(CARD_WORDS_MIGRATION, $refused['failed']['name'] ?? null);
     assert_match('/a key or a string of the "not set up yet" card is still there/', (string) $refused['error']);
     assert_same([], $pdo->query("SELECT filename FROM migrations WHERE filename = '" . CARD_WORDS_MIGRATION . "'")->fetchAll(), 'not recorded as applied');
+    $pdo = null;
+});
+
+test('008 says it is finished and how the owner applies it, takes the round theme button\'s three words away and tells of the switch - nothing else, again and again', function (): void {
+    $sql = migration_text(THEME_SWITCH_MIGRATION);
+    assert_match('/-- Finished \(2026-10-08\)\. The owner applies it with 005, 006 and 007 at the\s+-- hand-over \(after a pg_dump/', $sql, 'the header says it is finished, and to dump first');
+    assert_match('/Once\s+--\s+applied it never changes: the next change is 009\./', $sql, 'and that it is then frozen');
+    $statements = Splitter::split($sql);
+    assert_same(3, count($statements), 'the one delete, the descriptions and the gate - nothing else');
+    assert_same("DELETE FROM translation_keys WHERE name IN ('theme.autoSpoken', 'theme.lightSpoken', 'theme.darkSpoken')", $statements[0]);
+    assert_match('/^UPDATE translation_keys k SET description = v\.description FROM \(VALUES/', $statements[1], 'then the descriptions, by name');
+    assert_match('/^DO \$\$.*RAISE EXCEPTION/s', $statements[2], 'it ends with its gate');
+
+    // What it does: the three keys and their strings go; the theme's four other words keep every string (the owner's
+    // wording too) and are told of the switch; every other key, string and description, and every table of 001, as they were.
+    $pdo = database_before(THEME_SWITCH_MIGRATION, 'before_008');
+    $keys = static fn(): array => $pdo->query('SELECT name FROM translation_keys ORDER BY name')->fetchAll(PDO::FETCH_COLUMN);
+    $strings = static fn(): array => $pdo->query('SELECT key_name, language_code, value FROM translations ORDER BY 1, 2')->fetchAll(PDO::FETCH_ASSOC);
+    $descriptions = static fn(): array => $pdo->query('SELECT name, description FROM translation_keys ORDER BY name')->fetchAll(PDO::FETCH_KEY_PAIR);
+    $pdo->exec("UPDATE translations SET value = 'Light it is' WHERE key_name = 'theme.light' AND language_code = 'en'");
+    $keysBefore = $keys();
+    $stringsBefore = $strings();
+    $descriptionsBefore = $descriptions();
+    $tablesBefore = tables_of_001($pdo);
+    assert_same(ROUND_BUTTON_KEYS, array_values(array_intersect($keysBefore, ROUND_BUTTON_KEYS)), 'the round button\'s words, there before');
+    assert_same([THEME_SWITCH_MIGRATION], names_of(test_migrate($pdo, THEME_SWITCH_MIGRATION)['applied']));
+    assert_same(array_values(array_diff($keysBefore, ROUND_BUTTON_KEYS)), $keys(), 'the three keys gone, no other');
+    assert_same(array_values(array_filter($stringsBefore, static fn(array $row): bool => !in_array($row['key_name'], ROUND_BUTTON_KEYS, true))), $strings(), 'their strings with them - every other string as it was, the owner\'s wording too');
+    $after = $descriptions();
+    foreach (THEME_SWITCH_KEYS as $key) {
+        assert_true($after[$key] !== $descriptionsBefore[$key] && str_contains($after[$key], 'theme switch') && !str_contains($after[$key], 'round theme button'), "$key: its description tells of the switch");
+    }
+    $others = static fn(array $all): array => array_diff_key($all, array_flip([...THEME_SWITCH_KEYS, ...ROUND_BUTTON_KEYS]));
+    assert_same($others($descriptionsBefore), $others($after), 'every other description as it was');
+    assert_same($tablesBefore, tables_of_001($pdo), 'nobody\'s progress touched');
+
+    // Taken off the record and applied again: its gate holds over a database without the button's words.
+    $pdo->exec("DELETE FROM migrations WHERE filename = '" . THEME_SWITCH_MIGRATION . "'");
+    assert_same([THEME_SWITCH_MIGRATION], names_of(test_migrate($pdo, THEME_SWITCH_MIGRATION)['applied']));
+
+    // A key of the button that comes back somehow (only a migration could make one): the gate refuses, and nothing of 008 stays.
+    $pdo->exec("DELETE FROM migrations WHERE filename = '" . THEME_SWITCH_MIGRATION . "'");
+    $pdo->exec("CREATE FUNCTION keep_button() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN RETURN NULL; END \$\$");
+    $pdo->exec("INSERT INTO translation_keys (name) VALUES ('theme.autoSpoken')");
+    $pdo->exec('CREATE TRIGGER keep_button BEFORE DELETE ON translation_keys FOR EACH ROW EXECUTE FUNCTION keep_button()');
+    $pdo->exec("UPDATE translation_keys SET description = 'the round theme button' WHERE name = 'theme.dark'");
+    $refused = test_migrate($pdo, THEME_SWITCH_MIGRATION);
+    assert_same(THEME_SWITCH_MIGRATION, $refused['failed']['name'] ?? null);
+    assert_match('/a key or a string of the round theme button is still there/', (string) $refused['error']);
+    assert_same([], $pdo->query("SELECT filename FROM migrations WHERE filename = '" . THEME_SWITCH_MIGRATION . "'")->fetchAll(), 'not recorded as applied');
+    assert_same('the round theme button', $pdo->query("SELECT description FROM translation_keys WHERE name = 'theme.dark'")->fetchColumn(), 'its descriptions rolled back with it');
     $pdo = null;
 });

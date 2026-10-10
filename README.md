@@ -82,15 +82,16 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   so. If the browser's progress has ended (30 days unused), if this browser
   cannot keep more, or if signing in becomes required meanwhile, a note
   under the bar says that too.
-- **One bar at the top**, as on every anotoki site: the sections (Learn, Note
-  Trainer, Sheet Practice, Songs, Stats), your piano, the language, the theme
-  and your menu. On a phone or a window narrower than 1240 px they fold into
-  one menu button. The version number at the bottom of the page shows what is
-  new.
-- **Light and dark**: the theme button in the bar follows your computer, or
-  keeps the one you choose. Signed in, the theme is your anotoki account's:
-  choose it here or on any anotoki site, and every site - the admin panel
-  too - follows it. Without signing in, this browser keeps its own.
+- **One bar at the top**, the same as on every anotoki site (and the same
+  font, Manrope): the sections (Learn, Note Trainer, Sheet Practice, Songs,
+  Stats), your piano, the language, the theme and your menu. On a phone or a
+  window 1320 px wide or narrower they fold into one menu button. The
+  version number at the bottom of the page shows what is new.
+- **Light and dark**: the theme switch in the bar has three choices - light,
+  dark, or as your computer is set. Signed in, the theme is your anotoki
+  account's: choose it here or on any anotoki site, and every site - the
+  admin panel too - follows it. Without signing in, this browser keeps its
+  own.
 - **Dates and times** are written the way your language writes them - or,
   signed in, in the order and on the clock your anotoki account chose
   (2026-10-06, 6.10.2026, 2:30 PM ...).
@@ -100,10 +101,10 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   another site, it follows); without signing in it keeps what you chose in
   this browser, and until you choose, it follows your browser. Note names, song titles and your piano's name stay as they
   are in every language. The app's words live in the database, reworded in
-  the browser in the admin panel (`/admin`, in English; **Admin** in your
-  menu, and the bar there has its sections): an account with the role EDITOR of Piano Academy
+  the browser in the admin panel (`/admin`, in English; **Admin panel** in
+  your menu, and the bar there has its sections): an account with the role EDITOR of Piano Academy
   rewords them, an ADMIN also adds and deletes languages, sees everybody's
-  progress counts (**People**) and applies database updates (**Database**).
+  progress counts (**People**) and applies database updates (**Migrations**).
 
 ### Data and privacy
 
@@ -143,10 +144,20 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
-- English and Slovak (informal), 285 keys of the app's own words in the
-  database (migrations 002 to 007), a language chooser, and the
+- English and Slovak (informal), 282 keys of the app's own words in the
+  database (migrations 002 to 008), a language chooser, and the
   Translations and Languages pages. A word with no string shows its key, on
   purpose.
+- **The anotoki family's look (2026-10-08 to 11).** The bar, its menus, the
+  language chooser, the theme switch - now three choices: light, dark, or as
+  the device is set -, the questions ("Are you sure?") and the font
+  (Manrope) are the anotoki family's, from its library's UI kit
+  (`@anotoki/lib` 0.2.0; its PHP half stays 0.1.0); Piano Academy keeps its
+  own colours, its pages, the keyboard and the notation. The family's words
+  say what the owner wrote in the database where the app has them.
+  Migration 008 takes the old round theme button's words away; it goes with
+  005, 006 and 007 at the hand-over. In What's new's 0.4.0 (not released
+  yet).
 - **One way while the site is not ready (2026-10-07).** Every anotoki site
   now behaves the same while it is being updated, through the family's
   library (`anotoki-lib` from GitHub: `vendor/anotoki/lib` 0.1.0 and

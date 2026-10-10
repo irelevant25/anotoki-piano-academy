@@ -8,7 +8,10 @@
  * bundle is in memory; with one, a key that has no string shows as the key,
  * as everywhere. (The page that says the site is being updated, not set up
  * or not available is the anotoki family's, with its own words in English
- * and Slovak: @anotoki/lib/migrations.)
+ * and Slovak: @anotoki/lib/migrations. So are the words of the family's kit
+ * that this app has no string of its own for - the theme switch's name, its
+ * "As your device is set", "Saving…" while a Sign out waits: @anotoki/lib/ui.
+ * Those it has one for are read from here as any other: kit-words.ts.)
  *
  * A key here is also a key in the database, with the same English: the
  * backend's test (tests/unit/translations.test.php) holds the two equal, and
@@ -57,7 +60,7 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'account.signedIn': 'Signed in',
   'account.signOut': 'Sign out',
   'account.signedOutBanner': 'You are signed out, so your progress is not saved.',
-  // Signing out while some progress could not be saved (layouts/top-bar: the question, drawn in its closed dialog too).
+  // Signing out while some progress could not be saved (layouts/top-bar: the question, the family's ConfirmService).
   'signOut.title': 'Sign out without your latest progress?',
   'signOut.text': 'Some of your progress could not be saved yet. If you sign out now, it is lost.',
   'signOut.confirm': 'Sign out anyway',
@@ -88,13 +91,10 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'midi.noDevices': 'No MIDI devices found',
   'midi.connect': 'Connect',
   'midi.rescan': 'Rescan MIDI devices',
-  // The top bar's theme button (ui/theme-toggle): its title, and what it says to a screen reader.
+  // The top bar's theme switch (the family's): what its three choices are called (core/i18n/kit-words.ts)...
   'theme.auto': 'Theme: automatic',
   'theme.light': 'Theme: light',
   'theme.dark': 'Theme: dark',
-  'theme.autoSpoken': 'Theme: automatic (press to change)',
-  'theme.lightSpoken': 'Theme: light (press to change)',
-  'theme.darkSpoken': 'Theme: dark (press to change)',
   // ...and the note under it when the anotoki account would not take the theme chosen there.
   'theme.notSaved': 'The theme could not be saved to your anotoki account.',
   // The footer (app.component): the version button's hint.

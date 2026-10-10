@@ -5,7 +5,8 @@
     "changes": {
       "added": [],
       "updated": [
-        "While Piano Academy is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done"
+        "While Piano Academy is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done",
+        "Piano Academy now looks like the other anotoki sites: the same font and the same bar at the top. The theme switch in the bar shows its three choices side by side - light, dark, or as your device is set"
       ],
       "fixed": []
     }

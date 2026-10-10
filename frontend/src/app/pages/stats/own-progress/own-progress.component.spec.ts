@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ApiError, ApiService, EXPORT_LIMIT, ImportPreview } from '../../../core/api/api.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
-import { provideTestDialog } from '../../../core/testing/test-dialog';
+import { TestQuestions, drawTestQuestions, provideTestKit } from '../../../core/testing/test-kit';
 import { provideTestTranslations } from '../../../core/testing/test-translations';
 import { OwnProgressComponent, ownProgressProblem } from './own-progress.component';
 
@@ -66,7 +66,12 @@ describe('OwnProgressComponent: the learner’s own progress file', () => {
   };
   const store = { hasUnsaved: vi.fn(() => false), announceReplaced: vi.fn(), reloadFromServer: vi.fn(async () => undefined) };
 
-  beforeAll(() => provideTestDialog());
+  /** The family's question (ConfirmService), drawn beside the page as the app's root draws it. */
+  let questions: TestQuestions;
+
+  // The family's dialog asks jsdom for what it lacks (showModal(), checkVisibility()).
+  beforeAll(() => provideTestKit());
+  afterEach(() => questions.remove());
 
   beforeEach(async () => {
     for (const mock of [...Object.values(api), ...Object.values(store)]) mock.mockReset();
@@ -75,6 +80,7 @@ describe('OwnProgressComponent: the learner’s own progress file', () => {
     TestBed.configureTestingModule({
       providers: [provideTestTranslations(SLOVAK, { language: 'sk' }), { provide: ApiService, useValue: api }, { provide: ProgressStore, useValue: store }],
     });
+    questions = drawTestQuestions();
     fixture = TestBed.createComponent(OwnProgressComponent);
     host = fixture.nativeElement;
     await fixture.whenStable();
@@ -95,9 +101,8 @@ describe('OwnProgressComponent: the learner’s own progress file', () => {
     await fixture.whenStable();
   }
   const file = (content = TEXT) => ({ size: content.length, text: vi.fn(async () => content) });
-  const dialog = (): HTMLDialogElement => host.querySelector('dialog.confirm')!;
   async function answer(yes: boolean): Promise<void> {
-    (dialog().querySelector(`[data-answer="${yes ? 'yes' : 'no'}"]`) as HTMLButtonElement).click();
+    questions.answer(yes);
     await fixture.whenStable();
     await new Promise((resolve) => setTimeout(resolve, 0));
     await fixture.whenStable();
@@ -156,7 +161,7 @@ describe('OwnProgressComponent: the learner’s own progress file', () => {
     await fixture.whenStable();
     expect(api.importMyProgress).toHaveBeenCalledWith(TEXT, false);
     // No question: there was nothing to replace.
-    expect(dialog().hasAttribute('open')).toBe(false);
+    expect(questions.open()).toBeNull();
     // The import started a new generation: the page loads it, and the other tabs are told.
     expect(store.announceReplaced).toHaveBeenCalledTimes(1);
     expect(store.reloadFromServer).toHaveBeenCalledTimes(1);
@@ -172,10 +177,9 @@ describe('OwnProgressComponent: the learner’s own progress file', () => {
     expect(text('#own-bring-in')).toBe('Nahradiť môj postup');
 
     await press('#own-bring-in');
-    expect(dialog().hasAttribute('open')).toBe(true);
-    expect(text('#own-progress-confirm-title')).toBe('Nahradiť tvoj postup?');
-    expect(text('dialog.confirm [data-answer="yes"]')).toBe('Nahradiť');
-    expect(text('dialog.confirm [data-answer="no"]')).toBe('Ponechať môj');
+    expect(questions.open()).not.toBeNull();
+    expect(questions.title()).toBe('Nahradiť tvoj postup?');
+    expect(questions.answers()).toEqual(['Ponechať môj', 'Nahradiť']);
     await answer(false);
     expect(api.importMyProgress).not.toHaveBeenCalled();
     expect(host.querySelector('#own-preview')).not.toBeNull();

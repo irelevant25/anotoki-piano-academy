@@ -1,4 +1,5 @@
-// The piano's state in the top bar, and the box it opens. Colours are the tokens of styles.scss only.
+// The piano's state in the top bar, and what its box holds (the box itself is the family's popover).
+// Colours are the tokens of styles.scss only.
 
 :host {
   position: relative;
@@ -13,7 +14,8 @@
   min-width: 0;
   height: 40px;
   padding: 0 0.75rem 0 0.65rem;
-  border: 1px solid var(--border);
+  // Its edge seen (3:1), as the family's round buttons beside it in the bar.
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: var(--panel);
   color: var(--text);
@@ -32,7 +34,7 @@
     padding: 0 0.6rem;
   }
 
-  app-icon {
+  anotoki-icon {
     color: var(--text-dim);
   }
 }
@@ -58,24 +60,11 @@
   white-space: nowrap;
 }
 
-// Under the button, right-aligned; --shift is what the component moves it by to stay on the screen.
+// What the box holds, one under the other.
 .midi-box {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.5rem);
-  z-index: 40;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  width: max-content;
-  min-width: 15rem;
-  max-width: calc(100vw - 1rem);
-  padding: 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
-  box-shadow: var(--shadow-lg);
-  transform: translateX(var(--shift, 0px));
 }
 
 .midi-box-title {

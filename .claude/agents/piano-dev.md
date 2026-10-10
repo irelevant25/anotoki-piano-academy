@@ -127,8 +127,10 @@ Working conventions specific to this repo:
   words, the health check, the Migrations page's routes); its
   `<anotoki-site-gate>` draws the status page in the view's place ("being
   updated" for visitors and learners, "A database update is waiting" for the
-  site's ADMIN) and makes the view - its `<ng-template>` (0.1.1) - only while
-  it shows it, so no page runs behind it; `BootService` waits (`waiting`) and
+  site's ADMIN) and makes the view - its marked template, `<ng-template
+  anotokiSitePages>` (0.2.0) - only while it shows it, so no page runs behind
+  it; the Migrations page is lazy from `@anotoki/lib/migrations/page`;
+  `BootService` waits (`waiting`) and
   the sign-in guard sends nobody to the IAM then. A new route that must
   answer while an update waits goes into `SITE_OPEN_PATHS`.
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
@@ -141,20 +143,37 @@ Working conventions specific to this repo:
   editing a migration that is not released yet:
   `php tests/tools/testdb.php template --fresh`.
 
-- The top bar is the anotoki family's (`layouts/top-bar`, the survey's
-  structure, Piano's tokens): five sections, "Not saved yet", the piano
-  (`ui/midi-panel`), language, theme, the person's menu; a phone's up to
-  `PHONE_BAR_MAX` (1240, measured - `run.mjs --measure`; the same number in
-  the .scss); the menus' Tab and Shift+Tab close onto the menu button; under
-  `/admin` the admin sections, English (`effectiveLanguage`), no chooser,
-  no piano. Its words are keys, in kept-english.ts too.
+- The anotoki family's kit (`@anotoki/lib` 0.2.0, wired in
+  `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
+  language chooser, the theme switch and `ThemeService`, the brand, icons,
+  spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
+  the app's root) are the family's - never copy one into `ui/`. Their words
+  are Piano's strings where Piano has them (`core/i18n/kit-words.ts`, the
+  kit's keys written by their two parts for the key scan); colours are the
+  family's tokens in Piano's palette (`anotoki.root()` in `styles.scss`),
+  the font Manrope. Piano's own controls (bare buttons and selects,
+  `.btn-primary`, `.card`, `.chip`) keep Piano's look; their rules never
+  reach the kit's components (`$piano-own`). Specs: `provideTestKit()`,
+  `drawTestQuestions()` (`core/testing/test-kit.ts`).
+- The top bar is the family's `<anotoki-top-bar>`, wrapped by
+  `layouts/top-bar` (Piano's brand, sections, person, menu items; "Not
+  saved yet" and the piano - `ui/midi-panel` - as its widgets; the phone's
+  dot and the menus' note; Sign out settling and asking first): five
+  sections, the language, the theme switch (light / dark / as the device is
+  set), the person's menu ("Admin panel" for the staff while the site is
+  ready); a phone's up to `PHONE_BAR_MAX` (1320, measured - `run.mjs
+  --measure`; the bar's `phoneMax`, no .scss copy); the menus' Tab and
+  Shift+Tab close onto the menu button; under `/admin` the admin sections
+  and the wordmark "anotoki Piano Academy · admin panel", English
+  (`effectiveLanguage`), no chooser, no piano. Its words are keys, in
+  kept-english.ts too.
 - The theme, the dates, the clock and the language are the anotoki
   account's for somebody signed in (the IAM's 015; the vendored browser SDK
   1.2.0 - `AuthService.preferences`, null for nobody, a visitor or an IAM
   that sends none: then nothing changes and nothing is saved). The theme
-  button saves through `ThemeService` (one save at a time, the latest last;
-  the account's theme back and `theme.notSaved` when refused), the language
-  chooser through `TranslationService.setLanguage()` -> `saveToAccount()`
+  switch saves through the family's `ThemeService` (one save at a time, the
+  latest last; the account's theme back and `theme.notSaved` when refused),
+  the language chooser through `TranslationService.choose()` -> `setLanguage()` -> `saveToAccount()`
   (`invalid_request`: silent; else, `access_denied` too, `language.notSaved`
   - words that promise no retry); a date or time a page writes goes
   through the `localDate` pipe, which follows the account's order and clock

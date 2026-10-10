@@ -5,7 +5,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { OwnerLanguage, TranslationGrid, TranslationKeyRow } from '../../../core/i18n/translation.model';
 import { TranslationService } from '../../../core/i18n/translation.service';
 import { LOCALIZATION_DRAFTS_KEY, LocalizationDrafts } from '../../../core/admin/localization-drafts.service';
-import { provideTestDialog } from '../../../core/testing/test-dialog';
+import { TestQuestions, drawTestQuestions, provideTestKit } from '../../../core/testing/test-kit';
 import { TranslationsComponent } from './translations.component';
 
 const ENGLISH: OwnerLanguage = { code: 'en', name: 'English', nativeName: 'English', enabled: true, sortOrder: 1, seeded: true };
@@ -71,7 +71,9 @@ describe('TranslationsComponent', () => {
   const shownKeys = () => all('.key-name');
   const button = (label: string, within: ParentNode = host) => Array.from(within.querySelectorAll<HTMLButtonElement>('button')).find((candidate) => clean(candidate.textContent) === label)!;
   const bar = () => text('.bar-state');
-  const question = () => host.querySelector<HTMLDialogElement>('dialog.confirm')!;
+  /** The family's question (ConfirmService), drawn beside the page as the app's root draws it. */
+  let questions: TestQuestions;
+  const asked = () => questions.open() !== null;
 
   /** Lets the promises of a click run out, then the page draw. */
   async function settle(): Promise<void> {
@@ -87,10 +89,8 @@ describe('TranslationsComponent', () => {
 
   /** Answers the question that is open - "Leave without saving?", "Import ... ?" - and says what it asked. */
   async function answer(yes: boolean): Promise<string> {
-    const title = question().hasAttribute('open') ? text('#ow-confirm-title') : '';
-    question()
-      .querySelector<HTMLButtonElement>(`[data-answer="${yes ? 'yes' : 'no'}"]`)!
-      .click();
+    const title = questions.title();
+    questions.answer(yes);
     await settle();
     return title;
   }
@@ -116,18 +116,22 @@ describe('TranslationsComponent', () => {
 
   /** The page drawn - the first time, or again after it was left. */
   async function draw(): Promise<void> {
+    questions?.remove();
+    questions = drawTestQuestions();
     fixture = TestBed.createComponent(TranslationsComponent);
     host = fixture.nativeElement;
     document.body.appendChild(host);
     await settle();
   }
 
-  beforeAll(() => provideTestDialog());
+  // The family's dialog asks jsdom for what it lacks (showModal(), checkVisibility()).
+  beforeAll(() => provideTestKit());
 
   beforeEach(() => sessionStorage.clear());
 
   afterEach(() => {
     host.remove();
+    questions.remove();
     vi.restoreAllMocks();
     sessionStorage.clear();
     Reflect.deleteProperty(URL, 'createObjectURL');
@@ -159,8 +163,7 @@ describe('TranslationsComponent', () => {
     // The root says so: the shell around it may be Slovak.
     const root = host.firstElementChild!;
     expect(root.getAttribute('lang')).toBe('en');
-    // Everything the page draws is inside it - the question it asks, too.
-    expect(root.contains(question())).toBe(true);
+    // Everything the page draws is inside it (the question it asks is the family's, drawn once in the app's root).
     expect(Array.from(host.children)).toHaveLength(1);
     expect(host.querySelectorAll('.page-head a')).toHaveLength(0);
   });
@@ -662,18 +665,18 @@ describe('TranslationsComponent', () => {
     await page();
     const component = fixture.componentInstance;
     expect(component.canLeave()).toBe(true);
-    expect(question().hasAttribute('open')).toBe(false);
+    expect(asked()).toBe(false);
 
     await type(box('home.title', 'sk'), 'Začni');
     const stay = component.canLeave() as Promise<boolean>;
     await settle();
-    // The question is a native dialog of the page's own, in English.
-    expect(question().hasAttribute('open')).toBe(true);
-    expect(text('#ow-confirm-text')).toBe('1 changed string is not saved yet, and leaving loses it.');
-    expect(all('dialog.confirm button')).toEqual(['Stay here', 'Leave']);
+    // The question is the family's dialog, in the page's English.
+    expect(asked()).toBe(true);
+    expect(questions.text()).toBe('1 changed string is not saved yet, and leaving loses it.');
+    expect(questions.answers()).toEqual(['Stay here', 'Leave']);
     expect(await answer(false)).toBe('Leave without saving?');
     expect(await stay).toBe(false);
-    expect(question().hasAttribute('open')).toBe(false);
+    expect(asked()).toBe(false);
     // Staying keeps what was typed.
     expect(box('home.title', 'sk').value).toBe('Začni');
     expect(TestBed.inject(LocalizationDrafts).count()).toBe(1);
@@ -694,8 +697,8 @@ describe('TranslationsComponent', () => {
     const asked = fixture.componentInstance.canLeave() as Promise<boolean>;
     await settle();
 
-    // What Esc does to a dialog: it closes, and no button said anything.
-    question().close();
+    // What Esc does to the family's dialog: it closes, and no button said anything.
+    questions.open()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await settle();
 
     expect(await asked).toBe(false);
@@ -814,7 +817,7 @@ describe('TranslationsComponent', () => {
       await page();
       await choose('sk.json', '{"home.title": "\\u200B", "common.close": " \\u2060 "}');
 
-      expect(question().hasAttribute('open')).toBe(false);
+      expect(asked()).toBe(false);
       expect(api.importTranslations).not.toHaveBeenCalled();
       expect(text('.problem')).toContain('It holds no string: every value in it is empty.');
     });
@@ -831,7 +834,7 @@ describe('TranslationsComponent', () => {
       await page();
       await choose('notes.json', '["home.title"]');
 
-      expect(question().hasAttribute('open')).toBe(false);
+      expect(asked()).toBe(false);
       expect(api.importTranslations).not.toHaveBeenCalled();
       const alert = text('.problem');
       expect(alert).toContain('"notes.json" was not imported');
