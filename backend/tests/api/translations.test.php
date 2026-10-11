@@ -1,13 +1,17 @@
 <?php
 
 // The app's own strings through the real server, signed in through the IAM
-// with the tests' own tokens. Anybody reads a language's strings with English
-// underneath - no token looked at; the staff (EDITOR or ADMIN in the IAM)
-// reword the strings - checked whole, the changed ones only, never a
+// with the tests' own tokens - the anotoki family's routes of the words
+// (anotoki/lib's TranslationsRoutes) as this app wires them: in the IAM's
+// wire format (snake_case), in this app's error shape ({error, code, ...}),
+// behind this app's own role checks. Anybody reads a language's strings with
+// English underneath - no token looked at; the staff (EDITOR or ADMIN in the
+// IAM) reword the strings - checked whole, the changed ones only, never a
 // placeholder the code does not fill - and only ADMIN adds, changes and
 // deletes languages. Who has which role is the verified token's `roles`, and
-// nothing else a request says. (Every admin route, role by role, is also in
-// tests/api/admin.test.php.)
+// nothing else a request says. Who saved a string is the token's person.
+// (Every admin route, role by role, is also in tests/api/admin.test.php; how
+// each rule works inside is the library's, and tested there.)
 //
 // The keys here are the test's own: the migrations write the real ones, and
 // what they leave is held to the frontend in tests/unit/translations.test.php.
@@ -23,22 +27,28 @@ declare(strict_types=1);
 require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database and settings
 require TEST_BACKEND . '/tools/translation_keys.php';
 
+use Anotoki\Lib\Translations\TranslationFile;
+
 const ADMIN_A = 1;      // the IAM role ADMIN of this application
 const ADMIN_B = 2;      // ADMIN too: a second person who may do all of it
 const LEARNER = 101;    // signed in with no role of this application: learns, and nothing here
 const ROLELESS = 102;   // a token with no `roles` claim at all
 const EDITOR_A = 7;     // the IAM role EDITOR: rewords the strings, and no more
 
-const ENGLISH = ['code' => 'en', 'name' => 'English', 'nativeName' => 'English'];
-const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'nativeName' => 'Slovenčina'];
+const ENGLISH = ['code' => 'en', 'name' => 'English', 'native_name' => 'English'];
+const SLOVAK = ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina'];
+
+/** What the words say while the database has none to give (anotoki/lib's Translations::unavailable()). */
+const NO_WORDS_YET = 'The words are not in the database yet. An administrator applies the waiting database update on the Migrations page.';
 
 $GLOBALS['hosted'] = null;
 before(function (): void {
     $GLOBALS['hosted'] = start_app(test_auth_iam());
     // This file's copy of the database starts with no string at all: the
-    // app's own keys (003 and after) are taken out of it, and their strings
-    // go with them. What the routes do is then said in a handful of keys that
-    // are the test's, and does not change with every string the app gains.
+    // app's own keys (003 and after) and the library's (anotoki.*) are taken
+    // out of it, and their strings go with them. What the routes do is then
+    // said in a handful of keys that are the test's, and does not change with
+    // every string the app gains.
     dbExec('DELETE FROM translation_keys');
 });
 
@@ -139,7 +149,7 @@ function staff_routes(): array
 function language_routes(): array
 {
     return [
-        ['POST', '/api/admin/languages', ['code' => 'xx', 'name' => 'Nobody\'s', 'nativeName' => 'Nobody\'s']],
+        ['POST', '/api/admin/languages', ['code' => 'xx', 'name' => 'Nobody\'s', 'native_name' => 'Nobody\'s']],
         ['PUT', '/api/admin/languages/sk', ['enabled' => false, 'name' => 'Changed']],
         ['DELETE', '/api/admin/languages/sk', null],
     ];
@@ -240,18 +250,18 @@ function begin_as(int $user, string $method, string $url, mixed $body = null): a
     ];
 }
 
-test('before there is any string: the languages on offer, and empty maps that are still objects', function (): void {
-    $english = anonymous('GET', '/api/translations/en');
-    assert_same(200, $english['status']);
-    assert_same(jsonText(['language' => 'en', 'languages' => [ENGLISH, SLOVAK], 'values' => new stdClass()]), $english['raw']);
-    assert_same('application/json; charset=utf-8', $english['headers']['content-type'] ?? null);
-
-    $slovak = anonymous('GET', '/api/translations/sk');
-    assert_same(jsonText(['language' => 'sk', 'languages' => [ENGLISH, SLOVAK], 'values' => new stdClass(), 'english' => new stdClass()]), $slovak['raw'], '{} and not []');
+test('before there is any string: the words are not there yet - said as such, never as an error - and empty maps that are still objects', function (): void {
+    // No English string at all: nothing the pages could read, so the pages keep the English compiled into them.
+    foreach (['en', 'sk'] as $code) {
+        $none = anonymous('GET', "/api/translations/$code");
+        assert_same([503, ['error' => NO_WORDS_YET, 'code' => 'translations_unavailable'], '60'], [$none['status'], $none['body'], $none['headers']['retry-after'] ?? null], $code);
+    }
 
     $export = as_user(ADMIN_A, 'GET', '/api/admin/translations/sk/export');
-    assert_same([200, '{}'], [$export['status'], $export['raw']], 'the export of a language with no strings');
+    assert_same([200, "{}\n"], [$export['status'], $export['raw']], 'the export of a language with no strings: a file of nothing');
+    assert_same('attachment; filename="translations-sk.json"', $export['headers']['content-disposition'] ?? null, 'a file to keep, by its language\'s name');
     assert_same([], as_user(ADMIN_A, 'GET', '/api/admin/translations')['body']['keys']);
+    assert_same([], problems_of($GLOBALS['hosted']), 'nothing logged for it');
 });
 
 test('the bundle: a language\'s strings with English underneath, the same for everybody - token or none, good or bad', function (): void {
@@ -261,10 +271,11 @@ test('the bundle: a language\'s strings with English underneath, the same for ev
     $slovak = anonymous('GET', '/api/translations/sk');
     assert_same(['language', 'languages', 'values', 'english'], array_keys($slovak['body']));
     assert_same('sk', $slovak['body']['language']);
-    assert_same([ENGLISH, SLOVAK], $slovak['body']['languages']);
+    assert_same([ENGLISH, SLOVAK], $slovak['body']['languages'], 'the IAM\'s wire format: native_name');
     assert_json_same(['test.hello' => 'Dobrý deň, {name}!'] + $english, $slovak['body']['values'], 'a key with no Slovak string comes in English');
     assert_json_same($english, $slovak['body']['english'], 'English itself');
     assert_false(array_key_exists('test.new', $slovak['body']['values']), 'a key with no string at all is not there: the page shows the key');
+    assert_same('application/json; charset=utf-8', $slovak['headers']['content-type'] ?? null);
 
     $own = anonymous('GET', '/api/translations/en');
     assert_same(['language', 'languages', 'values'], array_keys($own['body']), 'no second copy of English');
@@ -303,6 +314,24 @@ test('the bundle: a language\'s strings with English underneath, the same for ev
     }
 });
 
+test('the IAM\'s wire format, both ways: snake_case in every answer, and a body in camelCase is no language', function (): void {
+    // What the bundle names of a language: what a chooser shows, nothing more.
+    assert_same(['code', 'name', 'native_name'], array_keys(anonymous('GET', '/api/translations/en')['body']['languages'][0]));
+    // What the admin pages read of one: the fields of the IAM's AdminLanguage, the count of its own strings with them.
+    $languages = as_user(ADMIN_A, 'GET', '/api/admin/languages')['body']['languages'];
+    assert_same(['code', 'name', 'native_name', 'enabled', 'sort_order', 'seeded', 'strings'], array_keys($languages[0]));
+    assert_same([['en', 3], ['sk', 1]], array_map(static fn(array $language): array => [$language['code'], $language['strings']], $languages), 'its own strings, counted');
+    assert_same(array_keys($languages[0]), array_keys(as_user(ADMIN_A, 'GET', '/api/admin/translations')['body']['languages'][0]), 'the grid\'s languages alike');
+
+    // The camelCase this app spoke before: a language without its native_name is none, an order called sortOrder changes nothing.
+    $before = everything();
+    $camel = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'cs', 'name' => 'Czech', 'nativeName' => 'Čeština']);
+    assert_same([422, 'invalid_language'], [$camel['status'], $camel['body']['code'] ?? null], 'nativeName is not native_name');
+    $unchanged = as_user(ADMIN_A, 'PUT', '/api/admin/languages/sk', ['nativeName' => 'Slovensky', 'sortOrder' => 9]);
+    assert_same([200, 'Slovenčina', 2], [$unchanged['status'], $unchanged['body']['language']['native_name'], $unchanged['body']['language']['sort_order']], 'what it does not know of is passed over');
+    assert_same($before, everything());
+});
+
 test('a code that is not one is 404, and the database never hears of it', function (): void {
     foreach (['EN', 'Sk', 'e', 'eng', 'en-', 'en-GB', 'en_gb', 'en-gbr', 'sk%0A', '%20sk', 'sk%27', '%FF', '%C3%28', 'en.json'] as $code) {
         $answer = anonymous('GET', "/api/translations/$code");
@@ -314,14 +343,15 @@ test('a code that is not one is 404, and the database never hears of it', functi
     assert_same(405, anonymous('PUT', '/api/translations/sk', ['values' => ['test.bye' => 'x']])['status'], 'nothing is written here');
     assert_same(405, as_user(ADMIN_A, 'PUT', '/api/translations/sk', ['values' => ['test.bye' => 'x']])['status'], 'not by an administrator either');
 
-    // The admin routes: a code that is not one is no language.
+    // The admin routes: a code that is not one is no language - before the body is read.
     foreach (['%FF', 'SK', 'eng'] as $code) {
         assert_same(404, as_user(ADMIN_A, 'PUT', "/api/admin/languages/$code", ['name' => 'X'])['status'], $code);
         assert_same(404, as_user(ADMIN_A, 'DELETE', "/api/admin/languages/$code")['status'], $code);
         assert_same(404, as_user(ADMIN_A, 'GET', "/api/admin/translations/$code/export")['status'], $code);
         assert_same(404, as_user(ADMIN_A, 'PUT', "/api/admin/translations/$code/import", ['test.bye' => 'x'])['status'], $code);
+        assert_same(404, as_user(ADMIN_A, 'PUT', "/api/admin/translations/$code/import", 'not even JSON', ['Content-Type: text/plain'])['status'], "$code, whatever the body");
     }
-    assert_same(['error' => 'There is no such language.', 'code' => 'not_found'], as_user(ADMIN_A, 'GET', '/api/admin/translations/xx/export')['body'], 'nor a code the site has no language for');
+    assert_same(['error' => 'There is no such language', 'code' => 'not_found'], as_user(ADMIN_A, 'GET', '/api/admin/translations/xx/export')['body'], 'nor a code the site has no language for - in this app\'s error shape');
     assert_same([], problems_of($GLOBALS['hosted']), 'bytes that are not text reached no query (that would be a [db] error and a 503)');
 });
 
@@ -373,6 +403,12 @@ test('the words\' admin routes are for the staff the IAM makes - not a learner, 
 
         $ranOut = call($GLOBALS['hosted']['base'], $method, $url, $body, bearer(test_token(ADMIN_A, [ROLE_ADMIN], ['exp' => time() - 120])));
         assert_same([401, 'invalid_token'], [$ranOut['status'], $ranOut['body']['code'] ?? null], "$method $url, an administrator's token that ran out: 401, never 403");
+
+        // Who may is decided before anything of the body is looked at: one that is no JSON is still 401 / 403.
+        if ($body !== null) {
+            assert_same(401, anonymous($method, $url, 'text', ['Content-Type: text/plain'])['status'], "$method $url, signed out, a body that is no JSON");
+            assert_same(403, as_user(LEARNER, $method, $url, 'text', ['Content-Type: text/plain'])['status'], "$method $url, a learner, a body that is no JSON");
+        }
     }
     assert_same($before, everything(), 'and nothing of it was done');
 
@@ -405,7 +441,7 @@ test('the words\' admin routes are for the staff the IAM makes - not a learner, 
         assert_same([], array_values(array_filter(array_keys($preflight['headers']), static fn(string $name): bool => str_starts_with($name, 'access-control-'))), "$url: no CORS for anybody");
     }
 
-    assert_same(201, as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'nativeName' => 'Deutsch'])['status'], 'an administrator adds a language');
+    assert_same(201, as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch'])['status'], 'an administrator adds a language');
     assert_same(1, (int) dbValue("SELECT count(*) FROM languages WHERE code = 'de'"));
 });
 
@@ -440,64 +476,65 @@ test('an editor rewords the strings and takes a language out and back in - and d
 test('languages: added after the others, offered at once or hidden as the body says; renamed, reordered, switched off - English never', function (): void {
     $list = as_user(ADMIN_A, 'GET', '/api/admin/languages');
     assert_same([
-        ENGLISH + ['enabled' => true, 'sortOrder' => 1, 'seeded' => true],
-        SLOVAK + ['enabled' => true, 'sortOrder' => 2, 'seeded' => true],
-        ['code' => 'de', 'name' => 'German', 'nativeName' => 'Deutsch', 'enabled' => true, 'sortOrder' => 3, 'seeded' => false],
+        ENGLISH + ['enabled' => true, 'sort_order' => 1, 'seeded' => true, 'strings' => 3],
+        SLOVAK + ['enabled' => true, 'sort_order' => 2, 'seeded' => true, 'strings' => 1],
+        ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch', 'enabled' => true, 'sort_order' => 3, 'seeded' => false, 'strings' => 0],
     ], $list['body']['languages']);
 
     // What a new language is: last, and offered unless the body says otherwise - whatever else the body says.
-    $made = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'pt-br', 'name' => "  Portuguese\x07 (Brazil) ", 'nativeName' => str_repeat('ç', 50), 'sortOrder' => 0, 'seeded' => true]);
+    $made = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'pt-br', 'name' => "  Portuguese\x07 (Brazil) ", 'native_name' => str_repeat('ç', 50), 'sort_order' => 0, 'seeded' => true, 'strings' => 9]);
     assert_same(201, $made['status'], test_show($made['body']));
-    assert_same(['language' => ['code' => 'pt-br', 'name' => 'Portuguese (Brazil)', 'nativeName' => str_repeat('ç', 50), 'enabled' => true, 'sortOrder' => 4, 'seeded' => false]], $made['body']);
+    assert_same(['language' => ['code' => 'pt-br', 'name' => 'Portuguese (Brazil)', 'native_name' => str_repeat('ç', 50), 'enabled' => true, 'sort_order' => 4, 'seeded' => false, 'strings' => 0]], $made['body']);
     assert_same('pt-br', anonymous('GET', '/api/translations/pt-br')['body']['language'], 'offered, a code with a region answers itself');
 
     // Hidden from the start when the body says so (the Languages page does): there for its strings
     // to be written, offered to nobody until an administrator switches it on.
-    $hidden = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français', 'enabled' => false]);
+    $hidden = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false]);
     assert_same(201, $hidden['status'], test_show($hidden['body']));
-    assert_same(['language' => ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français', 'enabled' => false, 'sortOrder' => 5, 'seeded' => false]], $hidden['body']);
+    assert_same(['language' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => false, 'sort_order' => 5, 'seeded' => false, 'strings' => 0]], $hidden['body']);
     $french = anonymous('GET', '/api/translations/fr');
     assert_same(['en', ['en', 'sk', 'de', 'pt-br']], [$french['body']['language'], array_column($french['body']['languages'], 'code')], 'nobody is offered it');
     assert_true(in_array('fr', array_column(as_user(ADMIN_A, 'GET', '/api/admin/languages')['body']['languages'], 'code'), true), 'the admin page has it');
     assert_same(true, as_user(ADMIN_A, 'PUT', '/api/admin/languages/fr', ['enabled' => true])['body']['language']['enabled']);
     assert_same('fr', anonymous('GET', '/api/translations/fr-ca')['body']['language'], 'switched on, it is offered - and answers for its regions');
-    $shown = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'it', 'name' => 'Italian', 'nativeName' => 'Italiano', 'enabled' => true]);
+    $shown = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'it', 'name' => 'Italian', 'native_name' => 'Italiano', 'enabled' => true]);
     assert_same([201, true], [$shown['status'], $shown['body']['language']['enabled'] ?? null], 'and true is what it is without saying');
     dbExec("DELETE FROM languages WHERE code IN ('fr', 'it')");
 
-    $twice = as_user(ADMIN_B, 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'Deutsch', 'nativeName' => 'Deutsch']);
+    $twice = as_user(ADMIN_B, 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'Deutsch', 'native_name' => 'Deutsch']);
     assert_same([409, 'language_exists'], [$twice['status'], $twice['body']['code']]);
     $invalid = [
-        'enabled as text' => ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français', 'enabled' => 'false'],
-        'enabled as a number' => ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français', 'enabled' => 0],
-        'enabled as nothing' => ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français', 'enabled' => null],
-        'a name nobody can see' => ['code' => 'fr', 'name' => "\u{200B}\u{2060}", 'nativeName' => 'Français'],
-        'a native name that is a soft hyphen' => ['code' => 'fr', 'name' => 'French', 'nativeName' => " \u{00AD} "],
-        'no body' => null, 'a list' => ['de'], 'the empty list' => [], 'a list of one language' => [['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français']],
-        'no code' => ['name' => 'French', 'nativeName' => 'Français'],
-        'a code in capitals' => ['code' => 'FR', 'name' => 'French', 'nativeName' => 'Français'],
-        'three letters' => ['code' => 'fra', 'name' => 'French', 'nativeName' => 'Français'],
-        'a code that is a number' => ['code' => 12, 'name' => 'French', 'nativeName' => 'Français'],
-        'a code that is an object' => ['code' => ['fr' => true], 'name' => 'French', 'nativeName' => 'Français'],
-        'no name' => ['code' => 'fr', 'nativeName' => 'Français'],
-        'an empty name' => ['code' => 'fr', 'name' => " \x07 ", 'nativeName' => 'Français'],
-        'a name of 51 characters' => ['code' => 'fr', 'name' => str_repeat('é', 51), 'nativeName' => 'Français'],
-        'a name that is a list' => ['code' => 'fr', 'name' => ['French'], 'nativeName' => 'Français'],
-        'a name that is an object' => ['code' => 'fr', 'name' => ['en' => 'French'], 'nativeName' => 'Français'],
+        'enabled as text' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => 'false'],
+        'enabled as a number' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => 0],
+        'enabled as nothing' => ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français', 'enabled' => null],
+        'a name nobody can see' => ['code' => 'fr', 'name' => "\u{200B}\u{2060}", 'native_name' => 'Français'],
+        'a native name that is a soft hyphen' => ['code' => 'fr', 'name' => 'French', 'native_name' => " \u{00AD} "],
+        'a list' => ['de'], 'the empty list' => [], 'a list of one language' => [['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']],
+        'no code' => ['name' => 'French', 'native_name' => 'Français'],
+        'a code in capitals' => ['code' => 'FR', 'name' => 'French', 'native_name' => 'Français'],
+        'three letters' => ['code' => 'fra', 'name' => 'French', 'native_name' => 'Français'],
+        'a code that is a number' => ['code' => 12, 'name' => 'French', 'native_name' => 'Français'],
+        'a code that is an object' => ['code' => ['fr' => true], 'name' => 'French', 'native_name' => 'Français'],
+        'no name' => ['code' => 'fr', 'native_name' => 'Français'],
+        'an empty name' => ['code' => 'fr', 'name' => " \x07 ", 'native_name' => 'Français'],
+        'a name of 51 characters' => ['code' => 'fr', 'name' => str_repeat('é', 51), 'native_name' => 'Français'],
+        'a name on two lines' => ['code' => 'fr', 'name' => "French\nFrench", 'native_name' => 'Français'],
+        'a name that is a list' => ['code' => 'fr', 'name' => ['French'], 'native_name' => 'Français'],
+        'a name that is an object' => ['code' => 'fr', 'name' => ['en' => 'French'], 'native_name' => 'Français'],
         'no native name' => ['code' => 'fr', 'name' => 'French'],
-        'a native name that is a number' => ['code' => 'fr', 'name' => 'French', 'nativeName' => 5],
+        'a native name that is a number' => ['code' => 'fr', 'name' => 'French', 'native_name' => 5],
     ];
     foreach ($invalid as $what => $body) {
         $refused = as_user(ADMIN_A, 'POST', '/api/admin/languages', $body);
         assert_same([422, 'invalid_language'], [$refused['status'], $refused['body']['code'] ?? null], $what);
     }
     // The body is JSON or it is nothing: a page on another site can make a browser send text, never this.
-    $plain = as_user(ADMIN_A, 'POST', '/api/admin/languages', '{"code": "fr", "name": "French", "nativeName": "Français"}', ['Content-Type: text/plain']);
+    $plain = as_user(ADMIN_A, 'POST', '/api/admin/languages', '{"code": "fr", "name": "French", "native_name": "Français"}', ['Content-Type: text/plain']);
     assert_same([415, 'unsupported_media_type'], [$plain['status'], $plain['body']['code'] ?? null], 'a text/plain body, JSON inside or not');
-    assert_same(415, as_user(ADMIN_A, 'POST', '/api/admin/languages', 'code=fr&name=French&nativeName=French', ['Content-Type: application/x-www-form-urlencoded'])['status'], 'a form');
+    assert_same(415, as_user(ADMIN_A, 'POST', '/api/admin/languages', 'code=fr&name=French&native_name=French', ['Content-Type: application/x-www-form-urlencoded'])['status'], 'a form');
+    assert_same([415, 'unsupported_media_type'], [($none = as_user(ADMIN_A, 'POST', '/api/admin/languages'))['status'], $none['body']['code'] ?? null], 'no body, and nothing that says what it is');
     $nothing = as_user(ADMIN_A, 'POST', '/api/admin/languages', '', ['Content-Type: application/json']);
-    assert_same([422, 'invalid_language'], [$nothing['status'], $nothing['body']['code'] ?? null], 'an empty body');
-    assert_same([422, 'invalid_language'], [as_user(ADMIN_A, 'POST', '/api/admin/languages', '', ['Content-Type: text/plain'])['status'], as_user(ADMIN_A, 'POST', '/api/admin/languages', '')['body']['code'] ?? null], 'whatever it says it is');
+    assert_same([422, 'empty_body'], [$nothing['status'], $nothing['body']['code'] ?? null], 'an empty body that says it is JSON: nothing arrived');
     assert_same(400, as_user(ADMIN_A, 'POST', '/api/admin/languages', '{"code": ', ['Content-Type: application/json'])['status']);
     assert_same(4, (int) dbValue('SELECT count(*) FROM languages'), 'nothing was added');
 
@@ -505,25 +542,26 @@ test('languages: added after the others, offered at once or hidden as the body s
     $german = anonymous('GET', '/api/translations/de');
     assert_same('de', $german['body']['language']);
     assert_same(['en', 'sk', 'de', 'pt-br'], array_column($german['body']['languages'], 'code'));
-    assert_same(['code', 'name', 'nativeName'], array_keys($german['body']['languages'][2]), 'only what a chooser shows');
+    assert_same(['code', 'name', 'native_name'], array_keys($german['body']['languages'][2]), 'only what a chooser shows');
     assert_json_same($german['body']['english'], $german['body']['values']);
 
     // Changed: only what is sent.
-    $renamed = as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', ['name' => ' German (Germany) ', 'sortOrder' => 0, 'code' => 'xx', 'seeded' => true]);
-    assert_same(['language' => ['code' => 'de', 'name' => 'German (Germany)', 'nativeName' => 'Deutsch', 'enabled' => true, 'sortOrder' => 0, 'seeded' => false]], $renamed['body']);
+    $renamed = as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', ['name' => ' German (Germany) ', 'sort_order' => 0, 'code' => 'xx', 'seeded' => true]);
+    assert_same(['language' => ['code' => 'de', 'name' => 'German (Germany)', 'native_name' => 'Deutsch', 'enabled' => true, 'sort_order' => 0, 'seeded' => false, 'strings' => 0]], $renamed['body']);
     assert_same(['de', 'en', 'sk', 'pt-br'], array_column(anonymous('GET', '/api/translations/en')['body']['languages'], 'code'), 'in its new place');
     assert_same('German (Germany)', as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', new stdClass())['body']['language']['name'], 'nothing sent, nothing changed');
-    assert_same('Deutsch (DE)', as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', ['nativeName' => 'Deutsch (DE)'])['body']['language']['nativeName']);
+    assert_same('Deutsch (DE)', as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', ['native_name' => 'Deutsch (DE)'])['body']['language']['native_name']);
     $changes = [
-        'enabled as text' => ['enabled' => 'false'], 'enabled as a number' => ['enabled' => 0], 'half an order' => ['sortOrder' => 1.5], 'an order as text' => ['sortOrder' => '3'],
-        'an order below 0' => ['sortOrder' => -1], 'an order above 1000' => ['sortOrder' => 1001], 'an empty name' => ['name' => ''], 'a long native name' => ['nativeName' => str_repeat('x', 51)],
-        'a name that is an object' => ['name' => ['en' => 'German']], 'a list' => ['name'], 'the empty list' => [], 'no body' => null,
+        'enabled as text' => ['enabled' => 'false'], 'enabled as a number' => ['enabled' => 0], 'half an order' => ['sort_order' => 1.5], 'an order as text' => ['sort_order' => '3'],
+        'an order below 0' => ['sort_order' => -1], 'an order above 1000' => ['sort_order' => 1001], 'an empty name' => ['name' => ''], 'a long native name' => ['native_name' => str_repeat('x', 51)],
+        'a name that is an object' => ['name' => ['en' => 'German']], 'a list' => ['name'], 'the empty list' => [],
     ];
     foreach ($changes as $what => $body) {
         $refused = as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', $body);
         assert_same([422, 'invalid_language'], [$refused['status'], $refused['body']['code'] ?? null], $what);
     }
-    assert_same(1000, as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', ['sortOrder' => 1000])['body']['language']['sortOrder']);
+    assert_same(415, as_user(ADMIN_A, 'PUT', '/api/admin/languages/de')['status'], 'no body');
+    assert_same(1000, as_user(ADMIN_A, 'PUT', '/api/admin/languages/de', ['sort_order' => 1000])['body']['language']['sort_order']);
     assert_same(404, as_user(ADMIN_A, 'PUT', '/api/admin/languages/fr', ['name' => 'French'])['status'], 'a language there is not');
 
     // Switched off: no longer offered, and asked for by name it reads in English. Never refused - but for English.
@@ -539,35 +577,36 @@ test('languages: added after the others, offered at once or hidden as the body s
 
     $english = as_user(ADMIN_A, 'PUT', '/api/admin/languages/en', ['enabled' => false, 'name' => 'Changed']);
     assert_same([409, 'fallback_language'], [$english['status'], $english['body']['code']]);
-    assert_same(ENGLISH + ['enabled' => true, 'sortOrder' => 5, 'seeded' => true], as_user(ADMIN_A, 'PUT', '/api/admin/languages/en', ['enabled' => true, 'sortOrder' => 5])['body']['language'], 'on is what it is; its place is anybody\'s to choose');
-    as_user(ADMIN_A, 'PUT', '/api/admin/languages/en', ['sortOrder' => 1]);
+    assert_same(ENGLISH + ['enabled' => true, 'sort_order' => 5, 'seeded' => true, 'strings' => 3], as_user(ADMIN_A, 'PUT', '/api/admin/languages/en', ['enabled' => true, 'sort_order' => 5])['body']['language'], 'on is what it is; its place is anybody\'s to choose');
+    as_user(ADMIN_A, 'PUT', '/api/admin/languages/en', ['sort_order' => 1]);
 
     // At most 20.
     for ($i = 0; $i < 16; $i++) {
         dbExec('INSERT INTO languages (code, name, native_name, sort_order) VALUES (?, ?, ?, 500)', ['x' . chr(97 + $i), "Filler $i", "Filler $i"]);
     }
-    $full = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français']);
+    $full = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']);
     assert_same([422, 'too_many_languages'], [$full['status'], $full['body']['code']]);
-    assert_same('language_exists', as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'nativeName' => 'Deutsch'])['body']['code'], 'one that is there is said to be there, full or not');
+    assert_same('language_exists', as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch'])['body']['code'], 'one that is there is said to be there, full or not');
     dbExec("DELETE FROM languages WHERE name LIKE 'Filler %'");
-    $french = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'nativeName' => 'Français']);
-    assert_same([201, 1000], [$french['status'], $french['body']['language']['sortOrder']], 'last - and never past what an order may be');
+    $french = as_user(ADMIN_A, 'POST', '/api/admin/languages', ['code' => 'fr', 'name' => 'French', 'native_name' => 'Français']);
+    assert_same([201, 1000], [$french['status'], $french['body']['language']['sort_order']], 'last - and never past what an order may be');
     dbExec("DELETE FROM languages WHERE code = 'fr'");
 });
 
 test('two people adding the last language the site keeps, at the same moment: one waits for the other, and the most holds', function (): void {
-    $fillers = LANGUAGES_MAX - 1 - (int) dbValue('SELECT count(*) FROM languages');
+    $most = translationsConfig()->languagesMax;
+    $fillers = $most - 1 - (int) dbValue('SELECT count(*) FROM languages');
     for ($i = 0; $i < $fillers; $i++) {
         dbExec('INSERT INTO languages (code, name, native_name, sort_order) VALUES (?, ?, ?, 500)', ['q' . chr(97 + $i), "Filler $i", "Filler $i"]);
     }
-    assert_same(LANGUAGES_MAX - 1, (int) dbValue('SELECT count(*) FROM languages'), 'room for one more');
+    assert_same($most - 1, (int) dbValue('SELECT count(*) FROM languages'), 'room for one more');
 
     // Somebody adds the twentieth and is not finished. Counting alone, a second request would not see that
     // row, would find room and add a twenty-first.
     $other = somebody_else();
     $other->beginTransaction();
     $other->exec("INSERT INTO languages (code, name, native_name, sort_order) VALUES ('qz', 'Filler of somebody else', 'Filler', 500)");
-    $second = begin_as(ADMIN_B, 'POST', '/api/admin/languages', ['code' => 'qy', 'name' => 'One too many', 'nativeName' => 'One too many']);
+    $second = begin_as(ADMIN_B, 'POST', '/api/admin/languages', ['code' => 'qy', 'name' => 'One too many', 'native_name' => 'One too many']);
     try {
         if (!$second['waits']()) {
             fail('it did not wait for whoever is adding one, and answered ' . test_show($second['answer']()));
@@ -575,7 +614,7 @@ test('two people adding the last language the site keeps, at the same moment: on
         $other->commit();
         $answer = $second['answer']();
         assert_same([422, 'too_many_languages'], [$answer['status'], $answer['body']['code'] ?? null], test_show($answer['body']));
-        assert_same([LANGUAGES_MAX, 0], [(int) dbValue('SELECT count(*) FROM languages'), (int) dbValue("SELECT count(*) FROM languages WHERE code = 'qy'")]);
+        assert_same([$most, 0], [(int) dbValue('SELECT count(*) FROM languages'), (int) dbValue("SELECT count(*) FROM languages WHERE code = 'qy'")]);
 
         // Reading goes on while somebody adds one: only what writes the table waits.
         $other->beginTransaction();
@@ -604,6 +643,7 @@ test('saving strings: the changed ones, by whoever saved them; a string sent as 
         ['name' => 'test.new', 'description' => 'A key with no string yet', 'values' => []],
     ], $grid['body']['keys'], 'by name');
     assert_true(str_contains($grid['raw'], '{"name":"test.new","description":"A key with no string yet","values":{}}'), 'no strings is {} and not []');
+    assert_same('no-store', $grid['headers']['cache-control'] ?? null);
 
     $untouched = stored('test.bye', 'en');
     $saved = save(ADMIN_B, ['test.hello' => ['sk' => "  Ahoj,\x07 {name}! "]]);
@@ -682,7 +722,7 @@ test('saving strings: all of it is checked before any of it is written, and each
 
     // The body's shape: {values: {key: {language: text}}} - objects, and nothing that only looks like one.
     $invalid = [
-        'no body' => null, 'no values' => ['strings' => new stdClass()], 'values as text' => ['values' => 'test.bye'], 'values as null' => ['values' => null],
+        'no values' => ['strings' => new stdClass()], 'values as text' => ['values' => 'test.bye'], 'values as null' => ['values' => null],
         'values as the empty list' => ['values' => []], 'values as a list' => ['values' => [['test.bye' => ['en' => 'x']]]],
         'a list' => [['values' => ['test.bye' => ['en' => 'x']]]], 'the empty list' => [],
         'a key with a text' => ['values' => ['test.bye' => 'Bye']], 'a key with a list' => ['values' => ['test.bye' => ['Bye']]],
@@ -722,24 +762,28 @@ test('saving strings: all of it is checked before any of it is written, and each
     assert_same([422, 'invalid_value'], [$refused['status'], $refused['body']['code'] ?? null], 'nor is it passed over as an empty one');
     assert_same($before, every_string());
 
-    // The body: JSON, and no more than the limit - 1 MiB, and not a byte more.
+    // The body: JSON, and no more than the limit - 1 MiB, and not a byte more. Nothing, or nothing that says it is JSON, is no save.
+    assert_same([415, 'unsupported_media_type'], [($none = as_user(ADMIN_A, 'PUT', '/api/admin/translations'))['status'], $none['body']['code'] ?? null], 'no body');
+    assert_same([422, 'empty_body'], [($empty = as_user(ADMIN_A, 'PUT', '/api/admin/translations', ' ', ['Content-Type: application/json']))['status'], $empty['body']['code'] ?? null], 'an empty one');
     assert_same(415, as_user(ADMIN_A, 'PUT', '/api/admin/translations', 'values=x', ['Content-Type: application/x-www-form-urlencoded'])['status']);
     assert_same(415, as_user(ADMIN_A, 'PUT', '/api/admin/translations', '{"values": {"test.bye": {"sk": "Zbohom"}}}', ['Content-Type: text/plain'])['status']);
     assert_same(415, as_user(ADMIN_A, 'PUT', '/api/admin/translations/sk/import', '{"test.bye": "Zbohom"}', ['Content-Type: text/plain'])['status']);
-    assert_same(400, as_user(ADMIN_A, 'PUT', '/api/admin/translations', '{"values": ', ['Content-Type: application/json'])['status']);
-    assert_same(1024 * 1024, TRANSLATIONS_BODY_LIMIT);
+    assert_same([400, 'invalid_json'], [($broken = as_user(ADMIN_A, 'PUT', '/api/admin/translations', '{"values": ', ['Content-Type: application/json']))['status'], $broken['body']['code'] ?? null]);
+    $limit = translationsConfig()->bodyLimit;
+    assert_same(1024 * 1024, $limit);
     $json = ['Content-Type: application/json'];
-    $over = body_of(TRANSLATIONS_BODY_LIMIT + 1, '{"values":{"test.bye":{"sk":"', '"}}}');
+    $over = body_of($limit + 1, '{"values":{"test.bye":{"sk":"', '"}}}');
     $large = as_user(ADMIN_A, 'PUT', '/api/admin/translations', $over, $json);
-    assert_same([TRANSLATIONS_BODY_LIMIT + 1, 413, 'too_large'], [strlen($over), $large['status'], $large['body']['code'] ?? null], '1 MiB and one byte');
-    $atLimit = as_user(ADMIN_A, 'PUT', '/api/admin/translations', body_of(TRANSLATIONS_BODY_LIMIT, '{"values":{"test.bye":{"sk":"', '"}}}'), $json);
+    assert_same([$limit + 1, 413, 'too_large'], [strlen($over), $large['status'], $large['body']['code'] ?? null], '1 MiB and one byte');
+    $atLimit = as_user(ADMIN_A, 'PUT', '/api/admin/translations', body_of($limit, '{"values":{"test.bye":{"sk":"', '"}}}'), $json);
     assert_same([422, 'invalid_value'], [$atLimit['status'], $atLimit['body']['code'] ?? null], '1 MiB exactly is read - and then is one string too long');
-    $large = as_user(ADMIN_A, 'PUT', '/api/admin/translations/sk/import', body_of(TRANSLATIONS_BODY_LIMIT + 1, '{"test.bye":"', '"}'), $json);
+    $large = as_user(ADMIN_A, 'PUT', '/api/admin/translations/sk/import', body_of($limit + 1, '{"test.bye":"', '"}'), $json);
     assert_same([413, 'too_large'], [$large['status'], $large['body']['code'] ?? null], 'an import of 1 MiB and one byte');
-    assert_same(422, as_user(ADMIN_A, 'PUT', '/api/admin/translations/sk/import', body_of(TRANSLATIONS_BODY_LIMIT, '{"test.bye":"', '"}'), $json)['status']);
+    assert_same(422, as_user(ADMIN_A, 'PUT', '/api/admin/translations/sk/import', body_of($limit, '{"test.bye":"', '"}'), $json)['status']);
     assert_same(413, as_user(EDITOR_A, 'PUT', '/api/admin/translations', $over, $json)['status'], 'the same for an editor');
-    // The other routes keep their own, smaller limit.
-    assert_same(413, as_user(ADMIN_A, 'POST', '/api/admin/languages', body_of(BODY_LIMIT + 1, '{"code":"fr","name":"French","nativeName":"', '"}'), $json)['status']);
+    // The languages' bodies have the same limit: the library's one for every write of the words.
+    assert_same(413, as_user(ADMIN_A, 'POST', '/api/admin/languages', body_of($limit + 1, '{"code":"fr","name":"French","native_name":"', '"}'), $json)['status']);
+    assert_same(422, as_user(ADMIN_A, 'POST', '/api/admin/languages', body_of(BODY_LIMIT + 1, '{"code":"fr","name":"French","native_name":"', '"}'), $json)['status'], 'more than the progress routes take is read - and is no name');
     assert_same(413, as_user(ADMIN_A, 'PUT', '/api/progress', body_of(BODY_LIMIT + 1, '{"60":{"midi":60,"note":"', '"}}'), array_merge($json, [GENERATION_HEADER . ': 1']))['status'], 'a progress document is still at most 256 kB');
     // More than any other route takes, and still a save here.
     $room = save(ADMIN_A, ['test.bye' => ['sk' => 'Dovidenia'], 'test.hello' => ['en' => 'Hi, {name}!' . str_repeat(' ', BODY_LIMIT)]]);
@@ -751,8 +795,10 @@ test('a language out as a file and back in: its own strings only; unknown keys r
     $export = as_user(EDITOR_A, 'GET', '/api/admin/translations/sk/export');
     assert_same(200, $export['status']);
     assert_same(['test.bye' => 'Dovidenia', 'test.hello' => 'Vitaj, {name}!', 'test.new' => 'Nové: {what}'], $export['body'], 'not merged with English: test.count is not there');
+    assert_same(TranslationFile::text($export['body']), $export['raw'], 'the command line\'s format: a key a line');
+    assert_same(['attachment; filename="translations-sk.json"', 'no-store'], [$export['headers']['content-disposition'] ?? null, $export['headers']['cache-control'] ?? null]);
     assert_same(404, as_user(EDITOR_A, 'GET', '/api/admin/translations/fr/export')['status']);
-    assert_same('{}', as_user(EDITOR_A, 'GET', '/api/admin/translations/pt-br/export')['raw']);
+    assert_same("{}\n", as_user(EDITOR_A, 'GET', '/api/admin/translations/pt-br/export')['raw']);
 
     // Into German: the empty ones are keys nobody translated yet.
     $in = as_user(ADMIN_A, 'PUT', '/api/admin/translations/de/import', ['test.hello' => " Hallo, {name}!\x07", 'test.bye' => '', 'test.count' => "  \t ", 'test.new' => 'Neu']);
@@ -775,9 +821,10 @@ test('a language out as a file and back in: its own strings only; unknown keys r
     assert_match('/no\.such.*nor\.this/', $unknown['body']['error']);
     $numeric = as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import', '{"test.bye": "Tschüss", "12": "x"}', ['Content-Type: application/json']);
     assert_same([422, 'unknown_key', ['12']], [$numeric['status'], $numeric['body']['code'] ?? null, $numeric['body']['keys'] ?? null], 'a key that looks like a number, named as it was sent');
-    // An object of the keys "0", "1"... is still an object, not the list PHP would make of it: its keys are named.
+    // An object of the keys "0", "1"... is refused too: the library reads it as the list PHP makes of it - no flat
+    // object of keys (it names no key then).
     $listLike = as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import', '{"0": "Ahoj", "1": "Svet"}', ['Content-Type: application/json']);
-    assert_same([422, 'unknown_key', ['0', '1']], [$listLike['status'], $listLike['body']['code'] ?? null, $listLike['body']['keys'] ?? null], '{"0": ...}');
+    assert_same([422, 'invalid_value'], [$listLike['status'], $listLike['body']['code'] ?? null], '{"0": ...}');
 
     $refusals = [
         'unknown_placeholder' => ['de', ['test.bye' => 'Tschüss', 'test.hello' => 'Hallo, {dich}!']],
@@ -789,10 +836,11 @@ test('a language out as a file and back in: its own strings only; unknown keys r
         $refused = as_user(EDITOR_A, 'PUT', "/api/admin/translations/$language/import", $body);
         assert_same([422, $code], [$refused['status'], $refused['body']['code'] ?? null], test_show($refused['body']));
     }
-    foreach (['a list' => ['Hallo', 'Tschüss'], 'the empty list' => [], 'a text' => '"Hallo"', 'a number' => '5', 'no body' => null] as $what => $body) {
+    foreach (['a list' => ['Hallo', 'Tschüss'], 'the empty list' => [], 'a text' => '"Hallo"', 'a number' => '5'] as $what => $body) {
         $refused = as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import', $body, is_string($body) ? ['Content-Type: application/json'] : []);
         assert_same([422, 'invalid_value'], [$refused['status'], $refused['body']['code'] ?? null], $what);
     }
+    assert_same(415, as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import')['status'], 'no body');
     assert_same(404, as_user(EDITOR_A, 'PUT', '/api/admin/translations/fr/import', ['test.bye' => 'Au revoir'])['status'], 'a language there is not');
     assert_same($before, every_string(), 'nothing refused was kept');
 
@@ -807,16 +855,18 @@ test('the command line: --export and --import on the same strings, by nobody; --
 
     [$code, $out] = cli('--export', 'de', "$dir/de.json");
     assert_same(0, $code, $out);
-    assert_same(translationFileText(['test.hello' => 'Hallo, {name}!', 'test.new' => 'Neu']), file_get_contents("$dir/de.json"));
+    assert_same(TranslationFile::text(['test.hello' => 'Hallo, {name}!', 'test.new' => 'Neu']), file_get_contents("$dir/de.json"));
     [$code, $out] = cli('--export', 'sk');
     assert_same([0, ['test.bye' => 'Dovidenia', 'test.hello' => 'Vitaj, {name}!', 'test.new' => 'Nové: {what}']], [$code, json_decode($out, true)], 'to the screen without a file');
+    [$code, $out] = cli('--export=sk');
+    assert_same([0, ['test.bye' => 'Dovidenia', 'test.hello' => 'Vitaj, {name}!', 'test.new' => 'Nové: {what}']], [$code, json_decode($out, true)], '--export=CODE too');
     [$code, $out] = cli('--export', 'pt-br');
     assert_same([0, '{}'], [$code, trim($out)]);
     assert_same(1, cli('--export', 'fr')[0], 'a language there is not');
     assert_same(1, cli('--export', 'EN')[0], 'a code that is not one');
 
     $before = every_string();
-    translationFileWrite("$dir/de.json", ['test.hello' => 'Guten Tag, {name}!', 'test.bye' => 'Tschüss', 'test.count' => '', 'test.new' => 'Neu']);
+    TranslationFile::write("$dir/de.json", ['test.hello' => 'Guten Tag, {name}!', 'test.bye' => 'Tschüss', 'test.count' => '', 'test.new' => 'Neu']);
     [$code, $out] = cli('--import', 'de', "$dir/de.json");
     assert_same(0, $code, $out);
     assert_match('/4 strings in .*: 2 changed/', $out);
@@ -826,11 +876,11 @@ test('the command line: --export and --import on the same strings, by nobody; --
 
     // Checked as a save is, and all of it or none of it.
     $before = every_string();
-    translationFileWrite("$dir/bad.json", ['test.bye' => 'Auf Wiedersehen', 'test.hello' => 'Hallo, {dich}!']);
+    TranslationFile::write("$dir/bad.json", ['test.bye' => 'Auf Wiedersehen', 'test.hello' => 'Hallo, {dich}!']);
     [$code, $out] = cli('--import', 'de', "$dir/bad.json");
     assert_same(1, $code);
     assert_match('/unknown_placeholder.*\{dich\}/', $out);
-    translationFileWrite("$dir/unknown.json", ['test.bye' => 'Auf Wiedersehen', 'no.such' => 'x', 'nor.this' => 'y']);
+    TranslationFile::write("$dir/unknown.json", ['test.bye' => 'Auf Wiedersehen', 'no.such' => 'x', 'nor.this' => 'y']);
     [$code, $out] = cli('--import', 'de', "$dir/unknown.json");
     assert_same(1, $code);
     assert_match('/unknown_key/', $out);
@@ -844,6 +894,7 @@ test('the command line: --export and --import on the same strings, by nobody; --
     assert_same(1, cli('--nonsense')[0]);
     assert_same($before, every_string(), 'nothing refused was kept');
     assert_same(0, cli('--help')[0]);
+    assert_match('/--status.*--export.*--import/s', cli('--help')[1]);
 
     // --status: the test's keys are the database's, and no page asks for them.
     [$code, $out] = cli('--status');
@@ -867,7 +918,7 @@ test('the command line: --export and --import on the same strings, by nobody; --
     dbExec("DELETE FROM translation_keys WHERE name = 'test.noEnglish'");
     assert_same($wasClean ? 0 : 1, cli('--status')[0], 'and as before without it');
 
-    // On a database as the migrations leave it - which is what a release is.
+    // On a database as the migrations leave it - this app's and the library's - which is what a release is.
     $released = dbName() . '_released';
     test_copy_template($released);
     $config = (string) getenv('PIANO_TEST_CONFIG');
@@ -880,27 +931,34 @@ test('the command line: --export and --import on the same strings, by nobody; --
     assert_match('/== piano_academy \(' . preg_quote($released, '/') . '\)/', $out, 'it read the database it was pointed at');
     assert_same(str_contains($out, 'Not clean.') ? 1 : 0, $code, $out);
     if (catalogue_seeded()) {
-        // WAITS FOR 003: nothing missing, nothing unused, nothing the scan does not let through - exit 0, and "Clean."
+        // WAITS FOR 003: nothing missing, nothing unused, nothing the scan does not let through, nothing stored that a
+        // save would refuse - exit 0, and "Clean."
         assert_same(0, $code, $out);
         assert_match('/Clean\./', $out);
-        assert_no_match('/Not clean\.|Used by the frontend, not in the database|No English string|does not let through|used nowhere/', $out, $out);
+        assert_no_match('/Not clean\.|Used by the frontend, not in the database|No English string|does not let through|used nowhere|Stored as a save would not take them/', $out, $out);
     } else {
         assert_match('/the database has\s+0 keys/', $out, 'no migration writes strings yet');
     }
 
-    // A database the migrations have not reached is not read at all.
+    // A database the migrations have not reached is not read at all: without the words' tables, or with an update waiting.
     $behind = test_empty_db('cli_behind');
     putenv('PIANO_TEST_CONFIG=' . test_config_dir(test_auth_iam(), $behind));
     try {
         [$code, $out] = cli('--status');
+        assert_same(1, $code, $out);
+        assert_match('/This database has no strings yet: apply the migrations first \(php migration\.php\)/', $out);
+        $pdo = dbConnect(machineDatabaseSettings(), $behind);
+        assert_same(null, test_migrate($pdo, '002_languages_and_translations.sql')['failed']);
+        $pdo = null;
+        [$code, $out] = cli('--status');
+        assert_same(1, $code, $out);
+        assert_match('~needs an update first \(003_site_strings\.sql, .*, anotoki_translations/001_languages_and_strings\.sql, anotoki_translations/002_library_words\.sql\): php migration\.php~', $out);
     } finally {
         putenv("PIANO_TEST_CONFIG=$config");
     }
-    assert_same(1, $code, $out);
-    assert_match('/needs an update first \(001_init\.sql, 002_languages_and_translations\.sql/', $out);
 });
 
-test('deleting a language: never English, never one the app is released in - and its strings go with it', function (): void {
+test('deleting a language: never English, never one the app is released in - and its strings go with it, counted', function (): void {
     $english = as_user(ADMIN_A, 'DELETE', '/api/admin/languages/en');
     assert_same([409, 'fallback_language'], [$english['status'], $english['body']['code']]);
     $slovak = as_user(ADMIN_A, 'DELETE', '/api/admin/languages/sk');
@@ -909,13 +967,14 @@ test('deleting a language: never English, never one the app is released in - and
     assert_true(stored('test.hello', 'sk') !== null && stored('test.hello', 'en') !== null, 'refused: their strings are still there');
 
     // A language with no strings goes; the others stay.
-    assert_same(204, as_user(ADMIN_A, 'DELETE', '/api/admin/languages/pt-br')['status']);
+    $empty = as_user(ADMIN_A, 'DELETE', '/api/admin/languages/pt-br');
+    assert_same([200, ['strings' => 0]], [$empty['status'], $empty['body']]);
     assert_same(['en', 'sk', 'de'], array_column(as_user(ADMIN_A, 'GET', '/api/admin/languages')['body']['languages'], 'code'));
 
-    // One with strings goes with them.
+    // One with strings goes with them - and says how many.
     assert_same(3, (int) dbValue("SELECT count(*) FROM translations WHERE language_code = 'de'"));
     $gone = as_user(ADMIN_B, 'DELETE', '/api/admin/languages/de');
-    assert_same([204, ''], [$gone['status'], $gone['raw']]);
+    assert_same([200, ['strings' => 3]], [$gone['status'], $gone['body']]);
     assert_same(0, (int) dbValue("SELECT count(*) FROM translations WHERE language_code = 'de'"), 'and its strings');
     assert_same(4, (int) dbValue('SELECT count(*) FROM translation_keys'), 'the keys are the code\'s, and stay');
     assert_same(404, as_user(ADMIN_A, 'DELETE', '/api/admin/languages/de')['status']);
@@ -924,8 +983,8 @@ test('deleting a language: never English, never one the app is released in - and
 
     // Another administrator: the same rules, and the same right.
     assert_same([409, 'seeded_language'], [as_user(ADMIN_B, 'DELETE', '/api/admin/languages/sk')['status'], as_user(ADMIN_B, 'DELETE', '/api/admin/languages/sk')['body']['code']]);
-    assert_same(201, as_user(ADMIN_B, 'POST', '/api/admin/languages', ['code' => 'hu', 'name' => 'Hungarian', 'nativeName' => 'Magyar', 'enabled' => false])['status']);
-    assert_same(204, as_user(ADMIN_B, 'DELETE', '/api/admin/languages/hu')['status']);
+    assert_same(201, as_user(ADMIN_B, 'POST', '/api/admin/languages', ['code' => 'hu', 'name' => 'Hungarian', 'native_name' => 'Magyar', 'enabled' => false])['status']);
+    assert_same(200, as_user(ADMIN_B, 'DELETE', '/api/admin/languages/hu')['status']);
 });
 
 test('a language deleted while strings are being saved: each waits for the other, and no string is left in a language that is gone', function (): void {
@@ -938,8 +997,8 @@ test('a language deleted while strings are being saved: each waits for the other
     $pending = null;
 
     try {
-        // The save first. It holds every language's row (translationsSave()), has written a string in the
-        // language and is not finished: the delete waits on the row, and takes the string along when it goes.
+        // The save first. It holds every language's row (FOR SHARE), has written a string in the language and is
+        // not finished: the delete waits on the row, and takes the string along when it goes - counted.
         $italian();
         $other->beginTransaction();
         $other->query('SELECT code, name FROM languages FOR SHARE')->fetchAll();
@@ -950,7 +1009,7 @@ test('a language deleted while strings are being saved: each waits for the other
         }
         $other->commit();
         $answer = $pending['answer']();
-        assert_same(204, $answer['status'], test_show($answer['body']));
+        assert_same([200, ['strings' => 1]], [$answer['status'], $answer['body']], test_show($answer['body']));
         assert_same([0, 0], [$there(), $strings()], 'the language is gone, and the string that was being saved with it');
 
         // The delete first, not finished. A save of a string in that language waits on the languages' rows,
@@ -986,7 +1045,7 @@ test('a language deleted while strings are being saved: each waits for the other
         assert_same(200, save(ADMIN_A, ['test.bye' => ['it' => 'Arrivederci']])['status']);
         assert_same(200, anonymous('GET', '/api/translations/it')['status']);
         $other->rollBack();
-        assert_same(204, as_user(ADMIN_A, 'DELETE', '/api/admin/languages/it')['status']);
+        assert_same([200, ['strings' => 1]], array_values(array_intersect_key(as_user(ADMIN_A, 'DELETE', '/api/admin/languages/it'), ['status' => 0, 'body' => 0])));
     } finally {
         if ($other->inTransaction()) {
             $other->rollBack();
@@ -1018,12 +1077,12 @@ test('who reworded a string follows that person to another IAM id, and their goi
     assert_same(array_keys($before), array_keys(every_string()), 'and no string came or went');
 });
 
-test('a database with only 001 applied: the words and every admin route of them say the site is being updated, and nothing is looked up', function (): void {
+test('a database with only 001 applied: the words say they are not there yet, every admin route of them that the site is being updated, and nothing is looked up', function (): void {
     $behind = test_empty_db('only_001');
     $pdo = dbConnect(machineDatabaseSettings(), $behind);
-    assert_same(migrationFiles(), names_of(databaseMigrator($pdo)->applicable()));
+    assert_same(every_migration(), databaseMigrator($pdo)->applicable());
     assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
-    $pending = array_values(array_diff(migrationFiles(), ['001_init.sql']));
+    $pending = array_map('migrationLabel', array_slice(every_migration(), 1));
     assert_true(in_array('002_languages_and_translations.sql', $pending, true));
 
     $app = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
@@ -1032,13 +1091,13 @@ test('a database with only 001 applied: the words and every admin route of them 
     ], '/api/health');
     assert_same($pending, call($app['base'], 'GET', '/api/health')['body']['pending']);
     // With an administrator's token, an editor's, and none. The words answer while an update waits (the gate's open
-    // paths) - but a database without their tables has none to give, and says so as the gate does; the admin
-    // routes of the words are the gate's own answer, before the person is looked at.
+    // paths) - but a database without their tables has none to give, and says so: the pages read the English they
+    // keep; the admin routes of the words are the gate's own answer, before the person is looked at.
     $being = 'The site is being updated. Try again in a few minutes.';
     foreach (['an administrator' => bearer(token_of(ADMIN_A)), 'an editor' => bearer(token_of(EDITOR_A)), 'nobody' => []] as $who => $headers) {
         foreach (['en', 'sk'] as $code) {
             $words = call($app['base'], 'GET', "/api/translations/$code", null, $headers);
-            assert_same([503, ['error' => $being, 'code' => 'update_pending'], '60'], [$words['status'], $words['body'], $words['headers']['retry-after'] ?? null], "$who: the words in $code");
+            assert_same([503, ['error' => NO_WORDS_YET, 'code' => 'translations_unavailable'], '60'], [$words['status'], $words['body'], $words['headers']['retry-after'] ?? null], "$who: the words in $code");
         }
         foreach (admin_routes() as [$method, $url, $body]) {
             $answer = call($app['base'], $method, $url, $body, $headers);

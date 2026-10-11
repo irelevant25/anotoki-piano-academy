@@ -2,16 +2,16 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { MockInstance } from 'vitest';
 import { ApiService, GENERATION_HEADER } from '../../core/api/api.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { MidiService, PianoMidi } from '../../core/midi/midi.service';
 import { NoteState, ProgressMap } from '../../core/music/music.types';
 import { SrsService } from '../../core/music/srs.service';
 import { TheoryService } from '../../core/music/theory.service';
 import { PROGRESS_REPLACED_PREFIX, ProgressStore } from '../../core/state/progress-store.service';
-import { provideTestTranslations } from '../../core/testing/test-translations';
 import { NotationComponent } from '../../ui/notation/notation.component';
 import { TrainerPageComponent } from './trainer-page.component';
 
@@ -111,7 +111,7 @@ describe('Note Trainer: what it says is a key, worded on the page', () => {
     expect(host.querySelector('#tr-feedback')?.classList.contains('feedback--incorrect')).toBe(true);
 
     // The page kept a key and two note names, not a sentence: the same feedback, now in English.
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
     expect(text('#tr-feedback')).toBe(`That was ${theory.midiToName(other)} — target was ${theory.midiToName(target)}.`);
     expect(text('p.tag')).toBe('Prompt 1 / 12 · 0 correct so far');

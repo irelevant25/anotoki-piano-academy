@@ -6,7 +6,7 @@ Piano Academy is two parts and a database:
 | --- | --- | --- |
 | Frontend | `frontend/` | Angular 21: the learning path, the practice pages, Web MIDI, notation (VexFlow). **All the music logic** (SRS, the path, grading) runs here; it saves whole documents. |
 | Backend | `backend/` | PHP 8.2 + Slim 4: checks the shapes of what the browser saves and stores it, per person; the app's words; the admin panel's routes; the setup page. |
-| Database | PostgreSQL | `users`, `progress`, `path_progress`, `sessions`, `imports` (001); `languages`, `translation_keys`, `translations` (002, 003); `users.progress_generation` and its sequence (004); visitors - `users.visitor_key_hash`, the sequence `visitor_ids`, `visitor_starts` (005). The owner's is `anotoki_piano_academy`; a new setup defaults to `anotoki_piano`. |
+| Database | PostgreSQL | `users`, `progress`, `path_progress`, `sessions`, `imports` (001); `languages`, `translation_keys`, `translations` (002, 003 - and the anotoki library's set `anotoki_translations`, which proves their shape and adds its own words, `anotoki.*`); `users.progress_generation` and its sequence (004); visitors - `users.visitor_key_hash`, the sequence `visitor_ids`, `visitor_starts` (005). The owner's is `anotoki_piano_academy`; a new setup defaults to `anotoki_piano`. |
 
 Everybody signs in through the **anotoki IAM** (`../anotoki-iam`, client id
 `piano-academy`). There is no login of the app's own and no configured
@@ -42,8 +42,9 @@ browser ── Authorization: Bearer <IAM access token> ──> backend/api/inde
      real host - never on this computer);
    - **an update pending** - a migration file not applied: every request is
      `503 {code: "update_pending", message}` with `Retry-After: 60` - before
-     any table is read - but the open paths (`SITE_OPEN_PATHS`):
-     `/api/auth/config`, `/api/translations/{code}`, `/api/health` and the
+     any table is read - but the open paths (`siteOpenPaths()`, `api/index.php`):
+     `/api/auth/config`, `/api/translations/{code}` (the library's
+     `TranslationsRoutes::openPath()`), `/api/health` and the
      Migrations page's `/api/admin/migrations...`, so somebody can sign in,
      the pages have their words and an ADMIN reaches Apply;
    - **unavailable** - the database out of reach - and **ready**: through
@@ -92,9 +93,14 @@ with three groups:
 
 | Group | Middleware | Routes |
 | --- | --- | --- |
-| staff | `requireRole(...ROLES_STAFF)` | `GET /api/admin/languages`, `GET`/`PUT /api/admin/translations`, `.../{code}/export`, `.../{code}/import` |
-| ADMIN | `requireRole(ROLE_ADMIN)` | `POST /api/admin/languages`, `PUT`/`DELETE /api/admin/languages/{code}`, `GET /api/admin/people`, `DELETE /api/admin/people/{id}` |
+| staff, the strings (the family's: `anotoki/lib`'s `TranslationsRoutes::strings()`) | `requireRole(...ROLES_STAFF)` | `GET /api/admin/languages`, `GET`/`PUT /api/admin/translations`, `.../{code}/export`, `.../{code}/import` |
+| ADMIN, the languages (the family's: `TranslationsRoutes::languages()`) | `requireRole(ROLE_ADMIN)` | `POST /api/admin/languages`, `PUT`/`DELETE /api/admin/languages/{code}` |
+| ADMIN, the people | `requireRole(ROLE_ADMIN)` | `GET /api/admin/people`, `DELETE /api/admin/people/{id}` |
 | ADMIN, the migrations (the family's: `anotoki/lib`'s `MigrationsRoutes::admin()`) | `requireRole(ROLE_ADMIN)` - open while an update waits | `GET /api/admin/migrations`, `GET /api/admin/migrations/file`, `POST /api/admin/migrations/apply` |
+
+The library decides nobody's permissions: each of its route groups takes this
+app's check (`api/routes/admin.php`), and its bundle (`GET
+/api/translations/{code}`, `api/routes/public.php`) reads no token at all.
 
 Every route, with its answers: [api.md](api.md).
 
@@ -102,10 +108,16 @@ Every route, with its answers: [api.md](api.md).
 
 The migrations are the schema (`backend/migrations/piano_academy/NNN_name.sql`),
 applied by the anotoki family's engine - `anotoki/lib`'s `Migrator`, set up
-in `api/migrations.php` (`databaseMigrator()`: the one set, the app's lock
-`DATABASE_UPDATE_LOCK`, and as its `prepare` the rename of the first
-runner's `migrations(name)` column to `filename`). The bookkeeping table is
-the one it always was: `migrations (id, filename, applied_at)`.
+in `api/migrations.php` (`databaseMigrator()`: two sets, `migrationSets()` -
+this app's, then the library's `anotoki_translations`, the words' tables'
+shape and the library's own words -, the app's lock `DATABASE_UPDATE_LOCK`,
+and as its `prepare` the rename of the first runner's `migrations(name)`
+column to `filename`). The bookkeeping table is the one it always was:
+`migrations (id, filename, applied_at)` - a library file recorded as
+`anotoki_translations/<file>` (`migrationLabel()` names it so in the tools
+and in `/api/health`). The library's set runs after this app's own, which
+made the tables first; a migration of this app's never depends on a library
+file.
 
 Four things apply migrations: `setup.php`'s Save, `php migration.php`, an
 administrator's Apply on the admin panel's Migrations page
@@ -285,21 +297,39 @@ ADMIN gets in and back to the page. While the status is otherwise `loading`
 or `load-error` they let nothing through and send nobody anywhere. The IAM's
 redirect route (`/auth/callback`) has no guard.
 
-**The family's kit** (`@anotoki/lib` 0.2.0, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.3.0, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
-the anotoki family's. They draw with the family's tokens, which
+the anotoki family's, each imported from its own entry point
+(`@anotoki/lib/ui/config`, `/ui/icon`, `/ui/dialog`...: the first load
+carries only the pieces it draws). They draw with the family's tokens, which
 `styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
 a site gives the colours only), with the family's corners, shadows and
 font, Manrope; Piano's own element rules (bare buttons and selects) are
-kept off them. Their words are this app's strings where it has
-them - the database's, as the owner worded them (`core/i18n/kit-words.ts`,
-the kit's `lookup`) - and the kit's own English and informal Slovak for the
-rest. Piano's own stay its own for now: the pages, the keyboard, the
+kept off them. Their words are the library's own keys, `anotoki.*` (the
+translations module's `forKit()`): the database's strings - this app's
+wording, which migration 009 copied there, or the owner's rewording - else
+the kit's own English and informal Slovak (and, while no bundle is in
+memory, the theme switch's "Theme: light" kept in code). Piano's own stay
+its own for now: the pages, the keyboard, the
 notation, the piano's widget (on the family's popover), What's new,
 `.btn-primary`, `.card`, `.chip` (those three onto the kit's components in
 a later phase).
+
+**The words** (`@anotoki/lib/translations`, wired in
+`core/i18n/site-translations.ts`; the PHP half in `api/translations.php`):
+the anotoki family's one implementation. `TranslationService` decides the
+language (below) and holds its bundle (`GET /api/translations/{code}`, cached
+on the device under this app's old keys, `piano-academy:language` and
+`:language-cache`); the `translate` / `translatePlural` pipes read it; a key
+with no string shows as the key, a library key never. While no bundle is in
+memory - nothing asked while the sign-in settings could not be read
+(`canAsk`), or the bundle refused - the shell reads the English kept in code
+(`kept-english.ts`). The admin panel's Translations and Languages pages are
+the family's (`@anotoki/lib/translations/admin`, lazy), with this app's
+checks (`allows`: the strings for the staff, the languages for ADMIN) and
+its guard for unsaved changes (`anotokiUnsavedChangesGuard`).
 
 **The top bar** (`layouts/top-bar/`, drawn once by `AppComponent` above every
 page and boot card): the anotoki family's `<anotoki-top-bar>`, told what is
@@ -328,14 +358,16 @@ the version, which opens What's new.
 
 **The admin panel** (`/admin`, English): its sections are the top bar's links
 there - Translations (EDITOR, ADMIN); Languages, People, Migrations (ADMIN,
-`pages/admin/admin.guard.ts`; the Migrations page is the family's
-`<anotoki-migrations-page>`; `/admin/database` redirects to Migrations);
+`pages/admin/admin.guard.ts`; Translations and Languages are the family's
+`<anotoki-translations-page>` and `<anotoki-languages-page>`, the Migrations
+page the family's `<anotoki-migrations-page>`; `/admin/database` redirects to Migrations);
 the person's menu calls it "Admin panel", its brand "anotoki Piano Academy ·
 admin panel" and its titles "Translations · Admin panel · Piano Academy", as on
 every anotoki site; `layouts/admin-layout/` draws the page, or
 says why there is nothing (signed out; signed in without a role). `/translations` and `/languages`
 redirect there. The pages show the server's own English sentence when a call
-fails (`pages/admin/admin-error.ts`); a learner's page never does.
+fails (People: `pages/admin/admin-error.ts`; the family's pages their own);
+a learner's page never does.
 
 **Saving** (`core/state/progress-store.service.ts`, `core/api/api.service.ts`):
 `ApiService.fetchState()` keeps the generation; every `PUT /api/progress` and
@@ -413,7 +445,7 @@ sign-in and whenever it changes - another tab, another site, a token refresh
 - but not while a save of its own is out), and the bar's theme switch saves
 a choice to the account through the SDK's `savePreferences()`: shown at
 once, one save at a time, the latest last; refused, the account's theme
-comes back and `theme.notSaved` is said under the switch. The whole site,
+comes back and `anotoki.theme.notSaved` is said under the switch. The whole site,
 the admin panel too, has that one theme; `piano-academy:theme` keeps the
 theme on the screen for the family's `theme-boot.js` (`index.html`,
 `data-storage-key`). The `localDate` pipe writes a signed-in person's
@@ -422,23 +454,23 @@ date and the time side by side, each half the language's own where left
 automatic), the admin panel's People and Migrations included (`stamp`: their
 `yyyy-MM-dd HH:mm`, the server's own numbers for Migrations).
 
-**Which language** (`core/i18n/translation.service.ts`; the family's order,
-the survey site's the reference): for somebody signed in whose account sends
+**Which language** (the family's `TranslationService`, wired in
+`core/i18n/site-translations.ts`; the family's order): for somebody signed in whose account sends
 its preferences, this tab's `?lang=` and a choice made on the page this
 visit come first, then the account's language (when the site has it), then
 the choice this device remembered, the browser's languages, English. A
-choice that won in the chooser (the family's, which calls `choose()`) is
-saved to the account as well (`setLanguage()` -> `saveToAccount()` - or
-`saveToAccount()` alone for the language already on the page), so every
-anotoki site follows it: one save at
+choice that won in the chooser (the family's, through `forShell()`'s
+`choose` -> `setLanguage()`) is saved to the account as well (`account.save`:
+the SDK's `savePreferences()` - also for the language already on the page),
+so every anotoki site follows it: one save at
 a time, the latest choice last, and the answer to an earlier save never
 turns the page back. The page stays in the chosen language for the visit
 whatever the account answers - silently when the IAM does not offer that
 language (`invalid_request`: it is this site's own, then), with
-`language.notSaved` under the chooser when the save failed otherwise (the
+`anotoki.language.notSaved` under the chooser when the save failed otherwise (the
 IAM out of reach, the sign-in ended, `access_denied`). A change of the
 account's language made elsewhere (its page, another site, another tab) is
-followed when it comes (`onAuthChange`), over the device's choice and an
+followed when it comes (the account's `locale`, read as a signal), over the device's choice and an
 earlier choice on the page - not over this tab's `?lang=`, and not while a
 choice made here is on its way to the account. Signed out, or through an
 IAM that sends no preferences, the order is as it always was: `?lang=`,

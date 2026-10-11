@@ -91,18 +91,21 @@ const ADA = { id: 1, username: 'ada', roles: ['MEMBER', 'ADMIN'] };
 /** The admin panel's Migrations page: the anotoki family's (@anotoki/lib/migrations/page). */
 const MIGRATIONS = 'anotoki-migrations-page';
 
-/** Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in layouts/top-bar) draws what the tours read. */
+/**
+ * Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in layouts/top-bar) draws what the tours read: the
+ * kit's own class names (anotoki-<component>__<part>, since anotoki-lib 0.3.0).
+ */
 const BAR = {
   /** Somebody is signed in: the person's button on a wide bar, the menu button on a phone's. */
-  signedIn: 'anotoki-top-bar .person-button, anotoki-top-bar .menu-button',
-  person: 'anotoki-top-bar .person-button',
-  name: 'anotoki-top-bar .person-name',
-  phoneButton: 'anotoki-top-bar .menu-button',
+  signedIn: '.anotoki-top-bar__person-button, .anotoki-top-bar__menu-button',
+  person: '.anotoki-top-bar__person-button',
+  name: '.anotoki-top-bar__person-name',
+  phoneButton: '.anotoki-top-bar__menu-button',
   /** The open menu (the person's or the phone's). */
   menu: 'anotoki-top-bar [role="menu"]',
   nav: 'anotoki-top-bar nav',
-  signIn: 'anotoki-top-bar .sign-in',
-  language: 'anotoki-language-switcher .switcher',
+  signIn: '.anotoki-top-bar__sign-in',
+  language: '.anotoki-language-switcher__switcher',
   /** The theme switch's choices, and the one in force. */
   theme: 'anotoki-theme-toggle [role="radio"]',
   themeChosen: 'anotoki-theme-toggle [role="radio"][aria-checked="true"]',
@@ -175,18 +178,18 @@ async function keysOnPage(page) {
 
 /**
  * The bar's row, thing by thing, left to right: what is drawn, and where. A thing is named by Piano's own id
- * (save-status), by its component (anotoki-brand, app-midi-panel), or by the family's class for it
- * (nav, person-button, menu-button, sign-in) - the family's ids are made up as the page is drawn. The menus'
- * own elements take no room in the row.
+ * (save-status), by its component (anotoki-brand, app-midi-panel), or by the part the family's class names
+ * (nav, person-button, menu-button, sign-in: anotoki-top-bar__<part>) - the family's ids are made up as the page
+ * is drawn. The menus' own elements take no room in the row.
  */
 async function barRow(page) {
   return page.evaluate(() => {
     const what = (element) => {
       if (element.id && !element.id.startsWith('anotoki-')) return element.id;
       if (element.tagName.includes('-')) return element.tagName.toLowerCase();
-      return ['person-button', 'menu-button', 'sign-in', 'nav'].find((name) => element.classList.contains(name)) ?? element.tagName.toLowerCase();
+      return ['person-button', 'menu-button', 'sign-in', 'nav'].find((part) => element.classList.contains(`anotoki-top-bar__${part}`)) ?? element.tagName.toLowerCase();
     };
-    const things = [...document.querySelectorAll('anotoki-top-bar .row > *, anotoki-top-bar .actions > *')].filter((element) => !element.classList.contains('actions') && element.tagName !== 'ANOTOKI-MENU');
+    const things = [...document.querySelectorAll('.anotoki-top-bar__row > *, .anotoki-top-bar__actions > *')].filter((element) => !element.classList.contains('anotoki-top-bar__actions') && element.tagName !== 'ANOTOKI-MENU');
     return things
       .map((element) => {
         const box = element.getBoundingClientRect();
@@ -201,7 +204,7 @@ async function checkBar(page, label, width) {
   const phone = width <= PHONE_BAR_MAX;
   const row = await barRow(page);
   const bar = await page.evaluate(() => {
-    const box = document.querySelector('anotoki-top-bar .topbar').getBoundingClientRect();
+    const box = document.querySelector('.anotoki-top-bar__topbar').getBoundingClientRect();
     return { top: box.top, bottom: box.bottom, scroll: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth };
   });
   const order = row.map((thing) => thing.what);
@@ -217,7 +220,7 @@ async function checkBar(page, label, width) {
     const nameShown = await page.evaluate((selector) => getComputedStyle(document.querySelector(selector)).display !== 'none', BAR.name);
     check(nameShown === width >= NAME_BAR_MIN, `${label}: the person's name ${width >= NAME_BAR_MIN ? 'beside' : 'not beside'} the initial`);
   } else {
-    check((await page.textContent('anotoki-top-bar .brand .wordmark'))?.trim() === 'Piano', `${label}: "Piano" beside the mark`);
+    check((await page.textContent('.anotoki-brand__wordmark'))?.trim() === 'Piano', `${label}: "Piano" beside the mark`);
   }
   const named = await labelsInNames(page);
   check(named.length >= (phone ? 2 : 3) && named.every((control) => control.ok), `${label}: every bar control's name holds the words it shows (label in name)`, named);
@@ -241,7 +244,7 @@ async function labelsInNames(page) {
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const parent = node.parentElement;
         // Not drawn, hidden from everybody, or there for a screen reader only (the phone's "Not saved yet").
-        if (parent.closest('[aria-hidden="true"], .visually-hidden') || !parent.checkVisibility()) continue;
+        if (parent.closest('[aria-hidden="true"], .anotoki-visually-hidden') || !parent.checkVisibility()) continue;
         shown += node.textContent;
       }
       if (squeeze(shown) === '') continue;
@@ -316,8 +319,8 @@ if (MEASURE) {
           await page.waitForSelector(`${BAR.nav} a[href="/admin/translations"]`);
         }
         const need = await page.evaluate(() => {
-          const inner = document.querySelector('anotoki-top-bar .row');
-          const actions = document.querySelector('anotoki-top-bar .actions');
+          const inner = document.querySelector('.anotoki-top-bar__row');
+          const actions = document.querySelector('.anotoki-top-bar__actions');
           const px = (element, name) => parseFloat(getComputedStyle(element)[name]);
           const outer = [...inner.children].filter((element) => element.getBoundingClientRect().width > 0);
           const inside = [...actions.children].filter((element) => element.getBoundingClientRect().width > 0);
@@ -404,8 +407,8 @@ try {
     await page.waitForSelector(BAR.menu);
     const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
     check(JSON.stringify(items) === JSON.stringify(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Admin panel', 'Sign out']), 'the sections, then the person\'s items', items);
-    check((await page.$$eval(`${BAR.menu} [role="menuitem"].is-active`, (all) => all.map((item) => item.textContent.trim()))).join() === 'Songs', 'the page\'s section stands out');
-    check((await page.textContent(`${BAR.menu} .menu-role`))?.trim() === 'Editor', 'an EDITOR is named so');
+    check((await page.$$eval(`${BAR.menu} [role="menuitem"].anotoki-menu-item--active`, (all) => all.map((item) => item.textContent.trim()))).join() === 'Songs', 'the page\'s section stands out');
+    check((await page.textContent(`${BAR.menu} .anotoki-top-bar__menu-role`))?.trim() === 'Editor', 'an EDITOR is named so');
     await onTop(page, BAR.menu, "the phone's menu");
     const box = await page.$eval(BAR.menu, (menu) => menu.getBoundingClientRect().toJSON());
     check(box.left >= 0 && box.right <= 360, 'the menu inside the 360 px screen', box);
@@ -477,7 +480,7 @@ try {
     await page.screenshot({ path: join(shots, `unsaved-${DESKTOP}.png`), clip: { x: 0, y: 0, width: DESKTOP, height: 120 } });
     await page.setViewportSize({ width: 360, height: 800 });
     await page.waitForTimeout(150);
-    check(!!(await page.$(`${BAR.phoneButton} .mark-dot`)), 'on a phone: the dot on the menu button');
+    check(!!(await page.$(`${BAR.phoneButton} .anotoki-top-bar__mark-dot`)), 'on a phone: the dot on the menu button');
     const described = await page.evaluate((selector) => {
       const id = document.querySelector(selector)?.getAttribute('aria-describedby');
       return id ? document.getElementById(id)?.textContent?.trim() : null;
@@ -485,7 +488,7 @@ try {
     check(described === 'Not saved yet', 'its words for a screen reader, tied to the button', described);
     await page.click(BAR.phoneButton);
     await page.waitForSelector(BAR.menu);
-    check((await page.textContent(`${BAR.menu} .menu-note strong`).catch(() => null)) === 'Not saved yet', 'and the menu\'s first line says it');
+    check((await page.textContent(`${BAR.menu} .anotoki-top-bar__menu-note strong`).catch(() => null)) === 'Not saved yet', 'and the menu\'s first line says it');
     await onTop(page, BAR.menu, 'that menu');
     await page.screenshot({ path: join(shots, 'unsaved-360-menu.png') });
     await checkBar(page, 'unsaved 360', 360);
@@ -531,7 +534,7 @@ try {
     await a.waitForSelector('#own-replaces');
     await a.click('#own-bring-in');
     await a.waitForSelector(QUESTION);
-    check((await a.textContent(`${QUESTION} .title`))?.trim() === 'Replace your progress?', 'over progress: a question first (the family\'s)');
+    check((await a.textContent(`${QUESTION} .anotoki-dialog__title`))?.trim() === 'Replace your progress?', 'over progress: a question first (the family\'s)');
     check((await a.evaluate(() => document.activeElement?.getAttribute('data-answer'))) === 'no', 'the focus on the safe answer');
     await a.waitForTimeout(250);
     await a.screenshot({ path: join(shots, 'replace-question.png') });
@@ -593,8 +596,8 @@ try {
     check(new URL(page.url()).pathname === '/admin/translations', 'into the admin panel, on Translations');
     check((await sections(page)).join('|') === 'Translations', 'an EDITOR\'s section: Translations alone');
     check((await page.getAttribute('html', 'lang')) === 'en', '<html lang="en"> in the admin panel');
-    check((await page.$$eval('anotoki-top-bar .brand .wordmark > span', (all) => all.map((span) => span.textContent.trim()))).join('|') === 'anotoki|Piano Academy|·|admin panel', 'the brand: the family\'s "anotoki Piano Academy · admin panel"');
-    check((await page.getAttribute('anotoki-top-bar .brand', 'aria-label')) === 'anotoki Piano Academy · admin panel', 'the brand link\'s name holds it');
+    check((await page.$$eval('.anotoki-brand__wordmark > span', (all) => all.map((span) => span.textContent.trim()))).join('|') === 'anotoki|Piano Academy|·|admin panel', 'the brand: the family\'s "anotoki Piano Academy · admin panel"');
+    check((await page.getAttribute('.anotoki-brand__brand', 'aria-label')) === 'anotoki Piano Academy · admin panel', 'the brand link\'s name holds it');
     check((await page.title()) === 'Translations · Admin panel · Piano Academy', 'the title names the admin panel', await page.title());
     check(!(await page.$('anotoki-language-switcher')) && !(await page.$('app-midi-panel')), 'no language chooser, no piano');
     check((await page.getAttribute(BAR.person, 'aria-label')) === 'Your menu: ed', 'the bar\'s words in English');
@@ -629,14 +632,21 @@ try {
     check((await admin.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'Migrations (the family\'s page): nothing pending');
     check(await admin.isDisabled(`${MIGRATIONS} [data-apply]`), 'Apply pending is off with nothing pending');
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
-    const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.when')?.textContent.trim() ?? '']));
-    check(applied.length >= 8 && applied.at(-1)[0] === '008_family_theme_switch_words.sql' && applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)), 'Applied: every file with when (the admin panel\'s stamp), 008 last', applied);
+    const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.anotoki-migrations-page__when')?.textContent.trim() ?? '']));
+    // Two sets: the app's own, then the library's words (anotoki_translations) - each file named with its set.
+    check(
+      applied.length >= 11 &&
+        JSON.stringify(applied.slice(-3).map(([name]) => name)) === JSON.stringify(['piano_academy/009_strings_through_the_library.sql', 'anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql']) &&
+        applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)),
+      'Applied: every file with when (the admin panel\'s stamp), 009 then the library\'s two last',
+      applied,
+    );
     check((await admin.title()) === 'Migrations · Admin panel · Piano Academy', 'its title', await admin.title());
     // Each applied file's SQL, read from the server, in the family's dialog: the focus on Close, Escape closes it.
     const sql = `${MIGRATIONS} anotoki-dialog[data-sql] dialog[open]`;
-    await admin.click(`${MIGRATIONS} [data-applied] li:last-child button`);
-    await admin.waitForSelector(`${sql} pre.sql`, { timeout: 10000 });
-    check((await admin.textContent(`${sql} pre.sql`)).includes("'theme.autoSpoken'"), 'View: 008\'s SQL from the server', (await admin.textContent(sql)).slice(0, 200));
+    await admin.click(`${MIGRATIONS} [data-applied] li:nth-last-child(3) button`);
+    await admin.waitForSelector(`${sql} pre.anotoki-migrations-page__sql`, { timeout: 10000 });
+    check((await admin.textContent(`${sql} pre.anotoki-migrations-page__sql`)).includes("'anotoki.topbar.signIn'"), 'View: 009\'s SQL from the server', (await admin.textContent(sql)).slice(0, 200));
     check((await admin.evaluate(() => document.activeElement?.hasAttribute('data-close'))) === true, 'the focus on Close');
     await admin.waitForTimeout(250);
     await admin.screenshot({ path: join(shots, `admin-migrations-sql-${DESKTOP}.png`) });
@@ -651,7 +661,7 @@ try {
     // A phone: the admin panel's bar (Piano's own short form beside the mark, "admin panel" under it) and the page, nothing wider than the screen.
     await admin.setViewportSize({ width: 360, height: 800 });
     await admin.waitForTimeout(200);
-    const shortBrand = await admin.evaluate(() => [...document.querySelectorAll('anotoki-top-bar .brand .wordmark > span')].filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
+    const shortBrand = await admin.evaluate(() => [...document.querySelectorAll('.anotoki-brand__wordmark > span')].filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
     check(JSON.stringify(shortBrand) === JSON.stringify(['Piano', 'admin panel']), 'at 360: "Piano" beside the mark, "admin panel" under it', shortBrand);
     check(await admin.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'at 360: no sideways scroll');
     await admin.screenshot({ path: join(shots, 'admin-migrations-360.png'), fullPage: true });
@@ -662,6 +672,46 @@ try {
     await learner.waitForSelector('#admin-no-role');
     check(!(await learner.$(BAR.nav)), 'a learner in the admin panel: no sections, and the card says whose it is');
     await learnerContext.close();
+  }
+
+  step(`The words' pages (the family's, @anotoki/lib/translations/admin) and a Slovak page: light and dark, ${DESKTOP} and 390`);
+  {
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [DESKTOP, 390]) {
+        const label = `${scheme}, ${width}`;
+        const context = await newContext({ width, scheme });
+        const page = await signedIn(context, ADA, '/admin/translations');
+        // Translations: this app's strings through the library's routes (snake_case), the library's words among them.
+        await page.waitForSelector('anotoki-translations-page anotoki-translation-cell', { timeout: 20000 });
+        const coverage = await page.$$eval('anotoki-translations-page li[data-language]', (all) => all.map((li) => li.getAttribute('data-language')));
+        check(JSON.stringify(coverage) === JSON.stringify(['en', 'sk']), `${label}: Translations - English and Slovak, each with its coverage`, coverage);
+        check((await page.$$('anotoki-translations-page anotoki-translation-cell')).length > 100, `${label}: Translations - this app's strings in the grid`);
+        const said = await page.textContent('anotoki-translations-page');
+        check(said.includes('anotoki.topbar.account') && said.includes('nav.learn'), `${label}: Translations - the library's keys (009 copied this app's words there) beside this app's own`);
+        check(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${label}: Translations - no sideways scroll`);
+        check((await page.getAttribute('html', 'lang')) === 'en', `${label}: Translations - in English`);
+        await page.waitForTimeout(250);
+        await page.screenshot({ path: join(shots, `words-translations-${scheme}-${width}.png`) });
+        // Languages: the two released ones, each under its own name (native_name).
+        await page.goto(`${APP}/admin/languages`);
+        await page.waitForSelector('anotoki-languages-page li[data-language]', { timeout: 20000 });
+        const languages = await page.$$eval('anotoki-languages-page li[data-language]', (all) => all.map((li) => [li.getAttribute('data-language'), li.querySelector('.anotoki-languages-page__native')?.textContent.trim()]));
+        check(JSON.stringify(languages) === JSON.stringify([['en', 'English'], ['sk', 'Slovenčina']]), `${label}: Languages - English and Slovak, each under its own name`, languages);
+        check(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${label}: Languages - no sideways scroll`);
+        await page.waitForTimeout(250);
+        await page.screenshot({ path: join(shots, `words-languages-${scheme}-${width}.png`), fullPage: true });
+        // A learner's page in Slovak: no key where a word should be, the kit's words (the library's keys) too.
+        await page.goto(`${APP}/?lang=sk`);
+        await page.waitForFunction(() => document.documentElement.lang === 'sk', null, { timeout: 20000 });
+        await page.waitForSelector(`${BAR.nav} a[href="/stats"], ${BAR.phoneButton}`, { timeout: 20000 });
+        check((await keysOnPage(page)).length === 0, `${label}: Learn in Slovak - no key on the page`, await keysOnPage(page));
+        const themes = await page.$$eval(BAR.theme, (all) => all.map((choice) => choice.getAttribute('aria-label')));
+        check(JSON.stringify(themes) === JSON.stringify(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']), `${label}: the theme switch in this app's Slovak (the library's keys, 009's copy)`, themes);
+        await page.waitForTimeout(250);
+        await page.screenshot({ path: join(shots, `words-slovak-learn-${scheme}-${width}.png`) });
+        await context.close();
+      }
+    }
   }
 
   step('Every learner page in Slovak: no key where a word should be');
@@ -689,7 +739,7 @@ try {
     await page.waitForSelector('#own-replaces');
     await page.click('#own-bring-in');
     await page.waitForSelector(QUESTION);
-    check((await page.textContent(`${QUESTION} .title`))?.trim() === 'Nahradiť tvoj postup?', 'the question before replacing, in Slovak');
+    check((await page.textContent(`${QUESTION} .anotoki-dialog__title`))?.trim() === 'Nahradiť tvoj postup?', 'the question before replacing, in Slovak');
     check((await keysOnPage(page)).length === 0, 'and no key in it');
     await page.waitForTimeout(250);
     await page.screenshot({ path: join(shots, 'sk-390-question.png') });
@@ -1064,7 +1114,7 @@ try {
     check(seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'People: first seen in the account’s order, on its 24-hour clock', seen);
     await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
-    const ran = await admin.$$eval(`${MIGRATIONS} [data-applied] .when`, (all) => all.map((when) => when.textContent.trim()));
+    const ran = await admin.$$eval(`${MIGRATIONS} [data-applied] .anotoki-migrations-page__when`, (all) => all.map((when) => when.textContent.trim()));
     check(ran.length > 0 && ran.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'Migrations (the family’s page, the app’s way of writing dates): when each ran, in the account’s order', ran);
     await admin.screenshot({ path: join(shots, 'account-admin-migrations-dark.png'), fullPage: true });
     await adminContext.close();
@@ -1171,9 +1221,10 @@ try {
     await page.click(`${MIGRATIONS} [data-confirm-apply]`);
     await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="danger"]`, { timeout: 20000 });
     const result = `${MIGRATIONS} [data-result]`;
-    check((await page.textContent(`${result} .heading`))?.trim() === 'Stopped at 005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
-    check((await page.textContent(`${result} .result-text`)).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.', 'nothing applied, rolled back whole', await page.textContent(result));
-    const said = (await page.textContent(`${result} pre.error`)) ?? '';
+    // The family's page names a file with its set where a site has two (this app's, the library's words).
+    check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Stopped at piano_academy/005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
+    check((await page.textContent(`${result} .anotoki-migrations-page__result-text`)).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.', 'nothing applied, rolled back whole', await page.textContent(result));
+    const said = (await page.textContent(`${result} pre.anotoki-migrations-page__error`)) ?? '';
     check(said.includes('users.visitor_key_hash is not a char(64) that may be null') && /^statement \d+ of \d+: SQLSTATE\[P0001\]/.test(said), 'what PostgreSQL said, word for word, on the page', said);
     await page.waitForFunction((apply) => document.querySelector(apply)?.disabled === false, `${MIGRATIONS} [data-apply]`, { timeout: 10000 }).catch(() => undefined);
     check(!(await page.isDisabled(`${MIGRATIONS} [data-apply]`)) && (await page.$$(`${MIGRATIONS} [data-pending] li`)).length === 1, 'still pending: Apply pending is on again');
@@ -1183,7 +1234,7 @@ try {
     await page.waitForTimeout(150);
     const wider = await page.evaluate(() => {
       const screen = document.documentElement.clientWidth;
-      const over = [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > screen + 0.5 && !el.closest('pre.error'));
+      const over = [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > screen + 0.5 && !el.closest('pre.anotoki-migrations-page__error'));
       return { scroll: document.documentElement.scrollWidth, screen, over: over.slice(0, 5).map((el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${[...el.classList].join('.')} ${Math.round(el.getBoundingClientRect().right)}`) };
     });
     check(wider.scroll <= wider.screen, 'the error at 360: no sideways scroll', wider);
@@ -1193,13 +1244,13 @@ try {
 
     await page.click(`${MIGRATIONS} [data-apply]`);
     await page.waitForSelector(`${MIGRATIONS} anotoki-dialog[data-confirm] dialog[open]`);
-    check((await page.textContent(`${MIGRATIONS} anotoki-dialog[data-confirm] .title`))?.trim() === 'Apply 1 pending migration?', 'asked first');
+    check((await page.textContent(`${MIGRATIONS} anotoki-dialog[data-confirm] .anotoki-dialog__title`))?.trim() === 'Apply 1 pending migration?', 'asked first');
     await page.waitForTimeout(250);
     await page.screenshot({ path: join(shots, 'migrations-question.png') });
     await page.click(`${MIGRATIONS} [data-confirm-apply]`);
     await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="success"]`, { timeout: 20000 });
-    check((await page.textContent(`${result} .heading`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
-    check((await page.textContent(`${result} .result-text`))?.trim() === 'Applied: 005_visitors.sql.', 'Applied: 005', await page.textContent(result));
+    check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
+    check((await page.textContent(`${result} .anotoki-migrations-page__result-text`))?.trim() === 'Applied: piano_academy/005_visitors.sql.', 'Applied: 005', await page.textContent(result));
     await page.waitForSelector(`${BAR.nav} a[href="/admin/people"]`, { timeout: 20000 });
     check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations|Languages|People|Migrations', 'the app started where it stands: every section, the result still on the page');
     check((await page.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'nothing pending now');

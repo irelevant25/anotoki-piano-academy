@@ -2,12 +2,13 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ANOTOKI_MIGRATIONS_CONFIG, SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ApiService, VISITOR_OWNER } from '../api/api.service';
 import { authInterceptor } from '../auth/auth.interceptor';
 import { AuthService, NotSetUpError } from '../auth/auth.service';
 import { VISITOR_KEY_HEADER, VISITOR_STORAGE_KEY, VisitorKey } from '../auth/visitor-key';
-import { RETRY_WAIT_MS, TranslationService } from '../i18n/translation.service';
-import { provideTestTranslations } from '../testing/test-translations';
+import { provideSiteTranslations } from '../i18n/site-translations';
 import { BootService } from './boot.service';
 import { ProgressStore } from './progress-store.service';
 import { provideSiteMigrations } from './site-migrations';
@@ -16,6 +17,9 @@ import { provideSiteMigrations } from './site-migrations';
 const UPDATE_PENDING = { code: 'update_pending', message: 'The site is being updated. Try again in a few minutes.' };
 
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** How long the start waits before it asks a second, last time for a bundle that did not come (the family's TranslationService: its waits.retry). */
+const RETRY_WAIT_MS = 500;
 
 /** Any request for the app's strings. */
 const forStrings = (request: { url: string }): boolean => request.url.startsWith('/api/translations/');
@@ -33,11 +37,15 @@ function standInAuth() {
     admin: false,
     /** The IAM's switch as the settings said it (true: a sign-in is required). */
     required: true,
+    /** The sign-in settings were read: what the strings may be asked for on (core/i18n/site-translations.ts's canAsk). */
+    read: false,
     /** The sign-in listeners BootService added (onAuthChange). */
     listeners: [] as (() => void)[],
     init: vi.fn(async () => {
       if (auth.failing) throw auth.failing;
+      auth.read = true;
     }),
+    settingsRead: () => auth.read,
     signedIn: () => auth.person !== null,
     loginRequired: () => auth.required,
     requireSignInNow: vi.fn(() => {
@@ -48,6 +56,7 @@ function standInAuth() {
     // The account's preferences: none here (an IAM before its 015) - the language is decided as it always was.
     preferences: () => null,
     isAdmin: () => auth.admin,
+    isStaff: () => auth.admin,
     accessToken: vi.fn(async () => (auth.person !== null ? 'token-7' : null)),
     refreshToken: vi.fn(async () => null),
     onAuthChange: (listener: () => void) => {
@@ -251,14 +260,16 @@ describe('BootService: where the language comes into the start', () => {
     auth.init.mockImplementation(async () => {
       order.push('auth');
       if (auth.failing) throw auth.failing;
+      auth.read = true;
     });
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations({}, { language: 'sk' }), provideSiteMigrations(), { provide: AuthService, useValue: auth }],
     });
     boot = TestBed.inject(BootService);
     TestBed.inject(SiteStatus).markReady();
-    vi.spyOn(TestBed.inject(TranslationService), 'init').mockImplementation(async (request: boolean) => {
-      order.push(`i18n:${request}`);
+    // What the start of the strings may ask the server for: whether the sign-in settings were read then (canAsk).
+    vi.spyOn(TestBed.inject(TranslationService), 'init').mockImplementation(async () => {
+      order.push(`i18n:${auth.settingsRead() ? 'asks' : 'asks nothing'}`);
       statusAtInit = boot.status();
     });
   });
@@ -270,7 +281,7 @@ describe('BootService: where the language comes into the start', () => {
 
   it('gets the strings once the sign-in settings are read, and before anybody is sent to sign in: the sign-in card has them', async () => {
     await boot.start();
-    expect(order).toEqual(['auth', 'i18n:true']);
+    expect(order).toEqual(['auth', 'i18n:asks']);
     // Nothing was drawn meanwhile: the card comes after the strings.
     expect(statusAtInit).toBe('loading');
     expect(boot.status()).toBe('sign-in');
@@ -279,7 +290,7 @@ describe('BootService: where the language comes into the start', () => {
   it('asks for nothing when the app is not set up: only what the browser kept, before the status page is shown', async () => {
     auth.failing = new NotSetUpError();
     await boot.start();
-    expect(order).toEqual(['auth', 'i18n:false']);
+    expect(order).toEqual(['auth', 'i18n:asks nothing']);
     expect(statusAtInit).toBe('loading');
     expect(boot.status()).toBe('not-set-up');
   });
@@ -288,7 +299,7 @@ describe('BootService: where the language comes into the start', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     auth.failing = new Error('offline');
     await boot.start();
-    expect(order).toEqual(['auth', 'i18n:false']);
+    expect(order).toEqual(['auth', 'i18n:asks nothing']);
     expect(boot.status()).toBe('load-error');
     consoleError.mockRestore();
   });
@@ -301,7 +312,7 @@ describe('BootService: where the language comes into the start', () => {
   it('while an update waits it still gets the sign-in and the strings - the status page has them - and the family\'s page signs in the same way', async () => {
     TestBed.inject(SiteStatus).report('update_pending');
     await boot.start();
-    expect(order).toEqual(['auth', 'i18n:true']);
+    expect(order).toEqual(['auth', 'i18n:asks']);
     expect(boot.status()).toBe('waiting');
     // The status page's "Sign in" is this one (core/state/site-migrations.ts): to the IAM in the page's language, back to this address.
     await TestBed.inject(ANOTOKI_MIGRATIONS_CONFIG).signIn();
@@ -320,7 +331,8 @@ describe('BootService with the real translation service', () => {
     sessionStorage.clear();
     vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['sk-SK', 'en']);
     auth = standInAuth();
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
+    // The family's translation service as this app wires it (core/i18n/site-translations.ts): the kept English, canAsk.
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideSiteTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     i18n = TestBed.inject(TranslationService);
@@ -385,8 +397,8 @@ describe('BootService with the real translation service', () => {
     http.expectOne('/api/translations/sk-sk').flush({
       language: 'sk',
       languages: [
-        { code: 'en', name: 'English', nativeName: 'English' },
-        { code: 'sk', name: 'Slovak', nativeName: 'Slovenčina' },
+        { code: 'en', name: 'English', native_name: 'English' },
+        { code: 'sk', name: 'Slovak', native_name: 'Slovenčina' },
       ],
       values: { 'title.learn': 'Učenie' },
       english: { 'title.learn': 'Learn' },
@@ -406,7 +418,7 @@ describe('BootService with the real translation service', () => {
     const site = TestBed.inject(SiteStatus);
     site.report('update_pending');
     // The words answer while an update waits - but a database without their tables (002 waiting) has none to give.
-    const noWords = { error: 'The site is being updated. Try again in a few minutes.', code: 'update_pending' };
+    const noWords = { error: 'The words are not in the database yet. An administrator applies the waiting database update on the Migrations page.', code: 'translations_unavailable' };
     const started = boot.start();
     await settle();
     http.expectOne('/api/translations/sk-sk').flush(noWords, { status: 503, statusText: 'Service Unavailable' });
@@ -426,8 +438,8 @@ describe('BootService with the real translation service', () => {
     http.expectOne('/api/translations/sk-sk').flush({
       language: 'sk',
       languages: [
-        { code: 'en', name: 'English', nativeName: 'English' },
-        { code: 'sk', name: 'Slovak', nativeName: 'Slovenčina' },
+        { code: 'en', name: 'English', native_name: 'English' },
+        { code: 'sk', name: 'Slovak', native_name: 'Slovenčina' },
       ],
       values: { 'title.learn': 'Učenie' },
       english: { 'title.learn': 'Learn' },

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
-import { TranslatePipe } from '../../../core/i18n/translate.pipe';
-import { TranslationService } from '../../../core/i18n/translation.service';
+import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { MidiService } from '../../../core/midi/midi.service';
 import { PathStep, Song } from '../../../core/music/music.types';
 import { PASS_ACCURACY, PathService } from '../../../core/music/path.service';

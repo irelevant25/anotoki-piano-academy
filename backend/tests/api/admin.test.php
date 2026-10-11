@@ -176,11 +176,12 @@ test('an administrator: through every route - staff and ADMIN alike', function (
         assert_same($expected["$method $url"], [$answer['status'], is_array($answer['body']) ? ($answer['body']['code'] ?? null) : null], "$method $url");
     }
 
-    // The Migrations page's list: the one set, every file applied in the order they ran - when, in ISO 8601 UTC.
+    // The Migrations page's list: the app's set, then the library's of the words - every file applied in the order they
+    // ran, when in ISO 8601 UTC.
     $list = ask($GLOBALS['app'], 'GET', '/api/admin/migrations', null, bearer(token_for(ADMIN)));
     $status = $list['body'];
     assert_same(['sets', 'applied', 'pending', 'missing'], array_keys($status));
-    assert_same([[MIGRATIONS_SET], migrationFiles(), [], []], [$status['sets'], names_of($status['applied']), $status['pending'], $status['missing']], 'every file applied, in the order they ran');
+    assert_same([[MIGRATIONS_SET, 'anotoki_translations'], every_migration(), [], []], [$status['sets'], array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $status['applied']), $status['pending'], $status['missing']], 'every file applied, in the order they ran');
     foreach ($status['applied'] as $file) {
         assert_same(['set', 'name', 'applied_at'], array_keys($file));
         assert_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', (string) $file['applied_at'], 'when ' . $file['name'] . ' was applied');
@@ -201,10 +202,10 @@ test('an administrator: through every route - staff and ADMIN alike', function (
     assert_same(404, ask($GLOBALS['app'], 'POST', '/api/admin/database/update', null, bearer(token_for(ADMIN)))['status']);
     assert_same($before, everything());
 
-    // The languages' routes really are an administrator's: one added and gone again.
-    $made = ask($GLOBALS['app'], 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'nativeName' => 'Deutsch'], bearer(token_for(ADMIN)));
+    // The languages' routes really are an administrator's: one added and gone again (the IAM's wire format, snake_case).
+    $made = ask($GLOBALS['app'], 'POST', '/api/admin/languages', ['code' => 'de', 'name' => 'German', 'native_name' => 'Deutsch'], bearer(token_for(ADMIN)));
     assert_same(201, $made['status'], test_show($made['body']));
-    assert_same(204, ask($GLOBALS['app'], 'DELETE', '/api/admin/languages/de', null, bearer(token_for(ADMIN)))['status']);
+    assert_same([200, ['strings' => 0]], array_values(array_intersect_key(ask($GLOBALS['app'], 'DELETE', '/api/admin/languages/de', null, bearer(token_for(ADMIN))), ['status' => 0, 'body' => 0])));
 });
 
 test('People: everybody with what they have, the most recently seen first - and one person deleted whole, nobody else touched', function (): void {
@@ -271,7 +272,9 @@ test('a database behind the code: every other route says the site is being updat
     $behind = test_empty_db('behind');
     $pdo = dbConnect(machineDatabaseSettings(), $behind);
     assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
-    $pending = array_values(array_diff(migrationFiles(), ['001_init.sql']));
+    // Every file after 001: the app's own, then the library's set of the words.
+    $waiting = array_slice(every_migration(), 1);
+    $pending = names_of($waiting);
     $config = test_config_dir(test_auth_iam(), $behind);
     $app = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', ['PIANO_TEST_CONFIG' => $config, 'PIANO_FRONTEND_DIST' => test_frontend_build()], '/api/health');
 
@@ -318,10 +321,10 @@ test('a database behind the code: every other route says the site is being updat
     }
 
     $update = ask($app, 'POST', '/api/admin/migrations/apply', null, bearer(token_for(ADMIN)));
-    $applied = array_map(static fn (string $name): array => ['set' => MIGRATIONS_SET, 'name' => $name], $pending);
-    assert_same([200, ['applied' => $applied, 'failed' => null, 'error' => null, 'note' => null]], [$update['status'], $update['body']]);
+    assert_same([200, ['applied' => $waiting, 'failed' => null, 'error' => null, 'note' => null]], [$update['status'], $update['body']]);
     $after = ask($app, 'GET', '/api/admin/migrations', null, bearer(token_for(ADMIN)))['body'];
-    assert_same([migrationFiles(), []], [names_of($after['applied']), $after['pending']], 'applied in order, nothing pending');
+    assert_same([names_of(every_migration()), []], [names_of($after['applied']), $after['pending']], 'applied in order, nothing pending');
+    assert_same(array_map('migrationLabel', every_migration()), $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 'recorded as they ran: the library\'s with its set');
     assert_same(['state' => 'ready', 'installed' => false], ask($app, 'GET', '/api/site-status', null, [])['body'], 'the site is ready again');
     assert_same(200, ask($app, 'GET', '/api/state', null, bearer(token_for(LEARNER)))['status'], 'and the app starts on it');
     assert_same(0, (int) $pdo->query("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND database = (SELECT oid FROM pg_database WHERE datname = current_database())")->fetchColumn(), 'the lock was let go');

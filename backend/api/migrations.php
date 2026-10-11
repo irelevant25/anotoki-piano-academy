@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Anotoki\Lib\Migrations\Http\SiteState;
 use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Translations\Schema as TranslationsSchema;
 
 /**
  * The database's migrations, and where the site stands - through the anotoki
@@ -13,12 +14,18 @@ use Anotoki\Lib\Migrations\Migrator;
  * in every anotoki repository. This file only says what is Piano Academy's
  * own: the folder, the lock, the shape its first record had, its settings.
  *
- * The migrations are the schema: migrations/piano_academy/NNN_name.sql, one
- * set, applied in natural order (100 after 99), each file in a transaction of
- * its own together with its row in the `migrations` table - all of it or none
- * of it - stopping at the first that fails, because every migration is
- * written expecting the ones before it to have run. Nothing is ever
- * un-applied: a rollback that half works is worse than none.
+ * The migrations are the schema: migrations/piano_academy/NNN_name.sql, the
+ * app's own set, then the library's set of the words (anotoki_translations:
+ * the family's one schema of languages, keys and strings - which this app's
+ * 002 made long before, so the library's 001 only proves its shape - and the
+ * library's own words, anotoki.*; in vendor/anotoki/lib/php/migrations/).
+ * Each set is applied in natural order (100 after 99), the app's first, each
+ * file in a transaction of its own together with its row in the `migrations`
+ * table - all of it or none of it - stopping at the first that fails, because
+ * every migration is written expecting the ones before it to have run. The
+ * library's files are recorded as `anotoki_translations/001_....sql` in the
+ * same table, whose shape does not change. Nothing is ever un-applied: a
+ * rollback that half works is worse than none.
  *
  * Whoever applies them - setup.php's Save, php migration.php, an
  * administrator's Apply on the admin panel's Migrations page
@@ -52,10 +59,35 @@ function migrationSet(): MigrationSet
 }
 
 /**
- * The files of the set, in the order they run: the *.sql files directly in
- * its folder, hidden ones left out, natural order - what Migrator::files()
- * lists (tests/unit/migrations.test.php holds the two equal). For what only
- * reads the folder and has no connection at hand: the tests.
+ * Every set, in the order they run: the app's own, then the library's set of
+ * the words (anotoki/lib's Translations\Schema::migrationSet()) - after it,
+ * as the library asks of a site whose own migrations made those tables.
+ *
+ * @return list<MigrationSet>
+ */
+function migrationSets(): array
+{
+    return [migrationSet(), TranslationsSchema::migrationSet()];
+}
+
+/**
+ * A file as people are told of it - the command line, the setup page, the
+ * health check: the app's own by its name, the library's with its set before
+ * it, as the `migrations` table records it ("anotoki_translations/001_....sql").
+ *
+ * @param array{set: string, name: string} $file
+ */
+function migrationLabel(array $file): string
+{
+    return $file['set'] === MIGRATIONS_SET ? $file['name'] : $file['set'] . '/' . $file['name'];
+}
+
+/**
+ * The files of the app's own set, in the order they run: the *.sql files
+ * directly in its folder, hidden ones left out, natural order - what
+ * Migrator::files() lists (tests/unit/migrations.test.php holds the two
+ * equal). For what only reads the folder and has no connection at hand: the
+ * tests.
  *
  * @return list<string>
  */
@@ -70,13 +102,14 @@ function migrationFiles(): array
 
 /**
  * The engine on $pdo - the app's own connection when none is given (setup.php,
- * the command line and the tests bring theirs). $options are the Migrator's,
- * over the app's own: the tests hold the files after a point back with
- * `ready`, to build a database as it stood then.
+ * the command line and the tests bring theirs) - with every set
+ * (migrationSets()): whoever applies, applies the library's files too. $options
+ * are the Migrator's, over the app's own: the tests hold the files after a
+ * point back with `ready`, to build a database as it stood then.
  */
 function databaseMigrator(?PDO $pdo = null, array $options = []): Migrator
 {
-    return new Migrator($pdo ?? db(), [migrationSet()], $options + [
+    return new Migrator($pdo ?? db(), migrationSets(), $options + [
         'lock' => DATABASE_UPDATE_LOCK,
         'prepare' => adoptLegacyMigrationsTable(...),
     ]);

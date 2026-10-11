@@ -144,15 +144,28 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
-- English and Slovak (informal), 282 keys of the app's own words in the
-  database (migrations 002 to 008), a language chooser, and the
-  Translations and Languages pages. A word with no string shows its key, on
-  purpose.
+- English and Slovak (informal), 267 keys of the app's own words in the
+  database (migrations 002 to 009) and the anotoki library's 54 (`anotoki.*`:
+  the words of the bar, its menus, the language chooser, the theme switch,
+  the dialogs and the status page), a language chooser, and the
+  Translations and Languages pages. A word of the app's with no string shows
+  its key, on purpose.
+- **The words through the anotoki family's library (2026-10-11).** Every
+  anotoki site now keeps its words the same way, through the family's
+  library (`anotoki-lib` 0.3.0, both halves): the words' tables stay as they
+  were, and the library reads and writes them - the strings the pages ask
+  for, the admin panel's Translations and Languages pages (now the family's),
+  `php tools/translations.php`. Who may change what stays this app's (EDITOR
+  the strings, ADMIN the languages). The bar's words are the library's keys
+  now: migration 009 copies the app's wording there - the owner's included -
+  and goes with 005 to 008 at the hand-over, the library's own two files
+  right after it in the same Apply. A learner sees nothing new; nothing in
+  What's new.
 - **The anotoki family's look (2026-10-08 to 11).** The bar, its menus, the
   language chooser, the theme switch - now three choices: light, dark, or as
   the device is set -, the questions ("Are you sure?") and the font
   (Manrope) are the anotoki family's, from its library's UI kit
-  (`@anotoki/lib` 0.2.0; its PHP half stays 0.1.0); Piano Academy keeps its
+  (`@anotoki/lib` 0.2.0, 0.3.0 since 2026-10-11); Piano Academy keeps its
   own colours, its pages, the keyboard and the notation. The family's words
   say what the owner wrote in the database where the app has them.
   Migration 008 takes the old round theme button's words away; it goes with

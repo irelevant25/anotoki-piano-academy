@@ -1,8 +1,8 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
+import { TranslationService } from '@anotoki/lib/translations';
 import { type AnotokiPreferences } from '../auth/anotoki-auth';
 import { AuthService } from '../auth/auth.service';
 import { formatClock, formatDatePattern } from './date-patterns';
-import { TranslationService } from './translation.service';
 
 /** A day in full, a day with its time, or the admin panel's stamp of numbers. */
 export type LocalDateStyle = 'day' | 'moment' | 'stamp';

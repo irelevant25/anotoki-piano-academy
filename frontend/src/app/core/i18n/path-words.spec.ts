@@ -1,10 +1,10 @@
 import { TestBed } from '@angular/core/testing';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { StepType } from '../music/music.types';
 import { NOTE_HINTS, PathService, STEP_TYPES } from '../music/path.service';
-import { provideTestTranslations } from '../testing/test-translations';
 import { DYNAMIC_KEYS } from './dynamic-keys';
 import { PathWords, hintKey, phaseDescription, phaseTitle, stepShort, stepTitle, unitTitle } from './path-words';
-import { TranslationService } from './translation.service';
 
 const ENGLISH = {
   'path.phase.right-hand.title': 'Right hand',

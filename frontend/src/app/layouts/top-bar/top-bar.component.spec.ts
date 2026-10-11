@@ -2,15 +2,15 @@ import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/c
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy, provideRouter } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { AuthService } from '../../core/auth/auth.service';
 import { provideFamilyKit } from '../../core/family-kit';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { BootService, BootStatus } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { provideSiteMigrations } from '../../core/state/site-migrations';
 import { provideTestKit } from '../../core/testing/test-kit';
-import { provideTestTranslations } from '../../core/testing/test-translations';
 import { PianoTitleStrategy } from '../../core/title.strategy';
 import { PHONE_BAR_MAX, TopBarComponent } from './top-bar.component';
 
@@ -24,18 +24,19 @@ const ENGLISH: Record<string, string> = {
   'nav.sheet': 'Sheet Practice',
   'nav.songs': 'Songs',
   'nav.stats': 'Stats',
-  'topbar.phoneMenu': 'Menu',
-  'topbar.menuButton': 'Your menu: {name}',
-  'topbar.menu': 'Your menu',
-  'topbar.roleAdmin': 'Administrator',
-  'topbar.roleEditor': 'Editor',
-  'topbar.account': 'Your anotoki account',
-  'topbar.admin': 'Admin panel',
+  'anotoki.topbar.phoneMenu': 'Menu',
+  'anotoki.topbar.menuButton': 'Your menu: {name}',
+  'anotoki.topbar.menu': 'Your menu',
+  'anotoki.topbar.roleAdmin': 'Administrator',
+  'anotoki.topbar.roleEditor': 'Editor',
+  'anotoki.topbar.account': 'Your anotoki account',
+  'anotoki.topbar.admin': 'Admin panel',
   'account.notSaved': 'Not saved yet',
   'account.notSavedHint': 'Some of your progress is not on the server yet. The app keeps trying.',
   'account.signedIn': 'Signed in',
-  'account.signOut': 'Sign out',
+  'anotoki.topbar.signOut': 'Sign out',
   'signIn.button': 'Sign in',
+  'anotoki.topbar.signIn': 'Sign in',
   'signOut.title': 'Sign out without your latest progress?',
   'signOut.text': 'Some of your progress could not be saved yet. If you sign out now, it is lost.',
   'signOut.confirm': 'Sign out anyway',
@@ -49,18 +50,18 @@ const ENGLISH: Record<string, string> = {
   'midi.connect': 'Connect',
   'midi.rescan': 'Rescan MIDI devices',
   'midi.noDevices': 'No MIDI devices found',
-  'theme.auto': 'Theme: automatic',
-  'theme.light': 'Theme: light',
-  'theme.dark': 'Theme: dark',
-  'theme.notSaved': 'The theme could not be saved to your anotoki account.',
-  'language.button': 'Language: {name} ({code})',
-  'language.notLoaded': 'The language could not be loaded. Please try again.',
-  'language.notSaved': 'The language could not be saved to your anotoki account - it holds for this visit only.',
+  'anotoki.theme.auto': 'Theme: automatic',
+  'anotoki.theme.light': 'Theme: light',
+  'anotoki.theme.dark': 'Theme: dark',
+  'anotoki.theme.notSaved': 'The theme could not be saved to your anotoki account.',
+  'anotoki.language.button': 'Language: {name} ({code})',
+  'anotoki.language.notLoaded': 'The language could not be loaded. Please try again.',
+  'anotoki.language.notSaved': 'The language could not be saved to your anotoki account - it holds for this visit only.',
   'common.loading': 'Loading…',
   'title.learn': 'Learn',
 };
 
-/** The owner's own Slovak where it differs from the kit's built-in words ("Správca", "Tvoj účet anotoki"): this app's are the ones shown. */
+/** The owner's own Slovak where it differs from the kit's built-in words ("Správca", "Tvoj účet anotoki"): the database's, under the library's keys (migration 009 copied this app's there), are the ones shown. */
 const SLOVAK: Record<string, string> = {
   ...ENGLISH,
   'topbar.home': 'anotoki Piano Academy: Učenie',
@@ -70,16 +71,17 @@ const SLOVAK: Record<string, string> = {
   'nav.sheet': 'Hra z nôt',
   'nav.songs': 'Skladby',
   'nav.stats': 'Štatistiky',
-  'topbar.phoneMenu': 'Ponuka',
-  'topbar.menuButton': 'Tvoja ponuka: {name}',
-  'topbar.menu': 'Tvoja ponuka',
-  'topbar.roleAdmin': 'Správca',
-  'topbar.roleEditor': 'Editor',
-  'topbar.account': 'Tvoj účet anotoki',
-  'topbar.admin': 'Administrátorský panel',
+  'anotoki.topbar.phoneMenu': 'Ponuka',
+  'anotoki.topbar.menuButton': 'Tvoja ponuka: {name}',
+  'anotoki.topbar.menu': 'Tvoja ponuka',
+  'anotoki.topbar.roleAdmin': 'Správca',
+  'anotoki.topbar.roleEditor': 'Editor',
+  'anotoki.topbar.account': 'Tvoj účet anotoki',
+  'anotoki.topbar.admin': 'Administrátorský panel',
   'account.notSaved': 'Zatiaľ neuložené',
-  'account.signOut': 'Odhlásiť sa',
+  'anotoki.topbar.signOut': 'Odhlásiť sa',
   'signIn.button': 'Prihlásiť sa',
+  'anotoki.topbar.signIn': 'Prihlásiť sa',
   'signOut.title': 'Odhlásiť sa bez posledného postupu?',
   'signOut.text': 'Časť tvojho postupu sa zatiaľ nepodarilo uložiť. Ak sa teraz odhlásiš, stratí sa.',
   'signOut.confirm': 'Aj tak sa odhlásiť',
@@ -87,10 +89,10 @@ const SLOVAK: Record<string, string> = {
   'midi.button': '{label}: {status}',
   'midi.none': 'Bez klavíra',
   'midi.notConnected': 'Klavír nie je pripojený',
-  'theme.auto': 'Vzhľad: systémový',
-  'theme.light': 'Vzhľad: svetlý',
-  'theme.dark': 'Vzhľad: tmavý',
-  'language.button': 'Jazyk: {name} ({code})',
+  'anotoki.theme.auto': 'Vzhľad: systémový',
+  'anotoki.theme.light': 'Vzhľad: svetlý',
+  'anotoki.theme.dark': 'Vzhľad: tmavý',
+  'anotoki.language.button': 'Jazyk: {name} ({code})',
 };
 
 @Component({ selector: 'app-blank', template: '', changeDetection: ChangeDetectionStrategy.OnPush })
@@ -224,16 +226,24 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
 
   const $ = <T extends Element = HTMLElement>(selector: string): T | null => host.querySelector<T>(selector);
   const texts = (selector: string): string[] => Array.from(host.querySelectorAll(selector)).map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
-  /** What a thing of the bar is: Piano's own id, a component's name, or the family's class for it (its ids are its own, made up). */
+  /** The family's classes for the bar's parts, by the part's name (the kit's class names are its own: anotoki-<component>__<part>). */
+  const PARTS: Readonly<Record<string, string>> = {
+    'anotoki-top-bar__person-button': 'person-button',
+    'anotoki-top-bar__menu-button': 'menu-button',
+    'anotoki-top-bar__sign-in': 'sign-in',
+    'anotoki-language-switcher__switcher': 'switcher',
+    'anotoki-brand__brand': 'brand',
+  };
+  /** What a thing of the bar is: Piano's own id, a component's name, or the name of the family's part (its ids are its own, made up). */
   const what = (element: Element): string => {
     if (element.id && !element.id.startsWith('anotoki-')) return element.id;
     if (element.tagName.includes('-')) return element.tagName.toLowerCase();
-    return ['person-button', 'menu-button', 'sign-in', 'switcher', 'brand', 'nav'].find((name) => element.classList.contains(name)) ?? element.tagName.toLowerCase();
+    return Object.entries(PARTS).find(([name]) => element.classList.contains(name))?.[1] ?? element.tagName.toLowerCase();
   };
   /** What the row holds, left to right, by what each thing is (the menus' own elements take no room in it). */
   const row = (): string[] =>
-    Array.from(host.querySelectorAll('.row > *, .actions > *'))
-      .filter((element) => !element.classList.contains('actions') && element.tagName !== 'ANOTOKI-MENU')
+    Array.from(host.querySelectorAll('.anotoki-top-bar__row > *, .anotoki-top-bar__actions > *'))
+      .filter((element) => !element.classList.contains('anotoki-top-bar__actions') && element.tagName !== 'ANOTOKI-MENU')
       .map(what);
   const settle = async (): Promise<void> => {
     for (let i = 0; i < 3; i++) {
@@ -249,7 +259,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
   const menu = (): HTMLElement | null => $('anotoki-menu [role="menu"]');
   const items = (): HTMLElement[] => Array.from(host.querySelectorAll<HTMLElement>('anotoki-menu [role="menuitem"]'));
   async function open(which: 'account' | 'phone'): Promise<HTMLButtonElement> {
-    const button = $<HTMLButtonElement>(which === 'account' ? '.person-button' : '.menu-button')!;
+    const button = $<HTMLButtonElement>(which === 'account' ? '.anotoki-top-bar__person-button' : '.anotoki-top-bar__menu-button')!;
     button.click();
     await settle();
     return button;
@@ -259,9 +269,9 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     it('is one row in the family\'s order: brand, sections, the piano, language, theme, the person', async () => {
       await bar();
       expect(row()).toEqual(['anotoki-brand', 'nav', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'person-button']);
-      expect($('.brand')?.getAttribute('href')).toBe('/');
-      expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
-      expect(texts('.brand .wordmark > span')).toEqual(['anotoki', 'Piano Academy']);
+      expect($('.anotoki-brand__brand')?.getAttribute('href')).toBe('/');
+      expect($('.anotoki-brand__brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
+      expect(texts('.anotoki-brand__wordmark > span')).toEqual(['anotoki', 'Piano Academy']);
       expect($('nav')?.getAttribute('aria-label')).toBe('Main');
       expect(texts('nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
       // The family's bar folds at Piano's own width.
@@ -270,7 +280,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
 
     it('lights the section the page is in - a lesson under Learn, a song under Songs - and marks the page\'s own link', async () => {
       await bar({ at: '/lesson/rh-1/drill' });
-      const active = (): string[] => texts('nav a.is-active');
+      const active = (): string[] => texts('nav a.anotoki-top-bar__link--active');
       const current = (): string[] => texts('nav a[aria-current="page"]');
       expect(active()).toEqual(['Learn']);
       expect(current()).toEqual([]);
@@ -300,21 +310,21 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect($('#save-status')?.textContent).toBe('Not saved yet');
       expect($('#save-status')?.getAttribute('title')).toBe('Some of your progress is not on the server yet. The app keeps trying.');
       await open('account');
-      expect(menu()?.firstElementChild?.classList.contains('menu-note')).toBe(true);
-      expect($('.menu-note strong')?.textContent).toBe('Not saved yet');
-      expect($('.menu-note span')?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
+      expect(menu()?.firstElementChild?.classList.contains('anotoki-top-bar__menu-note')).toBe(true);
+      expect($('.anotoki-top-bar__menu-note strong')?.textContent).toBe('Not saved yet');
+      expect($('.anotoki-top-bar__menu-note span')?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
     });
 
     it('the person\'s menu: name, address, role; their account (a new tab), the admin panel for the staff, Sign out', async () => {
       person.set({ name: 'mia', roles: ['ADMIN'], email: 'mia@example.com' });
       await bar();
-      expect($('.person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
-      expect($('.person-name')?.textContent).toBe('mia');
-      expect($('.initial')?.textContent).toBe('M');
+      expect($('.anotoki-top-bar__person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
+      expect($('.anotoki-top-bar__person-name')?.textContent).toBe('mia');
+      expect($('.anotoki-top-bar__initial')?.textContent).toBe('M');
       const button = await open('account');
       expect(button.getAttribute('aria-expanded')).toBe('true');
       expect(menu()?.getAttribute('aria-label')).toBe('Your menu');
-      expect(texts('.menu-head > span')).toEqual(['mia', 'mia@example.com', 'Administrator']);
+      expect(texts('.anotoki-top-bar__menu-head > span')).toEqual(['mia', 'mia@example.com', 'Administrator']);
       expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Admin panel', 'Sign out']);
       const account = $<HTMLAnchorElement>('anotoki-menu a[href="http://localhost:4300/account"]');
       expect(account?.getAttribute('target')).toBe('_blank');
@@ -325,7 +335,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       person.set({ name: 'ed', roles: ['EDITOR'] });
       await bar();
       await open('account');
-      expect($('.menu-role')?.textContent).toBe('Editor');
+      expect($('.anotoki-top-bar__menu-role')?.textContent).toBe('Editor');
       expect($('anotoki-menu a[href="/admin"]')).not.toBeNull();
 
       for (const roles of [[], ['MEMBER']]) {
@@ -333,7 +343,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
         person.set({ name: 'mia', roles });
         await bar();
         await open('account');
-        expect($('.menu-role')).toBeNull();
+        expect($('.anotoki-top-bar__menu-role')).toBeNull();
         expect($('anotoki-menu a[href="/admin"]')).toBeNull();
         expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Sign out']);
       }
@@ -358,21 +368,21 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     it('names somebody whose token names nobody in the app\'s words, and gives no e-mail that is the name itself', async () => {
       person.set({ name: null, roles: [] });
       await bar();
-      expect($('.person-name')?.textContent).toBe('Signed in');
-      expect($('.initial')?.textContent).toBe('S');
+      expect($('.anotoki-top-bar__person-name')?.textContent).toBe('Signed in');
+      expect($('.anotoki-top-bar__initial')?.textContent).toBe('S');
       TestBed.resetTestingModule();
       person.set({ name: 'mia@example.com', roles: [], email: 'mia@example.com' });
       await bar();
       await open('account');
-      expect(texts('.menu-head > span')).toEqual(['mia@example.com']);
+      expect(texts('.anotoki-top-bar__menu-head > span')).toEqual(['mia@example.com']);
     });
 
     it('signed out in the middle of practising: Sign in - and before the app ran, nothing (the guard is on its way to the IAM)', async () => {
       person.set(null);
       await bar();
       expect(row().at(-1)).toBe('sign-in');
-      expect($('.sign-in')?.textContent?.trim()).toBe('Sign in');
-      $<HTMLButtonElement>('.sign-in')!.click();
+      expect($('.anotoki-top-bar__sign-in')?.textContent?.trim()).toBe('Sign in');
+      $<HTMLButtonElement>('.anotoki-top-bar__sign-in')!.click();
       await settle();
       expect(boot.signIn).toHaveBeenCalledTimes(1);
 
@@ -380,8 +390,8 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       loaded.set(false);
       status.set('sign-in');
       await bar();
-      expect($('.sign-in')).toBeNull();
-      expect($('.person-button')).toBeNull();
+      expect($('.anotoki-top-bar__sign-in')).toBeNull();
+      expect($('.anotoki-top-bar__person-button')).toBeNull();
     });
 
     it('a visitor - practising without signing in, the app running on their progress -: Sign in, in the row and in the phone’s menu after the sections', async () => {
@@ -389,8 +399,8 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       person.set(null);
       await bar({ at: '/trainer' });
       expect(row().at(-1)).toBe('sign-in');
-      expect($('.person-button')).toBeNull();
-      $<HTMLButtonElement>('.sign-in')!.click();
+      expect($('.anotoki-top-bar__person-button')).toBeNull();
+      $<HTMLButtonElement>('.anotoki-top-bar__sign-in')!.click();
       await settle();
       expect(boot.signIn).toHaveBeenCalledTimes(1);
 
@@ -398,7 +408,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       await bar({ phone: true, at: '/trainer' });
       await open('phone');
       expect(texts('anotoki-menu [role="menuitem"]').slice(-1)).toEqual(['Sign in']);
-      expect($('.sign-in-item')).not.toBeNull();
+      expect($('.anotoki-top-bar__sign-in-item')).not.toBeNull();
     });
   });
 
@@ -452,16 +462,16 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     it('is the brand ("Piano"), the piano\'s dot, the language, the theme and the menu button - the sections and the person inside it', async () => {
       await bar({ phone: true });
       expect(row()).toEqual(['anotoki-brand', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'menu-button']);
-      expect(texts('.brand .wordmark > span')).toEqual(['Piano']);
+      expect(texts('.anotoki-brand__wordmark > span')).toEqual(['Piano']);
       expect($('#midi-label')).toBeNull();
-      expect($('.menu-button')?.getAttribute('aria-label')).toBe('Menu');
+      expect($('.anotoki-top-bar__menu-button')?.getAttribute('aria-label')).toBe('Menu');
 
       const button = await open('phone');
       expect(button.getAttribute('aria-expanded')).toBe('true');
       expect(menu()?.getAttribute('aria-label')).toBe('Menu');
       expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Sign out']);
       expect(host.querySelectorAll('anotoki-menu [role="separator"]').length).toBe(2);
-      expect(texts('anotoki-menu [role="menuitem"].is-active')).toEqual(['Learn']);
+      expect(texts('anotoki-menu [role="menuitem"].anotoki-menu-item--active')).toEqual(['Learn']);
       expect(texts('anotoki-menu [role="menuitem"][aria-current="page"]')).toEqual(['Learn']);
       expect(document.activeElement).toBe(items()[0]);
     });
@@ -479,13 +489,13 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       unsaved.set(true);
       await bar({ phone: true });
       expect($('#save-status')).toBeNull();
-      expect($('.menu-button .mark-dot')).not.toBeNull();
-      const described = $('.menu-button')?.getAttribute('aria-describedby');
+      expect($('.anotoki-top-bar__menu-button .anotoki-top-bar__mark-dot')).not.toBeNull();
+      const described = $('.anotoki-top-bar__menu-button')?.getAttribute('aria-describedby');
       expect(described).toBeTruthy();
       expect($(`#${described}`)?.textContent).toBe('Not saved yet');
       await open('phone');
-      expect(menu()?.firstElementChild?.classList.contains('menu-note')).toBe(true);
-      expect($('.menu-note strong')?.textContent).toBe('Not saved yet');
+      expect(menu()?.firstElementChild?.classList.contains('anotoki-top-bar__menu-note')).toBe(true);
+      expect($('.anotoki-top-bar__menu-note strong')?.textContent).toBe('Not saved yet');
     });
 
     it('signed out: the sections, then Sign in', async () => {
@@ -493,7 +503,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       await bar({ phone: true });
       await open('phone');
       expect(texts('anotoki-menu [role="menuitem"]').slice(-1)).toEqual(['Sign in']);
-      $<HTMLButtonElement>('.sign-in-item')!.click();
+      $<HTMLButtonElement>('.anotoki-top-bar__sign-in-item')!.click();
       await settle();
       expect(boot.signIn).toHaveBeenCalledTimes(1);
     });
@@ -503,11 +513,11 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       loaded.set(false);
       status.set('sign-in');
       await bar({ phone: true });
-      expect($('.menu-button')).toBeNull();
+      expect($('.anotoki-top-bar__menu-button')).toBeNull();
       for (const state of ['not-set-up', 'load-error', 'loading'] as BootStatus[]) {
         status.set(state);
         await fixture.whenStable();
-        expect($('.menu-button')).toBeNull();
+        expect($('.anotoki-top-bar__menu-button')).toBeNull();
       }
       // Somebody signed in before the app runs: their own menu is there.
       person.set({ name: 'mia', roles: ['ADMIN'] });
@@ -522,7 +532,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       screen.turn(false);
       await fixture.whenStable();
       expect(menu()).toBeNull();
-      expect($('.menu-button')).toBeNull();
+      expect($('.anotoki-top-bar__menu-button')).toBeNull();
       expect(row()).toEqual(['anotoki-brand', 'nav', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'person-button']);
     });
   });
@@ -531,7 +541,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     /** What a control shows: its text, but for what is hidden from everybody (the initial, the icons, a mark's description). */
     const shown = (element: Element): string => {
       const copy = element.cloneNode(true) as Element;
-      copy.querySelectorAll('[aria-hidden="true"], .visually-hidden, anotoki-icon').forEach((hidden) => hidden.remove());
+      copy.querySelectorAll('[aria-hidden="true"], .anotoki-visually-hidden, anotoki-icon').forEach((hidden) => hidden.remove());
       // Each piece apart: "anotoki" and "Piano Academy" are two spans the styles set apart.
       const pieces: string[] = [];
       const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
@@ -561,14 +571,14 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     it('reads the learner\'s language - the family\'s words in this app\'s strings - and English in the admin panel, with its own sections, no chooser and no piano', async () => {
       await bar({ language: 'sk' });
       expect(texts('nav a')).toEqual(['Učenie', 'Tréning nôt', 'Hra z nôt', 'Skladby', 'Štatistiky']);
-      expect($('.person-button')?.getAttribute('aria-label')).toBe('Tvoja ponuka: mia');
-      expect($('anotoki-language-switcher .switcher')?.getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
+      expect($('.anotoki-top-bar__person-button')?.getAttribute('aria-label')).toBe('Tvoja ponuka: mia');
+      expect($('.anotoki-language-switcher__switcher')?.getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
       expect(Array.from(host.querySelectorAll('anotoki-theme-toggle [role="radio"]')).map((choice) => choice.getAttribute('aria-label'))).toEqual(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']);
       person.set({ name: 'mia', roles: ['ADMIN'] });
       await fixture.whenStable();
       await open('account');
       // The owner's Slovak, where the kit's own would say "Administrátor", "Tvoj anotoki účet".
-      expect(texts('.menu-role')).toEqual(['Správca']);
+      expect(texts('.anotoki-top-bar__menu-role')).toEqual(['Správca']);
       expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Tvoj účet anotoki', 'Administrátorský panel', 'Odhlásiť sa']);
       press(items()[0], 'Escape');
       await fixture.whenStable();
@@ -578,26 +588,26 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(TestBed.inject(TranslationService).effectiveLanguage()).toBe('en');
       expect(texts('nav a')).toEqual(['Translations', 'Languages', 'People', 'Migrations']);
       expect(texts('nav a[aria-current="page"]')).toEqual(['People']);
-      expect($('.brand')?.getAttribute('href')).toBe('/admin');
+      expect($('.anotoki-brand__brand')?.getAttribute('href')).toBe('/admin');
       // The family's admin wordmark: "anotoki Piano Academy · admin panel".
-      expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy · admin panel');
-      expect(texts('.brand .wordmark > span')).toEqual(['anotoki', 'Piano Academy', '·', 'admin panel']);
+      expect($('.anotoki-brand__brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy · admin panel');
+      expect(texts('.anotoki-brand__wordmark > span')).toEqual(['anotoki', 'Piano Academy', '·', 'admin panel']);
       expect($('anotoki-language-switcher')).toBeNull();
       expect($('app-midi-panel')).toBeNull();
-      expect($('.person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
+      expect($('.anotoki-top-bar__person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
       await open('account');
       expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Back to Piano Academy', 'Sign out']);
       expect($('anotoki-menu a[href="/"]')?.textContent?.trim()).toBe('Back to Piano Academy');
-      expect($('.menu-role')?.textContent).toBe('Administrator');
+      expect($('.anotoki-top-bar__menu-role')?.textContent).toBe('Administrator');
     });
 
     it('the admin panel on a phone: Piano\'s own short form beside the mark, "admin panel" under it, both in the brand link\'s name', async () => {
       person.set({ name: 'mia', roles: ['ADMIN'] });
       await bar({ phone: true, at: '/admin/people' });
-      expect(texts('.brand .area')).toEqual(['Piano']);
-      expect(texts('.brand .panel')).toEqual(['admin panel']);
-      expect($('.brand .name')).toBeNull();
-      expect($('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy · admin panel');
+      expect(texts('.anotoki-brand__area')).toEqual(['Piano']);
+      expect(texts('.anotoki-brand__panel')).toEqual(['admin panel']);
+      expect($('.anotoki-brand__name')).toBeNull();
+      expect($('.anotoki-brand__brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy · admin panel');
     });
 
     it('while an update waits: an ADMIN in the admin panel has Migrations alone; elsewhere, and anybody else, no sections', async () => {
@@ -647,7 +657,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
   });
 
   describe('signing out', () => {
-    const signOutItem = (): HTMLButtonElement => $<HTMLButtonElement>('.sign-out-item')!;
+    const signOutItem = (): HTMLButtonElement => $<HTMLButtonElement>('.anotoki-top-bar__sign-out-item')!;
 
     it('settles what is waiting first - the family\'s item waits, "Saving…" - then signs out when nothing would be lost', async () => {
       await bar({ language: 'sk' });

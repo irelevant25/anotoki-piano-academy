@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { TranslationService } from '../../core/i18n/translation.service';
-import { provideTestTranslations } from '../../core/testing/test-translations';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { KeyboardModel } from './keyboard-model';
 import { PianoKeyboardComponent } from './piano-keyboard.component';
 

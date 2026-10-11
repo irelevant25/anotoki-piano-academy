@@ -7,6 +7,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { ChangelogService } from './core/changelog/changelog.service';
 import { provideFamilyKit } from './core/family-kit';
+import { provideSiteTranslations } from './core/i18n/site-translations';
 import { BootService } from './core/state/boot.service';
 import { provideSiteMigrations } from './core/state/site-migrations';
 import { PianoTitleStrategy } from './core/title.strategy';
@@ -22,8 +23,11 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([siteStatusInterceptor, authInterceptor])),
     // The anotoki family's one behaviour while the site is not ready (@anotoki/lib/migrations).
     provideSiteMigrations(),
-    // The anotoki family's kit and frame (@anotoki/lib/ui, @anotoki/lib/shell): its words where this
-    // app has its own in this app's, the theme the account's, the languages this app's (core/family-kit.ts).
+    // The app's words through the anotoki family's translations (@anotoki/lib/translations): the language and its
+    // strings, the pipes, the admin panel's Translations and Languages pages (core/i18n/site-translations.ts).
+    provideSiteTranslations(),
+    // The anotoki family's kit and frame (@anotoki/lib/ui's pieces, @anotoki/lib/shell): its words the database's
+    // (anotoki.*), the theme the account's, the languages this app's (core/family-kit.ts).
     provideFamilyKit(),
     // The browser tab's title: a route's title is a translation key, worded in
     // the language on the page, before the app's name.

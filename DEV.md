@@ -21,19 +21,23 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.1"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.3"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.2.0/anotoki-lib-0.2.0.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.3.0/anotoki-lib-0.3.0.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
-ready (below, *While the site is not ready*); and the family's UI kit, its
-styles and its frame (the top bar, the theme switch, the language chooser,
-the menus, the questions, Manrope - `frontend/README.md`). The PHP half is
-at 0.1.0, the Angular half at 0.2.0 (0.1.1 and 0.2.0 changed only the
-Angular half: 0.1.1 made the pages a template, made only while the site is
-open; 0.2.0 marks that template - `anotokiSitePages` - gives the Migrations
-page an entry point of its own and adds the kit). **To update
+ready (below, *While the site is not ready*); its translations: the words'
+tables, the bundle the pages read, the admin panel's routes and its
+Translations and Languages pages, the command line (below, *The app's
+words*); and the family's UI kit, its styles and its frame (the top bar,
+the theme switch, the language chooser, the menus, the questions, Manrope -
+`frontend/README.md`). Both halves are at 0.3.0 (0.1.1 and 0.2.0 changed
+only the Angular half: 0.1.1 made the pages a template, made only while the
+site is open; 0.2.0 marked that template - `anotokiSitePages` - gave the
+Migrations page an entry point of its own and added the kit; 0.3.0 added
+the translations to both halves, gave each kit piece an entry point of its
+own and the kit its own class names). **To update
 it**, both halves together: read its `CHANGELOG.md` (while 0.x a minor
 version may break; a release that leaves a half unchanged may leave it
 where it is), then in `backend/` `composer update anotoki/lib
@@ -119,16 +123,19 @@ php migration.php [--status|--dry-run]          # apply pending migrations (setu
 php tools/progress.php --export=FILE --user=ID   # one person's progress as a file
 php tools/progress.php --import=FILE --user=ID   # an export into an account that has none (--replace: in place of what it has)
 php tools/progress.php --move=FROM --to=TO       # all of one IAM user's progress to another id
-php tools/translations.php --status              # the keys the frontend asks for against the database's
+php tools/translations.php --status              # the keys the frontend asks for against the database's (the library's command)
 php tools/translations.php --export sk [FILE]    # one language's strings as flat JSON (to the screen without FILE)
-php tools/translations.php --import sk FILE      # and back in, checked as a save in the browser is
+php tools/translations.php --import sk FILE      # and back in, checked as a save on the Translations page is
 php tools/build.php [--out=DIR]                  # the upload (see Building and deploying)
 ```
 
 The database is `migrations/piano_academy/NNN_name.sql`, applied in order by the
 anotoki family's engine - `anotoki/lib`'s `Migrator`, which every anotoki site
 uses (`api/migrations.php` sets it up: the folder, the app's one lock, and
-the rename of the first runner's `migrations(name)` column). Each file runs
+the rename of the first runner's `migrations(name)` column) - and after them
+the library's own set `anotoki_translations` (the words' tables as the
+library relies on them, and its 54 words; `vendor/anotoki/lib/php/migrations/translations/`,
+recorded in the same table as `anotoki_translations/<file>`). Each file runs
 whole or not at all, and the run stops at the first that fails. Never edit
 an applied migration; add the next number.
 
@@ -170,14 +177,31 @@ staff reword them in the browser, in the admin panel (`/admin`, English) -
 **Languages** (adding, changing and deleting a language: ADMIN). A key with
 no string shows as the key itself, on purpose.
 
-- `tools/translations.php --status` scans `frontend/src/app` for the keys it
-  asks for (`tools/translation_keys.php`: quoted literals of a key's shape,
-  `core/i18n/dynamic-keys.ts` for keys put together at run time) and compares
-  them with the database: exit 1 when a key is missing, has no English
-  string, or is asked for in a way the scan does not let through; it lists
-  keys nothing asks for. `php tests/run.php` runs the same scan against the
-  migrations. The tool refuses while a migration is pending, and what it
-  imports is written by nobody (`updated_by` null).
+The anotoki family's library reads and writes them, as on every anotoki
+site (`anotoki-lib` 0.3.0): `api/translations.php` wires its PHP half - the
+bundle `GET /api/translations/{code}`, the admin panel's
+`/api/admin/translations...` and `/api/admin/languages...` (snake_case, the
+IAM's format; the role checks are this app's, on the route groups) - and
+`frontend/src/app/core/i18n/site-translations.ts` its Angular half (the
+`TranslationService`, the pipes, the admin pages). The library's own words
+are keys of its own, `anotoki.*` (54: the bar's, the menus', the language
+chooser's and theme switch's, the dialogs', the status page's), in the same
+tables - its migration set `anotoki_translations` writes them, and an owner
+rewords them on the Translations page like any other.
+
+- `tools/translations.php --status` (the library's command) scans
+  `frontend/src/app` for the keys it asks for (`tools/translation_keys.php`
+  sets the library's `KeyScanner` up: quoted literals of a key's shape,
+  `core/i18n/dynamic-keys.ts` for keys put together at run time; `anotoki.*`
+  passed by) and compares them with the database: exit 1 when a key is
+  missing, has no English string, or is asked for in a way the scan does not
+  let through; it lists keys nothing asks for. `php tests/run.php` runs the
+  same scan against the migrations. The tool refuses while a migration is
+  pending, and what it imports is written by nobody (`updated_by` null).
+- Before the words' tables have their English (a fresh database before its
+  first Apply), the bundle answers 503 `translations_unavailable` and the
+  pages read the English kept in code; the admin pages say to apply the
+  pending update first.
 - **A new string** is a new migration in 003's layout (a test reads it as
   text): the key with a description, its English, its Slovak, and a closing
   gate. A string the shell shows while there are no strings at all (the
@@ -433,6 +457,25 @@ at the hand-over - one Apply takes all four. The family's words the app has
 no string of are the kit's own (English and informal Slovak), not in the
 database.
 
+**The words through the family's library (migration 009, 2026-10-11, not
+applied anywhere yet)**: the build carries `anotoki-lib` 0.3.0 - both halves
+(`vendor/anotoki/lib` and `@anotoki/lib`): the bundle, the admin panel's
+routes and pages and the command line are the library's, in the IAM's wire
+format (snake_case). 009 copies the app's strings of the 17 keys the family's
+kit said (`topbar.account`, `theme.light`, `language.button`...) under the
+library's keys (`anotoki.topbar.account`...) - every language, as the owner
+worded it, with who saved it and when - and deletes the 15 only the kit asked
+for (`common.loading` and `signIn.button` stay the app's too); its gate fails
+loudly if one string did not arrive as it was. The library's own two files
+(`anotoki_translations/001_languages_and_strings.sql`, which proves the
+tables' shape and makes nothing here, and `002_library_words.sql`, its 54
+words - written only where a key has no string, so 009's copies stay) run
+right after it, in the same Apply. It all goes with 005 to 008 at the
+hand-over - one Apply takes the five and the library's two. An export of
+the words made before 009 still names the keys it deleted, and an import
+takes a file whole or not at all: import such a file before 009, or take
+those keys out of it (their strings are under `anotoki.*` since).
+
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
 after release needs an `UPDATE` in its migration. The two databases (your
@@ -471,3 +514,4 @@ of the new id first, if there is one).
 | `tests/run.php` stops before any test | No `config/database.local.php` to borrow the PostgreSQL server from: run the setup first. |
 | "The database update ... failed" | A migration failed (`php migration.php` and the setup page name the file and the error; the Migrations page names the file and shows the error, word for word). Restore the dump or start the earlier version, which runs on the same database. A database that is not UTF8 is refused by 002 with a sentence saying so. |
 | A word on the page looks like `home.title` | That key has no string in the database: a migration is missing, or the key is new. `php tools/translations.php --status` names it. |
+| The Translations page says "Apply the pending database update first"; `/api/translations/en` answers 503 `translations_unavailable` | The words' tables, or their English, are not there yet - a fresh database before its first Apply: apply what is pending (the pages read the English kept in code meanwhile). |

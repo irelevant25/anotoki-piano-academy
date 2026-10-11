@@ -299,7 +299,7 @@ test('a database behind the code: the app does not start on it - the site is bei
         'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam(), $empty),
         'PIANO_FRONTEND_DIST' => test_frontend_build(),
     ], '/api/health');
-    assert_same(migrationFiles(), call($behind['base'], 'GET', '/api/health')['body']['pending']);
+    assert_same(array_map('migrationLabel', every_migration()), call($behind['base'], 'GET', '/api/health')['body']['pending'], 'the app\'s own, then the library\'s named with their set');
     foreach (['signed in' => bearer(test_token(LEARNER)), 'nobody' => []] as $who => $headers) {
         $state = call($behind['base'], 'GET', '/api/state', null, $headers);
         assert_same([503, ['code' => 'update_pending', 'message' => 'The site is being updated. Try again in a few minutes.']], [$state['status'], $state['body']], $who);

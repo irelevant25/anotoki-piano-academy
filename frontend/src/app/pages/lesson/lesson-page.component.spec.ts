@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { MockInstance } from 'vitest';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { PathProgress, PathStep, SessionInput } from '../../core/music/music.types';
 import { PathService } from '../../core/music/path.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
-import { provideTestTranslations } from '../../core/testing/test-translations';
 import { LessonPageComponent } from './lesson-page.component';
 import { StepOutcome } from './step-outcome';
 import { DrillStepComponent } from './steps/drill-step.component';
@@ -232,7 +232,7 @@ describe('Lesson page: its words are keys, and what it stores stays as it was', 
     await finish(40);
     expect(text('.result-message')).toBe('Na pokračovanie treba 80 %. Skús to ešte raz – každým pokusom to ide ľahšie.');
 
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
     expect(text('.lesson-title .tag')).toBe('Right hand · Unit 5');
     expect(text('h2')).toBe('B and high C — Note drill');

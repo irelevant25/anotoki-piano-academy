@@ -2,12 +2,11 @@ import { ChangeDetectionStrategy, Component, computed, inject, viewChild } from 
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
-import { TopBarComponent as FamilyTopBarComponent, TopBarBrand, TopBarLink, TopBarMenuItem, TopBarMenuNote, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
+import { TopBarBrand, TopBarComponent as FamilyTopBarComponent, TopBarLink, TopBarMenuItem, TopBarMenuNote, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
+import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { MidiPanelComponent } from '../../ui/midi-panel/midi-panel.component';
@@ -89,8 +88,12 @@ export const NAME_BAR_MIN = PHONE_BAR_MAX + 201;
  * chooser and no piano, and "Back to Piano Academy" in the person's menu.
  * The way into it is in the person's menu for the staff, while the site is
  * ready. Every word a learner meets here is a key, and in kept-english.ts too
- * (the bar is drawn while the app has no strings); the family's own words are
- * the database's where this app has them (core/i18n/kit-words.ts).
+ * (the bar is drawn while the app has no strings) - but the family's own words:
+ * the bar's, and the person's role and menu items, worded as every anotoki
+ * site words them ("Administrator", "Your anotoki account", "Admin panel"),
+ * are the library's keys in the database (anotoki.topbar.*: an owner's
+ * rewording reaches them), built into the library for when there is no bundle
+ * - never shown as a key.
  */
 @Component({
   selector: 'app-top-bar',
@@ -162,7 +165,7 @@ export class TopBarComponent {
     return {
       name: name ?? this.i18n.t('account.signedIn'),
       email: email && email !== name ? email : null,
-      role: this.auth.isAdmin() ? this.i18n.t('topbar.roleAdmin') : this.auth.isStaff() ? this.i18n.t('topbar.roleEditor') : null,
+      role: this.auth.isAdmin() ? this.i18n.t('anotoki.topbar.roleAdmin') : this.auth.isStaff() ? this.i18n.t('anotoki.topbar.roleEditor') : null,
     };
   });
 
@@ -170,12 +173,12 @@ export class TopBarComponent {
   protected readonly menuItems = computed<TopBarMenuItem[]>(() => {
     const items: TopBarMenuItem[] = [];
     const account = this.auth.signedIn() ? this.auth.accountUrl() : null;
-    if (account) items.push({ id: 'account', label: this.i18n.t('topbar.account'), icon: 'user', href: account, newTab: true });
+    if (account) items.push({ id: 'account', label: this.i18n.t('anotoki.topbar.account'), icon: 'user', href: account, newTab: true });
     if (this.auth.isStaff()) {
       if (this.inAdmin()) {
         items.push({ id: 'back', label: 'Back to Piano Academy', icon: 'arrowLeft', path: '/' });
       } else if (!this.site.blocked()) {
-        items.push({ id: 'admin', label: this.i18n.t('topbar.admin'), icon: 'shield', path: '/admin' });
+        items.push({ id: 'admin', label: this.i18n.t('anotoki.topbar.admin'), icon: 'shield', path: '/admin' });
       }
     }
     return items;

@@ -1,9 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { TranslatePipe, TranslatePluralPipe, TranslationParams, TranslationService } from '@anotoki/lib/translations';
 import { ConfirmOptions, ConfirmService } from '@anotoki/lib/ui/dialog';
 import { ApiError, ApiService, EXPORT_LIMIT, ImportPreview, ImportResult, ProgressCounts } from '../../../core/api/api.service';
-import { TranslatePipe } from '../../../core/i18n/translate.pipe';
-import { TranslatePluralPipe } from '../../../core/i18n/translate-plural.pipe';
-import { TranslationParams, TranslationService } from '../../../core/i18n/translation.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
 import { saveFile } from '../../../core/util/save-file';
 

@@ -117,6 +117,32 @@ button's three spoken keys deleted, four descriptions reworded) is written
 whole and final and goes with 005, 006 and 007 at the hand-over. In What's
 new's 0.4.0 (unreleased): the font, the look and the three-way switch.
 
+**2026-10-11: the words through the family's library - `anotoki-lib` 0.3.0**
+(both halves; the owner's decisions, `docs/decisions.md`). The words' three
+tables stay as they are, and one implementation reads and writes them for
+every anotoki site: the PHP half's `Anotoki\Lib\Translations`
+(`api/translations.php` wires it: the bundle, the admin panel's routes behind
+this app's own role checks, `tools/translations.php` - the library's command,
+same name and flags) with its migration set `anotoki_translations` (after
+this app's own: its 001 proves the tables' shape, its 002 adds the library's
+54 words, `anotoki.*`), and the Angular half's `@anotoki/lib/translations`
+(`TranslationService`, the pipes, the kit's words and the bar's language
+chooser, the status page's words, the guard) and `/admin` (the Translations
+and Languages pages), wired in `core/i18n/site-translations.ts`. The wire
+format is the IAM's, snake_case (`native_name`, `sort_order`). The kit's
+words are the library's keys now: migration **009** copies this app's
+strings of the 17 keys the kit said (`core/i18n/kit-words.ts`, gone) under
+`anotoki.*` - every language, the owner's wording, who saved each and when -
+and deletes the 15 only the kit asked for; it goes with 005 to 008 at the
+hand-over, the library's two files right after it in the same Apply. Every
+kit piece comes from its own entry point, the kit's class names are its own
+(`anotoki-top-bar__person-button`...), and `styles.scss`'s plain-value
+shadows are gone (0.3.0 writes them). The Stats page is lazy now (the first
+load 482.7 kB, under its 500 kB budget), and the status page reads in the
+page's own language - English on an admin address - with the database's
+words in it. No line in What's new: a learner sees nothing new (the admin
+pages are the staff's).
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -210,9 +236,10 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the admin panel's People and Migrations - the family's page takes it as its
   `formatDate`, `localDateText()`);
   the language chooser (the family's) saves a signed-in person's choice
-  (`TranslationService.choose()` -> `saveToAccount()`: a language the
+  (the family's `TranslationService.setLanguage()`, its `account.save` the
+  SDK's `savePreferences()` - `core/i18n/site-translations.ts`: a language the
   IAM does not offer stays the site's own for the visit, silently; another
-  refusal, `access_denied` too, is `language.notSaved`). **Which language**
+  refusal, `access_denied` too, is `anotoki.language.notSaved`). **Which language**
   (the family's order, the survey's the reference): signed in with
   preferences, this tab's `?lang=` and a choice made on the page this visit,
   then the account's `locale` (when the site has it), then this device's
@@ -250,8 +277,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   message}` - `setup: "/setup.php"` only while `storage/installed.lock` is not
   there (a real host's install writes it; once installed the setup page is
   never offered again); a migration waiting is `503 {code:
-  "update_pending"}` (`Retry-After: 60`) everywhere but `SITE_OPEN_PATHS` -
-  `/api/auth/config`, `/api/translations/{code}`, `/api/health`,
+  "update_pending"}` (`Retry-After: 60`) everywhere but `siteOpenPaths()` -
+  `/api/auth/config`, `/api/translations/{code}` (the library's
+  `TranslationsRoutes::openPath()`), `/api/health`,
   `/api/admin/migrations...` - so somebody can sign in, the pages have their
   words and an ADMIN reaches Apply. In the browser `<anotoki-site-gate>` -
   the shell's view its marked template (`<ng-template anotokiSitePages>`),
@@ -341,37 +369,53 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the staff's to write (`/api/admin/...`). `setup.php` stays parseable by
   PHP 7.4 (it must be able to say "PHP is too old"); the rest needs 8.2.
 - **The app's words live in the database** (`languages`, `translation_keys`,
-  `translations`; migrations 002 to 008) and are edited in the browser,
-  on the admin panel's Translations and Languages pages (English, not
-  translated; EDITOR rewords, ADMIN also keeps the languages). English
-  and Slovak, English the fallback key by key; **Slovak is informal ("ty")**. A
-  page asks by key (`translate` / `translatePlural` pipes, `TranslationService`
-  in `core/i18n/`), and a key with no string **shows the key on purpose**. A
-  new or reworded string is a new migration with the key, its English and its
-  Slovak (003's layout - a test reads the file); state and stored sessions hold
-  keys and ids, never sentences. The shell's English is also kept in code
-  (`core/i18n/kept-english.ts`) for when there is no bundle at all. The
-  family's components say this app's strings where it has them
-  (`core/i18n/kit-words.ts`, the kit's `lookup` - written by their two parts,
-  so the key scan never reads a kit key as one of this app's) and their own
-  built-in English and informal Slovak for the rest. Note
+  `translations`; migrations 002 to 009, then the library's set
+  `anotoki_translations`) and are edited in the browser, on the admin panel's
+  Translations and Languages pages (the family's, from
+  `@anotoki/lib/translations/admin`; English, not translated; EDITOR rewords,
+  ADMIN also keeps the languages). One implementation for every anotoki site,
+  the library's (`Anotoki\Lib\Translations`, wired in `api/translations.php`;
+  `@anotoki/lib/translations`, wired in `core/i18n/site-translations.ts`); one
+  wire format, the IAM's (snake_case). The permissions stay this app's: the
+  strings' routes for `ROLES_STAFF`, the languages' for `ROLE_ADMIN`, on the
+  route groups. English and Slovak, English the fallback key by key; **Slovak
+  is informal ("ty")**. A page asks by key (the `translate` / `translatePlural`
+  pipes, `TranslationService`), and a key with no string **shows the key on
+  purpose**. A new or reworded string is a new migration with the key, its
+  English and its Slovak (003's layout - a test reads the file); state and
+  stored sessions hold keys and ids, never sentences. The shell's English is
+  also kept in code (`core/i18n/kept-english.ts`) for when there is no bundle
+  at all. The family's components read the library's own keys, `anotoki.*`
+  (`forKit()`): the database's string - this app's wording, which 009 copied
+  there, or the owner's rewording - else the library's built-in English and
+  informal Slovak (`KEPT_LIBRARY_ENGLISH`: the theme switch's "Theme: light"
+  while no bundle is in memory); a library key never shows as a key, and the
+  key scan (the library's `KeyScanner`, set up in `tools/translation_keys.php`)
+  passes `anotoki.` by. A site migration never depends on a library file and
+  never counts `anotoki.*` keys. Note
   names (C D E F G A B, B in Slovak too), song titles, MIDI device names and
   the changelog's entries are never translated.
 - **Migrations are the schema**: `backend/migrations/piano_academy/NNN_name.sql`,
   applied by the anotoki family's engine - `anotoki/lib`'s `Migrator`, set up
-  in `api/migrations.php` (the set, `DATABASE_UPDATE_LOCK`, the first
-  runner's `migrations(name)` adopted in its `prepare` hook); the bookkeeping
-  table is the one it always was. Never edit an applied one. The tests build
-  a database as it stood at some point with `test_migrate()` /
+  in `api/migrations.php` (`migrationSets()`: this app's set, then the
+  library's `anotoki_translations` - recorded in the same table as
+  `anotoki_translations/<file>`, `migrationLabel()` -, `DATABASE_UPDATE_LOCK`,
+  the first runner's `migrations(name)` adopted in its `prepare` hook); the
+  bookkeeping table is the one it always was. Never edit an applied one. The
+  tests build a database as it stood at some point with `test_migrate()` /
   `test_migrate_before()` (`tests/lib.php`: the files after the point held
-  back as drafts).
+  back as drafts, the library's set too unless the build goes to the end).
 - **The family's library** (`anotoki-lib`, one version for both halves): PHP
-  `anotoki/lib` 0.1.0 (Composer's VCS repository on GitHub, committed in
-  `vendor/`), Angular `@anotoki/lib` 0.2.0 (the GitHub release's tarball, in
-  both lock files; 0.1.1 and 0.2.0 changed only the Angular half). Never
+  `anotoki/lib` 0.3.0 (Composer's VCS repository on GitHub, committed in
+  `vendor/`), Angular `@anotoki/lib` 0.3.0 (the GitHub release's tarball, in
+  both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
-  may leave it where it is). Its components take this app's colours from the
+  may leave it where it is). Each kit piece is imported from its own entry
+  point (`@anotoki/lib/ui/config`, `/ui/icon`, `/ui/dialog`...; never the
+  `@anotoki/lib/ui` barrel, which would put the whole kit in the first load),
+  and a spec reads the kit's markup by the kit's own class names
+  (`anotoki-<component>__<part>`, `--<state>`). Its components take this app's colours from the
   `--anotoki-*` tokens `styles.scss` writes (`anotoki.root()`); its gate
   takes the shell's view as the template marked `anotokiSitePages` (content
   given as it is would be made behind the status page too).
@@ -394,7 +438,7 @@ composer start                            # dev API (php -S localhost:8300 route
 php tests/run.php                         # every PHP test, throwaway databases
 php migration.php [--status|--dry-run]    # migrations for the configured database
 php tools/progress.php --export=FILE --user=ID   # also --import=FILE --user=ID [--replace], --move=FROM --to=TO
-php tools/translations.php --status       # the keys the frontend asks for against the database's (exit 1 on a gap)
+php tools/translations.php --status       # the library's command: the keys the frontend asks for against the database's (exit 1 on a gap)
 php tools/translations.php --export sk [FILE]   # also --import sk FILE: one language's strings as flat JSON
 php tests/tools/testdb.php template --fresh     # rebuild the tests' template after editing an unreleased migration
 php tools/build.php                       # the upload -> ../dist/ (builds the frontend too)

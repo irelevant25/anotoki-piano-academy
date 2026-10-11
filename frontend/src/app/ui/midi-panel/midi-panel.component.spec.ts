@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { provideFamilyKit } from '../../core/family-kit';
 import { MidiService } from '../../core/midi/midi.service';
 import { provideTestKit } from '../../core/testing/test-kit';
-import { provideTestTranslations } from '../../core/testing/test-translations';
 import { MidiPanelComponent } from './midi-panel.component';
 
 const SLOVAK = {

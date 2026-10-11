@@ -1,9 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { TranslationService } from '@anotoki/lib/translations';
 import { ApiError, ApiService, VISITOR_OWNER, VisitorMove } from '../api/api.service';
 import { AuthService, NotSetUpError } from '../auth/auth.service';
 import { VisitorKey } from '../auth/visitor-key';
-import { TranslationService } from '../i18n/translation.service';
 import { MidiService } from '../midi/midi.service';
 import { AppState } from '../music/music.types';
 import { ProgressStore } from './progress-store.service';
@@ -61,11 +61,13 @@ export const MOVE_RETRY_MAX_MS = 5000;
  * that comes back in the middle of practising (the sign-in listener below -
  * no injection circle: VisitorKey knows only AuthService).
  *
- * Between the two comes the language and its strings (TranslationService):
- * once the sign-in settings are read and before anybody is asked to sign in,
- * so the sign-in card is in the learner's language. Where the settings could
- * not be read nothing is asked for - the shell words itself from the strings
- * kept from the last visit, or from the English kept in code.
+ * Between the two comes the language and its strings (the family's
+ * TranslationService, @anotoki/lib/translations): once the sign-in settings
+ * are read and before anybody is asked to sign in, so the sign-in card is in
+ * the learner's language. Where the settings could not be read nothing is
+ * asked for (the service's `canAsk` is AuthService.settingsRead) - the shell
+ * words itself from the strings kept from the last visit, or from the English
+ * kept in code.
  *
  * While the site is not ready - an update waits, or its database is out of
  * reach: SiteStatus, asked by the app's initializer before this starts, or
@@ -151,8 +153,9 @@ export class BootService {
       await this.auth.init();
     } catch (error) {
       // Nothing can be asked for: the strings kept from the last visit when
-      // there are any, the English kept in code otherwise - and no request.
-      await this.i18n.init(false);
+      // there are any, the English kept in code otherwise - and no request
+      // (the settings were not read: core/i18n/site-translations.ts's canAsk).
+      await this.i18n.init();
       if (error instanceof NotSetUpError) {
         this.status.set('not-set-up');
         return;
@@ -165,7 +168,7 @@ export class BootService {
     // The language and its strings, before the signed-in test: the sign-in
     // card has them too. It never rejects - a bundle that does not come is
     // "no bundle", and the start goes on.
-    await this.i18n.init(true);
+    await this.i18n.init();
 
     // The site is not ready: the sign-in is in place, the progress is not asked for (see the class).
     if (this.site.blocked()) {
@@ -309,15 +312,16 @@ export class BootService {
 
   /**
    * To the IAM, in the language the app is read in - so its pages open in the
-   * same one. Only a language that came with a bundle is passed: while there
-   * is none the page is in the kept English, which nobody chose, and saying
-   * so would override what the IAM knows about the person.
+   * same one. Only a language that came with a bundle is passed (the
+   * service's signInLanguage): while there is none the page is in the kept
+   * English, which nobody chose, and saying so would override what the IAM
+   * knows about the person.
    */
   async signIn(): Promise<void> {
     await this.beforeSignIn();
     this.leaving = true;
     // Could not start: the sign-in card words why (AuthService.signInFailure), and the page stays.
-    if (!(await this.auth.signIn(undefined, this.i18n.ready() ? this.i18n.language() : undefined))) {
+    if (!(await this.auth.signIn(undefined, this.i18n.signInLanguage()))) {
       this.leaving = false;
     }
   }

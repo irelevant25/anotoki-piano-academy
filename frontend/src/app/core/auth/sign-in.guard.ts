@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateChildFn, CanActivateFn, Router } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
-import { TranslationService } from '../i18n/translation.service';
+import { TranslationService } from '@anotoki/lib/translations';
 import { BootService } from '../state/boot.service';
 import { AuthService } from './auth.service';
 
@@ -80,7 +80,7 @@ function guard(visitorsWelcome: boolean): boolean | Promise<boolean> {
   // The IAM's pages in the language the person reads here - only one that came with a bundle (see BootService.signIn()).
   const returnTo = navigation ? navigation.extractedUrl.toString() : location.pathname + location.search + location.hash;
   return boot.beforeSignIn().then(() =>
-    auth.signIn(returnTo, i18n.ready() ? i18n.language() : undefined).then((started) => {
+    auth.signIn(returnTo, i18n.signInLanguage()).then((started) => {
       // On the way to the IAM: nothing of this page is drawn. Could not start: through, to the card that says why.
       return !started && auth.signInFailure() !== null;
     }),

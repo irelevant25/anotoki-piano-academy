@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, viewChild } from '@angular/core';
+import { FALLBACK_LANGUAGE, TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ChangelogService } from '../../core/changelog/changelog.service';
 import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { FALLBACK_LANGUAGE, TranslationService } from '../../core/i18n/translation.service';
 
 /**
  * What is new, release by release (public/changelog.json) - opened from the

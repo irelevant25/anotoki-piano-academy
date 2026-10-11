@@ -1,12 +1,11 @@
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 import { adminSignInGuard, signInGuard } from './core/auth/sign-in.guard';
 import { BootService } from './core/state/boot.service';
 import { adminGuard } from './pages/admin/admin.guard';
-import { unsavedChangesGuard } from './pages/admin/unsaved-changes.guard';
 import { AuthCallbackPageComponent } from './pages/auth-callback/auth-callback-page.component';
 import { HomePageComponent } from './pages/home/home-page.component';
-import { StatsPageComponent } from './pages/stats/stats-page.component';
 
 /**
  * A page that draws notation opens once VexFlow's fonts can draw - otherwise
@@ -47,18 +46,20 @@ export const routes: Routes = [
     loadComponent: () => import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: () => (inject(BootService).onlyMigrations() ? 'migrations' : 'translations') },
+      // The anotoki family's pages of the words, in an entry point of their own (@anotoki/lib/translations/admin -
+      // never in the first load); who may use them is this app's (core/i18n/site-translations.ts: `admin.allows`).
       {
         path: 'translations',
         title: 'Translations',
-        canDeactivate: [unsavedChangesGuard],
-        loadComponent: () => import('./pages/admin/translations/translations.component').then((m) => m.TranslationsComponent),
+        canDeactivate: [anotokiUnsavedChangesGuard],
+        loadComponent: () => import('@anotoki/lib/translations/admin').then((m) => m.TranslationsPageComponent),
       },
       {
         path: 'languages',
         title: 'Languages',
         canActivate: [adminGuard],
-        canDeactivate: [unsavedChangesGuard],
-        loadComponent: () => import('./pages/admin/languages/languages.component').then((m) => m.LanguagesComponent),
+        canDeactivate: [anotokiUnsavedChangesGuard],
+        loadComponent: () => import('@anotoki/lib/translations/admin').then((m) => m.LanguagesPageComponent),
       },
       {
         path: 'people',
@@ -113,7 +114,13 @@ export const routes: Routes = [
         title: 'title.songs',
         loadComponent: withNotation(() => import('./pages/songs/song-player-page.component').then((m) => m.SongPlayerPageComponent)),
       },
-      { path: 'stats', component: StatsPageComponent, title: 'title.stats' },
+      // A chunk of its own, as the practice pages: the first load stays under its 500 kB budget (docs/decisions.md,
+      // 2026-10-11). No notation on it, so no wait for VexFlow's fonts.
+      {
+        path: 'stats',
+        title: 'title.stats',
+        loadComponent: () => import('./pages/stats/stats-page.component').then((m) => m.StatsPageComponent),
+      },
       { path: '**', redirectTo: '' },
     ],
   },

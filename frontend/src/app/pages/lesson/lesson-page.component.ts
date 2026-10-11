@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
+import { TranslatePipe, TranslationParams, TranslationService } from '@anotoki/lib/translations';
 import { phaseTitle, stepShort, stepTitle, unitTitle } from '../../core/i18n/path-words';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { TranslationParams, TranslationService } from '../../core/i18n/translation.service';
 import { PathStep, StepRecord } from '../../core/music/music.types';
 import { PASS_ACCURACY, PathService, STEP_TYPES } from '../../core/music/path.service';
 import { ProgressStore } from '../../core/state/progress-store.service';

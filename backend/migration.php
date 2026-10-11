@@ -11,10 +11,11 @@ declare(strict_types=1);
  *   php migration.php --status     say what has run and what has not
  *   php migration.php --dry-run    say what would be applied, and apply nothing
  *
- * The migrations are the schema (migrations/piano_academy/NNN_name.sql): a
- * database is what you get by applying 001 and everything after it in order.
- * A file recorded as applied is never run again, so editing one that has been
- * applied changes nothing where it ran - write another instead.
+ * The migrations are the schema (migrations/piano_academy/NNN_name.sql, then
+ * the family's library's set of the words, anotoki_translations - named so
+ * here): a database is what you get by applying 001 and everything after it
+ * in order. A file recorded as applied is never run again, so editing one
+ * that has been applied changes nothing where it ran - write another instead.
  *
  * The connection is config/database.local.php, which setup.php writes. The
  * engine is the anotoki family's (anotoki/lib, api/migrations.php): it takes
@@ -76,8 +77,14 @@ try {
     exit(1);
 }
 
-$files = $migrator->files(migrationSet());
-$pending = array_column($status['pending'], 'name');
+// Every set's files, in the order they run: the app's own, then the library's (named with their set).
+$files = [];
+foreach (migrationSets() as $set) {
+    foreach ($migrator->files($set) as $file) {
+        $files[] = migrationLabel(['set' => $set->name, 'name' => $file]);
+    }
+}
+$pending = array_map('migrationLabel', $status['pending']);
 
 if ($statusOnly) {
     foreach ($files as $file) {
@@ -85,7 +92,7 @@ if ($statusOnly) {
         echo '  ' . ($done ? colour('green', 'v') : colour('yellow', '.')) . ' ' . $file . ($done ? '' : colour('yellow', '   pending')) . "\n";
     }
     foreach ($status['missing'] as $file) {
-        echo '  ' . colour('red', '?') . ' ' . $file['name'] . colour('red', '   recorded as applied, but the file is not here') . "\n";
+        echo '  ' . colour('red', '?') . ' ' . migrationLabel($file) . colour('red', '   recorded as applied, but the file is not here') . "\n";
     }
     printf("  %d applied, %d pending\n", count($status['applied']), count($pending));
     exit(0);
@@ -115,11 +122,11 @@ if ($result['busy']) {
 }
 
 foreach ($result['applied'] as $file) {
-    echo '  ' . $file['name'] . ' ... ' . colour('green', 'done') . "\n";
+    echo '  ' . migrationLabel($file) . ' ... ' . colour('green', 'done') . "\n";
 }
 
 if ($result['failed'] !== null) {
-    echo '  ' . $result['failed']['name'] . ' ... ' . colour('red', 'FAILED') . "\n";
+    echo '  ' . migrationLabel($result['failed']) . ' ... ' . colour('red', 'FAILED') . "\n";
     say('red', '    ' . str_replace("\n", "\n    ", (string) $result['error']));
     say('yellow', '    Nothing from this file was applied. The migrations before it stand.');
     exit(1);

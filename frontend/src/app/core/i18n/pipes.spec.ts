@@ -1,13 +1,11 @@
 import { WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { TranslatePipe, TranslatePluralPipe, TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { type AnotokiPreferences } from '../auth/anotoki-auth';
 import { AuthService } from '../auth/auth.service';
-import { provideTestTranslations } from '../testing/test-translations';
 import { formatClock, formatDatePattern } from './date-patterns';
 import { LocalDatePipe } from './local-date.pipe';
-import { TranslatePluralPipe } from './translate-plural.pipe';
-import { TranslatePipe } from './translate.pipe';
-import { TranslationService } from './translation.service';
 
 const ENGLISH = {
   'common.close': 'Close',
@@ -73,7 +71,7 @@ describe('the translate pipes', () => {
     const { i18n, translate, plural } = pipes('sk');
     expect(translate.transform('common.close')).toBe('Zavrieť');
     expect(plural.transform('home.due', 3)).toBe('Na zopakovanie čakajú 3 noty.');
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     expect(translate.transform('common.close')).toBe('Close');
     expect(plural.transform('home.due', 3)).toBe('3 notes are due for review.');
   });
@@ -109,7 +107,7 @@ describe('the localDate pipe', () => {
   it('follows the language without a new value', async () => {
     const { i18n, date } = pipes('sk');
     expect(date.transform('2026-10-20', 'day')).toBe('20. októbra 2026');
-    expect(await i18n.setLanguage('en', false)).toBe(true);
+    expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     expect(date.transform('2026-10-20', 'day')).toBe('20 October 2026');
   });
 

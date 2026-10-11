@@ -78,6 +78,15 @@ export class AuthService {
    */
   readonly loginRequired = this._loginRequired.asReadonly();
 
+  private readonly _settingsRead = signal(false);
+  /**
+   * The backend's sign-in settings were read this page load: it answers, and
+   * is set up. Until then - and for good when it is not set up, or out of
+   * reach - nothing else is asked of it by what only reads (the app's words:
+   * core/i18n/site-translations.ts's `canAsk`).
+   */
+  readonly settingsRead = this._settingsRead.asReadonly();
+
   readonly signedIn = computed(() => this.authenticated() && this.user() !== null);
   /** This app's roles, from the IAM's token (its `roles` for this client id). */
   readonly roles = computed(() => (this.signedIn() ? (this.user()?.roles ?? []).map((role) => String(role).toUpperCase()) : []));
@@ -127,6 +136,7 @@ export class AuthService {
     }
     // Only an explicit false lets visitors in: anything else - missing, a text - requires a sign-in.
     this._loginRequired.set(config?.loginRequired !== false);
+    this._settingsRead.set(true);
 
     this.client = createAuth({
       issuer: String(config.issuer ?? ''),

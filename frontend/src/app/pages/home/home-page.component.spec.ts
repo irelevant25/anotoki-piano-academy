@@ -1,10 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { TranslationService } from '../../core/i18n/translation.service';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { NoteState, PathProgress, ProgressMap } from '../../core/music/music.types';
 import { PathService } from '../../core/music/path.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
-import { provideTestTranslations } from '../../core/testing/test-translations';
 import { HomePageComponent } from './home-page.component';
 
 /** Every string the home page asks for: its own, the path's, and the four modes of the navigation. */
@@ -281,7 +281,7 @@ describe('Home page: the path in the learner’s words', () => {
     expect(all('.unit:first-child .step-chip').slice(0, 2)).toEqual(['✓ Zoznámenie', '✓ Precvičovanie 85 %']);
     expect(all('.unit-head strong')[4]).toBe('Lekcia 5 · B a vysoké C');
 
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
     expect(all('.unit:first-child .step-chip').slice(0, 2)).toEqual(['✓ Meet', '✓ Drill 85%']);
     expect(all('.unit-head strong')[4]).toBe('Unit 5 · B and high C');

@@ -4,9 +4,9 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { BootService, BootStatus } from '../state/boot.service';
 import { provideSiteMigrations } from '../state/site-migrations';
-import { provideTestTranslations } from '../testing/test-translations';
 import { AuthService, SignInFailure } from './auth.service';
 import { adminSignInGuard, signInGuard } from './sign-in.guard';
 

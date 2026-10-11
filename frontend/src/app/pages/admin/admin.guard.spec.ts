@@ -1,11 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRouteSnapshot, Route, Router, RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
+import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 import { routes } from '../../app.routes';
 import { AuthService } from '../../core/auth/auth.service';
 import { adminSignInGuard, signInGuard } from '../../core/auth/sign-in.guard';
+import { provideSiteTranslations } from '../../core/i18n/site-translations';
 import { BootService } from '../../core/state/boot.service';
 import { adminGuard } from './admin.guard';
-import { unsavedChangesGuard } from './unsaved-changes.guard';
 
 describe('adminGuard', () => {
   /** The guard's answer for a person as AuthService describes them. */
@@ -46,6 +47,17 @@ describe('the routes: every page signed in, the admin panel split by role', () =
     expect(top('auth/callback').canActivateChild).toBeUndefined();
   });
 
+  it('loads Stats in a chunk of its own, as the practice pages - out of the first load, under the learners\' guard, its title a key', async () => {
+    const learner = routes.find((candidate) => candidate.path === '' && candidate.children)!;
+    const stats = learner.children!.find((child) => child.path === 'stats')!;
+
+    expect(stats.component).toBeUndefined();
+    expect(stats.canActivate).toBeUndefined();
+    expect(stats.title).toBe('title.stats');
+    // (The build may put a mark before a class's name.)
+    expect(((await stats.loadComponent!()) as { name: string }).name).toMatch(/StatsPageComponent$/);
+  });
+
   it('opens Translations for the staff, and Languages, People and Migrations for ADMIN alone', () => {
     expect(admin('translations').canActivate).toBeUndefined();
     for (const path of ['languages', 'people', 'migrations']) {
@@ -67,9 +79,9 @@ describe('the routes: every page signed in, the admin panel split by role', () =
     expect(found.title).toBe(title);
   });
 
-  it('asks before Translations and Languages are left with something not saved', () => {
-    expect(admin('translations').canDeactivate).toEqual([unsavedChangesGuard]);
-    expect(admin('languages').canDeactivate).toEqual([unsavedChangesGuard]);
+  it("asks before Translations and Languages are left with something not saved: the family's guard (@anotoki/lib/translations)", () => {
+    expect(admin('translations').canDeactivate).toEqual([anotokiUnsavedChangesGuard]);
+    expect(admin('languages').canDeactivate).toEqual([anotokiUnsavedChangesGuard]);
   });
 
   it('sends the old addresses on: the owner\'s pages to the admin panel, the Database page to Migrations', () => {
@@ -96,29 +108,49 @@ describe('the routes: every page signed in, the admin panel split by role', () =
     expect(paths.indexOf('languages')).toBeLessThan(paths.indexOf(''));
   });
 
-  it('load the layout and the four pages - the Migrations page the anotoki family\'s (@anotoki/lib/migrations)', async () => {
+  it("load the layout and the four pages - Translations and Languages the anotoki family's (@anotoki/lib/translations/admin), Migrations too (@anotoki/lib/migrations)", async () => {
     const names = await Promise.all([top('admin'), admin('translations'), admin('languages'), admin('people'), admin('migrations')].map(async (route) => ((await route.loadComponent!()) as { name: string }).name));
 
-    expect(names.join(' ')).toMatch(/AdminLayoutComponent.*TranslationsComponent.*LanguagesComponent.*PeopleComponent.*MigrationsPageComponent/);
+    expect(names.join(' ')).toMatch(/AdminLayoutComponent.*TranslationsPageComponent.*LanguagesPageComponent.*PeopleComponent.*MigrationsPageComponent/);
   });
 
-  it('ask the page itself whether it may be left', async () => {
-    const page = { canLeave: vi.fn().mockReturnValue(false) };
+  describe('the guard as this app wires it (core/i18n/site-translations.ts: who is signed in)', () => {
+    let person: string | null;
+    const leave = (page: { canLeave(): boolean } | null): unknown =>
+      TestBed.runInInjectionContext(() => anotokiUnsavedChangesGuard(page, {} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, {} as RouterStateSnapshot));
 
-    expect(unsavedChangesGuard(page, {} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, {} as RouterStateSnapshot)).toBe(false);
-    expect(page.canLeave).toHaveBeenCalledTimes(1);
-  });
+    beforeEach(() => {
+      person = '7';
+      const auth = { user: () => null, signedIn: () => person !== null, preferences: () => null, settingsRead: () => true, userKey: () => person, isStaff: () => true, isAdmin: () => true };
+      TestBed.configureTestingModule({ providers: [provideSiteTranslations(), { provide: AuthService, useValue: auth }] });
+    });
 
-  it('let the way out free when the route is active but its page was never drawn - a boot card in its place', () => {
-    // The router asks about the outlet's component, and an outlet that was not drawn has none.
-    expect(unsavedChangesGuard(null, {} as ActivatedRouteSnapshot, {} as RouterStateSnapshot, {} as RouterStateSnapshot)).toBe(true);
+    it('asks the page itself whether it may be left', () => {
+      const page = { canLeave: vi.fn().mockReturnValue(false) };
+
+      expect(leave(page)).toBe(false);
+      expect(page.canLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks nothing once nobody is signed in any more: the page is on its way to the sign-in, and its drafts keep what was typed', () => {
+      const page = { canLeave: vi.fn().mockReturnValue(false) };
+      person = null;
+
+      expect(leave(page)).toBe(true);
+      expect(page.canLeave).not.toHaveBeenCalled();
+    });
+
+    it('lets the way out free when the route is active but its page was never drawn - a boot card in its place', () => {
+      // The router asks about the outlet's component, and an outlet that was not drawn has none.
+      expect(leave(null)).toBe(true);
+    });
   });
 
   it('let a navigation away from such a route happen: the router asks the guard about null', async () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
-          { path: 'translations', children: [], canDeactivate: [unsavedChangesGuard] },
+          { path: 'translations', children: [], canDeactivate: [anotokiUnsavedChangesGuard] },
           { path: 'sheet', children: [] },
         ]),
       ],

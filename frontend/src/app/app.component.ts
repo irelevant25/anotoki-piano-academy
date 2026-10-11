@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
+import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
 import { LoadErrorComponent } from './boot/load-error/load-error.component';
@@ -11,8 +12,6 @@ import { AuthService, SignInFailure } from './core/auth/auth.service';
 import { VisitorKey } from './core/auth/visitor-key';
 import { ChangelogService } from './core/changelog/changelog.service';
 import { signInFailureKey, signInFailureParams } from './core/i18n/error-text';
-import { TranslatePipe } from './core/i18n/translate.pipe';
-import { TranslationService } from './core/i18n/translation.service';
 import { VISITOR_KEEP_DAYS, VISITOR_WORDS } from './core/i18n/visitor-words';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';

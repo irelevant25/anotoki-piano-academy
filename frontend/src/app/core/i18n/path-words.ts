@@ -1,6 +1,6 @@
+import { TranslationService } from '@anotoki/lib/translations';
 import { Phase, StepType, Unit } from '../music/music.types';
 import { DYNAMIC_KEYS } from './dynamic-keys';
-import { TranslationService } from './translation.service';
 
 /**
  * The learning path's own sentences, in the learner's language: a phase's

@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ApiError, ApiService, EXPORT_LIMIT, ImportPreview } from '../../../core/api/api.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
 import { TestQuestions, drawTestQuestions, provideTestKit } from '../../../core/testing/test-kit';
-import { provideTestTranslations } from '../../../core/testing/test-translations';
 import { OwnProgressComponent, ownProgressProblem } from './own-progress.component';
 
 /** The card's Slovak, as migration 004 writes it. */

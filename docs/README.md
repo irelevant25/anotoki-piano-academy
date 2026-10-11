@@ -7,7 +7,7 @@ frontend's. These pages are for changing it.
 
 | Page | What it holds |
 | --- | --- |
-| [architecture.md](architecture.md) | the parts and how a request goes through them: the IAM token, the roles, the route groups, the site's gate (not set up, an update waiting - the anotoki family's library), a database update; the frontend's start, its sign-in guard, the admin panel, saving and the generation, the own progress file |
+| [architecture.md](architecture.md) | the parts and how a request goes through them: the IAM token, the roles, the route groups, the site's gate (not set up, an update waiting - the anotoki family's library), a database update (this app's migrations and the library's); the frontend's start, its sign-in guard, the family's kit and the words, the admin panel, saving and the generation, the own progress file |
 | [api.md](api.md) | every route of the API: who may call it, what it answers, how it refuses |
 | [decisions.md](decisions.md) | the choices made, with their reasons - read before undoing one |
 
@@ -70,3 +70,11 @@ family's, in Piano's own palette; Piano's pages, keyboard, notation and
 What's new stay its own - `architecture.md`, "The frontend" ("The family's
 kit", "The top bar"); `decisions.md`. Migration 008 (words only: the round
 button's three spoken keys go) goes with 005, 006 and 007 at the hand-over.
+Then (2026-10-11) the library's 0.3.0, both halves: the words through the
+family's one implementation - the bundle, the admin panel's routes (this
+app's role checks on them) and its Translations and Languages pages, the
+command line, the IAM's wire format (snake_case) - with the library's own
+migration set after this app's; the kit's words are the library's keys
+(`anotoki.*`), and migration 009 (words only) copies this app's wording there
+and goes with 005 to 008 at the hand-over - `architecture.md` ("The words",
+"A database update"), `api.md`; `decisions.md`.

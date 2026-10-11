@@ -4,14 +4,14 @@
  * The app's words live in the database - and the shell (the top bar, the
  * footer, the cards that say why the app cannot run) is drawn exactly when the
  * database cannot be asked: on a fresh install, whenever the backend or its
- * database is down. TranslationService answers from this table only while no
- * bundle is in memory; with one, a key that has no string shows as the key,
- * as everywhere. (The page that says the site is being updated, not set up
- * or not available is the anotoki family's, with its own words in English
- * and Slovak: @anotoki/lib/migrations. So are the words of the family's kit
- * that this app has no string of its own for - the theme switch's name, its
- * "As your device is set", "Saving…" while a Sign out waits: @anotoki/lib/ui.
- * Those it has one for are read from here as any other: kit-words.ts.)
+ * database is down. The family's TranslationService (@anotoki/lib/translations,
+ * core/i18n/site-translations.ts: `fallbackEnglish`) answers from this table
+ * only while no bundle is in memory; with one, a key that has no string shows
+ * as the key, as everywhere. (The page that says the site is being updated,
+ * not set up or not available is the anotoki family's, and so are the words
+ * of the family's kit - the bar's menus, the language chooser, the theme
+ * switch, "Saving…" while a Sign out waits: the library's own keys,
+ * anotoki.*, built into it in English and Slovak, and in the database.)
  *
  * A key here is also a key in the database, with the same English: the
  * backend's test (tests/unit/translations.test.php) holds the two equal, and
@@ -38,7 +38,7 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'boot.loadError.title': 'Could not load your progress',
   'boot.loadError.text': 'The app did not start, so your saved progress stays safe. Check that the server is still running, then try again.',
   'boot.loadError.tryAgain': 'Try again',
-  // The sign-in card (boot/sign-in-card); its button is also the top bar's and the signed-out banner's.
+  // The sign-in card (boot/sign-in-card); its button is also the signed-out banner's and the visitor's notes'.
   'signIn.title': 'Sign in',
   'signIn.text': 'Sign in with your anotoki account. Your progress is saved to it.',
   'signIn.button': 'Sign in',
@@ -46,19 +46,10 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'signIn.notCompleted': 'Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.',
   'signIn.failed': 'Signing in did not work. Please try again. ({code})',
   'signIn.storageUnavailable': 'This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.',
-  // The top bar's menus (layouts/top-bar): the phone's, the person's, and what is in them.
-  'topbar.phoneMenu': 'Menu',
-  'topbar.menuButton': 'Your menu: {name}',
-  'topbar.menu': 'Your menu',
-  'topbar.roleAdmin': 'Administrator',
-  'topbar.roleEditor': 'Editor',
-  'topbar.account': 'Your anotoki account',
-  'topbar.admin': 'Admin panel',
   // Who is signed in and what waits, in the top bar (layouts/top-bar), and the signed-out banner (app.component).
   'account.notSaved': 'Not saved yet',
   'account.notSavedHint': 'Some of your progress is not on the server yet. The app keeps trying.',
   'account.signedIn': 'Signed in',
-  'account.signOut': 'Sign out',
   'account.signedOutBanner': 'You are signed out, so your progress is not saved.',
   // Signing out while some progress could not be saved (layouts/top-bar: the question, the family's ConfirmService).
   'signOut.title': 'Sign out without your latest progress?',
@@ -91,12 +82,6 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'midi.noDevices': 'No MIDI devices found',
   'midi.connect': 'Connect',
   'midi.rescan': 'Rescan MIDI devices',
-  // The top bar's theme switch (the family's): what its three choices are called (core/i18n/kit-words.ts)...
-  'theme.auto': 'Theme: automatic',
-  'theme.light': 'Theme: light',
-  'theme.dark': 'Theme: dark',
-  // ...and the note under it when the anotoki account would not take the theme chosen there.
-  'theme.notSaved': 'The theme could not be saved to your anotoki account.',
   // The footer (app.component): the version button's hint.
   'footer.whatsNew': 'What\'s new',
   // The frame of the list of changes (ui/changelog-dialog); its entries are not translated.
@@ -115,4 +100,21 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'title.songs': 'Songs',
   'title.stats': 'Stats',
   'title.signingIn': 'Signing in',
+};
+
+/**
+ * The library's words this app says its own way, for while no bundle is in
+ * memory (the translations module's `libraryWords`, core/i18n/site-translations.ts):
+ * the top bar's theme switch names its three choices with this app's words -
+ * "Theme: light", what the round button said before the family's switch took
+ * its place - where the library's own are "Light". The database has them under
+ * the library's keys (migration 009 copied this app's strings there, the
+ * owner's wording too); with a bundle in memory its strings are read, these
+ * never. Written as KEPT_ENGLISH is, and held by the same test to the
+ * database's English.
+ */
+export const KEPT_LIBRARY_ENGLISH: Readonly<Record<string, string>> = {
+  'anotoki.theme.auto': 'Theme: automatic',
+  'anotoki.theme.light': 'Theme: light',
+  'anotoki.theme.dark': 'Theme: dark',
 };

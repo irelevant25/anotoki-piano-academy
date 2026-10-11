@@ -180,7 +180,6 @@ describe('ApiService on a visitor’s page (nobody signed in, no sign-in require
   it('never sends a person’s call for a visitor - the own file, the admin panel, the move: 401 here, nothing sent', async () => {
     await expect(api.exportMyProgress()).rejects.toMatchObject({ status: 401, code: 'sign_in_required' });
     await expect(api.previewImport('{}')).rejects.toMatchObject({ status: 401 });
-    await expect(api.languages()).rejects.toMatchObject({ status: 401 });
     await expect(api.people()).rejects.toMatchObject({ status: 401 });
     await expect(api.moveVisitor(KEY)).rejects.toMatchObject({ status: 401 });
     await settle();

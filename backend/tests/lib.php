@@ -365,32 +365,66 @@ function test_empty_db(string $suffix): string
 }
 
 /**
- * Brings a test's database up to and with the migration $through - every one
- * there is without it - with the app's own engine (api/migrations.php): a
- * database as it stood then. The files after $through are held back as
+ * Brings a test's database up to and with the app's own migration $through -
+ * every one there is without it, the library's set of the words (which runs
+ * after all of the app's) too - with the app's own engine (api/migrations.php):
+ * a database as it stood then. The files after $through are held back as
  * drafts are (the Migrator's `ready`: a draft and everything after it wait),
- * so what a database already has is skipped and the rest runs in order, each
- * file whole or not at all. Returns what Migrator::apply() says.
+ * and so are the library's, so what a database already has is skipped and the
+ * rest runs in order, each file whole or not at all. Returns what
+ * Migrator::apply() says.
  *
  * @return array{applied: list<array{set: string, name: string}>, failed: ?array{set: string, name: string}, error: ?string, busy: bool, note: ?string}
  */
 function test_migrate(PDO $pdo, ?string $through = null): array
 {
-    $options = $through === null ? [] : ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => strnatcmp($name, $through) <= 0];
+    $options = $through === null ? [] : ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => !$set->library && strnatcmp($name, $through) <= 0];
 
     return databaseMigrator($pdo, $options)->apply();
 }
 
-/** test_migrate(), up to the migration before $migration: a database as it stood just before that one came. */
+/** test_migrate(), up to the app's migration before $migration: a database as it stood just before that one came. */
 function test_migrate_before(PDO $pdo, string $migration): array
 {
-    return databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => strnatcmp($name, $migration) < 0])->apply();
+    return databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => !$set->library && strnatcmp($name, $migration) < 0])->apply();
 }
 
 /** The names of the files a Migrator answer lists ({set, name} each). */
 function names_of(array $files): array
 {
     return array_column($files, 'name');
+}
+
+/**
+ * The files of the anotoki library's set of the words (anotoki_translations,
+ * in vendor/anotoki/lib/php/migrations/translations), in the order they run -
+ * after every file of the app's own.
+ *
+ * @return list<string>
+ */
+function library_migration_files(): array
+{
+    $set = \Anotoki\Lib\Translations\Schema::migrationSet();
+    $files = array_values(array_filter(scandir($set->directory) ?: [], static fn (string $entry): bool => $entry[0] !== '.' && str_ends_with($entry, '.sql')));
+    natsort($files);
+
+    return array_values($files);
+}
+
+/**
+ * Every migration in the order they run - the app's set, then the library's -
+ * as a Migrator's answer lists them: {set, name}. names_of() of it are the
+ * names; migrationLabel() of each is how the `migrations` table, the health
+ * check and the command line name it.
+ *
+ * @return list<array{set: string, name: string}>
+ */
+function every_migration(): array
+{
+    return [
+        ...array_map(static fn (string $name): array => ['set' => MIGRATIONS_SET, 'name' => $name], migrationFiles()),
+        ...array_map(static fn (string $name): array => ['set' => \Anotoki\Lib\Translations\Schema::SET, 'name' => $name], library_migration_files()),
+    ];
 }
 
 /** A new temp folder, removed at the end. */

@@ -36,7 +36,7 @@ one's own progress (the next section's first four routes) is also a
 | --- | --- |
 | `GET /api/health` | `{ok: true}`; asked from this computer (loopback) also `database` and `pending` (the migrations still to apply). Answers while behind |
 | `GET /api/auth/config` | `{issuer, clientId, loginRequired}`: how the browser signs in, and whether the IAM says this app requires sign-in (its "Sign-in required" switch for `piano-academy`, read by the SDK from `{issuer}/api/public/applications/piano-academy`, kept a minute, `true` whenever nothing better is known - an IAM out of reach with nothing read, a 404, an answer about another app). While it is `true`, every learner route requires a token; while `false`, one's own progress is also a visitor's (below). Answers while behind: somebody can sign in then |
-| `GET /api/translations/{code}` | a language's strings with English underneath: `{language, languages, values, english?}`; ETag + `no-cache` (304); an unknown code is answered in English, a code that is none is 404. Answers while behind, from the words the database has - a database without the words' tables yet (002 waiting): `503 {error, code: "update_pending"}` with `Retry-After: 60` |
+| `GET /api/translations/{code}` | a language's strings with English underneath: `{language, languages: [{code, name, native_name}], values, english?}` (the anotoki family's bundle, `anotoki/lib`'s `TranslationsRoutes::bundle()` - the IAM's format, snake_case; the library's own words, `anotoki.*`, among the values); ETag + `no-cache` (304); `sk-sk` is answered by `sk`, an unknown code in English, a code that is none is `404 not_found`. Answers while behind (the gate's open path, `TranslationsRoutes::openPath()`), from the words the database has - without the words' tables or their English yet (a fresh database before its first Apply), or with the database out of reach: `503 {error, code: "translations_unavailable"}` with `Retry-After: 60`, and the pages read the English kept in code |
 | `GET /api/site-status` | where the site stands, for the pages: `{state: "ready" \| "not_set_up" \| "update_pending" \| "unavailable", installed}` and nothing else (the family's `MigrationsRoutes::status()`); always `200`, in every state, to anybody - no token, key or header is read, so a sign-in the IAM requires, a token that does not verify or a settings file PHP cannot run never turns it into a 401 or a 500; `no-store` |
 
 ## Signed in (any role, or none): one's own progress
@@ -172,13 +172,25 @@ second import `409 has_progress`).
 site's administrator for the editor role." for anybody else signed in. Behind
 -> 503 (before the person is looked up).
 
+The words' routes here and the languages' under ADMIN are the anotoki
+family's (`anotoki/lib`'s `TranslationsRoutes::strings()` and `::languages()`,
+on every anotoki site): the IAM's wire format, snake_case; who may call them
+is this app's (`requireRole()` on each group, `api/routes/admin.php`). A body
+is read by the library itself: over 1 MiB `413 too_large`, not JSON `415
+unsupported_media_type`, empty `422 empty_body`, broken `400 invalid_json`;
+the words' tables not there yet `503 translations_unavailable` (`Retry-After:
+60`); a `{code}` that is no language code `404 not_found`. A save is checked
+string by string (placeholders, markup, length) and refused whole, `422` with
+the key, the language and what is wrong. Answers carry `Cache-Control:
+no-store`.
+
 | Route | Answers |
 | --- | --- |
-| `GET /api/admin/languages` | `{languages: [{code, name, nativeName, enabled, sortOrder, seeded}]}`, hidden ones too |
-| `GET /api/admin/translations` | the grid: `{languages, keys: [{name, description, values: {code: text}}]}` |
-| `PUT /api/admin/translations` | `{values: {key: {code: text}}}`, the changed ones -> the grid; 422 with the key, language and placeholder a check refused |
-| `GET /api/admin/translations/{code}/export` | that language's own strings, `{key: text}` |
-| `PUT /api/admin/translations/{code}/import` | `{key: text}` -> the grid; empty strings passed over, unknown keys 422 |
+| `GET /api/admin/languages` | `{languages: [{code, name, native_name, enabled, sort_order, seeded, strings}]}`, hidden ones too |
+| `GET /api/admin/translations` | the grid: `{languages: [the same], keys: [{name, description, values: {code: text}}]}` - the library's keys (`anotoki.*`) among them |
+| `PUT /api/admin/translations` | `{values: {key: {code: text}}}`, only what changed -> the grid; an empty text takes the string away (English never) |
+| `GET /api/admin/translations/{code}/export` | that language's own strings as a file, `{key: text}` (`translations-{code}.json`) |
+| `PUT /api/admin/translations/{code}/import` | `{key: text}` -> the grid; empty strings passed over; checked as a save is, all of it or none of it (a key the database has not: `422 unknown_key`) |
 
 ## ADMIN alone
 
@@ -187,9 +199,9 @@ anybody else signed in, an editor included.
 
 | Route | Answers |
 | --- | --- |
-| `POST /api/admin/languages` | `{code, name, nativeName, enabled?}` -> 201 `{language}`; 409 `language_exists`, 422 `invalid_language`, `too_many_languages`. Behind -> 503 |
-| `PUT /api/admin/languages/{code}` | `{name?, nativeName?, enabled?, sortOrder?}` -> `{language}`; 409 `fallback_language`. Behind -> 503 |
-| `DELETE /api/admin/languages/{code}` | 204, its strings go with it; 409 `fallback_language`, `seeded_language`. Behind -> 503 |
+| `POST /api/admin/languages` | `{code, name, native_name, enabled?}` -> 201 `{language}`; 409 `language_exists`, 422 `invalid_language`, `too_many_languages`. Behind -> 503 |
+| `PUT /api/admin/languages/{code}` | `{name?, native_name?, enabled?, sort_order?}` -> `{language}`; 409 `fallback_language`. Behind -> 503 |
+| `DELETE /api/admin/languages/{code}` | 200 `{strings}`: the strings that went with it; 409 `fallback_language`, `seeded_language` (English and Slovak, which the migrations write strings for). Behind -> 503 |
 | `GET /api/admin/people` | `{people: [{id, username, firstSeen, lastSeen, notes, steps, sessions}], visitors: {count, sessions}}`, the people who signed in, the most recently seen first; the visitors only counted (they go 30 days after their last visit). Behind -> 503 |
 | `DELETE /api/admin/people/{id}` | 204: everything the app keeps of that person goes, in one transaction - notes, path, sessions, an `imports` row, the users row (a string they reworded stays, by nobody). A tab of theirs still open gets `409 progress_changed` on its next save; their next visit starts empty. `404 not_found` for an id with nobody (an `{id}` that is not a whole number is no route). Deleting oneself is allowed. Behind -> 503 |
 | `GET /api/admin/migrations` | the admin panel's Migrations page - the anotoki family's (`anotoki/lib`'s `MigrationsRoutes::admin()`, `Migrator::status()`): `{sets: ["piano_academy"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - applied in the order they ran, `applied_at` ISO 8601 UTC ("2026-10-06T10:01:02Z"); pending in the order they will run; missing: recorded, but the file is not there. Reads only the migrations (the role check keeps the caller's users row, as on every signed-in route) - works while behind |

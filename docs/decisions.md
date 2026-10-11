@@ -2,6 +2,64 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-11 - the words through the family's library (`anotoki-lib` 0.3.0)
+
+Every anotoki site kept its words in the same three tables, each with code of
+its own to read and write them; the owner asked for one implementation, the
+library's (`Anotoki\Lib\Translations`, `@anotoki/lib/translations`). Both
+halves are 0.3.0. The owner's decisions, and what they mean here:
+
+- **One wire format, the IAM's (snake_case).** The admin routes say
+  `native_name` and `sort_order`, the bundle's languages
+  `{code, name, native_name}`; the library reads a body itself (1 MiB, `415`,
+  `422 empty_body`, `400 invalid_json`), a deleted language answers
+  `200 {strings}` (it was 204), and a bundle without its tables
+  `503 translations_unavailable` (it was `update_pending`, which is the
+  gate's own word). The backend and the frontend moved together; nothing
+  else calls these routes.
+- **The permissions stay the site's.** The library decides nobody's: its
+  route groups take this app's `requireRole()` - the strings for the staff
+  (EDITOR, ADMIN), the languages for ADMIN, as before - and its admin pages
+  hide what the server refuses (`allows`).
+- **Every owner rewording survives.** The kit read this app's own keys
+  (`core/i18n/kit-words.ts`); it reads the library's, `anotoki.*`, now.
+  Migration 009 copies every string of those 17 keys under the library's
+  key - every language, the owner's wording, `updated_at` and `updated_by`
+  with it - before the library's own 002 runs (which writes a string only
+  where a library key has none), deletes the 15 keys only the kit asked for
+  (the key scan fails on a key nothing asks for), and its gate proves that
+  every string arrived as it was. `common.loading` and `signIn.button` stay
+  this app's too: its own pages ask for them. So the theme switch keeps this
+  app's names ("Theme: light"): in the database under `anotoki.theme.*`, and
+  in code (`KEPT_LIBRARY_ENGLISH`) for while no bundle is in memory.
+- **What's new tells what a learner notices.** Nothing here: the words are
+  the same, and the admin pages are the staff's. 0.4.0 is still unreleased.
+
+What went to the library: this app's `TranslationService`, its pipes, the
+Translations and Languages pages with their grid, cell, drafts and guard,
+the words' routes and checks (`api/translations.php` keeps the wiring), and
+the command line (`tools/translations.php` is the library's command with this
+app's scan). What stays this app's: the English kept in code,
+`dynamic-keys.ts`, the role checks, the error body (`{error, code}`), the
+storage keys (`piano-academy:language`, `:language-cache`,
+`:localization-drafts` - a learner's choice and cached words survive the
+upgrade). The status page reads in the page's own language, English on an
+address of the admin panel (`effectiveLanguage()`, the library's advice), and
+its words come from the database in that same language - so a Slovak reader
+on an admin address gets the owner's English, never the module's built-in
+Slovak beside a reworded database.
+
+The kit with 0.3.0: each piece imported from its own entry point (never the
+`@anotoki/lib/ui` barrel), its own class names (the specs and the browser
+check read `anotoki-top-bar__person-button`...), and its shadows written
+right - `styles.scss`'s plain values for the small shadow and the dark
+mark's halo are gone. With the library alone the first load was 501.6 kB
+(0.2.0: 500.9 kB): the barrel's 6.5 kB went, but the library's
+`TranslationService` is 5.7 kB more than this app's own was, and the shell
+grew 2.4 kB. So the Stats page is lazy now, a chunk of its own as the
+practice pages are (the owner's decision): the first load is 482.7 kB, under
+its 500 kB warning again.
+
 ## 2026-10-08 - the anotoki family's kit (`@anotoki/lib` 0.2.0)
 
 The owner asked for one UI kit for every anotoki site (2026-10-07): the

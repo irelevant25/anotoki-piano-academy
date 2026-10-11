@@ -3,9 +3,10 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { Router, TitleStrategy, provideRouter } from '@angular/router';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from './auth/auth.service';
-import { TranslationService } from './i18n/translation.service';
-import { provideTestTranslations } from './testing/test-translations';
+import { provideSiteTranslations } from './i18n/site-translations';
 import { PianoTitleStrategy } from './title.strategy';
 
 const ENGLISH = { 'title.learn': 'Learn', 'title.trainer': 'Note Trainer' };
@@ -46,7 +47,7 @@ describe('PianoTitleStrategy', () => {
   it('follows the language without a navigation', async () => {
     await TestBed.inject(Router).navigateByUrl('/');
     expect(title()).toBe('Učenie · Piano Academy');
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     expect(title()).toBe('Learn · Piano Academy');
   });
 
@@ -67,18 +68,19 @@ describe('PianoTitleStrategy', () => {
     expect(title()).toBe('Piano Academy');
   });
 
-  it('tells the translation service after every navigation - which is when that one asks again for strings it has not', async () => {
-    const navigated = vi.spyOn(TestBed.inject(TranslationService), 'navigated');
+  it('tells the translation service where the page is after every navigation - which is when that one asks again for strings it has not', async () => {
+    const navigated = vi.spyOn(TestBed.inject(TranslationService), 'noteAddress');
     const router = TestBed.inject(Router);
     await router.navigateByUrl('/');
     await router.navigateByUrl('/trainer');
-    expect(navigated).toHaveBeenCalledTimes(2);
+    expect(navigated.mock.calls).toEqual([['/'], ['/trainer']]);
   });
 });
 
 describe('PianoTitleStrategy with no strings at all', () => {
-  // The app is not set up: nothing was asked for, and a first visit has nothing kept either.
-  const auth = { user: () => null, signedIn: () => false, preferences: () => null, onAuthChange: () => () => undefined };
+  // The app is not set up: its sign-in settings could not be read, so nothing is asked for - and a first visit has
+  // nothing kept either. The words as the app wires them (core/i18n/site-translations.ts).
+  const auth = { user: () => null, signedIn: () => false, preferences: () => null, settingsRead: () => false, userKey: () => null, isStaff: () => false, isAdmin: () => false };
   const http = { get: vi.fn() };
 
   beforeEach(() => {
@@ -86,7 +88,7 @@ describe('PianoTitleStrategy with no strings at all', () => {
     sessionStorage.clear();
     http.get.mockReset();
     TestBed.configureTestingModule({
-      providers: [{ provide: HttpClient, useValue: http }, { provide: AuthService, useValue: auth }, provideRouter(ROUTES), { provide: TitleStrategy, useClass: PianoTitleStrategy }],
+      providers: [{ provide: HttpClient, useValue: http }, { provide: AuthService, useValue: auth }, provideSiteTranslations(), provideRouter(ROUTES), { provide: TitleStrategy, useClass: PianoTitleStrategy }],
     });
   });
 
@@ -95,7 +97,7 @@ describe('PianoTitleStrategy with no strings at all', () => {
   it('words the title from the English kept in code - never the key - and asks the server for nothing', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const i18n = TestBed.inject(TranslationService);
-    await i18n.init(false);
+    await i18n.init();
     expect(i18n.ready()).toBe(false);
 
     await TestBed.inject(Router).navigateByUrl('/');

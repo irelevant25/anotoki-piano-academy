@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslatePipe } from '@anotoki/lib/translations';
 
 /**
  * The progress could not be loaded. The app stops here on purpose: running on

@@ -1,7 +1,7 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
-import { TranslationService } from './i18n/translation.service';
+import { TranslationService, isAdminArea } from '@anotoki/lib/translations';
 
 /** The app's name: a name, so it is written here and never translated. */
 const APP_NAME = 'Piano Academy';
@@ -25,10 +25,11 @@ const TITLE_KEY = /^title\.[A-Za-z0-9]+$/;
  * English, as the rest of the shell; with one, a key that has no string shows
  * as itself - the owner wants to see which.
  *
- * It also tells the translation service that a navigation has ended - which is
- * when that one asks again for strings it could not get - because the service
- * cannot ask the Router itself (the Router builds this strategy, and this
- * strategy needs that service).
+ * It also tells the family's translation service where the page is after
+ * every navigation (noteAddress()): the admin panel is English, a `?lang=`
+ * arriving in the app holds for the tab, and a page behind asks again for the
+ * strings it could not get - because the service cannot ask the Router itself
+ * (the Router builds this strategy, and this strategy needs that service).
  */
 @Injectable()
 export class PianoTitleStrategy extends TitleStrategy {
@@ -55,9 +56,8 @@ export class PianoTitleStrategy extends TitleStrategy {
 
   /** After every navigation. */
   override updateTitle(snapshot: RouterStateSnapshot): void {
-    this._i18n.navigated(snapshot.url);
-    const path = snapshot.url.split(/[?#]/)[0];
-    this._admin.set(path === '/admin' || path.startsWith('/admin/'));
+    this._i18n.noteAddress(snapshot.url);
+    this._admin.set(isAdminArea(snapshot.url));
     this._page.set(this.buildTitle(snapshot));
   }
 }

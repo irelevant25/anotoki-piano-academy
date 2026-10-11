@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { IconComponent } from '@anotoki/lib/ui';
+import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { PopoverComponent, PopoverTriggerDirective } from '@anotoki/lib/ui/menu';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { MidiProblemKind, MidiService } from '../../core/midi/midi.service';
 
 /** Why there is no piano, as a sentence of the app's own: the kind's key, written out whole. */

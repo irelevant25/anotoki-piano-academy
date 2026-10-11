@@ -124,7 +124,8 @@ test('Test connection: the database and the IAM in the family\'s words, without 
     $pdo = dbConnect(machineDatabaseSettings(), $behind);
     assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
     $pdo = null;
-    $count = count(migrationFiles()) - 1;
+    // Every file after 001: the app's own, and the library's set of the words.
+    $count = count(every_migration()) - 1;
     assert_same([true, 'Connected to the database "' . $behind . '": ' . $count . ' update(s) to apply - Save applies them.'], array_values($test('database', ['db_name' => $behind])['body']));
 
     // The two sentences a test here cannot bring about without a login of its own: word for word in the page.

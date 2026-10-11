@@ -1,9 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { AuthService } from '../../core/auth/auth.service';
 import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
 import { stepShort, unitTitle } from '../../core/i18n/path-words';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { TranslationCut, TranslationService } from '../../core/i18n/translation.service';
 import { Session, SessionMode } from '../../core/music/music.types';
 import { PathService } from '../../core/music/path.service';
 import { SongsService } from '../../core/music/songs.service';
@@ -70,7 +69,7 @@ interface RecentRow {
   /** The moment it was played, as stored: the template writes it the way the page's language does. */
   when: string;
   /** The mode's words, cut where the name goes; not cut (the third is false) for a mode that has no name. */
-  mode: TranslationCut;
+  mode: ReturnType<TranslationService['around']>;
   /** What was played: a lesson step or a song. */
   name: string;
   /**

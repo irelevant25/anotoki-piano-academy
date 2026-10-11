@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslatePipe } from '@anotoki/lib/translations';
 import { MidiService } from '../../core/midi/midi.service';
 import { SongsService } from '../../core/music/songs.service';
 import { SrsService } from '../../core/music/srs.service';

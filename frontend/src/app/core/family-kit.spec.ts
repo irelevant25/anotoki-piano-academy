@@ -2,15 +2,15 @@ import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { LanguageSwitcherComponent, ThemeService, ThemeToggleComponent } from '@anotoki/lib/shell';
-import { AnotokiWords } from '@anotoki/lib/ui';
+import { TranslationService } from '@anotoki/lib/translations';
+import { TEST_LANGUAGES, provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { AnotokiWords, LIBRARY_WORDS } from '@anotoki/lib/ui/config';
 import { type AnotokiPreferenceChanges, type AnotokiPreferences, type AnotokiSavedPreferences, type AnotokiTheme } from './auth/anotoki-auth';
 import { AuthService } from './auth/auth.service';
 import { THEME_COLOR, THEME_KEY, provideFamilyKit } from './family-kit';
-import { KEPT_ENGLISH } from './i18n/kept-english';
-import { siteKeyFor } from './i18n/kit-words';
-import { TranslationService } from './i18n/translation.service';
+import { KEPT_LIBRARY_ENGLISH } from './i18n/kept-english';
+import { provideSiteTranslations } from './i18n/site-translations';
 import { provideTestKit } from './testing/test-kit';
-import { TEST_LANGUAGES, provideTestTranslations } from './testing/test-translations';
 
 /** The family's language chooser and theme switch, as the top bar draws them (the bar's own spec has the rest). */
 @Component({
@@ -21,33 +21,34 @@ import { TEST_LANGUAGES, provideTestTranslations } from './testing/test-translat
 })
 class KitHostComponent {}
 
+/** The kit's words as this app's database has them since its migration 009: the library's keys, with this app's wording copied there. */
 const ENGLISH = {
-  'language.button': 'Language: {name} ({code})',
-  'language.notLoaded': 'The language could not be loaded. Please try again.',
-  'language.notSaved': 'The language could not be saved to your anotoki account - it holds for this visit only.',
-  'theme.auto': 'Theme: automatic',
-  'theme.light': 'Theme: light',
-  'theme.dark': 'Theme: dark',
-  'theme.notSaved': 'The theme could not be saved to your anotoki account.',
-  'topbar.account': 'Your anotoki account',
-  'topbar.roleAdmin': 'Administrator',
-  'account.signOut': 'Sign out',
-  'signIn.button': 'Sign in',
+  'anotoki.language.button': 'Language: {name} ({code})',
+  'anotoki.language.notLoaded': 'The language could not be loaded. Please try again.',
+  'anotoki.language.notSaved': 'The language could not be saved to your anotoki account - it holds for this visit only.',
+  'anotoki.theme.auto': 'Theme: automatic',
+  'anotoki.theme.light': 'Theme: light',
+  'anotoki.theme.dark': 'Theme: dark',
+  'anotoki.theme.notSaved': 'The theme could not be saved to your anotoki account.',
+  'anotoki.topbar.account': 'Your anotoki account',
+  'anotoki.topbar.roleAdmin': 'Administrator',
+  'anotoki.topbar.signOut': 'Sign out',
+  'anotoki.topbar.signIn': 'Sign in',
 };
 
-/** The owner's Slovak - where it is not the kit's own ("tvojho účtu anotoki", "Správca"), this app's is the one shown. */
+/** The owner's Slovak - where it is not the kit's own ("tvojho účtu anotoki", "Správca"), the database's is the one shown. */
 const SLOVAK = {
-  'language.button': 'Jazyk: {name} ({code})',
-  'language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.',
-  'language.notSaved': 'Jazyk sa nepodarilo uložiť do tvojho účtu anotoki – platí len počas tejto návštevy.',
-  'theme.auto': 'Vzhľad: systémový',
-  'theme.light': 'Vzhľad: svetlý',
-  'theme.dark': 'Vzhľad: tmavý',
-  'theme.notSaved': 'Vzhľad sa nepodarilo uložiť do tvojho účtu anotoki.',
-  'topbar.account': 'Tvoj účet anotoki',
-  'topbar.roleAdmin': 'Správca',
-  'account.signOut': 'Odhlásiť sa',
-  'signIn.button': 'Prihlásiť sa',
+  'anotoki.language.button': 'Jazyk: {name} ({code})',
+  'anotoki.language.notLoaded': 'Jazyk sa nepodarilo načítať. Skús to znova.',
+  'anotoki.language.notSaved': 'Jazyk sa nepodarilo uložiť do tvojho účtu anotoki – platí len počas tejto návštevy.',
+  'anotoki.theme.auto': 'Vzhľad: systémový',
+  'anotoki.theme.light': 'Vzhľad: svetlý',
+  'anotoki.theme.dark': 'Vzhľad: tmavý',
+  'anotoki.theme.notSaved': 'Vzhľad sa nepodarilo uložiť do tvojho účtu anotoki.',
+  'anotoki.topbar.account': 'Tvoj účet anotoki',
+  'anotoki.topbar.roleAdmin': 'Správca',
+  'anotoki.topbar.signOut': 'Odhlásiť sa',
+  'anotoki.topbar.signIn': 'Prihlásiť sa',
 };
 
 /** A save to the account the spec answers by hand: what was sent, and how to answer it. */
@@ -64,12 +65,18 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
   /** The account: its language (the token's locale) - null: nobody signed in - and its preferences (null: an IAM that keeps none). */
   const user = signal<{ locale: string | null } | null>(null);
   const preferences = signal<AnotokiPreferences | null>(null);
+  /** Whether the sign-in settings were read - what the strings may be asked for on (core/i18n/site-translations.ts: canAsk). */
+  let settingsRead = true;
   let saves: PendingSave[];
   const auth = {
     user,
     signedIn: () => user() !== null,
     onAuthChange: () => () => undefined,
     preferences,
+    settingsRead: () => settingsRead,
+    userKey: () => (user() !== null ? '7' : null),
+    isStaff: () => false,
+    isAdmin: () => false,
     savePreferences: vi.fn(
       (changes: AnotokiPreferenceChanges): Promise<AnotokiSavedPreferences> =>
         new Promise((resolve, reject) => {
@@ -88,7 +95,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
   };
   const sent = (): AnotokiPreferenceChanges[] => saves.map((save) => save.changes);
 
-  const switcher = (): HTMLButtonElement => host.querySelector<HTMLButtonElement>('anotoki-language-switcher .switcher')!;
+  const switcher = (): HTMLButtonElement => host.querySelector<HTMLButtonElement>('.anotoki-language-switcher__switcher')!;
   const languages = (): HTMLButtonElement[] => Array.from(document.querySelectorAll<HTMLButtonElement>('anotoki-language-switcher [role="menuitemradio"]'));
   const note = (of: 'language' | 'theme'): string | null => host.querySelector(`anotoki-${of === 'language' ? 'language-switcher' : 'theme-toggle'} [role="alert"]`)?.textContent?.trim() ?? null;
   const themes = (): HTMLButtonElement[] => Array.from(host.querySelectorAll<HTMLButtonElement>('anotoki-theme-toggle [role="radio"]'));
@@ -101,11 +108,12 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
     }
   }
 
-  /** The kit drawn, its words from these strings (Slovak unless said otherwise). */
+  /** The kit drawn, its words from these strings (Slovak unless said otherwise) - the translations wired as the app wires them. */
   async function draw(language: 'sk' | 'en' = 'sk'): Promise<void> {
     TestBed.configureTestingModule({
       providers: [
         ...(language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH)),
+        provideSiteTranslations(),
         { provide: AuthService, useValue: auth },
         provideFamilyKit(),
       ],
@@ -128,8 +136,10 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
 
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     user.set(null);
     preferences.set(null);
+    settingsRead = true;
     saves = [];
     auth.savePreferences.mockClear();
   });
@@ -143,7 +153,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
   });
 
   describe('the kit\'s words', () => {
-    it('are this app\'s strings where it has them - the owner\'s wording - and the kit\'s own informal Slovak for the rest', async () => {
+    it('are the database\'s strings of the library\'s keys - this app\'s wording, the owner\'s - and the kit\'s own informal Slovak for the rest', async () => {
       await draw();
       const words = TestBed.inject(AnotokiWords);
       expect(words.t('topbar.account')).toBe('Tvoj účet anotoki');
@@ -151,27 +161,52 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       expect(words.t('topbar.signOut')).toBe('Odhlásiť sa');
       expect(words.t('topbar.signIn')).toBe('Prihlásiť sa');
       expect(words.t('theme.notSaved')).toBe('Vzhľad sa nepodarilo uložiť do tvojho účtu anotoki.');
-      // No string of this app's for these: the kit's own.
+      // No string in the bundle for these: the kit's own.
       expect(words.t('theme.label')).toBe('Vzhľad');
       expect(words.t('topbar.saving')).toBe('Ukladá sa…');
       expect(words.lang()).toBe('sk');
     });
 
-    it('show a key where the database has no string, as every word of this app\'s - the owner sees which is missing', async () => {
-      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
-      expect(TestBed.inject(AnotokiWords).t('topbar.account')).toBe('topbar.account');
+    it('are English in the admin panel, whatever the app is read in - the bundle\'s English', async () => {
+      await draw();
+      TestBed.inject(TranslationService).noteAddress('/admin/translations');
+      const words = TestBed.inject(AnotokiWords);
+      expect(words.lang()).toBe('en');
+      expect(words.t('topbar.account')).toBe('Your anotoki account');
+      expect(words.t('theme.light')).toBe('Theme: light');
+      TestBed.inject(TranslationService).noteAddress('/stats');
+      expect(words.t('theme.light')).toBe('Vzhľad: svetlý');
     });
 
-    it('while there are no strings at all: the English kept in code, the very words the shell has then', () => {
-      for (const key of ['topbar.phoneMenu', 'topbar.menuButton', 'topbar.menu', 'topbar.signIn', 'topbar.signOut', 'theme.light', 'theme.dark', 'theme.auto', 'theme.notSaved', 'ui.loading'] as const) {
-        const site = siteKeyFor(key);
-        expect(site, key).not.toBeNull();
-        expect(Object.hasOwn(KEPT_ENGLISH, site!), `${key} -> ${site}`).toBe(true);
+    it('are never a key: a library word the database has no string for reads the kit\'s own - and warns of nothing', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}), provideSiteTranslations(), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
+      expect(TestBed.inject(AnotokiWords).t('topbar.account')).toBe('Your anotoki account');
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('while there are no strings at all: this app\'s English for the theme switch (kept-english.ts), the kit\'s own English for the rest', async () => {
+      settingsRead = false;
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const http = { get: vi.fn() };
+      TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: http }, provideSiteTranslations(), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
+      await TestBed.inject(TranslationService).init();
+      const words = TestBed.inject(AnotokiWords);
+      expect(words.t('theme.light')).toBe('Theme: light');
+      expect(words.t('theme.dark')).toBe('Theme: dark');
+      expect(words.t('theme.auto')).toBe('Theme: automatic');
+      expect(words.t('topbar.signIn')).toBe('Sign in');
+      expect(words.t('ui.loading')).toBe('Loading…');
+      expect(http.get).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('kept in code only where this app says a library word its own way: each a library key, never the library\'s own words again', () => {
+      const library: Readonly<Record<string, string>> = LIBRARY_WORDS.en;
+      for (const [key, english] of Object.entries(KEPT_LIBRARY_ENGLISH)) {
+        expect(Object.hasOwn(library, key), key).toBe(true);
+        expect(english, key).not.toBe(library[key]);
       }
-      // The language chooser is drawn only with two languages - which come with the strings.
-      expect(siteKeyFor('language.button')).toBe('language.button');
-      expect(siteKeyFor('theme.autoHint')).toBeNull();
     });
   });
 
@@ -188,7 +223,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       ]);
     });
 
-    it('switches the page, and remembers it on this device', async () => {
+    it('switches the page, and remembers it on this device - under the key this app always had', async () => {
       await draw();
       await choose(0);
       expect(TestBed.inject(TranslationService).language()).toBe('en');
@@ -258,9 +293,10 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       it('saves the language already on the page when the account has another - a link\'s, or one the site chose while it lacked the account\'s', async () => {
         user.set({ locale: 'en' });
         await draw();
-        const setLanguage = vi.spyOn(TestBed.inject(TranslationService), 'setLanguage');
+        const fetch = vi.spyOn(TestBed.inject(TranslationService) as unknown as { fetchBundle(code: string): Promise<unknown> }, 'fetchBundle');
         await choose(1);
-        expect(setLanguage).not.toHaveBeenCalled();
+        // Its words are on the page already: nothing is fetched for it.
+        expect(fetch).not.toHaveBeenCalled();
         expect(sent()).toEqual([{ language: 'sk' }]);
         // The account has it now: nothing more to save.
         saves[0].accept();
@@ -302,7 +338,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
     });
 
     it('is not drawn while one language is on offer, nor while the app has no strings (the list comes with them)', async () => {
-      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}, { languages: [TEST_LANGUAGES[0]] }), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
+      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}, { languages: [TEST_LANGUAGES[0]] }), provideSiteTranslations(), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
       fixture = TestBed.createComponent(KitHostComponent);
       host = fixture.nativeElement;
       await fixture.whenStable();
@@ -310,11 +346,13 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
 
       host.remove();
       TestBed.resetTestingModule();
+      // Not set up: the sign-in settings could not be read, so nothing is asked for.
+      settingsRead = false;
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       TestBed.configureTestingModule({
-        providers: [{ provide: AuthService, useValue: auth }, { provide: HttpClient, useValue: { get: () => expect.unreachable('nothing is asked for') } }, provideFamilyKit()],
+        providers: [{ provide: AuthService, useValue: auth }, { provide: HttpClient, useValue: { get: () => expect.unreachable('nothing is asked for') } }, provideSiteTranslations(), provideFamilyKit()],
       });
-      await TestBed.inject(TranslationService).init(false);
+      await TestBed.inject(TranslationService).init();
       fixture = TestBed.createComponent(KitHostComponent);
       host = fixture.nativeElement;
       await fixture.whenStable();
@@ -341,6 +379,11 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       await settle();
       expect(localStorage.getItem(THEME_KEY)).toBeNull();
       expect(sent()).toEqual([]);
+    });
+
+    it('names its three choices in this app\'s words - the database\'s, under the library\'s keys', async () => {
+      await draw();
+      expect(themes().map((choice) => choice.getAttribute('aria-label') ?? choice.textContent?.trim())).toEqual(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']);
     });
 
     it('signed in: the account\'s theme from the first moment, the browser\'s chrome in this app\'s colours - and a choice saved to the account', async () => {

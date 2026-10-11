@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AuthService } from '../../core/auth/auth.service';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { provideSiteMigrations } from '../../core/state/site-migrations';
-import { provideTestTranslations } from '../../core/testing/test-translations';
 import { SignInCardComponent } from './sign-in-card.component';
 
 const ENGLISH = {
@@ -68,7 +68,7 @@ describe('SignInCardComponent: a sign-in that came back without one', () => {
     await fixture.whenStable();
     expect(why()).toBe('Prihlásenie sa nepodarilo. Skús to znova. (invalid_grant)');
 
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
     expect(why()).toBe('Signing in did not work. Please try again. (invalid_grant)');
   });

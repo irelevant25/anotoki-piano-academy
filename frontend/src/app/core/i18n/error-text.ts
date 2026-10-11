@@ -1,4 +1,4 @@
-import { TranslationParams } from './translation.service';
+import { TranslationParams } from '@anotoki/lib/translations';
 
 /**
  * A sign-in that came back without one, or could not start, in the

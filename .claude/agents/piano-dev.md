@@ -92,21 +92,32 @@ Working conventions specific to this repo:
   `VisitorKey.lost` sets no "changed elsewhere".
   `setup.php` stays PHP 7.4-parseable and asks for the database and the IAM
   only.
-- The app's words are keys (`translate` / `translatePlural` pipes,
-  `TranslationService` in `core/i18n/`): every learner-facing word has a key
-  with English and informal Slovak ("ty") in a migration; a missing string
-  shows its key on purpose. State holds keys and ids, never sentences (a
-  step's `Feedback` is `{key, params, kind}`); nothing worded is awaited in a
-  MIDI handler. A new shell string also goes into `core/i18n/kept-english.ts`;
-  a key put together at run time into `core/i18n/dynamic-keys.ts`. Note names,
-  song titles and device names are never translated. The admin panel's Translations
-  and Languages pages are English literals.
+- The app's words are keys (the `translate` / `translatePlural` pipes and
+  `TranslationService` - the anotoki family's, `@anotoki/lib/translations`,
+  wired in `core/i18n/site-translations.ts`; the backend's half
+  `Anotoki\Lib\Translations` in `api/translations.php`, its routes on this
+  app's role checks, the IAM's wire format, snake_case): every
+  learner-facing word has a key with English and informal Slovak ("ty") in a
+  migration; a missing string shows its key on purpose. State holds keys and
+  ids, never sentences (a step's `Feedback` is `{key, params, kind}`);
+  nothing worded is awaited in a MIDI handler. A new shell string also goes
+  into `core/i18n/kept-english.ts`; a key put together at run time into
+  `core/i18n/dynamic-keys.ts`. Note names, song titles and device names are
+  never translated. The admin panel's Translations and Languages pages are
+  the family's (`@anotoki/lib/translations/admin`), English. The library's
+  own words are `anotoki.*` (the kit's, the status page's), in the same
+  tables - written by the library's migration set after this app's, never
+  counted by a gate of this app's; a site wording of one is a migration of
+  this app's (as 009).
 - Persistence: `backend/migrations/piano_academy/` (never edit an applied
   one; 004 is applied in the owner's database and frozen; 005, visitors,
-  006, two sentences of the account's preferences, and 007, the old "not set
-  up yet" card's words deleted, are written whole and final and wait for the
-  owner at the hand-over - a later change is 008), applied by the anotoki
-  family's engine (`anotoki/lib`'s `Migrator`, `api/migrations.php`);
+  006, two sentences of the account's preferences, 007, the old "not set
+  up yet" card's words deleted, 008, the round theme button's words deleted,
+  and 009, the kit's words copied under the library's keys, are written
+  whole and final and wait for the owner at the hand-over - a later change
+  is 010), applied by the anotoki family's engine (`anotoki/lib`'s
+  `Migrator`, `api/migrations.php`: this app's set, then the library's
+  `anotoki_translations`);
   note progress and path progress are whole jsonb documents;
   sessions are rows. A save of a whole document names the generation of the
   progress (`Progress-Generation`; 409 `progress_changed` for an old one -
@@ -123,7 +134,7 @@ Working conventions specific to this repo:
   (`anotoki-lib`, both halves from GitHub - never a local path; DEV.md says
   how to update them together): its `SiteGate` answers every route 503
   `not_set_up` (the setup page only while never installed) or
-  `update_pending` (but for `SITE_OPEN_PATHS`: the sign-in settings, the
+  `update_pending` (but for `siteOpenPaths()`: the sign-in settings, the
   words, the health check, the Migrations page's routes); its
   `<anotoki-site-gate>` draws the status page in the view's place ("being
   updated" for visitors and learners, "A database update is waiting" for the
@@ -132,7 +143,7 @@ Working conventions specific to this repo:
   it; the Migrations page is lazy from `@anotoki/lib/migrations/page`;
   `BootService` waits (`waiting`) and
   the sign-in guard sends nobody to the IAM then. A new route that must
-  answer while an update waits goes into `SITE_OPEN_PATHS`.
+  answer while an update waits goes into `siteOpenPaths()` (`api/index.php`).
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 - Before reporting done: `php tests/run.php` in `backend/` (and under the
   hosting's PHP 8.2 if you touched PHP), `npm test` and `npm run build` in
@@ -143,18 +154,22 @@ Working conventions specific to this repo:
   editing a migration that is not released yet:
   `php tests/tools/testdb.php template --fresh`.
 
-- The anotoki family's kit (`@anotoki/lib` 0.2.0, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.3.0, wired in
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
-  the app's root) are the family's - never copy one into `ui/`. Their words
-  are Piano's strings where Piano has them (`core/i18n/kit-words.ts`, the
-  kit's keys written by their two parts for the key scan); colours are the
-  family's tokens in Piano's palette (`anotoki.root()` in `styles.scss`),
+  the app's root) are the family's - never copy one into `ui/` - each
+  imported from its own entry point (`@anotoki/lib/ui/config`, `/ui/icon`,
+  `/ui/dialog`...; never the `@anotoki/lib/ui` barrel). Their words are the
+  library's keys, `anotoki.*` (`forKit()`: the database's strings - this
+  app's wording, the owner's rewordings -, else the kit's own); colours are
+  the family's tokens in Piano's palette (`anotoki.root()` in `styles.scss`),
   the font Manrope. Piano's own controls (bare buttons and selects,
   `.btn-primary`, `.card`, `.chip`) keep Piano's look; their rules never
-  reach the kit's components (`$piano-own`). Specs: `provideTestKit()`,
-  `drawTestQuestions()` (`core/testing/test-kit.ts`).
+  reach the kit's components (`$piano-own`). Specs read the kit's markup by
+  its own class names (`anotoki-<component>__<part>`); `provideTestKit()`,
+  `drawTestQuestions()` (`core/testing/test-kit.ts`), the library's
+  `provideTestTranslations()` (`@anotoki/lib/translations/testing`).
 - The top bar is the family's `<anotoki-top-bar>`, wrapped by
   `layouts/top-bar` (Piano's brand, sections, person, menu items; "Not
   saved yet" and the piano - `ui/midi-panel` - as its widgets; the phone's
@@ -172,9 +187,9 @@ Working conventions specific to this repo:
   1.2.0 - `AuthService.preferences`, null for nobody, a visitor or an IAM
   that sends none: then nothing changes and nothing is saved). The theme
   switch saves through the family's `ThemeService` (one save at a time, the
-  latest last; the account's theme back and `theme.notSaved` when refused),
-  the language chooser through `TranslationService.choose()` -> `setLanguage()` -> `saveToAccount()`
-  (`invalid_request`: silent; else, `access_denied` too, `language.notSaved`
+  latest last; the account's theme back and `anotoki.theme.notSaved` when refused),
+  the language chooser through the family's `TranslationService` (`forShell()` -> `setLanguage()`, its `account.save` the SDK's `savePreferences()`)
+  (`invalid_request`: silent; else, `access_denied` too, `anotoki.language.notSaved`
   - words that promise no retry); a date or time a page writes goes
   through the `localDate` pipe, which follows the account's order and clock
   (`stamp` for the admin panel's numbers). The family's language order:

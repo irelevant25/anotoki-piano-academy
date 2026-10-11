@@ -145,9 +145,11 @@ test('a settings file PHP cannot run: not set up - the status still answers, nev
 test('an update waiting: 503 update_pending everywhere but the open paths - which answer, so somebody can sign in and an administrator applies it', function (): void {
     $name = test_empty_db('waiting');
     $pdo = dbConnect(machineDatabaseSettings(), $name);
-    // Everything but the newest migration: the words' tables are there, and so is one update to apply.
+    // Everything but the newest migration: the words' tables are there, and so is an update to apply - the app's
+    // newest, and the library's set of the words after it.
     $newest = migrationFiles()[count(migrationFiles()) - 1];
     assert_same(null, test_migrate_before($pdo, $newest)['failed']);
+    $waiting = array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] !== MIGRATIONS_SET || $file['name'] === $newest));
     $app = server_on(test_config_dir(test_auth_iam(), $name));
 
     // Asked by anybody - the tests' IAM requires a sign-in, and nobody is signed in.
@@ -180,17 +182,17 @@ test('an update waiting: 503 update_pending everywhere but the open paths - whic
     assert_same([200, 'sk'], [$words['status'], $words['body']['language'] ?? null], 'the words the database has');
     assert_true(count((array) ($words['body']['values'] ?? [])) > 100, 'all of them');
     assert_same(304, call($app['base'], 'GET', '/api/translations/sk', null, ['If-None-Match: ' . ($words['headers']['etag'] ?? '')])['status'], 'and the browser\'s copy answered in a few bytes');
-    assert_same(['ok' => true, 'database' => $name, 'pending' => [$newest]], call($app['base'], 'GET', '/api/health?from=test')['body'], 'its query is no part of the path');
+    assert_same(['ok' => true, 'database' => $name, 'pending' => array_map('migrationLabel', $waiting)], call($app['base'], 'GET', '/api/health?from=test')['body'], 'its query is no part of the path');
     // ...and the Migrations page's routes - for an ADMIN, by the token's roles; anybody else as ever.
     $list = call($app['base'], 'GET', '/api/admin/migrations', null, bearer(test_token(ADMIN, [ROLE_ADMIN])));
-    assert_same([200, [$newest]], [$list['status'], names_of($list['body']['pending'])]);
+    assert_same([200, $waiting], [$list['status'], array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $list['body']['pending'])]);
     assert_same([403, 'forbidden'], [($editor = call($app['base'], 'GET', '/api/admin/migrations', null, bearer(test_token(7, [ROLE_EDITOR]))))['status'], $editor['body']['code'] ?? null]);
     assert_same([401, 'sign_in_required'], [($nobody = call($app['base'], 'POST', '/api/admin/migrations/apply'))['status'], $nobody['body']['code'] ?? null]);
-    assert_same([$newest], names_of(databaseMigrator($pdo)->applicable()), 'nothing applied by them');
+    assert_same($waiting, databaseMigrator($pdo)->applicable(), 'nothing applied by them');
 
     // Applied: the site is ready, and the routes answer as ever.
     $apply = call($app['base'], 'POST', '/api/admin/migrations/apply', null, bearer(test_token(ADMIN, [ROLE_ADMIN])));
-    assert_same([200, [$newest], null], [$apply['status'], names_of($apply['body']['applied']), $apply['body']['failed']]);
+    assert_same([200, $waiting, null], [$apply['status'], $apply['body']['applied'], $apply['body']['failed']]);
     assert_status_to_everybody($app['base'], ['state' => 'ready', 'installed' => false]);
     assert_same(200, call($app['base'], 'GET', '/api/state', null, bearer(test_token(PERSON)))['status']);
     assert_same(['ok' => true, 'database' => $name, 'pending' => []], call($app['base'], 'GET', '/api/health')['body']);

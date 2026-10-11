@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { AuthService } from '../../core/auth/auth.service';
 import { signInFailureKey, signInFailureParams } from '../../core/i18n/error-text';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { BootService } from '../../core/state/boot.service';
 
 /**

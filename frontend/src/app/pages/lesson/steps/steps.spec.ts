@@ -1,14 +1,14 @@
 import { ChangeDetectionStrategy, Component, Type, forwardRef, input, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { MockInstance } from 'vitest';
-import { TranslationService } from '../../../core/i18n/translation.service';
 import { MidiService, PianoMidi } from '../../../core/midi/midi.service';
 import { NoteState, ProgressMap } from '../../../core/music/music.types';
 import { PathService } from '../../../core/music/path.service';
 import { SrsService } from '../../../core/music/srs.service';
 import { TheoryService } from '../../../core/music/theory.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
-import { provideTestTranslations } from '../../../core/testing/test-translations';
 import { NotationComponent } from '../../../ui/notation/notation.component';
 import { StepOutcome } from '../step-outcome';
 import { DrillStepComponent } from './drill-step.component';
@@ -133,7 +133,7 @@ describe('Lesson steps: instructions and feedback are keys, worded on the page',
     await stable();
   };
   const english = async (): Promise<void> => {
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await stable();
   };
 

@@ -3,7 +3,6 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom, map } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { VISITOR_KEY_HEADER, VisitorKey } from '../auth/visitor-key';
-import { LanguageChanges, NewLanguage, OwnerLanguage, TranslationChanges, TranslationGrid } from '../i18n/translation.model';
 import { visitorRefusalKey } from '../i18n/visitor-words';
 import { AppState, PathProgress, ProgressMap, Session, SessionInput } from '../music/music.types';
 import { writeStorage } from '../util/storage';
@@ -516,53 +515,6 @@ export class ApiService {
    */
   importMyProgress(text: string, replace: boolean): Promise<ImportResult> {
     return this.request<ImportResult>('POST', replace ? '/api/me/import?replace=true' : '/api/me/import', text, { headers: { 'Content-Type': 'application/json' }, asPerson: true });
-  }
-
-  // --- the admin panel: the app's words (EDITOR or ADMIN; the languages' writes ADMIN) ---
-
-  /** Every language, the hidden ones too. */
-  async languages(): Promise<OwnerLanguage[]> {
-    return (await this.request<{ languages: OwnerLanguage[] }>('GET', '/api/admin/languages', undefined, AS_PERSON)).languages;
-  }
-
-  /**
-   * A new language, sorted last - and offered to readers at once only when
-   * `enabled` says so: one with no strings yet reads in English throughout, so
-   * the page that adds it says which it is, every time.
-   * ApiError 409 `language_exists`, 422 `invalid_language` or `too_many_languages`.
-   */
-  async createLanguage(language: NewLanguage & { enabled: boolean }): Promise<OwnerLanguage> {
-    return (await this.request<{ language: OwnerLanguage }>('POST', '/api/admin/languages', language, AS_PERSON)).language;
-  }
-
-  /** Its names, its place, whether it is offered. ApiError 409 `fallback_language` for switching English off. */
-  async updateLanguage(code: string, changes: LanguageChanges): Promise<OwnerLanguage> {
-    return (await this.request<{ language: OwnerLanguage }>('PUT', `/api/admin/languages/${encodeURIComponent(code)}`, changes, AS_PERSON)).language;
-  }
-
-  /** Its strings go with it. ApiError 409 `fallback_language` for English, `seeded_language` for a language the app is released in. */
-  async deleteLanguage(code: string): Promise<void> {
-    await this.request('DELETE', `/api/admin/languages/${encodeURIComponent(code)}`, undefined, AS_PERSON);
-  }
-
-  /** Every key with its string in every language. */
-  translationGrid(): Promise<TranslationGrid> {
-    return this.request<TranslationGrid>('GET', '/api/admin/translations', undefined, AS_PERSON);
-  }
-
-  /** Saves the cells that changed, all or none; answers the grid as it is now, other people's changes included. */
-  saveTranslations(values: TranslationChanges): Promise<TranslationGrid> {
-    return this.request<TranslationGrid>('PUT', '/api/admin/translations', { values }, AS_PERSON);
-  }
-
-  /** One language's own strings as a flat {key: text} map - not merged with English. */
-  exportTranslations(code: string): Promise<Record<string, string>> {
-    return this.request<Record<string, string>>('GET', `/api/admin/translations/${encodeURIComponent(code)}/export`, undefined, AS_PERSON);
-  }
-
-  /** The way back: a flat {key: text} map, checked like a save; unknown keys are refused, blank values skipped. */
-  importTranslations(code: string, values: Record<string, string>): Promise<TranslationGrid> {
-    return this.request<TranslationGrid>('PUT', `/api/admin/translations/${encodeURIComponent(code)}/import`, values, AS_PERSON);
   }
 
   // --- the admin panel: ADMIN alone ---

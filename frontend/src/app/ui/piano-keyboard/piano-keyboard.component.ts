@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslatePipe } from '@anotoki/lib/translations';
 import { TheoryService } from '../../core/music/theory.service';
 import { KeyboardModel } from './keyboard-model';
 

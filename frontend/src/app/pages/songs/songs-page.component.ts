@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { TranslatePipe } from '@anotoki/lib/translations';
 import { SongsService } from '../../core/music/songs.service';
 import { SrsService } from '../../core/music/srs.service';
 import { TheoryService } from '../../core/music/theory.service';

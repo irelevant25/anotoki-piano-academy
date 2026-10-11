@@ -10,19 +10,20 @@ declare(strict_types=1);
  * Under PHP's built-in server router.php does the same. Slim routes on the
  * original path, so every route starts with /api/.
  *
- *   routes/public.php         GET /api/health, GET /api/auth/config, GET /api/translations/{code},
- *                             GET /api/site-status
+ *   routes/public.php         GET /api/health, GET /api/auth/config, GET /api/translations/{code}
+ *                             (anotoki/lib's TranslationsRoutes::bundle()), GET /api/site-status
  *   routes/progress.php       GET /api/state, PUT /api/progress, PUT /api/path, POST /api/sessions
  *                             (a person's or - when the IAM says sign-in is not required - a
  *                             visitor's, api/visitors.php), GET /api/me/export, POST /api/me/import
  *   routes/visitor.php        POST /api/visitor/move: at sign-in, this browser's visitor's progress
  *                             into the person's account (the token and the key)
- *   routes/admin.php          the admin panel's, by role - EDITOR or ADMIN:
+ *   routes/admin.php          the admin panel's, by role - EDITOR or ADMIN (anotoki/lib's
+ *                             TranslationsRoutes::strings()):
  *                             GET /api/admin/languages, GET, PUT /api/admin/translations,
  *                             GET /api/admin/translations/{code}/export,
  *                             PUT /api/admin/translations/{code}/import;
  *                             ADMIN: POST /api/admin/languages,
- *                             PUT, DELETE /api/admin/languages/{code},
+ *                             PUT, DELETE /api/admin/languages/{code} (TranslationsRoutes::languages()),
  *                             GET /api/admin/people, DELETE /api/admin/people/{id},
  *                             GET /api/admin/migrations, GET /api/admin/migrations/file,
  *                             POST /api/admin/migrations/apply
@@ -37,7 +38,7 @@ declare(strict_types=1);
  * not set up - config/*.local.php missing, incomplete or not PHP that runs - every path but
  * GET /api/site-status is 503 {code: "not_set_up", installed, message}, with
  * "setup": "/setup.php" only while the site was never installed; an update
- * pending - a migration waiting - every path but SITE_OPEN_PATHS and the
+ * pending - a migration waiting - every path but siteOpenPaths() and the
  * status is 503 {code: "update_pending", message} with Retry-After: 60, so
  * nothing runs on tables that are not there yet; unavailable (the database
  * out of reach) and ready: through, and a dead database is the error
@@ -52,6 +53,7 @@ require_once __DIR__ . '/meddleware/security.php';
 require_once __DIR__ . '/meddleware/auth.php';
 
 use Anotoki\Lib\Migrations\Http\SiteGate;
+use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Exception\HttpMethodNotAllowedException;
@@ -60,18 +62,24 @@ use Slim\Factory\AppFactory;
 
 /**
  * What still answers while an update waits: the sign-in settings, the app's
- * words, the health check and the Migrations page's routes - so people can
- * sign in, the pages have their words, and an administrator reaches Apply.
- * (GET /api/site-status always does.) A path is exact, or a pattern when it
- * starts with ~.
+ * words (exactly GET /api/translations/{code}: the library's own pattern,
+ * TranslationsRoutes::openPath()), the health check and the Migrations page's
+ * routes - so people can sign in, the pages have their words, and an
+ * administrator reaches Apply. (GET /api/site-status always does.) A path is
+ * exact, or a pattern when it starts with ~.
+ *
+ * @return list<string>
  */
-const SITE_OPEN_PATHS = [
-    '/api/auth/config',
-    '/api/health',
-    '~^/api/translations/[^/]+$~',
-    // Exactly the Migrations page's three routes: a crafted path under them stays held.
-    '~^/api/admin/migrations(/file|/apply)?$~D',
-];
+function siteOpenPaths(): array
+{
+    return [
+        '/api/auth/config',
+        '/api/health',
+        TranslationsRoutes::openPath(),
+        // Exactly the Migrations page's three routes: a crafted path under them stays held.
+        '~^/api/admin/migrations(/file|/apply)?$~D',
+    ];
+}
 
 /**
  * The application: every route and middleware, not yet running. Built once -
@@ -94,7 +102,7 @@ function buildPianoApp(): \Slim\App
     require __DIR__ . '/routes/admin.php';
 
     // Added in this order, so they run the other way round.
-    $app->add(new SiteGate(siteState(), $app->getResponseFactory(), SITE_OPEN_PATHS));
+    $app->add(new SiteGate(siteState(), $app->getResponseFactory(), siteOpenPaths()));
 
     $errorMiddleware = $app->addErrorMiddleware(false, false, false);
     $errorMiddleware->setDefaultErrorHandler(function (Request $request, Throwable $exception) use ($app): Response {

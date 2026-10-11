@@ -59,8 +59,8 @@ export function drawTestQuestions(): TestQuestions {
   const open = (): HTMLDialogElement | null => host.querySelector<HTMLDialogElement>('dialog[open]');
   return {
     open,
-    title: () => (open() ? clean(host.querySelector('.title')?.textContent) : ''),
-    text: () => clean(host.querySelector('.message')?.textContent),
+    title: () => (open() ? clean(host.querySelector('.anotoki-dialog__title')?.textContent) : ''),
+    text: () => clean(host.querySelector('.anotoki-confirm-host__message')?.textContent),
     answers: () => ['no', 'yes'].map((answer) => clean(host.querySelector(`[data-answer="${answer}"]`)?.textContent)),
     answer: (yes) => host.querySelector<HTMLButtonElement>(`[data-answer="${yes ? 'yes' : 'no'}"]`)!.click(),
     remove: () => host.remove(),

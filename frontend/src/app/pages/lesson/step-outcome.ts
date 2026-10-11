@@ -1,4 +1,4 @@
-import type { TranslationParams } from '../../core/i18n/translation.service';
+import type { TranslationParams } from '@anotoki/lib/translations';
 import type { SessionInput } from '../../core/music/music.types';
 
 /**

@@ -59,12 +59,6 @@
       ring: rgb(31 111 209 / 32%),
       focus: #1f6fd1,
       backdrop: rgb(20 22 28 / 45%),
-      // Not Piano's: the family's own small shadow (and, in the dark, the mark's halo), as plain values. A site
-      // gives the family its colours only - but anotoki-lib 0.2.0 writes these one-item defaults as they are
-      // in Sass, "(0 1px 2px ...,)", which is no CSS, so a box-shadow or a filter reading them is none (the
-      // theme switch's chosen segment flat, the mark sunk into the dark bar). Fixed in the library's 0.3.0:
-      // these lines go with the move to it.
-      shadow-sm: 0 1px 2px rgb(15 27 51 / 6%),
     ),
     dark: (
       bg: #14161c,
@@ -102,9 +96,6 @@
       backdrop: rgb(4 6 10 / 70%),
       skeleton: #262a36,
       skeleton-shine: #2d3240,
-      // The family's own, as plain values until anotoki-lib 0.3.0 (above, in light).
-      shadow-sm: 0 1px 2px rgb(0 0 0 / 35%),
-      mark-shadow: drop-shadow(0 0 1px rgb(255 255 255 / 70%)) drop-shadow(0 0 6px rgb(255 255 255 / 22%)),
     ),
   )
 );
@@ -225,11 +216,12 @@ a {
 /// in the piano's box, What's new and the footer. Never a control of the
 /// family's kit (anotokiButton, a menu's item) nor anything inside one of its
 /// components - the bar, a menu, a box, a dialog, the status and Migrations
-/// pages - but what Piano puts there itself (the piano, in the bar's widget
-/// slot): the kit sets everything it relies on, and what it leaves unset (a
-/// hover's edge, a disabled button's fade) must not come from here. Written
-/// with :where(), so it weighs nothing: any rule of a component's wins.
-$piano-own: ":where(:not(:is(.anotoki-button, .anotoki-menu-item, anotoki-top-bar *, anotoki-menu *, anotoki-popover *, anotoki-dialog *, anotoki-site-status *, anotoki-migrations-page *)), app-midi-panel *)";
+/// pages, the admin panel's Translations and Languages pages - but what Piano
+/// puts there itself (the piano, in the bar's widget slot): the kit sets
+/// everything it relies on, and what it leaves unset (a hover's edge, a
+/// disabled button's fade) must not come from here. Written with :where(), so
+/// it weighs nothing: any rule of a component's wins.
+$piano-own: ":where(:not(:is(.anotoki-button, .anotoki-menu-item, anotoki-top-bar *, anotoki-menu *, anotoki-popover *, anotoki-dialog *, anotoki-site-status *, anotoki-migrations-page *, anotoki-translations-page *, anotoki-languages-page *)), app-midi-panel *)";
 
 :where(select, button)#{$piano-own} {
   font: inherit;

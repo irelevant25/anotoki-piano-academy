@@ -69,10 +69,10 @@ switch ($command) {
             exit(1);
         }
         if ($result['failed'] !== null) {
-            fwrite(STDERR, "testdb: {$result['failed']['name']} failed: {$result['error']}\n");
+            fwrite(STDERR, 'testdb: ' . migrationLabel($result['failed']) . " failed: {$result['error']}\n");
             exit(1);
         }
-        $applied = array_column($result['applied'], 'name');
+        $applied = array_map('migrationLabel', $result['applied']);
         echo TEMPLATE . ': ' . ($applied ? ($name === '--fresh' ? 'built again (' : 'updated (') . implode(', ', $applied) . ')' : 'up to date') . "\n";
         break;
 

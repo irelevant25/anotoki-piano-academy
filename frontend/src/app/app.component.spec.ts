@@ -5,6 +5,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ROUTES, Router, provideRouter } from '@angular/router';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { AnotokiThemeMode, ThemeService } from '@anotoki/lib/shell';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AppComponent } from './app.component';
 import { ApiService, VISITOR_OWNER } from './core/api/api.service';
 import { type AnotokiUser } from './core/auth/anotoki-auth';
@@ -13,14 +15,13 @@ import { VisitorKey } from './core/auth/visitor-key';
 import { ChangelogEntry, ChangelogService } from './core/changelog/changelog.service';
 import { provideFamilyKit } from './core/family-kit';
 import { KEPT_ENGLISH } from './core/i18n/kept-english';
-import { TranslationService } from './core/i18n/translation.service';
+import { provideSiteTranslations } from './core/i18n/site-translations';
 import { VISITOR_WORDS } from './core/i18n/visitor-words';
 import { MidiService } from './core/midi/midi.service';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
 import { SITE_STATUS_URL, provideSiteMigrations } from './core/state/site-migrations';
 import { provideTestKit } from './core/testing/test-kit';
-import { provideTestTranslations } from './core/testing/test-translations';
 
 /**
  * A key as it would stand on a page: a namespace, then segments that begin
@@ -71,10 +72,10 @@ class CountedPageComponent {
   }
 }
 
-/** The shell, made with the providers given: the real translation service with no bundle unless they say otherwise. */
+/** The shell, made with the providers given: the real translation service with no bundle unless they say otherwise - wired as the app wires it (core/i18n/site-translations.ts: the kept English). */
 function shell(providers: Provider[] = []): Shell {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideSiteMigrations(), provideFamilyKit(), ...providers] });
+  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideSiteTranslations(), provideSiteMigrations(), provideFamilyKit(), ...providers] });
   // As the app's initializer leaves it: the site asked, and ready.
   const site = TestBed.inject(SiteStatus);
   site.markReady();
@@ -305,12 +306,12 @@ const STATES: Record<string, (s: Shell) => void> = {
 /** Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>) draws what the shell's checks read. */
 const BAR = {
   nav: 'anotoki-top-bar nav',
-  personButton: 'anotoki-top-bar .person-button',
-  personName: 'anotoki-top-bar .person-name',
-  phoneButton: 'anotoki-top-bar .menu-button',
+  personButton: '.anotoki-top-bar__person-button',
+  personName: '.anotoki-top-bar__person-name',
+  phoneButton: '.anotoki-top-bar__menu-button',
   menu: 'anotoki-top-bar [role="menu"]',
-  signIn: 'anotoki-top-bar .sign-in',
-  signOut: 'anotoki-top-bar .sign-out-item',
+  signIn: '.anotoki-top-bar__sign-in',
+  signOut: '.anotoki-top-bar__sign-out-item',
   theme: 'anotoki-theme-toggle [role="radio"]',
 } as const;
 
@@ -428,8 +429,8 @@ describe('the shell with no bundle', () => {
     });
     // Before the app runs there is nothing to practise on: the bar has no sections yet.
     expect(notSetUp.host.querySelector(BAR.nav)).toBeNull();
-    expect(notSetUp.host.querySelector('.brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
-    expect(notSetUp.host.querySelector('.brand .area')?.textContent).toBe('Piano Academy');
+    expect(notSetUp.host.querySelector('.anotoki-brand__brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
+    expect(notSetUp.host.querySelector('.anotoki-brand__area')?.textContent).toBe('Piano Academy');
     expect(notSetUp.host.querySelector('#midi-label')?.textContent?.trim()).toBe('No piano');
     expect(notSetUp.host.querySelector('#midi-button')?.getAttribute('aria-label')).toBe('No piano: Piano not connected');
     expect(notSetUp.host.querySelector('#midi-button')?.getAttribute('title')).toBe('Piano not connected');
@@ -481,8 +482,8 @@ describe('the shell with no bundle', () => {
     expect(running.host.querySelector('#progress-changed')).toBeNull();
     // The sign-out question (the family's dialog), asked when some progress would be lost: in the kept English too.
     const question = await drawn(OPENED.find(([name]) => name.startsWith('the sign-out question'))![1], [], { open: 'sign-out' });
-    expect(question.host.querySelector('anotoki-confirm-host .title')?.textContent).toBe('Sign out without your latest progress?');
-    expect(question.host.querySelector('anotoki-confirm-host .message')?.textContent).toBe('Some of your progress could not be saved yet. If you sign out now, it is lost.');
+    expect(question.host.querySelector('anotoki-confirm-host .anotoki-dialog__title')?.textContent).toBe('Sign out without your latest progress?');
+    expect(question.host.querySelector('anotoki-confirm-host .anotoki-confirm-host__message')?.textContent).toBe('Some of your progress could not be saved yet. If you sign out now, it is lost.');
     expect(question.host.querySelector('anotoki-confirm-host [data-answer="no"]')?.textContent?.trim()).toBe('Stay signed in');
     expect(question.host.querySelector('anotoki-confirm-host [data-answer="yes"]')?.textContent?.trim()).toBe('Sign out anyway');
 
@@ -505,7 +506,7 @@ describe('the shell with no bundle', () => {
 
     // A phone: "Piano" beside the mark, the menu button - and in its menu the sections, then the person's items.
     const phone = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { phone: true, open: 'phone' });
-    expect(phone.host.querySelector('.brand .area')?.textContent).toBe('Piano');
+    expect(phone.host.querySelector('.anotoki-brand__area')?.textContent).toBe('Piano');
     expect(phone.host.querySelector(BAR.phoneButton)?.getAttribute('aria-label')).toBe('Menu');
     expect(phone.host.querySelector(BAR.nav)).toBeNull();
     expect(Array.from(phone.host.querySelectorAll(`${BAR.menu} [role="menuitem"]`)).map((item) => item.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Sign out']);
@@ -622,12 +623,12 @@ describe('the shell with no bundle', () => {
     const phone = await drawn(STATES['running, signed in with a token that names nobody, a save that did not get through, no MIDI device'], [], { phone: true, open: 'phone' });
     expect(phone.host.querySelector('#save-status')).toBeNull();
     const button = phone.host.querySelector(BAR.phoneButton)!;
-    expect(button.querySelector('.mark-dot')).not.toBeNull();
+    expect(button.querySelector('.anotoki-top-bar__mark-dot')).not.toBeNull();
     const described = button.getAttribute('aria-describedby');
     expect(described).toBeTruthy();
     expect(phone.host.querySelector(`#${described}`)?.textContent).toBe('Not saved yet');
-    expect(phone.host.querySelector(`${BAR.menu} .menu-note strong`)?.textContent).toBe('Not saved yet');
-    expect(phone.host.querySelector(`${BAR.menu} .menu-note span`)?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
+    expect(phone.host.querySelector(`${BAR.menu} .anotoki-top-bar__menu-note strong`)?.textContent).toBe('Not saved yet');
+    expect(phone.host.querySelector(`${BAR.menu} .anotoki-top-bar__menu-note span`)?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
     const box = await drawn(STATES['running, signed in with a token that names nobody, a save that did not get through, no MIDI device'], [], { open: 'piano' });
     expect(box.host.querySelector('#midi-device-select option')?.textContent).toBe('No MIDI devices found');
 
@@ -648,7 +649,7 @@ describe('the shell with no bundle', () => {
   it('shows the staff the way to the admin panel in the person\'s menu - an EDITOR and an ADMIN, with their role, and nobody else', async () => {
     const open = { open: 'account' } as const;
     const adminLink = (s: Shell): Element | null => s.host.querySelector(`${BAR.menu} a[href="/admin"]`);
-    const role = (s: Shell): Element | null => s.host.querySelector(`${BAR.menu} .menu-role`);
+    const role = (s: Shell): Element | null => s.host.querySelector(`${BAR.menu} .anotoki-top-bar__menu-role`);
     const editor = await drawn(STATES['running, an editor, in a browser with no Web MIDI'], [], open);
     expect(adminLink(editor)?.textContent?.trim()).toBe('Admin panel');
     expect(role(editor)?.textContent).toBe('Editor');
@@ -936,8 +937,10 @@ describe('the shell with a bundle in memory', () => {
     expect(keys).toContain('boot.loadError.title');
     expect(keys).toContain('brand.area');
     expect(keys).toContain('midi.notConnected');
-    // The family's theme switch names its choices with this app's keys, as any word of its own.
-    expect(keys).toContain('theme.auto');
+    // The family's words are the library's keys (anotoki.*): never a key on the page - where the bundle has no string,
+    // this app's own words for them (the theme switch's, kept-english.ts), else the kit's.
+    expect(keys.filter((key) => key.startsWith('anotoki.'))).toEqual([]);
+    expect(Array.from(s.host.querySelectorAll(BAR.theme)).map((choice) => choice.getAttribute('aria-label'))).toEqual(['Theme: light', 'Theme: dark', 'Theme: automatic']);
     expect(warn).toHaveBeenCalled();
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [provideTestTranslations({ 'nav.learn': 'Learn' })]);
@@ -945,6 +948,27 @@ describe('the shell with a bundle in memory', () => {
     expect(shown).toContain('nav.trainer');
     expect(shown).not.toContain('nav.learn');
     expect(running.host.querySelector(`${BAR.nav} a`)?.textContent?.trim()).toBe('Learn');
+  });
+
+  it('words the status page in the language the page is read in - English on an address of the admin panel - and always in the database\'s words, an owner\'s rewording too', async () => {
+    const reworded = [
+      provideTestTranslations(
+        { 'anotoki.siteStatus.updatingTitle': 'Stránka sa práve vylepšuje' },
+        { language: 'sk', english: { 'anotoki.siteStatus.updatingTitle': 'The site is being improved' } },
+      ),
+    ];
+    const s = await drawn(STATES['an update waits, nobody signed in'], reworded);
+    // A learner's address: Slovak, the owner's Slovak.
+    expect([statusPage(s)?.title, statusPage(s)?.lang]).toEqual(['Stránka sa práve vylepšuje', 'sk']);
+    // An address of the admin panel (the title strategy tells the words where the page is): English, as the whole
+    // panel is - the owner's English, never the module's own Slovak words for a Slovak reader.
+    TestBed.inject(TranslationService).noteAddress('/admin/migrations');
+    await settledAll(s);
+    expect([statusPage(s)?.title, statusPage(s)?.lang]).toEqual(['The site is being improved', 'en']);
+    // Back on a learner's address: Slovak again.
+    TestBed.inject(TranslationService).noteAddress('/stats');
+    await settledAll(s);
+    expect([statusPage(s)?.title, statusPage(s)?.lang]).toEqual(['Stránka sa práve vylepšuje', 'sk']);
   });
 
   it('marks what is not the app’s own as such where the page is not: the family\'s status page, the release notes', async () => {

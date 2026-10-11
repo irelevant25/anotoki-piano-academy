@@ -493,7 +493,7 @@ if ($method === 'POST') {
                 throw new RuntimeException('Another database update is running (php migration.php, or an administrator in the app). Wait a moment and press Save again.');
             }
             if ($migrated['failed'] !== null) {
-                throw new RuntimeException('The database update ' . $migrated['failed']['name'] . ' failed: ' . $migrated['error']);
+                throw new RuntimeException('The database update ' . migrationLabel($migrated['failed']) . ' failed: ' . $migrated['error']);
             }
             $pdo = null;
         } catch (PDOException $e) {
@@ -514,7 +514,7 @@ if ($method === 'POST') {
             }
             $log = [
                 'Saved the database connection and the IAM in config/database.local.php and config/auth.local.php.',
-                $migrated['applied'] ? 'Made the tables (' . implode(', ', array_column($migrated['applied'], 'name')) . ').' : 'The tables were up to date.',
+                $migrated['applied'] ? 'Made the tables (' . implode(', ', array_map('migrationLabel', $migrated['applied'])) . ').' : 'The tables were up to date.',
                 'People sign in through the IAM at ' . $form['issuer'] . ', where this app is "' . $form['client_id'] . '". '
                     . 'Who may reword its words (EDITOR) and administer it (ADMIN) is set there, in the admin panel.',
             ];

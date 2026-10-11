@@ -1,13 +1,13 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TranslationService } from '@anotoki/lib/translations';
+import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { MockInstance } from 'vitest';
 import { type AnotokiPreferences } from '../../core/auth/anotoki-auth';
 import { AuthService } from '../../core/auth/auth.service';
-import { TranslationService } from '../../core/i18n/translation.service';
 import { ProgressMap, Session } from '../../core/music/music.types';
 import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
-import { provideTestTranslations } from '../../core/testing/test-translations';
 import { OwnProgressComponent } from './own-progress/own-progress.component';
 import { StatsPageComponent, computeStreak, localDayKey, practiceMinutes } from './stats-page.component';
 
@@ -264,7 +264,7 @@ describe('Stats: the page in the language of the reader', () => {
     expect(host.querySelector('h2')?.textContent?.trim()).toBe('Tvoj postup');
     expect(rows()[0].slice(1)).toEqual(['Lekcia: B a vysoké C · V rytme', '8/10', '80 %', '90 ms']);
 
-    await TestBed.inject(TranslationService).setLanguage('en', false);
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
     expect(host.querySelector('h2')?.textContent?.trim()).toBe('Your Progress');
     expect(rows()[0]).toEqual([
