@@ -1,7 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, DestroyRef, Provider, inject } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ROUTES, Router, provideRouter } from '@angular/router';
 import { SignInFailureComponent, type AnotokiUser } from '@anotoki/lib/auth';
 import { SiteStatus } from '@anotoki/lib/migrations';
@@ -24,6 +25,7 @@ import { ProgressStore } from './core/state/progress-store.service';
 import { SITE_STATUS_URL, provideSiteMigrations } from './core/state/site-migrations';
 import { TestAuth, provideTestAuth } from './core/testing/test-auth';
 import { provideTestKit } from './core/testing/test-kit';
+import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog.component';
 
 /**
  * A key as it would stand on a page: a namespace, then segments that begin
@@ -323,11 +325,12 @@ const BAR = {
 
 /**
  * How the shell is looked at: on a phone's screen (the menu button), with a menu opened, the piano's box, the
- * sign-out question, the feedback form - or at another address than the start page (the failure's screen).
+ * sign-out question, the feedback form, What's new - or at another address than the start page (the failure's
+ * screen).
  */
 interface Look {
   phone?: boolean;
-  open?: 'account' | 'phone' | 'piano' | 'sign-out' | 'feedback';
+  open?: 'account' | 'phone' | 'piano' | 'sign-out' | 'feedback' | 'whats-new';
   at?: string;
 }
 
@@ -358,8 +361,17 @@ async function drawn(state: (s: Shell) => void, providers: Provider[] = [], look
     // Its code is loaded as it opens (a @defer): the dialog and the family's form a moment later.
     await settledAll(s);
   } else if (look.open === 'piano') {
+    // The device list is the family's select, drawn once the page is idle (a @defer): as it is by then.
+    for (const block of await s.fixture.getDeferBlocks()) await block.render(DeferBlockState.Complete);
     (s.host.querySelector('#midi-button') as HTMLButtonElement).click();
     await s.fixture.whenStable();
+  } else if (look.open === 'whats-new') {
+    // The footer's version opens the family's dialog (drawn only while open). With no list of changes there is no
+    // version to press: the dialog is opened as the footer would open it, to read what it says then.
+    const version = s.host.querySelector<HTMLButtonElement>('#app-version');
+    if (version) version.click();
+    else s.fixture.debugElement.query(By.directive(ChangelogDialogComponent)).componentInstance.open();
+    await settledAll(s);
   } else if (look.open) {
     (s.host.querySelector(look.open === 'phone' ? BAR.phoneButton : BAR.personButton) as HTMLButtonElement).click();
     await s.fixture.whenStable();
@@ -402,6 +414,10 @@ const OPENED: [string, (s: Shell) => void, Look][] = [
   ['the piano\'s box, no MIDI device found', (s) => {
     s.midi.asked.set(true);
   }, { open: 'piano' }],
+  ['What\'s new, opened from the footer\'s version', (s) => {
+    s.changelog.entries.set(RELEASES);
+  }, { open: 'whats-new' }],
+  ['What\'s new with no list of changes', () => undefined, { open: 'whats-new' }],
   ['the sign-out question, some progress not saved', (s) => {
     session(s.auth, PERSON);
     s.store.loaded.set(true);
@@ -487,9 +503,11 @@ describe('the shell with no bundle', () => {
     const loading = await drawn(STATES['loading, before anything is known']);
     expect(loading.host.querySelector('.loading')?.textContent).toBe('Loading…');
 
+    // The family's error state: its alert said at once, its heading and sentence this app's, its Try again too.
     const loadError = await drawn(STATES['the progress could not be loaded']);
-    expect(loadError.host.querySelector('#load-error h2')?.textContent).toBe('Could not load your progress');
-    expect(loadError.host.querySelector('#boot-retry')?.textContent).toBe('Try again');
+    expect(loadError.host.querySelector('#load-error .anotoki-alert__heading')?.textContent).toBe('Could not load your progress');
+    expect(loadError.host.querySelector('#load-error [role="alert"]')).not.toBeNull();
+    expect(loadError.host.querySelector('#load-error button')?.textContent?.trim()).toBe('Try again');
 
     const onTheWay = await drawn(STATES['nobody signed in, on the way to the IAM']);
     expect(onTheWay.host.querySelector('anotoki-sign-in-failure')).toBeNull();
@@ -530,9 +548,19 @@ describe('the shell with no bundle', () => {
     expect(connected.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Connected: KAWAI ES120');
     expect(running.host.querySelector('#app-version')?.textContent).toBe('Piano Academy v0.4.0');
     expect(running.host.querySelector('#app-version')?.getAttribute('title')).toBe('What\'s new');
-    expect(running.host.querySelector('#changelog-title')?.textContent).toBe('What\'s new');
-    expect(running.host.querySelector('.release-date')?.textContent).toBe('28 September 2026');
     expect(running.host.querySelector('#progress-changed')).toBeNull();
+    // What's new: the family's dialog, drawn once the version is pressed - its heading, the newest marked, each list named.
+    expect(running.host.querySelector('app-changelog-dialog anotoki-dialog')).toBeNull();
+    const news = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { open: 'whats-new' });
+    expect(news.host.querySelector('app-changelog-dialog .anotoki-dialog__title')?.textContent).toBe('What\'s new');
+    expect(news.host.querySelector('app-changelog-dialog dialog')?.hasAttribute('open')).toBe(true);
+    expect(news.host.querySelector('.release-date')?.textContent).toBe('28 September 2026');
+    expect(news.host.querySelector('.release.is-latest anotoki-badge.latest')?.textContent?.trim()).toBe('Latest');
+    expect(Array.from(news.host.querySelectorAll('.release-section')).map((heading) => heading.textContent?.trim())).toEqual(['Added', 'Changed', 'Fixed', 'Added']);
+    // Its Close (beside the dialog's own) closes it.
+    (news.host.querySelector('#whats-new-close') as HTMLButtonElement).click();
+    await settledAll(news);
+    expect(news.host.querySelector('app-changelog-dialog anotoki-dialog')).toBeNull();
     // The sign-out question (the family's dialog), asked when some progress would be lost: in the kept English too.
     const question = await drawn(OPENED.find(([name]) => name.startsWith('the sign-out question'))![1], [], { open: 'sign-out' });
     expect(question.host.querySelector('anotoki-confirm-host .anotoki-dialog__title')?.textContent).toBe('Sign out without your latest progress?');
@@ -1058,18 +1086,18 @@ describe('the shell with a bundle in memory', () => {
     expect(statusPage(await drawn(STATES['an update waits, nobody signed in'], slovak))?.lang).toBe('sk');
     expect(statusPage(await drawn(STATES['an update waits, the site\'s ADMIN signed in'], slovak))?.lang).toBe('en');
 
-    const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], slovak);
+    const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], slovak, { open: 'whats-new' });
     const lists = Array.from(running.host.querySelectorAll('.release ul'));
     expect(lists.length).toBe(4);
     expect(lists.map((list) => list.getAttribute('lang'))).toEqual(['en', 'en', 'en', 'en']);
     // The frame around them is the page's: its headings carry no lang of their own, and the day is written the Slovak way.
-    expect(running.host.querySelector('.section-title.added')?.textContent).toBe('Pridané');
-    expect(running.host.querySelector('.section-title.added')?.hasAttribute('lang')).toBe(false);
+    expect(running.host.querySelector('.release-section--added')?.textContent).toBe('Pridané');
+    expect(running.host.querySelector('.release-section--added')?.hasAttribute('lang')).toBe(false);
     expect(running.host.querySelector('.release-date')?.textContent).toBe('28. septembra 2026');
 
     // On an English page the release notes need no mark: the page says English already.
     const english = [provideTestTranslations({})];
-    const plain = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], english);
+    const plain = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], english, { open: 'whats-new' });
     expect(Array.from(plain.host.querySelectorAll('.release ul')).map((list) => list.hasAttribute('lang'))).toEqual([false, false, false, false]);
   });
 });

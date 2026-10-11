@@ -1,6 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, afterNextRender, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { TranslatePipe } from '@anotoki/lib/translations';
+import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { SelectComponent, SelectOption } from '@anotoki/lib/ui/forms';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { MidiService } from '../../core/midi/midi.service';
 import { SongsService } from '../../core/music/songs.service';
 import { SrsService } from '../../core/music/srs.service';
@@ -12,19 +16,24 @@ import { KeyboardModel } from '../../ui/piano-keyboard/keyboard-model';
 import { PianoKeyboardComponent } from '../../ui/piano-keyboard/piano-keyboard.component';
 import { Feedback } from '../lesson/step-outcome';
 
-/** A tempo on offer: the number, and whether it is the song's own - the template words it. */
+/** A tempo on offer: the number, and whether it is the song's own - worded as the select's choice (tempoOptions). */
 interface TempoOption {
   value: number;
   original: boolean;
 }
 
-/** One song (/songs/:songId), played along with the metronome at its own tempo, a little slower or faster. */
+/**
+ * One song (/songs/:songId), played along with the metronome at its own
+ * tempo, a little slower or faster. The card, the tempo (the family's
+ * select) and the buttons are the family's; the practice screen is Piano's
+ * own.
+ */
 @Component({
   selector: 'app-song-player-page',
   templateUrl: './song-player-page.component.html',
   styleUrl: './song-player-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe, ButtonComponent, CardComponent, SelectComponent, IconComponent],
 })
 export class SongPlayerPageComponent implements OnInit {
   private readonly midi = inject(MidiService);
@@ -33,6 +42,7 @@ export class SongPlayerPageComponent implements OnInit {
   private readonly library = inject(SongsService);
   private readonly store = inject(ProgressStore);
   private readonly router = inject(Router);
+  private readonly i18n = inject(TranslationService);
 
   /** From the address (withComponentInputBinding). */
   readonly songId = input<string>();
@@ -49,6 +59,10 @@ export class SongPlayerPageComponent implements OnInit {
     const song = this.song();
     return song ? [0.75, 1, 1.25].map((factor) => ({ value: Math.round(song.bpm * factor), original: factor === 1 })) : [];
   });
+  /** The tempos as the select's choices, in the page's language ("100 BPM (original)"). */
+  protected readonly tempoOptions = computed<SelectOption[]>(() =>
+    this.tempos().map((tempo) => ({ value: String(tempo.value), label: this.i18n.t(tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm', { bpm: tempo.value }) })),
+  );
 
   private readonly staff = viewChild(NotationComponent);
   protected readonly keyboard = new KeyboardModel();
@@ -95,8 +109,8 @@ export class SongPlayerPageComponent implements OnInit {
     this.player.load(song.notes, { timeSignature: song.timeSignature });
   }
 
-  protected chooseTempo(event: Event): void {
-    this.bpm.set(Number((event.target as HTMLSelectElement).value));
+  protected chooseTempo(value: string): void {
+    this.bpm.set(Number(value));
   }
 
   protected start(): void {

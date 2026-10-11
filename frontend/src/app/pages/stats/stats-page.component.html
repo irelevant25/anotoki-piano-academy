@@ -1,6 +1,5 @@
-<div class="card">
-    <h2>{{ 'stats.title' | translate }}</h2>
-    <div class="grid">
+<anotoki-card [heading]="'stats.title' | translate">
+    <div class="stat-tiles">
         <div class="stat-tile">
             <div class="value">{{ tiles().known }}/{{ curriculumLength }}</div>
             <div class="label">{{ 'stats.tile.known' | translate }}</div>
@@ -32,25 +31,27 @@
             <div class="label">{{ 'stats.tile.minutes' | translate }}</div>
         </div>
     </div>
-</div>
+</anotoki-card>
 
-<div class="card">
-    <h2>{{ 'stats.keyboard.title' | translate }}</h2>
-    <p class="tag legend">
-        <span class="dot learning">&#9679;</span> {{ 'stats.keyboard.learning' | translate }}
-        <span class="dot review">&#9679;</span> {{ 'stats.keyboard.review' | translate }}
-        <span class="dot mastered">&#9679;</span> {{ 'stats.keyboard.mastered' | translate }}
-    </p>
-    <app-piano-keyboard id="st-keyboard" [model]="keyboard" [lowMidi]="41" [highMidi]="84" />
-</div>
+<anotoki-card [heading]="'stats.keyboard.title' | translate">
+    <div class="stack">
+        <p class="legend">
+            <span><span class="dot learning" aria-hidden="true">&#9679;</span> {{ 'stats.keyboard.learning' | translate }}</span>
+            <span><span class="dot review" aria-hidden="true">&#9679;</span> {{ 'stats.keyboard.review' | translate }}</span>
+            <span><span class="dot mastered" aria-hidden="true">&#9679;</span> {{ 'stats.keyboard.mastered' | translate }}</span>
+        </p>
+        <app-piano-keyboard id="st-keyboard" [model]="keyboard" [lowMidi]="41" [highMidi]="84" />
+    </div>
+</anotoki-card>
 
-<div class="card">
-    <h2>{{ 'stats.recent.title' | translate }}</h2>
+<anotoki-card [heading]="'stats.recent.title' | translate">
     @if (recent().length === 0) {
-        <p>{{ 'stats.recent.empty' | translate }}</p>
+        <!-- Nothing played yet: the family's empty state, with the piano. -->
+        <anotoki-empty-state icon="piano" [heading]="'stats.recent.empty' | translate" />
     } @else {
-        <div class="table-wrap">
-            <table>
+        <!-- The family's table: wide enough on a desktop; on a phone every round a small card, each cell named. -->
+        <div class="table-scroll">
+            <table class="table table-stack">
                 <thead>
                     <tr>
                         <th>{{ 'stats.recent.when' | translate }}</th>
@@ -63,17 +64,19 @@
                 <tbody>
                     @for (row of recent(); track row.id) {
                         <tr>
-                            <td>{{ row.when | localDate: 'moment' }}</td>
-                            <td>
-                                <span>{{ row.mode[0] }}</span>
-                                @if (row.mode[2]) {
-                                    <span [attr.lang]="row.stored ? 'en' : null">{{ row.name }}</span>
-                                }
-                                <span>{{ row.mode[1] }}</span>
+                            <td [attr.data-label]="'stats.recent.when' | translate">{{ row.when | localDate: 'moment' }}</td>
+                            <td [attr.data-label]="'stats.recent.mode' | translate">
+                                <span>
+                                    <span>{{ row.mode[0] }}</span>
+                                    @if (row.mode[2]) {
+                                        <span [attr.lang]="row.stored ? 'en' : null">{{ row.name }}</span>
+                                    }
+                                    <span>{{ row.mode[1] }}</span>
+                                </span>
                             </td>
-                            <td>{{ row.score }}</td>
-                            <td>{{ 'common.percent' | translate: { value: row.accuracy } }}</td>
-                            <td>
+                            <td [attr.data-label]="'stats.recent.score' | translate">{{ row.score }}</td>
+                            <td [attr.data-label]="'stats.recent.accuracy' | translate">{{ 'common.percent' | translate: { value: row.accuracy } }}</td>
+                            <td [attr.data-label]="'stats.recent.timing' | translate">
                                 @if (row.timingMs !== null) {
                                     {{ 'common.milliseconds' | translate: { value: row.timingMs } }}
                                 } @else {
@@ -86,14 +89,16 @@
             </table>
         </div>
     }
-</div>
+</anotoki-card>
 
 @if (signedIn()) {
     <app-own-progress />
 } @else {
     <!-- Practising without signing in (or signed out meanwhile): a progress file is an account's. -->
-    <div class="card own-progress-visitor" id="own-progress-visitor">
-        <p>{{ 'ownProgress.visitor' | translate }}</p>
-        <button type="button" class="btn-primary" id="own-progress-sign-in" (click)="signIn()">{{ 'signIn.button' | translate }}</button>
-    </div>
+    <anotoki-card class="own-progress-visitor" id="own-progress-visitor">
+        <div class="visitor-line">
+            <p>{{ 'ownProgress.visitor' | translate }}</p>
+            <button anotokiButton variant="primary" id="own-progress-sign-in" (click)="signIn()">{{ 'signIn.button' | translate }}</button>
+        </div>
+    </anotoki-card>
 }

@@ -1,9 +1,9 @@
 @if (openStep(); as current) {
-    <div class="card lesson">
+    <anotoki-card class="lesson">
         <div class="lesson-head">
-            <button id="ls-back" type="button" (click)="backToPath()">&larr; {{ 'lesson.back' | translate }}</button>
+            <button anotokiButton id="ls-back" (click)="backToPath()"><anotoki-icon name="arrowLeft" [size]="16" />{{ 'lesson.back' | translate }}</button>
             <div class="lesson-title">
-                <div class="tag">{{ head().tag }}</div>
+                <p class="lesson-tag">{{ head().tag }}</p>
                 <h2>{{ head().heading }}</h2>
             </div>
         </div>
@@ -23,14 +23,14 @@
                     @if (done.lastForNow) {
                         <p>{{ 'lesson.result.lastForNow' | translate }}</p>
                     }
-                    <div class="controls-row result-actions">
+                    <div class="cluster result-actions">
                         @if (done.next; as next) {
-                            <button class="btn-primary btn-large" id="ls-next" type="button" (click)="goNext(next)">{{ done.nextLabel | translate }}</button>
+                            <button anotokiButton variant="primary" size="lg" id="ls-next" (click)="goNext(next)">{{ done.nextLabel | translate }}</button>
                         }
-                        <button id="ls-retry" type="button" [class.btn-primary]="!done.open" [class.btn-large]="!done.open" (click)="restart()">
+                        <button anotokiButton id="ls-retry" [variant]="done.open ? 'secondary' : 'primary'" [size]="done.open ? 'md' : 'lg'" (click)="restart()">
                             {{ (done.open ? 'lesson.result.practiceAgain' : 'lesson.result.tryAgain') | translate }}
                         </button>
-                        <button id="ls-path" type="button" (click)="backToPath()">{{ 'lesson.backToPath' | translate }}</button>
+                        <button anotokiButton id="ls-path" (click)="backToPath()">{{ 'lesson.backToPath' | translate }}</button>
                     </div>
                 </div>
             } @else {
@@ -49,11 +49,14 @@
                 }
             }
         </div>
-    </div>
+    </anotoki-card>
 } @else {
-    <div class="card">
-        <h2>{{ 'lesson.locked.title' | translate }}</h2>
-        <p>{{ 'lesson.locked.text' | translate }}</p>
-        <button class="btn-primary" id="ls-path" type="button" (click)="backToPath()">{{ 'lesson.backToPath' | translate }}</button>
-    </div>
+    <anotoki-card [heading]="'lesson.locked.title' | translate">
+        <div class="stack">
+            <p>{{ 'lesson.locked.text' | translate }}</p>
+            <div class="cluster">
+                <button anotokiButton variant="primary" id="ls-path" (click)="backToPath()">{{ 'lesson.backToPath' | translate }}</button>
+            </div>
+        </div>
+    </anotoki-card>
 }

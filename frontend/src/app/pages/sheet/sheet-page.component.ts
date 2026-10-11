@@ -1,6 +1,9 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { TranslatePipe, TranslatePluralPipe } from '@anotoki/lib/translations';
+import { TranslatePipe, TranslatePluralPipe, TranslationService } from '@anotoki/lib/translations';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { SelectComponent, SelectOption } from '@anotoki/lib/ui/forms';
 import { MidiService } from '../../core/midi/midi.service';
 import { PathService } from '../../core/music/path.service';
 import { SrsService } from '../../core/music/srs.service';
@@ -18,14 +21,15 @@ const MIN_KNOWN_NOTES = 3;
 /**
  * Sheet Practice: a short piece made from the notes the learner knows (the
  * treble ones, for now), sight-read along with the metronome - pitch and
- * timing graded, the round logged.
+ * timing graded, the round logged. The card, the tempo (the family's select)
+ * and the buttons are the family's; the practice screen is Piano's own.
  */
 @Component({
   selector: 'app-sheet-page',
   templateUrl: './sheet-page.component.html',
   styleUrl: './sheet-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe, TranslatePluralPipe],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe, TranslatePluralPipe, ButtonComponent, CardComponent, SelectComponent],
 })
 export class SheetPageComponent {
   private readonly midi = inject(MidiService);
@@ -34,11 +38,14 @@ export class SheetPageComponent {
   private readonly path = inject(PathService);
   private readonly store = inject(ProgressStore);
   private readonly router = inject(Router);
+  private readonly i18n = inject(TranslationService);
 
   private readonly staff = viewChild(NotationComponent);
   protected readonly keyboard = new KeyboardModel();
   protected readonly minKnown = MIN_KNOWN_NOTES;
   protected readonly tempos = [60, 70, 80, 100, 120];
+  /** The tempos as the select's choices, in the page's language ("80 BPM"). */
+  protected readonly tempoOptions = computed<SelectOption[]>(() => this.tempos.map((tempo) => ({ value: String(tempo), label: this.i18n.t('tempo.bpm', { bpm: tempo }) })));
 
   /** The known notes it may use, in a shuffled order - fixed while the page is open. */
   protected readonly knownTreble = this.path.shuffle(this.store.knownNotes().filter((midi) => midi >= 60));
@@ -101,8 +108,8 @@ export class SheetPageComponent {
     this.feedback.set({ key: 'sheet.newReady', kind: null });
   }
 
-  protected chooseTempo(event: Event): void {
-    this.bpm.set(Number((event.target as HTMLSelectElement).value));
+  protected chooseTempo(value: string): void {
+    this.bpm.set(Number(value));
   }
 
   protected start(): void {

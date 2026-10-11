@@ -1,6 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TranslatePipe, TranslatePluralPipe, TranslationParams, TranslationService } from '@anotoki/lib/translations';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { ConfirmOptions, ConfirmService } from '@anotoki/lib/ui/dialog';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { ApiError, ApiService, EXPORT_LIMIT, ImportPreview, ImportResult, ProgressCounts } from '../../../core/api/api.service';
 import { ProgressStore } from '../../../core/state/progress-store.service';
 import { saveFile } from '../../../core/util/save-file';
@@ -62,14 +66,16 @@ interface Looked {
  *   generation of it) and tells the person's other tabs to.
  *
  * Every refusal is worded from its code (ownProgressProblem()); the server's
- * sentence is never shown to a learner.
+ * sentence is never shown to a learner. The card, the buttons, the alerts
+ * (a refusal said at once, the replace's warning, done) and the spinner are
+ * the family's.
  */
 @Component({
   selector: 'app-own-progress',
   templateUrl: './own-progress.component.html',
   styleUrl: './own-progress.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslatePipe, TranslatePluralPipe],
+  imports: [TranslatePipe, TranslatePluralPipe, AlertComponent, ButtonComponent, CardComponent, SpinnerComponent],
 })
 export class OwnProgressComponent {
   private readonly api = inject(ApiService);

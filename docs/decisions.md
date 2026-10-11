@@ -2,6 +2,72 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-11, later still - Piano's own pages on the family's kit (`@anotoki/lib` 0.4.1)
+
+Since 0.2.0 the family's kit drew the bar, its menus and the questions; the
+pages kept their own buttons, cards, chips and fields "for a later phase".
+This is that phase, for every anotoki site at once (the owner's decisions of
+2026-10-07): the site's own UI building blocks become the kit's, its domain
+pieces stay its own, built from the kit and its tokens. What that means
+here:
+
+- **One palette, Piano's colours over it - never a kit component made to
+  look like Piano's.** Every button is `anotokiButton` (44 px, 50 for the
+  large ones), every card `<anotoki-card>` (its corners, shadow and title),
+  every note `<anotoki-alert>` (with its icon), every pill `<anotoki-badge>`,
+  every select `<anotoki-select>` (the label over it), What's new
+  `<anotoki-dialog>`, the load error `<anotoki-error-state>`, Stats' table the
+  family's table styles - each as the kit draws it. Piano looks like itself
+  by its palette, the Continue card, the path, the staff and the keyboard.
+  The old names Piano's components gave the family's tokens (`--panel`,
+  `--text-dim`, `--accent`...) are gone: they say `--anotoki-*`, and only
+  Piano's own colours (`--key-*`, `--notation-*`, the Continue card's glow)
+  keep names of Piano's.
+- **Piano's light green is a shade darker** (`#187a4b`, was `#1d8a55`): as
+  words and as the fill under a done unit's ✓ it read 4.4:1 on white and
+  3.8:1 on the path's rows; now 5.4:1 and 4.7:1 (WCAG AA). Words in green,
+  red or amber are the kit's `success-text`, `danger-text` and
+  `warning-text`, never the fills; a locked unit, a locked song and a phase
+  still to come say their words in the quiet grey instead of being faded
+  (faded, their descriptions fell under 3:1).
+- **The family's base, utilities and tables are taken** (`anotoki.base`,
+  `.utilities`, `.tables` in `styles.scss`). This undoes "the base is not
+  taken" of 2026-10-08: the pages were written for the browser's type then;
+  they are the kit's now, which is drawn for the base (15 px type, its
+  headings, no paragraph margins). The pages space their own blocks (a
+  column with gaps - `.stack`, `.practice`), and the few headings of Piano's
+  that should stand out (the Continue card's, a phase's, a lesson's) say
+  their size in their component.
+- **What stays Piano's own** - nothing like it in the kit, or nothing another
+  site would use: the path (the Continue card with its blue edge and glow,
+  the phases' heads, the units, the step chips - a step is a small button
+  with three states; the kit has no chip), a lesson's step dots and result,
+  the practice screens (`pages/_practice.scss`), the figures in tiles
+  (`pages/_stat-tiles.scss`: the kit has no metric tile), the keyboard, the
+  staff, the piano's round-ended button in the bar, What's new's releases
+  (in the kit's dialog, their lists named by the kit's badges).
+- **The piano's device list is the kit's select in a `@defer (on idle)`
+  block.** The kit's fields are one lazy entry point (`@anotoki/lib/ui/forms`)
+  that a first load must not carry, and the bar is part of every first load:
+  the select is loaded once the page is idle, long before anybody opens the
+  piano's box. A copy of a select of Piano's own would have been a one-off
+  of a piece the kit has.
+- **The notes under the bar are the kit's alerts**, as wide as the page under
+  them: the ones that come of what just happened are said at once (role
+  `alert` or `status`, as before - the kit's `announce`), the visitor's
+  notice is part of the page. The bar's "Not saved yet" is the kit's warning
+  badge.
+- **Stats' recent rounds use `.table-stack`**: on a phone every round is a
+  small card, each cell named - before, a table wider than a phone that
+  scrolled sideways, its last three columns out of sight.
+- **No words, no migration.** Every key the pages asked for is still asked
+  for (What's new keeps its Close beside the dialog's own ×, so
+  `whatsNew.close` stays used); "Tempo:" keeps its colon over the kit's
+  select. One line in What's new's 0.4.0, unreleased.
+- **The first load is 535 kB** (was 519): the kit's alert, card, badge and
+  error state on the first page (Learn), and the base, utilities and tables
+  (+4 kB of CSS) - under angular.json's 550 kB warning.
+
 ## 2026-10-11, later - signing in, people and the admin tools through the family's library (`anotoki-lib` 0.4.1)
 
 Every anotoki site signed in through the IAM with copies of its SDKs, kept
@@ -196,7 +262,8 @@ owner's decisions for Piano Academy:
   the mark sunk into the dark bar).
 - **Manrope on every site** (`anotoki.fonts`). The family's base styles
   (`anotoki.base`) are not taken: Piano's pages are written for the
-  browser's own type and keep their look.
+  browser's own type and keep their look. (Undone on 2026-10-11, when the
+  pages moved onto the kit: see the top of this file.)
 - **The family's segmented theme switch** (light / dark / as the device is
   set) in place of Piano's round button that went round the three. The row
   is wider, so the bar folds a little earlier: `PHONE_BAR_MAX` 1320 (from

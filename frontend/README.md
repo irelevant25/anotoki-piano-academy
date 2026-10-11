@@ -19,10 +19,9 @@ src/
                                      angular.json, with this app's key - data-storage-key)
   styles.scss                        the family's styles (@anotoki/lib/styles: its tokens in Piano's palette,
                                      light and dark - the colours only -, through anotoki.root(); its corners,
-                                     shadows, Manrope), Piano's own tokens (the keys, the notation) and the names its
-                                     pages use for the family's (--border-strong: a field's 3:1 edge); Piano's
-                                     own controls - bare buttons and selects, .btn-primary, .card, .chip - by
-                                     rules that never reach the family's components ($piano-own)
+                                     shadows, Manrope; its base, utilities - .stack, .cluster, .facts... - and
+                                     tables) and Piano's own colours (the keys, the notation, the Continue card's
+                                     glow); no rule for buttons, selects or cards - the pages' are the kit's
   app/
     app.config.ts, app.routes.ts     providers (the interceptors - the family's siteStatusInterceptor first, then
                                      its anotokiAuthInterceptor -; the words, provideSiteTranslations(); the sign-in,
@@ -46,7 +45,7 @@ src/
                                      shows it, so nothing runs behind the status page), the footer's "Send
                                      feedback" (ui/feedback-dialog, in a @defer) and version, the family's
                                      questions (<anotoki-confirm-host>: ConfirmService)
-    boot/                            the card drawn instead of the app: could not load. (Not set up, being
+    boot/                            drawn instead of the app: could not load (the family's error state). (Not set up, being
                                      updated, not available: the family's status page, @anotoki/lib/migrations; a
                                      sign-in that did not work: the family's screen on /sign-in-failed)
     core/
@@ -99,10 +98,16 @@ src/
                                      feedback's count when an ADMIN opens it
     pages/                           home (the path), lesson (+ steps), trainer, sheet, songs, stats
                                      (+ own-progress: your progress file - signed in; a visitor gets the sign-in
-                                     line in its place). Every admin page is the family's (above)
-    ui/                              Piano's own: the piano's widget in the bar (midi-panel, its box the family's
-                                     popover), the piano keyboard, the notation, What's new (changelog-dialog),
-                                     feedback-dialog (the family's form in the family's dialog)
+                                     line in its place) - drawn with the kit's buttons, cards, alerts, badges,
+                                     selects and table; _practice.scss (the practice screens' column: the
+                                     instruction, the controls, the staff, the note's name, the feedback) and
+                                     _stat-tiles.scss (the figures in tiles), @used by the pages that have them.
+                                     Every admin page is the family's (above)
+    ui/                              Piano's own: the piano's widget in the bar (midi-panel: its button Piano's,
+                                     its box the family's popover, alert, buttons and select - the select in a
+                                     @defer, out of the first load), the piano keyboard, the notation, What's new
+                                     (changelog-dialog: the family's dialog and badges), feedback-dialog (the
+                                     family's form in the family's dialog)
 public/                              changelog.json (the version shown: MAJOR.MINOR.PATCH, the newest entry's -
                                      package.json's too), anotoki.png (the family's mark), favicon.svg
 proxy.conf.json                      /api and /setup.php to the backend on :8300
@@ -118,12 +123,19 @@ first load - and a spec reads the kit's markup by the kit's own class names
 (`anotoki-<component>__<part>`, `--<state>`). What this app takes from it:
 
 - `@anotoki/lib/styles` - the family's tokens (`--anotoki-*`) in Piano's
-  palette, Manrope (`styles.scss`; the family's base is not included: Piano's
-  pages keep their own type).
+  palette, Manrope, the base (type, links, the focus ring), the utilities
+  (`.stack`, `.cluster`, `.facts`...) and the tables (`styles.scss`).
 - `@anotoki/lib/ui/config`, `/ui/icon`, `/ui/menu`, `/ui/dialog` - the kit's
   configuration and words, icons, the menus, the piano's popover, the
   questions (`ConfirmService`, drawn by `<anotoki-confirm-host>` in
-  `app.component.html`); their words through `provideFamilyKit()` (`forKit()`).
+  `app.component.html`) and What's new's dialog; their words through
+  `provideFamilyKit()` (`forKit()`).
+- `@anotoki/lib/ui/button`, `/ui/card`, `/ui/alert`, `/ui/badge`,
+  `/ui/spinner`, `/ui/error-state`, `/ui/empty-state` - the pages' buttons,
+  cards, notes, badges, "Working…", "Could not load your progress" and Stats
+  with no round yet; `/ui/forms` - the
+  kit's select (the tempo, the MIDI device), lazy: the pages that have one
+  are, and the piano's box loads it in a `@defer` once the page is idle.
 - `@anotoki/lib/translations` - the words: `TranslationService`, the
   `translate` and `translatePlural` pipes, `forKit()` / `forShell()`, the
   status page's words (`siteStatusWords()`), `anotokiUnsavedChangesGuard`;
@@ -154,11 +166,14 @@ To update it: the new release's URL in `package.json`, then `bun install` and
 version where the release changed it (DEV.md).
 
 Components are three files (`.ts`, `.html`, `.scss`); colours come from the
-tokens in `src/styles.scss`; every page works at 390 px. Where the family has
-a piece - the bar, a menu, a popover, a question - it is the family's;
-Piano's own controls (bare `<button>`s and `<select>`s, `.btn-primary`,
-`.card`, `.chip`) keep Piano's look through `styles.scss`, whose element
-rules never reach the family's components. Every word a learner meets is a
+family's tokens (`--anotoki-*`, in Piano's palette by `src/styles.scss`) and
+Piano's own (`--key-*`, `--notation-*`); every page works at 390 px. Where
+the family has a piece - a button, a card, an alert, a badge, a field, a
+dialog, the spinner, the table, the bar, a menu, a popover, a question - it
+is the family's, as the family draws it (a site gives its colours, never
+its own look to a kit component); what is Piano's alone - the path, the
+practice screens, the tiles, the keyboard, the staff, the piano's button -
+is built from the same tokens. Every word a learner meets is a
 key (`'stats.title' | translate`) whose strings are in the database (a
 migration writes each with its English and informal Slovak); what the shell
 draws while there are no strings at all is also in
@@ -227,7 +242,12 @@ replace, every code worded); the top bar - the family's, told Piano's (the
 row, the sections lit, the menus' keys - Tab and Shift+Tab onto the menu
 button, the phone's menu and its dot, "Not saved yet", the admin panel in
 English with its wordmark, the way into it only while the site is ready, the
-sign-out question); the piano's widget (its box the family's popover); the
+sign-out question); the piano's widget (its box the family's popover, its
+state the family's alert, its devices in the family's select - drawn from
+its `@defer` block in the spec, `getDeferBlocks()`); What's new (the family's
+dialog, its lists named by badges, with and without a list); the pages on the
+kit's markup (the lesson's large primary button where the one thing to do is
+try again); the
 admin panel's routes (every page the family's, lazy, the ADMIN pages behind
 `adminGuard`), People and the admin tools as this app wires them
 (`core/site-admin.spec.ts`: the question before a delete, the visitors'

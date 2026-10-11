@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { AnotokiAuth } from '@anotoki/lib/auth';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
 import { stepShort, unitTitle } from '../../core/i18n/path-words';
 import { Session, SessionMode } from '../../core/music/music.types';
@@ -88,13 +91,16 @@ interface RecentRow {
  * sessions - and the learner's own progress file (OwnProgressComponent), for
  * somebody signed in: a visitor (practising without signing in) has no file
  * of their own, and is offered the sign-in in its place (ownProgress.visitor).
+ * The cards, the table (the family's table styles: a small card a round on a
+ * phone), its empty state and the buttons are the family's; the tiles and the
+ * keyboard Piano's.
  */
 @Component({
   selector: 'app-stats-page',
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe, OwnProgressComponent],
+  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe, OwnProgressComponent, ButtonComponent, CardComponent, EmptyStateComponent],
 })
 export class StatsPageComponent {
   private readonly store = inject(ProgressStore);

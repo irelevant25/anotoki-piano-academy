@@ -1,4 +1,4 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { provideFamilyKit } from '../../core/family-kit';
 import { MidiService } from '../../core/midi/midi.service';
@@ -27,11 +27,16 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
   beforeAll(() => provideTestKit());
 
   beforeEach(async () => {
-    TestBed.configureTestingModule({ providers: [provideTestTranslations(SLOVAK, { language: 'sk' }), provideFamilyKit()] });
+    // The panel itself, so its @defer block's component (the family's select) is resolved by compileComponents() below.
+    TestBed.configureTestingModule({ imports: [MidiPanelComponent], providers: [provideTestTranslations(SLOVAK, { language: 'sk' }), provideFamilyKit()] });
+    await TestBed.compileComponents();
     midi = TestBed.inject(MidiService);
     fixture = TestBed.createComponent(MidiPanelComponent);
     host = fixture.nativeElement;
     document.body.appendChild(host);
+    await fixture.whenStable();
+    // ... and drawn as it is once the page is idle (on idle), before the box is opened.
+    for (const block of await fixture.getDeferBlocks()) await block.render(DeferBlockState.Complete);
     await fixture.whenStable();
   });
 
@@ -89,9 +94,14 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     expect(button.getAttribute('aria-controls')).toBe(panel.id);
     expect(panel.getAttribute('aria-label')).toBe('Tvoj klavír');
     expect($('#midi-box-title').textContent).toBe('Tvoj klavír');
-    expect(document.activeElement).toBe($('#midi-device-select'));
+    // The state: the family's alert, said politely (role status), amber while there is no piano.
+    expect($('#midi-status').getAttribute('role')).toBe('status');
+    expect($('#midi-status').getAttribute('data-tone')).toBe('warning');
+    // The focus on the device list: the family's select, named for a screen reader (its label kept from sight).
+    expect(document.activeElement).toBe($('#midi-device-select select'));
+    expect($('#midi-device-select label').textContent?.trim()).toBe('Vstupné zariadenie MIDI');
 
-    $('#midi-device-select').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    $('#midi-device-select select').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await fixture.whenStable();
     expect(box()).toBeNull();
     expect(document.activeElement).toBe(button);
@@ -131,5 +141,34 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     expect(connect).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledTimes(1);
     expect($('#midi-refresh-btn').getAttribute('aria-label')).toBe('Znova vyhľadať zariadenia MIDI');
+    // The family's buttons: Rescan an icon alone, named.
+    expect($('#midi-connect-btn').classList).toContain('anotoki-button');
+    expect($('#midi-refresh-btn').classList).toContain('anotoki-button--icon');
+  });
+
+  it('lists the devices by their own names in the family\'s select - or says there are none - and a choice picks the device', async () => {
+    const options = (): string[] => Array.from(host.querySelectorAll('#midi-device-select option')).map((option) => option.textContent?.trim() ?? '');
+    $<HTMLButtonElement>('#midi-button').click();
+    await settle();
+    // Not asked yet: an empty list. Asked, and nothing there: one choice that says so, which cannot be chosen.
+    expect(options()).toEqual([]);
+    midi.asked.set(true);
+    await fixture.whenStable();
+    expect(options()).toEqual(['Nenašli sa žiadne zariadenia MIDI']);
+    expect(host.querySelector<HTMLOptionElement>('#midi-device-select option')?.disabled).toBe(true);
+
+    midi.devices.set([
+      { id: 'kawai', name: 'KAWAI ES120', manufacturer: 'KAWAI', state: 'connected' },
+      { id: 'usb-2', name: '', manufacturer: '', state: 'connected' },
+    ]);
+    midi.selectedId.set('kawai');
+    await fixture.whenStable();
+    // A device's name is never translated; one with no name goes by its id.
+    expect(options()).toEqual(['KAWAI ES120', 'usb-2']);
+    const select = $<HTMLSelectElement>('#midi-device-select select');
+    expect(select.value).toBe('kawai');
+    select.value = 'usb-2';
+    select.dispatchEvent(new Event('change'));
+    expect(midi.selectedId()).toBe('usb-2');
   });
 });

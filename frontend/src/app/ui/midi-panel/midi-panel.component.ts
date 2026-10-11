@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+// The select alone, and only in its @defer block: the forms entry point is lazy, never in the first load.
+import { SelectComponent } from '@anotoki/lib/ui/forms';
+import type { SelectOption } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { PopoverComponent, PopoverTriggerDirective } from '@anotoki/lib/ui/menu';
 import { MidiProblemKind, MidiService } from '../../core/midi/midi.service';
@@ -26,7 +31,11 @@ const NOT_CONNECTED = 'midi.notConnected';
  * holds a list and buttons): the focus goes to the device list when it
  * opens; Escape closes it and gives the focus back to the button; a click
  * outside, or the focus leaving it, closes it; it is drawn over the page,
- * under the button, and kept on the screen at 360 px.
+ * under the button, and kept on the screen at 360 px. What it holds is the
+ * family's too: the state is an alert (said politely, green or amber), the
+ * list the family's select - loaded once the page is idle (@defer), as the
+ * kit's fields are a lazy entry point the first load must not carry - and
+ * Connect and Rescan the family's buttons.
  *
  * MidiService says what is the case - connected and the device's name, or the
  * kind of a problem and its detail - and the words are chosen here. A device's
@@ -40,7 +49,7 @@ const NOT_CONNECTED = 'midi.notConnected';
   templateUrl: './midi-panel.component.html',
   styleUrl: './midi-panel.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslatePipe, IconComponent, PopoverComponent, PopoverTriggerDirective],
+  imports: [TranslatePipe, IconComponent, PopoverComponent, PopoverTriggerDirective, AlertComponent, ButtonComponent, SelectComponent],
 })
 export class MidiPanelComponent {
   /** The phone's bar: the dot and the icon, no name. */
@@ -66,7 +75,14 @@ export class MidiPanelComponent {
     return detail ? `${sentence}: ${detail}` : sentence;
   });
 
-  protected choose(event: Event): void {
-    this.midi.selectedId.set((event.target as HTMLSelectElement).value);
-  }
+  /**
+   * The devices as the select's choices - a device's own name, never
+   * translated; while the browser was asked and offers none, one choice that
+   * says so (and cannot be chosen).
+   */
+  protected readonly deviceOptions = computed<SelectOption[]>(() => {
+    const devices = this.midi.devices();
+    if (devices.length) return devices.map((device) => ({ value: device.id, label: device.name || device.id }));
+    return this.midi.asked() ? [{ value: '', label: this._i18n.t('midi.noDevices'), disabled: true }] : [];
+  });
 }

@@ -1,19 +1,21 @@
-<p class="lesson-instruction">{{ 'meet.instruction' | translatePlural: newNotes().length : { times: repetitions } }}</p>
-<div class="meet-layout">
-    <app-notation id="mt-notation" />
-    <div class="meet-text">
-        <p class="prompt" id="mt-name">{{ name() }}</p>
-        <p class="tag" id="mt-hint">
-            @if (hint(); as key) {
-                {{ key | translate }}
-            }
-        </p>
-        <p class="rep-dots" id="mt-reps" [attr.aria-label]="'meet.repsSpoken' | translate: { done: reps(), total: repetitions }">{{ repDots() }}</p>
+<div class="practice">
+    <p class="lesson-instruction">{{ 'meet.instruction' | translatePlural: newNotes().length : { times: repetitions } }}</p>
+    <div class="meet-layout">
+        <app-notation id="mt-notation" />
+        <div class="meet-text">
+            <p class="prompt" id="mt-name">{{ name() }}</p>
+            <p class="meet-hint" id="mt-hint">
+                @if (hint(); as key) {
+                    {{ key | translate }}
+                }
+            </p>
+            <p class="rep-dots" id="mt-reps" [attr.aria-label]="'meet.repsSpoken' | translate: { done: reps(), total: repetitions }">{{ repDots() }}</p>
+        </div>
     </div>
+    <p class="feedback" id="mt-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
+        @if (feedback().key; as key) {
+            {{ key | translate: feedback().params }}
+        }
+    </p>
+    <app-piano-keyboard id="mt-keyboard" [model]="keyboard" [lowMidi]="range().lowMidi" [highMidi]="range().highMidi" />
 </div>
-<p class="feedback" id="mt-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
-    @if (feedback().key; as key) {
-        {{ key | translate: feedback().params }}
-    }
-</p>
-<app-piano-keyboard id="mt-keyboard" [model]="keyboard" [lowMidi]="range().lowMidi" [highMidi]="range().highMidi" />

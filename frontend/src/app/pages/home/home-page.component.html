@@ -1,27 +1,30 @@
+<!-- The next step of the path: Piano's own call to go on, in the family's tokens. -->
 @if (next(); as step) {
-    <div class="card continue-card">
-        <div>
-            <div class="tag">{{ started() ? ('home.continue.tag' | translate) : ('home.start.tag' | translate) }}</div>
-            <h2>{{ 'home.unit.title' | translate: { number: step.unit.number, title: nextWords()?.unit } }}</h2>
+    <section class="continue-card">
+        <div class="continue-text">
+            <p class="continue-tag">{{ started() ? ('home.continue.tag' | translate) : ('home.start.tag' | translate) }}</p>
+            <h2 class="continue-title">{{ 'home.unit.title' | translate: { number: step.unit.number, title: nextWords()?.unit } }}</h2>
             <p class="continue-step">{{ nextWords()?.step }}</p>
         </div>
-        <button class="btn-primary btn-large" id="continue" type="button" (click)="open(step.unit.id, step.step.id)">{{ started() ? ('home.continue.button' | translate) : ('home.start.button' | translate) }}</button>
-    </div>
+        <button anotokiButton variant="primary" size="lg" id="continue" (click)="open(step.unit.id, step.step.id)">{{ started() ? ('home.continue.button' | translate) : ('home.start.button' | translate) }}</button>
+    </section>
 } @else {
-    <div class="card continue-card">
-        <div>
-            <div class="tag">{{ 'home.done.tag' | translate }}</div>
-            <h2>{{ 'home.done.title' | translate }}</h2>
+    <section class="continue-card">
+        <div class="continue-text">
+            <p class="continue-tag">{{ 'home.done.tag' | translate }}</p>
+            <h2 class="continue-title">{{ 'home.done.title' | translate }}</h2>
             <p>{{ 'home.done.text' | translate }}</p>
         </div>
-    </div>
+    </section>
 }
 
 @if (dueCount() > 0) {
-    <div class="review-banner">
+    <anotoki-alert class="review-banner" tone="warning">
         <span>{{ due()[0] }}@if (due()[2]) {<strong>{{ dueCount() }}</strong>}{{ due()[1] }}</span>
-        <button type="button" (click)="go('/trainer')">{{ 'home.reviewInTrainer' | translate }}</button>
-    </div>
+        <div alertActions>
+            <button anotokiButton size="sm" (click)="go('/trainer')">{{ 'home.reviewInTrainer' | translate }}</button>
+        </div>
+    </anotoki-alert>
 }
 
 @for (view of phases(); track view.phase.id) {
@@ -29,20 +32,21 @@
         <section class="phase is-coming">
             <div class="phase-head">
                 <span class="phase-number">{{ view.phase.number }}</span>
-                <div>
-                    <strong>{{ view.title }}</strong>
-                    <div class="tag">{{ view.description }}</div>
+                <div class="phase-titles">
+                    <strong class="phase-title">{{ view.title }}</strong>
+                    <p class="phase-description">{{ view.description }}</p>
                 </div>
-                <span class="chip">{{ 'home.comingSoon' | translate }}</span>
+                <anotoki-badge>{{ 'home.comingSoon' | translate }}</anotoki-badge>
             </div>
         </section>
     } @else {
-        <section class="card phase">
+        <!-- A phase: the family's card, the path inside it Piano's own (the units, their steps). -->
+        <anotoki-card class="phase">
             <div class="phase-head">
                 <span class="phase-number">{{ view.phase.number }}</span>
-                <div>
-                    <h2>{{ view.title }}</h2>
-                    <div class="tag">{{ view.description }}</div>
+                <div class="phase-titles">
+                    <h2 class="phase-title">{{ view.title }}</h2>
+                    <p class="phase-description">{{ view.description }}</p>
                 </div>
             </div>
             <ol class="unit-list">
@@ -52,7 +56,7 @@
                             <span class="unit-badge">{{ item.status === 'done' ? '✓' : item.unit.number }}</span>
                             <div>
                                 <strong>{{ 'home.unit.title' | translate: { number: item.unit.number, title: item.title } }}</strong>
-                                <div class="tag">{{ item.details }}</div>
+                                <p class="unit-details">{{ item.details }}</p>
                             </div>
                         </div>
                         <div class="step-chips">
@@ -74,17 +78,15 @@
                     </li>
                 }
             </ol>
-        </section>
+        </anotoki-card>
     }
 }
 
-<div class="card">
-    <h2>{{ 'home.free.title' | translate }}</h2>
-    <p class="tag">{{ 'home.free.text' | translate }}</p>
-    <div class="controls-row">
-        <button type="button" (click)="go('/trainer')">{{ 'nav.trainer' | translate }}</button>
-        <button type="button" (click)="go('/sheet')">{{ 'nav.sheet' | translate }}</button>
-        <button type="button" (click)="go('/songs')">{{ 'nav.songs' | translate }}</button>
-        <button type="button" (click)="go('/stats')">{{ 'nav.stats' | translate }}</button>
+<anotoki-card class="free-practice" [heading]="'home.free.title' | translate" [subheading]="'home.free.text' | translate">
+    <div class="cluster">
+        <button anotokiButton (click)="go('/trainer')">{{ 'nav.trainer' | translate }}</button>
+        <button anotokiButton (click)="go('/sheet')">{{ 'nav.sheet' | translate }}</button>
+        <button anotokiButton (click)="go('/songs')">{{ 'nav.songs' | translate }}</button>
+        <button anotokiButton (click)="go('/stats')">{{ 'nav.stats' | translate }}</button>
     </div>
-</div>
+</anotoki-card>

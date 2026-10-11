@@ -92,7 +92,7 @@ describe('Note Trainer: what it says is a key, worded on the page', () => {
     await open();
 
     expect(text('h2')).toBe('Tréning nôt');
-    expect(text('p.tag')).toBe('Úloha 1 / 12 · správne: 0');
+    expect(text('.trainer-progress')).toBe('Úloha 1 / 12 · správne: 0');
     expect(text('#tr-progress')).toBe('1 / 12');
     expect(text('#tr-correct')).toBe('0');
     expect(text('#tr-feedback')).toBe('Zahraj túto notu na klavíri.');
@@ -114,7 +114,7 @@ describe('Note Trainer: what it says is a key, worded on the page', () => {
     await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
     expect(text('#tr-feedback')).toBe(`That was ${theory.midiToName(other)} — target was ${theory.midiToName(target)}.`);
-    expect(text('p.tag')).toBe('Prompt 1 / 12 · 0 correct so far');
+    expect(text('.trainer-progress')).toBe('Prompt 1 / 12 · 0 correct so far');
     expect(text('#tr-progress')).toBe('1 / 12');
     expect(text('#tr-name')).toBe(theory.midiToName(target));
     expect(warn).not.toHaveBeenCalled();
@@ -127,14 +127,14 @@ describe('Note Trainer: what it says is a key, worded on the page', () => {
 
     expect(text('#tr-feedback')).toBe('Správne!');
     expect(text('#tr-correct')).toBe('1');
-    expect(text('p.tag')).toBe('Úloha 1 / 12 · správne: 1');
+    expect(text('.trainer-progress')).toBe('Úloha 1 / 12 · správne: 1');
   });
 
   it('draws no number where a language’s sentence leaves its place out', async () => {
     await open({ ...SLOVAK, 'trainer.prompt': 'Hraj ďalej' });
 
     expect(host.querySelector('#tr-progress')).toBeNull();
-    expect(text('p.tag')).toBe('Hraj ďalej · správne: 0');
+    expect(text('.trainer-progress')).toBe('Hraj ďalej · správne: 0');
     expect(text('#tr-correct')).toBe('0');
   });
 });

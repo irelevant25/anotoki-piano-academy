@@ -1,7 +1,20 @@
+// Stats: the family's cards, table and buttons; the tiles, the keyboard's legend and the keyboard are Piano's own,
+// in the family's tokens.
+@use "../stat-tiles";
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+// Each note's mastery, in the keyboard's own colours (each beside its word).
 .legend {
   display: flex;
   flex-wrap: wrap;
   gap: 0.2rem 0.9rem;
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
 }
 
 .dot.learning {
@@ -16,32 +29,8 @@
   color: var(--key-correct);
 }
 
-// A phone is narrower than the table: it scrolls in its own box, never the page.
-.table-wrap {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-th,
-td {
-  text-align: left;
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-
-th {
-  color: var(--text-dim);
-  font-weight: 500;
-}
-
 // In the place of the progress file's card, for somebody not signed in: the sentence and its button.
-.own-progress-visitor {
+.visitor-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -49,7 +38,6 @@ th {
   flex-wrap: wrap;
 }
 
-.own-progress-visitor p {
-  margin: 0;
+.visitor-line p {
   flex: 1 1 16rem;
 }

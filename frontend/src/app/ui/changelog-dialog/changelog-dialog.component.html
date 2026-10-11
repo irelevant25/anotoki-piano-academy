@@ -1,49 +1,48 @@
-<dialog #dialog class="changelog" aria-labelledby="changelog-title" (click)="backdropClick($event)">
-    <div class="changelog-body">
-        <div class="changelog-head">
-            <h2 id="changelog-title">{{ 'whatsNew.title' | translate }}</h2>
-            <button type="button" class="close" (click)="close()">{{ 'whatsNew.close' | translate }}</button>
-        </div>
-
-        @for (entry of changelog.entries(); track entry.version; let first = $first) {
-            <section class="release" [class.is-latest]="first">
-                <div class="release-head">
-                    <span class="release-version">
-                        v{{ entry.version }}
+@if (opened()) {
+    <!-- The family's dialog (@anotoki/lib/ui/dialog): the focus kept inside, Escape, its close button and the backdrop close it, the focus back on the version. -->
+    <anotoki-dialog class="changelog" [heading]="'whatsNew.title' | translate" size="md" (dismiss)="close()">
+        <div class="releases">
+            @for (entry of changelog.entries(); track entry.version; let first = $first) {
+                <section class="release" [class.is-latest]="first">
+                    <div class="release-head">
+                        <span class="release-version">v{{ entry.version }}</span>
                         @if (first) {
-                            <span class="latest">{{ 'whatsNew.latest' | translate }}</span>
+                            <anotoki-badge class="latest" tone="primary">{{ 'whatsNew.latest' | translate }}</anotoki-badge>
                         }
-                    </span>
-                    <span class="release-date">{{ entry.date | localDate: 'day' }}</span>
-                </div>
+                        <span class="release-date">{{ entry.date | localDate: 'day' }}</span>
+                    </div>
 
-                @if (entry.changes.added?.length) {
-                    <h3 class="section-title added">{{ 'whatsNew.added' | translate }}</h3>
-                    <ul [attr.lang]="entriesLang()">
-                        @for (item of entry.changes.added; track item) {
-                            <li>{{ item }}</li>
-                        }
-                    </ul>
-                }
-                @if (entry.changes.updated?.length) {
-                    <h3 class="section-title updated">{{ 'whatsNew.changed' | translate }}</h3>
-                    <ul [attr.lang]="entriesLang()">
-                        @for (item of entry.changes.updated; track item) {
-                            <li>{{ item }}</li>
-                        }
-                    </ul>
-                }
-                @if (entry.changes.fixed?.length) {
-                    <h3 class="section-title fixed">{{ 'whatsNew.fixed' | translate }}</h3>
-                    <ul [attr.lang]="entriesLang()">
-                        @for (item of entry.changes.fixed; track item) {
-                            <li>{{ item }}</li>
-                        }
-                    </ul>
-                }
-            </section>
-        } @empty {
-            <p>{{ 'whatsNew.notLoaded' | translate }}</p>
-        }
-    </div>
-</dialog>
+                    @if (entry.changes.added?.length) {
+                        <h3 class="release-section release-section--added"><anotoki-badge tone="success">{{ 'whatsNew.added' | translate }}</anotoki-badge></h3>
+                        <ul [attr.lang]="entriesLang()">
+                            @for (item of entry.changes.added; track item) {
+                                <li>{{ item }}</li>
+                            }
+                        </ul>
+                    }
+                    @if (entry.changes.updated?.length) {
+                        <h3 class="release-section release-section--updated"><anotoki-badge tone="info">{{ 'whatsNew.changed' | translate }}</anotoki-badge></h3>
+                        <ul [attr.lang]="entriesLang()">
+                            @for (item of entry.changes.updated; track item) {
+                                <li>{{ item }}</li>
+                            }
+                        </ul>
+                    }
+                    @if (entry.changes.fixed?.length) {
+                        <h3 class="release-section release-section--fixed"><anotoki-badge tone="warning">{{ 'whatsNew.fixed' | translate }}</anotoki-badge></h3>
+                        <ul [attr.lang]="entriesLang()">
+                            @for (item of entry.changes.fixed; track item) {
+                                <li>{{ item }}</li>
+                            }
+                        </ul>
+                    }
+                </section>
+            } @empty {
+                <p>{{ 'whatsNew.notLoaded' | translate }}</p>
+            }
+        </div>
+        <div dialogFooter>
+            <button anotokiButton id="whats-new-close" (click)="close()">{{ 'whatsNew.close' | translate }}</button>
+        </div>
+    </anotoki-dialog>
+}

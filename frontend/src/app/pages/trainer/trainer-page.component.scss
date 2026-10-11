@@ -1,3 +1,8 @@
-.done-actions {
-  margin-top: 1rem;
+@use "../practice";
+@use "../stat-tiles";
+
+// Prompt N of 12, and how many were right so far.
+.trainer-progress {
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
 }

@@ -4,7 +4,10 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { AnotokiAuth, SignInFailure, failureText, signInWords } from '@anotoki/lib/auth';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
+import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { filter, map } from 'rxjs';
 import { LoadErrorComponent } from './boot/load-error/load-error.component';
 import { ApiService } from './core/api/api.service';
@@ -26,7 +29,10 @@ import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.co
  * app cannot run yet, the card saying why - and the footer with the version,
  * which opens what is new. Also the notes that cannot be missed, under the
  * bar: signed out in the middle of practising, and the progress replaced or
- * deleted somewhere else (ProgressStore.changedElsewhere).
+ * deleted somewhere else (ProgressStore.changedElsewhere) - the family's
+ * alerts, as wide as the page, the ones that come of what just happened said
+ * at once (role alert, or status); the footer's two buttons and the
+ * "Loading…" of the start are the family's too.
  *
  * While the site is not ready - an update waits, it is not set up, its
  * database is out of reach - the anotoki family's gate
@@ -89,6 +95,9 @@ import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.co
     SiteGateComponent,
     SitePagesDirective,
     ConfirmHostComponent,
+    AlertComponent,
+    ButtonComponent,
+    SpinnerComponent,
   ],
 })
 export class AppComponent {

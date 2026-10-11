@@ -1,5 +1,5 @@
-// The piano's state in the top bar, and what its box holds (the box itself is the family's popover).
-// Colours are the tokens of styles.scss only.
+// The piano's state in the top bar - Piano's own round-ended button, beside the family's round ones - and what its
+// box holds: the family's popover, alert, select and buttons. Colours are the family's tokens only.
 
 :host {
   position: relative;
@@ -13,21 +13,24 @@
   gap: 0.45rem;
   min-width: 0;
   height: 40px;
+  margin: 0;
   padding: 0 0.75rem 0 0.65rem;
   // Its edge seen (3:1), as the family's round buttons beside it in the bar.
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--anotoki-border-strong);
   border-radius: 999px;
-  background: var(--panel);
-  color: var(--text);
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
+  font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
+  cursor: pointer;
 
   &:hover {
-    background: var(--panel-alt);
+    background: var(--anotoki-surface-3);
   }
 
   &[aria-expanded="true"] {
-    border-color: var(--accent);
+    border-color: var(--anotoki-primary);
   }
 
   &.is-compact {
@@ -35,21 +38,21 @@
   }
 
   anotoki-icon {
-    color: var(--text-dim);
+    color: var(--anotoki-muted);
   }
 }
 
-// Green with a piano, amber without one: the state at a glance.
+// Green with a piano, amber without one: the state at a glance (the button's name says it in words).
 .dot {
   flex: none;
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--warn);
+  background: var(--anotoki-warning);
 }
 
 .is-connected .dot {
-  background: var(--good);
+  background: var(--anotoki-success);
 }
 
 // A long device name gives way (the whole name is in the box and the title).
@@ -68,44 +71,22 @@
 }
 
 .midi-box-title {
-  margin: 0;
   font-weight: 700;
-}
-
-.midi-status {
-  margin: 0;
-  font-size: 0.85rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.midi-status--disconnected {
-  color: var(--warn);
-  border-color: var(--warn);
-}
-
-.midi-status--connected {
-  color: var(--good);
-  border-color: var(--good);
 }
 
 .midi-connect {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
   min-width: 0;
 }
 
-// A long device name must not push the box wider than a phone.
-select {
-  flex: 1;
-  max-width: 14rem;
+// The device list on a line of its own, as wide as the box - a device's name is often long, and beside the two
+// buttons it was cut short - with Connect and Rescan under it. A long name still never widens the box past the
+// screen (the popover keeps itself on it).
+.midi-device {
+  flex: 1 1 100%;
   min-width: 0;
-}
-
-.icon-only {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  max-width: 20rem;
 }

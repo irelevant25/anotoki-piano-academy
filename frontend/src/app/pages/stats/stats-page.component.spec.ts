@@ -4,6 +4,7 @@ import { type AnotokiPreferences } from '@anotoki/lib/auth';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { MockInstance } from 'vitest';
+import { provideFamilyKit } from '../../core/family-kit';
 import { ProgressMap, Session } from '../../core/music/music.types';
 import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
@@ -132,6 +133,8 @@ describe('Stats: the page in the language of the reader', () => {
         { provide: ProgressStore, useValue: { progress, sessions, knownNotes: signal<number[]>([]) } },
         { provide: BootService, useValue: boot },
         ...provideTestAuth(),
+        // The family's kit as the app wires it: its icons with the piano's among them (the empty list's).
+        provideFamilyKit(),
       ],
     });
     TestBed.overrideComponent(StatsPageComponent, { remove: { imports: [OwnProgressComponent] }, add: { imports: [OwnProgressStandIn] } });
@@ -300,7 +303,9 @@ describe('Stats: the page in the language of the reader', () => {
     await show([], 'en');
     expect(tile(2)).toBe('—');
     expect(host.querySelector('table')).toBeNull();
-    expect(host.textContent).toContain('No sessions yet — practice a round in Note Trainer to get started.');
+    // The family's empty state, with the piano (an icon the app registers with the kit).
+    expect(host.querySelector('anotoki-empty-state .anotoki-empty-state__heading')?.textContent).toBe('No sessions yet — practice a round in Note Trainer to get started.');
+    expect(host.querySelector('anotoki-empty-state anotoki-icon svg path')).not.toBeNull();
 
     progress.set({ 60: { totalAttempts: 3, correctAttempts: 2, status: 'learning' } } as unknown as ProgressMap);
     await fixture.whenStable();

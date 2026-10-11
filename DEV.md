@@ -31,8 +31,9 @@ ready (below, *While the site is not ready*); its translations: the words'
 tables, the bundle the pages read, the admin panel's routes and its
 Translations and Languages pages, the command line (below, *The app's
 words*); and the family's UI kit, its styles and its frame (the top bar,
-the theme switch, the language chooser, the menus, the questions, Manrope -
-`frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
+the theme switch, the language chooser, the menus, the questions, Manrope,
+and every page's buttons, cards, alerts, badges, selects, dialogs and table
+- `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*). Both
 halves are at 0.4.1 (0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the

@@ -184,6 +184,32 @@ What's new's 0.4.0: Send feedback, and the sign-in failure's page. The first
 load is 519 kB (the library's sign-in module is bigger than the SDK and
 services it replaces) - over its 500 kB warning: the owner's call.
 
+**2026-10-11, later still: Piano's own pages on the family's kit**
+(`anotoki-lib` 0.4.1, no version change; the owner's decisions of 2026-10-07,
+`docs/decisions.md`). Every button is the kit's `anotokiButton`, every card
+`<anotoki-card>`, the notes under the bar, the review's reminder, the piano's
+state and the progress file's warning and refusals `<anotoki-alert>`, "Coming
+soon", "Latest", "Not saved yet" and What's new's lists `<anotoki-badge>`, the
+tempo and the MIDI device `<anotoki-select>` (the piano's in a `@defer (on
+idle)`: the kit's fields are a lazy entry point the bar's first load must not
+carry), What's new `<anotoki-dialog>`, "Working…" the spinner, "Could not
+load your progress" `<anotoki-error-state>`, Stats' table the family's table
+styles (`.table-stack`: a small card a round on a phone) and its empty list
+`<anotoki-empty-state>` (with the piano's icon). `styles.scss` takes
+the family's base, utilities and tables and keeps only the palette and
+Piano's own colours: `.btn-primary`, `.btn-large`, `.card`, `.chip`, `.tag`,
+`.grid`, `.controls-row` and the global button / select rules
+(`$piano-own`) are gone, and so are the old colour names (`--panel`,
+`--accent`...: the components say `--anotoki-*`). Piano's own, from the
+tokens: the path (the Continue card, the phases' heads, the units, the step
+chips), a lesson's step dots and result, the practice screens
+(`pages/_practice.scss`), the figures in tiles (`pages/_stat-tiles.scss`),
+the keyboard, the staff, the piano's button, What's new's releases. Piano's
+light green is a shade darker (`#187a4b`): its words now read AA. One line in
+What's new's 0.4.0; no words, no migration. The first load is 535 kB (the
+kit's alert, card, badge and error state on the first page, the base and
+utilities: +16 kB), under angular.json's 550 kB warning.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -396,12 +422,16 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   never merging; `EXPORT_LIMIT` both ways).
 - **Angular components are three files** (`.ts`, `.html`, `.scss`) - never an
   inline template or styles. Standalone, OnPush, signals, zoneless. Where the
-  family's kit has a piece (`@anotoki/lib`: the bar, a menu, a popover, a
-  question, an icon, the spinner) it is the family's; Piano's own controls
-  (bare `<button>` / `<select>`, `.btn-primary`, `.card`, `.chip`) keep
-  Piano's look through `styles.scss`, whose element rules never reach the
-  family's components (`$piano-own`). Colours are the family's tokens in
-  Piano's palette (`anotoki.root()`), the font the family's Manrope.
+  family's kit has a piece (`@anotoki/lib`: a button, a card, an alert, a
+  badge, a field, a dialog, the spinner, an error state, the table styles,
+  the bar, a menu, a popover, a question, an icon) it is the family's, as
+  the family draws it - a site gives its colours, never its own look to a kit
+  component; what the kit lacks and is Piano's alone (the path, the practice
+  screens, the tiles, the keyboard, the staff, the piano's button) is built
+  from the tokens. No global rule for buttons, selects or cards. Colours are
+  the family's tokens (`--anotoki-*`) in Piano's palette (`anotoki.root()`)
+  and Piano's own (`--key-*`, `--notation-*`); the font the family's
+  Manrope, the type its base (`anotoki.base`).
 - **One top bar, the anotoki family's** (`<anotoki-top-bar>`, wrapped by
   `layouts/top-bar`): the brand, the five sections (Learn, Note Trainer,
   Sheet Practice, Songs, Stats), "Not saved yet" and the piano
@@ -420,7 +450,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   admin sections and the family's wordmark, short at every width ("Piano"
   with "admin panel" under it; "anotoki Piano Academy · admin panel" the
   link's name), folding up to its own `ADMIN_PHONE_BAR_MAX` (1280, measured
-  the same way: eight sections and a two-digit count need 1258 px), in
+  the same way: eight sections and a two-digit count need 1255 px), in
   English (`TranslationService.effectiveLanguage`), with no chooser and no
   piano, and "Back to Piano Academy"; an ADMIN's "Feedback" there carries
   how many messages are new (the family's `FeedbackUnread`).

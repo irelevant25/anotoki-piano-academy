@@ -501,7 +501,8 @@ try {
     const box = await page.$eval('#midi-box', (element) => element.getBoundingClientRect().toJSON());
     check(box.left >= 0 && box.right <= width, `${width}: the box inside the screen`, box);
     await onTop(page, '#midi-box', `${width}: the piano's box`);
-    check((await page.evaluate(() => document.activeElement?.id)) === 'midi-device-select', `${width}: the focus on the device list`);
+    // The device list is the family's select (its own <select> inside #midi-device-select, loaded once the page is idle).
+    check(await page.evaluate(() => document.activeElement?.tagName === 'SELECT' && !!document.activeElement.closest('#midi-device-select')), `${width}: the focus on the device list`);
     check(/MIDI/.test(await page.textContent('#midi-status')), `${width}: the state said (headless has no MIDI)`, await page.textContent('#midi-status'));
     await page.screenshot({ path: join(shots, `midi-box-${width}.png`), clip: { x: 0, y: 0, width, height: 360 } });
     await page.keyboard.press('Escape');

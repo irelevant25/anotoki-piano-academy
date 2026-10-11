@@ -1,3 +1,8 @@
+@use "../../practice";
+
+// Card N of 10, and how many were right: a quiet line at the right.
 .drill-progress {
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
   text-align: right;
 }

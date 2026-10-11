@@ -266,7 +266,7 @@ describe('Lesson steps: instructions and feedback are keys, worded on the page',
   });
 
   describe('a melody or a song', () => {
-    const options = (): string[] => Array.from(host.querySelectorAll('select[data-role="bpm"] option')).map((option) => option.textContent?.trim() ?? '');
+    const options = (): string[] => Array.from(host.querySelectorAll('[data-role="bpm"] option')).map((option) => option.textContent?.trim() ?? '');
 
     it('the song step: the sentence is cut around the song’s title, which stays as it is, in bold', async () => {
       await open(SequenceStepComponent, 'rh-1', 'song');

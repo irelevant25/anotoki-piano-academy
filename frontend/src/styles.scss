@@ -1,30 +1,38 @@
 ////
-/// Piano Academy's stylesheet: its colours, its font, and the few element
-/// styles the whole app shares. Each component's own look is in its .scss.
+/// Piano Academy's stylesheet: the anotoki family's kit in Piano's colours,
+/// and Piano's own colours beside them. Each component's own look is in its
+/// .scss; the pages are drawn with the kit's pieces (@anotoki/lib/ui/*:
+/// buttons, cards, alerts, badges, fields, dialogs, the spinner) and Piano's
+/// own lesson pieces (the path, the staff, the keyboard, the practice
+/// screens), built from the same tokens.
 ///
 /// The colours are the anotoki family's tokens (@anotoki/lib/styles: the
-/// --anotoki-* custom properties that the family's kit - the top bar, its
-/// menus, the dialogs, the status and Migrations pages - draws with), written
+/// --anotoki-* custom properties that the family's kit draws with), written
 /// by anotoki.root() with Piano Academy's own palette in them, light and dark:
 /// the family has one palette, and a site gives the colours it wants its own
-/// (the owner's decision). What Piano has no colour of its own for keeps the
-/// family's value; a few the family needs and Piano never had are made from
-/// Piano's own (the in-between surface, the 3:1 edge of a control - WCAG
-/// 1.4.11, the family's rule - in Piano's grey-blue). Light is written onto
-/// :root, so a page without data-theme is a whole light page; dark applies
-/// through data-theme="dark" (the family's ThemeService, or the kit's
-/// theme-boot.js before the app loads) and through the system setting for as
-/// long as nothing has said "light".
+/// (the owner's decision) - never by styling the kit's components. What Piano
+/// has no colour of its own for keeps the family's value; a few the family
+/// needs and Piano never had are made from Piano's own (the in-between
+/// surface, the 3:1 edge of a control - WCAG 1.4.11, the family's rule - in
+/// Piano's grey-blue). Light is written onto :root, so a page without
+/// data-theme is a whole light page; dark applies through data-theme="dark"
+/// (the family's ThemeService, or the kit's theme-boot.js before the app
+/// loads) and through the system setting for as long as nothing has said
+/// "light".
 ///
-/// Piano's components still say the colours by their old names (--panel,
-/// --text-dim, --accent...): each is the family's token it became, so both
-/// themes follow it. Piano's own colours - the keyboard's and the staff's -
-/// stay Piano's alone, in both themes.
+/// What the kit asks of a palette, and this one keeps (WCAG 2.2 AA): text
+/// 4.5:1 on every ground it is drawn on - Piano's green words and fills are a
+/// shade darker in light than the green they were (#1d8a55 read 4.4:1 on
+/// white, 3.8:1 on the path's rows); `border-strong`, the edge of every field
+/// and select, and `focus`, the keyboard's ring, 3:1 against the surfaces
+/// they sit on.
 ///
 /// The font is the family's, Manrope (anotoki.fonts: its files come with the
-/// package, a subset at a time). The family's base styles (anotoki.base) are
-/// not taken: Piano's pages are written for the browser's own type - its
-/// headings' and paragraphs' margins, 16 px - and keep their look.
+/// package, a subset at a time). The family's base (anotoki.base) gives the
+/// page its font, colours, type, links, the one focus ring and reduced
+/// motion; its utilities (.stack, .cluster, .muted, .small, .facts...) and its
+/// tables (.table, .table-scroll) are what Piano's pages lay their words out
+/// with.
 ////
 
 @use "@anotoki/lib/styles" as anotoki;
@@ -52,7 +60,9 @@
       danger: #c9403a,
       danger-hover: #ab3631,
       danger-contrast: #ffffff,
-      success: #1d8a55,
+      // Piano's green, a shade darker than it was: 5.4:1 on white, 4.7:1 on the path's rows and on its soft ground.
+      success: #187a4b,
+      success-text: #187a4b,
       warning: #9a6512,
       info: #1f6fd1,
       info-soft: #e3eefc,
@@ -100,6 +110,9 @@
   )
 );
 @include anotoki.fonts;
+@include anotoki.base;
+@include anotoki.utilities;
+@include anotoki.tables;
 
 /// Piano's own colours, beside the family's: the "Continue" card's glow, the
 /// text on a good (green) ground, the keyboard and the staff.
@@ -150,27 +163,6 @@
 
 :root {
   @include piano-light;
-
-  // Piano's names for the family's tokens (above): what its own components say. (The bar's own - the soft
-  // primary, the shadows, the mark's filter, the bar's height - went with its pieces: the family's draw with
-  // the family's names.)
-  --bg: var(--anotoki-bg);
-  --panel: var(--anotoki-surface);
-  --panel-alt: var(--anotoki-surface-3);
-  --border: var(--anotoki-border);
-  // A field's edge (a select, a text box): 3:1 on every ground - WCAG 1.4.11, the family's rule; --border is decorative.
-  --border-strong: var(--anotoki-border-strong);
-  --text: var(--anotoki-text);
-  --text-dim: var(--anotoki-muted);
-  --accent: var(--anotoki-primary);
-  --accent-contrast: var(--anotoki-primary-contrast);
-  --link: var(--anotoki-link);
-  --good: var(--anotoki-success);
-  --bad: var(--anotoki-danger);
-  --warn: var(--anotoki-warning);
-  --backdrop: var(--anotoki-backdrop);
-
-  font-family: var(--anotoki-font-sans);
 }
 
 :root[data-theme="dark"] {
@@ -183,181 +175,20 @@
   }
 }
 
-* {
-  box-sizing: border-box;
-}
-
 // `hidden` wins over any display rule.
 [hidden] {
   display: none !important;
 }
 
+// A long word (a device's name, a song's title in another language) breaks rather than widening a phone's page.
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
   overflow-wrap: break-word;
 }
 
 // Before Angular has drawn anything (index.html).
 .boot-loading {
-  color: var(--text-dim);
+  color: var(--anotoki-muted);
   max-width: 980px;
   margin: 0 auto;
   padding: 1.5rem;
-}
-
-a {
-  color: var(--link);
-}
-
-/// Piano's own buttons and selects: on its pages, in the notes under the bar,
-/// in the piano's box, What's new and the footer. Never a control of the
-/// family's kit (anotokiButton, a menu's item) nor anything inside one of its
-/// components - the bar, a menu, a box, a dialog, the status and Migrations
-/// pages, the admin panel's Translations and Languages pages - but what Piano
-/// puts there itself (the piano, in the bar's widget slot): the kit sets
-/// everything it relies on, and what it leaves unset (a hover's edge, a
-/// disabled button's fade) must not come from here. Written with :where(), so
-/// it weighs nothing: any rule of a component's wins.
-$piano-own: ":where(:not(:is(.anotoki-button, .anotoki-menu-item, anotoki-top-bar *, anotoki-menu *, anotoki-popover *, anotoki-dialog *, anotoki-site-status *, anotoki-migrations-page *, anotoki-translations-page *, anotoki-languages-page *)), app-midi-panel *)";
-
-:where(select, button)#{$piano-own} {
-  font: inherit;
-  color: var(--text);
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 0.4rem 0.6rem;
-  cursor: pointer;
-}
-
-// A select is a field: its edge is seen (3:1).
-:where(select)#{$piano-own} {
-  border-color: var(--border-strong);
-}
-
-:where(button)#{$piano-own}:hover {
-  border-color: var(--accent);
-}
-
-:where(button)#{$piano-own}:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-:where(button, select, a):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 600;
-}
-
-.btn-primary:hover {
-  filter: brightness(1.1);
-}
-
-.btn-large {
-  padding: 0.7rem 1.4rem;
-  font-size: 1.05rem;
-  border-radius: 8px;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.25rem;
-  margin-bottom: 1.25rem;
-}
-
-.card h2 {
-  margin-top: 0;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
-}
-
-.stat-tile {
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.9rem 1rem;
-}
-
-.stat-tile .value {
-  font-size: 1.6rem;
-  font-weight: 600;
-}
-
-.stat-tile .label {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.tag {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-}
-
-.chip {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.15rem 0.6rem;
-  white-space: nowrap;
-}
-
-.controls-row {
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.prompt {
-  font-size: 2rem;
-  font-weight: 600;
-  text-align: center;
-  margin: 0.5rem 0 1rem;
-}
-
-.feedback {
-  text-align: center;
-  font-size: 1.1rem;
-  min-height: 1.6em;
-  font-weight: 600;
-}
-
-.feedback--correct {
-  color: var(--good);
-}
-
-.feedback--incorrect {
-  color: var(--bad);
-}
-
-.lesson-instruction {
-  font-size: 1.05rem;
-}
-
-@media (max-width: 600px) {
-  .card {
-    padding: 1rem;
-  }
-
-  .prompt {
-    font-size: 1.6rem;
-  }
 }

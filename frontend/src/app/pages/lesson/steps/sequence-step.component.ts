@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { SelectComponent, SelectOption } from '@anotoki/lib/ui/forms';
 import { MidiService } from '../../../core/midi/midi.service';
 import { PathStep, Song } from '../../../core/music/music.types';
 import { PASS_ACCURACY, PathService } from '../../../core/music/path.service';
@@ -14,7 +16,7 @@ import { Feedback, StepOutcome } from '../step-outcome';
 
 const MELODY_LENGTH = 8;
 
-/** A tempo on offer: the number, and whether it is the song's own - the template words it. */
+/** A tempo on offer: the number, and whether it is the song's own - worded as the select's choice (tempoOptions). */
 interface TempoOption {
   value: number;
   original: boolean;
@@ -26,13 +28,14 @@ interface TempoOption {
  *   tempo   a new melody with a metronome count-in, one note on every click
  *   song    the unit's song with the metronome. A practice run with no clock
  *           is allowed, but only the metronome run finishes the step.
+ * The tempo is the family's select, the buttons the family's.
  */
 @Component({
   selector: 'app-sequence-step',
   templateUrl: './sequence-step.component.html',
   styleUrl: './sequence-step.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe, ButtonComponent, SelectComponent],
 })
 export class SequenceStepComponent {
   private readonly midi = inject(MidiService);
@@ -65,6 +68,10 @@ export class SequenceStepComponent {
     if (song) return [0.6, 0.8, 1].map((factor) => ({ value: Math.round(song.bpm * factor), original: factor === 1 }));
     return [50, 60, 70, 80].map((value) => ({ value, original: false }));
   });
+  /** The tempos as the select's choices, in the page's language ("80 BPM", "100 BPM (original)"). */
+  protected readonly tempoOptions = computed<SelectOption[]>(() =>
+    this.tempos().map((tempo) => ({ value: String(tempo.value), label: this.i18n.t(tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm', { bpm: tempo.value }) })),
+  );
   /** 60 BPM for a melody; 80% of the song's own tempo. */
   protected readonly bpm = signal(0);
 
@@ -101,8 +108,8 @@ export class SequenceStepComponent {
     if (this.type() === 'read') this.player.start({ mode: 'wait' });
   }
 
-  protected chooseTempo(event: Event): void {
-    this.bpm.set(Number((event.target as HTMLSelectElement).value));
+  protected chooseTempo(value: string): void {
+    this.bpm.set(Number(value));
   }
 
   /** In time, or the song with the metronome: the run that counts. */

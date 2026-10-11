@@ -1,0 +1,53 @@
+////
+/// What Piano's practice screens share - a lesson's steps, the Note Trainer,
+/// Sheet Practice, a song: one column of the instruction, the controls, the
+/// staff, the note's name, the feedback and the keyboard. Piano's own, in the
+/// family's tokens; each screen's .scss @uses it (its rules are the
+/// component's own then, so nothing here reaches a page that does not).
+////
+
+.practice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.lesson-instruction {
+  font-size: 1.05rem;
+}
+
+// The controls above the staff: a field (its label on top) and buttons, lined up on their bottom edge.
+.controls {
+  align-items: flex-end;
+}
+
+// The note's name, large.
+.prompt {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+// Right or wrong, in words: green and red for words (4.5:1), never the keys' brighter fills.
+.feedback {
+  text-align: center;
+  font-size: 1.1rem;
+  min-height: 1.6em;
+  font-weight: 600;
+}
+
+.feedback--correct {
+  color: var(--anotoki-success-text);
+}
+
+.feedback--incorrect {
+  color: var(--anotoki-danger-text);
+}
+
+@media (max-width: 600px) {
+  .prompt {
+    font-size: 1.6rem;
+  }
+}

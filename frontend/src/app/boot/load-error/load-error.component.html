@@ -1,5 +1,2 @@
-<div class="card load-error" id="load-error">
-    <h2>{{ 'boot.loadError.title' | translate }}</h2>
-    <p>{{ 'boot.loadError.text' | translate }}</p>
-    <button class="btn-primary" id="boot-retry" type="button" (click)="retry()">{{ 'boot.loadError.tryAgain' | translate }}</button>
-</div>
+<!-- The family's error state (@anotoki/lib/ui/error-state): what happened, and Try again. -->
+<anotoki-error-state class="load-error" id="load-error" [heading]="'boot.loadError.title' | translate" [message]="'boot.loadError.text' | translate" [retryLabel]="'boot.loadError.tryAgain' | translate" (retry)="retry()" />

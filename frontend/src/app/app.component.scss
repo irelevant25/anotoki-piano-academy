@@ -4,48 +4,26 @@
   min-height: 100vh;
 }
 
-.signed-out-banner {
+// The notes under the bar (the family's alerts), as wide as the page under them; nothing while there are none.
+.notes {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 0.6rem 1.25rem;
-  background: var(--panel-alt);
-  border-bottom: 1px solid var(--warn);
-  color: var(--warn);
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1.25rem 1.5rem 0;
 }
 
-// The progress was replaced or deleted somewhere else, and this page loaded it again.
-.changed-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 0.6rem 1.25rem;
-  background: var(--panel-alt);
-  border-bottom: 1px solid var(--accent);
+.notes:empty {
+  display: none;
 }
 
-// Practising without signing in (Learn and Stats): how long the progress is kept here, and Sign in.
-.visitor-notice {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem 0.75rem;
-  flex-wrap: wrap;
-  padding: 0.5rem 1.25rem;
-  background: var(--panel-alt);
-  border-bottom: 1px solid var(--border);
-  color: var(--text-dim);
-  font-size: 0.92rem;
-}
-
-.visitor-notice span,
-.signed-out-banner span,
-.changed-banner span {
-  max-width: 60rem;
+// A note's second sentence (why a sign-in could not start; what the account kept): a line of its own - the alert's
+// text is one block, and two sentences side by side would run into each other.
+.note-more {
+  display: block;
+  margin-top: 0.25rem;
 }
 
 .view-root {
@@ -56,44 +34,21 @@
   padding: 1.5rem;
 }
 
-.loading {
-  color: var(--text-dim);
-}
-
 .app-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem 1rem;
+  gap: 0.25rem 0.75rem;
   flex-wrap: wrap;
   padding: 0.75rem 1.25rem 1.25rem;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
-
-// The footer's two buttons: the feedback form, and the version (what is new).
-.version,
-.footer-link {
-  background: transparent;
-  border-color: transparent;
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
-
-.version:hover,
-.footer-link:hover {
-  color: var(--accent);
 }
 
 @media (max-width: 600px) {
-  .view-root {
-    padding: 1rem;
+  .notes {
+    padding: 1rem 1rem 0;
   }
 
-  .visitor-notice,
-  .signed-out-banner,
-  .changed-banner {
-    padding-left: 1rem;
-    padding-right: 1rem;
+  .view-root {
+    padding: 1rem;
   }
 }

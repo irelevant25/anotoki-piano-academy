@@ -1,72 +1,25 @@
+// "Your progress file": the family's card, buttons, alerts, spinner and facts list; the box of what a file would
+// do is Piano's own, in the family's tokens.
+
 // The file input is pressed through its button ("Bring back a file"): the browser's own control is not shown.
 .file-input {
   display: none;
 }
 
 .preview {
-  margin-top: 0.5rem;
+  --anotoki-stack-gap: 0.75rem;
+
   padding: 0.9rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel-alt);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
+  background: var(--anotoki-surface-2);
 
   h3 {
-    margin: 0 0 0.5rem;
     font-size: 1rem;
   }
-
-  dl {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.3rem 0.8rem;
-    margin: 0 0 0.75rem;
-  }
-
-  dt {
-    color: var(--text-dim);
-  }
-
-  dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .controls-row {
-    margin-bottom: 0;
-  }
 }
 
-.warning {
-  color: var(--warn);
-  font-weight: 600;
-}
-
-.problem {
-  color: var(--bad);
-}
-
-.done {
-  color: var(--good);
-  font-weight: 600;
-}
-
-// Replacing loses what is saved now: the button says so by its colour as well as its word
-// (on the panel's own ground, as the confirm dialog's - --bad on --panel-alt is under 4.5:1).
-.danger {
-  background: var(--panel);
-  border-color: var(--bad);
-  color: var(--bad);
-  font-weight: 600;
-
-  &:hover:not(:disabled) {
-    background: var(--bad);
-    color: var(--accent-contrast);
-  }
-}
-
-// A phone: the two names of the counts go above their counts.
-@media (max-width: 420px) {
-  .preview dl {
-    grid-template-columns: 1fr;
-  }
+.left-out {
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
 }

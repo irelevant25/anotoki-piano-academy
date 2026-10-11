@@ -1,49 +1,51 @@
-<div class="card own-progress" id="own-progress">
-    <h2>{{ 'ownProgress.title' | translate }}</h2>
-    <p>{{ 'ownProgress.text' | translate }}</p>
-    <div class="controls-row">
-        <button type="button" id="own-download" [disabled]="busy() !== null" (click)="download()">{{ 'ownProgress.download' | translate }}</button>
-        <button type="button" id="own-bring-back" [disabled]="busy() !== null" (click)="file.click()">{{ 'ownProgress.bringBack' | translate }}</button>
-        <input #file type="file" id="own-file" class="file-input" accept=".json,application/json" tabindex="-1" aria-hidden="true" (change)="chosen($event)" />
-    </div>
-
-    @if (busy()) {
-        <p class="tag" id="own-busy" role="status">{{ 'ownProgress.working' | translate }}</p>
-    }
-    @if (problem(); as said) {
-        <p class="problem" id="own-problem" role="alert">{{ said.key | translate: said.params }}</p>
-    }
-
-    @if (looked(); as file) {
-        <div class="preview" id="own-preview">
-            <h3>{{ 'ownProgress.preview.title' | translate }}</h3>
-            <dl>
-                <dt>{{ 'ownProgress.preview.now' | translate }}</dt>
-                <dd id="own-now">{{ now() }}</dd>
-                <dt>{{ 'ownProgress.preview.file' | translate }}</dt>
-                <dd id="own-incoming">{{ incoming() }}</dd>
-            </dl>
-            @if (file.preview.leftOut > 0) {
-                <p class="tag" id="own-left-out">{{ 'ownProgress.preview.leftOut' | translatePlural: file.preview.leftOut }}</p>
-            }
-            @if (file.preview.hasProgress) {
-                <p class="warning" id="own-replaces">{{ 'ownProgress.preview.replaces' | translate }}</p>
-            }
-            <div class="controls-row">
-                @if (file.preview.hasProgress) {
-                    <button type="button" class="danger" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ 'ownProgress.preview.replace' | translate }}</button>
-                } @else {
-                    <button type="button" class="btn-primary" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ 'ownProgress.preview.bringIn' | translate }}</button>
-                }
-                <button type="button" id="own-cancel" [disabled]="busy() !== null" (click)="cancel()">{{ 'ownProgress.cancel' | translate }}</button>
-            </div>
+<anotoki-card class="own-progress" id="own-progress" [heading]="'ownProgress.title' | translate">
+    <div class="stack">
+        <p>{{ 'ownProgress.text' | translate }}</p>
+        <div class="cluster">
+            <button anotokiButton id="own-download" [disabled]="busy() !== null" (click)="download()">{{ 'ownProgress.download' | translate }}</button>
+            <button anotokiButton id="own-bring-back" [disabled]="busy() !== null" (click)="file.click()">{{ 'ownProgress.bringBack' | translate }}</button>
+            <input #file type="file" id="own-file" class="file-input" accept=".json,application/json" tabindex="-1" aria-hidden="true" (change)="chosen($event)" />
         </div>
-    }
 
-    @if (done()) {
-        <p class="done" id="own-done" role="status">{{ 'ownProgress.done' | translate }} {{ brought() }}</p>
-        @if (reloadFailed()) {
-            <p class="problem" role="alert">{{ 'ownProgress.error.reload' | translate }}</p>
+        @if (busy()) {
+            <anotoki-spinner id="own-busy" [label]="'ownProgress.working' | translate" [showLabel]="true" />
         }
-    }
-</div>
+        @if (problem(); as said) {
+            <anotoki-alert id="own-problem" tone="danger" announce>{{ said.key | translate: said.params }}</anotoki-alert>
+        }
+
+        @if (looked(); as file) {
+            <!-- What the file would do: a box of its own inside the card. -->
+            <div class="preview stack" id="own-preview">
+                <h3>{{ 'ownProgress.preview.title' | translate }}</h3>
+                <dl class="facts">
+                    <dt>{{ 'ownProgress.preview.now' | translate }}</dt>
+                    <dd id="own-now">{{ now() }}</dd>
+                    <dt>{{ 'ownProgress.preview.file' | translate }}</dt>
+                    <dd id="own-incoming">{{ incoming() }}</dd>
+                </dl>
+                @if (file.preview.leftOut > 0) {
+                    <p class="left-out" id="own-left-out">{{ 'ownProgress.preview.leftOut' | translatePlural: file.preview.leftOut }}</p>
+                }
+                @if (file.preview.hasProgress) {
+                    <anotoki-alert id="own-replaces" tone="warning">{{ 'ownProgress.preview.replaces' | translate }}</anotoki-alert>
+                }
+                <div class="cluster">
+                    @if (file.preview.hasProgress) {
+                        <button anotokiButton variant="danger" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ 'ownProgress.preview.replace' | translate }}</button>
+                    } @else {
+                        <button anotokiButton variant="primary" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ 'ownProgress.preview.bringIn' | translate }}</button>
+                    }
+                    <button anotokiButton id="own-cancel" [disabled]="busy() !== null" (click)="cancel()">{{ 'ownProgress.cancel' | translate }}</button>
+                </div>
+            </div>
+        }
+
+        @if (done()) {
+            <anotoki-alert id="own-done" tone="success" announce="polite">{{ 'ownProgress.done' | translate }} {{ brought() }}</anotoki-alert>
+            @if (reloadFailed()) {
+                <anotoki-alert tone="danger" announce>{{ 'ownProgress.error.reload' | translate }}</anotoki-alert>
+            }
+        }
+    </div>
+</anotoki-card>

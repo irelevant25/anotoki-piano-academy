@@ -1,37 +1,47 @@
+// Learn: the path. The cards, the review's note, the badge and the buttons are the family's
+// (@anotoki/lib/ui/*); the call to go on, the phases' heads, the units and their step chips are Piano's own -
+// the path - drawn with the family's tokens.
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+// The next step: the family's corners and shadow, Piano's blue edge and glow.
 .continue-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  border-color: var(--accent);
-  background: linear-gradient(135deg, var(--continue-glow), var(--panel) 60%);
+  padding: 1.25rem;
+  border: 1px solid var(--anotoki-primary);
+  border-radius: var(--anotoki-radius-lg);
+  background: linear-gradient(135deg, var(--continue-glow), var(--anotoki-surface) 60%);
+  box-shadow: var(--anotoki-shadow-sm);
 }
 
-.continue-card h2 {
-  margin: 0.2rem 0;
-}
-
-.continue-card p {
-  margin: 0;
-}
-
-.continue-step {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.review-banner {
+.continue-text {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  border: 1px solid var(--warn);
-  border-radius: 10px;
-  padding: 0.7rem 1rem;
-  margin-bottom: 1.25rem;
-  color: var(--warn);
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.continue-tag {
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
+}
+
+.continue-title {
+  font-size: 1.5rem;
+}
+
+// The step's name in the path's blue - the soft primary's ink, 4.5:1 on the glow too.
+.continue-step {
+  color: var(--anotoki-primary-soft-text);
+  font-weight: 600;
 }
 
 .phase-head {
@@ -40,13 +50,19 @@
   gap: 0.8rem;
 }
 
-.phase-head h2 {
-  margin: 0;
-}
-
-.phase-head > div {
+.phase-titles {
   flex: 1;
   min-width: 0;
+}
+
+.phase-title {
+  display: block;
+  font-size: 1.25rem;
+}
+
+.phase-description {
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
 }
 
 .phase-number {
@@ -56,17 +72,25 @@
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
+  background: var(--anotoki-surface-3);
+  border: 1px solid var(--anotoki-border);
   font-weight: 600;
 }
 
+// A phase still to come: a dashed row, its words in the quiet grey (no fading - they stay readable).
 .phase.is-coming {
-  border: 1px dashed var(--border);
-  border-radius: 10px;
+  border: 1px dashed var(--anotoki-border-strong);
+  border-radius: var(--anotoki-radius-lg);
   padding: 0.8rem 1.25rem;
-  margin-bottom: 0.6rem;
-  opacity: 0.65;
+  color: var(--anotoki-muted);
+
+  .phase-title {
+    font-size: 1rem;
+  }
+}
+
+.phase.is-coming + .phase.is-coming {
+  margin-top: -0.65rem;
 }
 
 .unit-list {
@@ -84,24 +108,31 @@
   justify-content: space-between;
   gap: 0.8rem;
   flex-wrap: wrap;
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: var(--anotoki-surface-3);
+  border: 1px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
   padding: 0.7rem 1rem;
 }
 
 .unit.is-current {
-  border-color: var(--accent);
+  border-color: var(--anotoki-primary);
 }
 
-.unit.is-locked {
-  opacity: 0.55;
+// A unit not open yet: its words in the quiet grey, still readable; its steps are the disabled buttons.
+.unit.is-locked .unit-head {
+  color: var(--anotoki-muted);
 }
 
 .unit-head {
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  min-width: 0;
+}
+
+.unit-details {
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
 }
 
 .unit-badge {
@@ -111,19 +142,19 @@
   width: 1.8rem;
   height: 1.8rem;
   border-radius: 50%;
-  border: 2px solid var(--border);
+  border: 2px solid var(--anotoki-border);
   font-weight: 600;
   font-size: 0.9rem;
 }
 
 .unit.is-current .unit-badge {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--anotoki-primary);
+  color: var(--anotoki-primary-soft-text);
 }
 
 .unit.is-done .unit-badge {
-  border-color: var(--good);
-  background: var(--good);
+  border-color: var(--anotoki-success);
+  background: var(--anotoki-success);
   color: var(--good-contrast);
 }
 
@@ -133,18 +164,40 @@
   flex-wrap: wrap;
 }
 
+// A step of the path: Piano's own small round-ended button (the family has no chip) - passed, open or locked.
 .step-chip {
-  font-size: 0.8rem;
-  padding: 0.25rem 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  margin: 0;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--anotoki-border);
   border-radius: 999px;
+  background: var(--anotoki-surface);
+  color: var(--anotoki-text);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: border-color var(--anotoki-duration) var(--anotoki-ease);
+
+  &:hover:not(:disabled) {
+    border-color: var(--anotoki-primary);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
 }
 
 .step-chip.is-passed {
-  border-color: var(--good);
-  color: var(--good);
+  border-color: var(--anotoki-success);
+  color: var(--anotoki-success-text);
 }
 
 .step-chip.is-open {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--anotoki-primary);
+  color: var(--anotoki-primary);
+  font-weight: 600;
 }

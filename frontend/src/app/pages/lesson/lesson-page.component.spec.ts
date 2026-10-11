@@ -155,11 +155,13 @@ describe('Lesson page: its words are keys, and what it stores stays as it was', 
   it('names the phase, the unit and the step in the language of the page', async () => {
     await open('rh-1', 'meet');
 
-    expect(text('.lesson-title .tag')).toBe('Pravá ruka · Lekcia 1');
+    expect(text('.lesson-title .lesson-tag')).toBe('Pravá ruka · Lekcia 1');
     // A unit title of note letters only is shown as it is.
     expect(text('h2')).toBe('C, D, E – Zoznám sa s notami');
     expect(dots()).toEqual(['Zoznámenie', 'Precvičovanie', 'Čítanie', 'V rytme', 'Skladba']);
-    expect(text('#ls-back')).toBe('← Cesta');
+    // Back to the path: the family's button, its arrow the kit's icon.
+    expect(text('#ls-back')).toBe('Cesta');
+    expect(host.querySelector('#ls-back anotoki-icon')?.getAttribute('name')).toBe('arrowLeft');
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -183,6 +185,9 @@ describe('Lesson page: its words are keys, and what it stores stays as it was', 
     expect(text('.result-message')).toBe('Na pokračovanie treba 80 %. Skús to ešte raz – každým pokusom to ide ľahšie.');
     expect(host.querySelector('#ls-next')).toBeNull();
     expect(text('#ls-retry')).toBe('Skúsiť znova');
+    // Trying again is the one thing to do: the family's large primary button.
+    expect(host.querySelector('#ls-retry')?.classList).toContain('anotoki-button--primary');
+    expect(host.querySelector('#ls-retry')?.classList).toContain('anotoki-button--lg');
 
     host.querySelector<HTMLButtonElement>('#ls-retry')!.click();
     await fixture.whenStable();
@@ -190,6 +195,10 @@ describe('Lesson page: its words are keys, and what it stores stays as it was', 
     expect(text('.result-score')).toBe('90 %');
     expect(text('.result-message')).toBe('Krok je splnený – pekná práca!');
     expect(text('#ls-next')).toBe('Pokračovať');
+    // Passed: going on is the large primary button, practising again an ordinary one.
+    expect(host.querySelector('#ls-next')?.classList).toContain('anotoki-button--primary');
+    expect(host.querySelector('#ls-retry')?.classList).toContain('anotoki-button--secondary');
+    expect(host.querySelector('#ls-retry')?.classList).not.toContain('anotoki-button--lg');
 
     host.querySelector<HTMLButtonElement>('#ls-retry')!.click();
     await fixture.whenStable();
@@ -234,7 +243,7 @@ describe('Lesson page: its words are keys, and what it stores stays as it was', 
 
     await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
-    expect(text('.lesson-title .tag')).toBe('Right hand · Unit 5');
+    expect(text('.lesson-title .lesson-tag')).toBe('Right hand · Unit 5');
     expect(text('h2')).toBe('B and high C — Note drill');
     expect(dots()).toEqual(['Meet', 'Drill', 'Read', 'In time', 'Song']);
     expect(text('.result-score')).toBe('40%');

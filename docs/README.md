@@ -90,3 +90,12 @@ backups - are the family's, for the site's ADMIN alone; migration 011
 library's keys. 010 and 011 go with 005 to 009 at the hand-over -
 `architecture.md` ("A request", "People and the admin tools", "The
 frontend"), `api.md`; `decisions.md`.
+Then (2026-10-11, later still) Piano's own pages on the family's kit, the
+library unchanged (0.4.1): every button, card, note, badge, select, What's
+new's dialog, the spinner, the error state and Stats' table are the kit's,
+in Piano's colours (its light green a shade darker, for AA); the path, the
+practice screens, the tiles, the keyboard, the staff and the piano's button
+stay Piano's own, from the same tokens; `styles.scss` takes the family's
+base, utilities and tables, and no rule of Piano's for buttons, selects or
+cards is left - `architecture.md` ("The family's kit"); `decisions.md`. No
+words, no migration.

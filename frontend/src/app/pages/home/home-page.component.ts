@@ -1,6 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { AlertComponent } from '@anotoki/lib/ui/alert';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { phaseDescription, phaseTitle, stepShort, stepTitle, unitTitle } from '../../core/i18n/path-words';
 import { PathStep, Phase, Unit } from '../../core/music/music.types';
 import { PathService, UnitStatus } from '../../core/music/path.service';
@@ -36,7 +40,10 @@ interface PhaseView {
 /**
  * "Learn": the learning path. A Continue button for the next step, every phase
  * with its units and their step chips (passed / open / locked), the notes due
- * for review, and the free-practice modes underneath.
+ * for review, and the free-practice modes underneath. The cards, the review's
+ * note, "Coming soon" and the buttons are the family's kit; the path itself -
+ * the call to go on, the units, the step chips - is Piano's own, in the
+ * family's tokens.
  *
  * The words are the language's: what `phases`, `due` and `nextWords` hold is
  * worded inside a computed() - t() reads signals, so it is worded again when
@@ -48,7 +55,7 @@ interface PhaseView {
   templateUrl: './home-page.component.html',
   styleUrl: './home-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslatePipe],
+  imports: [TranslatePipe, AlertComponent, BadgeComponent, ButtonComponent, CardComponent],
 })
 export class HomePageComponent {
   private readonly router = inject(Router);

@@ -1,94 +1,47 @@
-.changelog {
-  width: min(40rem, calc(100vw - 2rem));
-  max-height: calc(100vh - 3rem);
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  color: var(--text);
-}
+// What's new: the family's dialog and badges around Piano's own list of releases, in the family's tokens.
 
-.changelog::backdrop {
-  background: var(--backdrop);
-}
-
-.changelog-body {
-  padding: 1.25rem;
-}
-
-.changelog-head {
+.releases {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.changelog-head h2 {
-  margin: 0;
 }
 
 .release {
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid var(--anotoki-border);
+  border-left: 4px solid var(--anotoki-border);
+  border-radius: var(--anotoki-radius);
   padding: 0.9rem 1rem;
-  margin-bottom: 1rem;
-  background: var(--panel-alt);
+  background: var(--anotoki-surface-2);
 }
 
 .release.is-latest {
-  border-left-color: var(--accent);
+  border-left-color: var(--anotoki-primary);
 }
 
 .release-head {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
   flex-wrap: wrap;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--anotoki-border);
 }
 
+// The version in the app's blue (large and bold: 3:1 is enough, and it has more).
 .release-version {
+  color: var(--anotoki-primary);
   font-size: 1.3rem;
   font-weight: 700;
-  color: var(--accent);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.latest {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.1rem 0.6rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-contrast);
 }
 
 .release-date {
+  margin-left: auto;
   font-size: 0.85rem;
-  color: var(--text-dim);
+  color: var(--anotoki-muted);
 }
 
-.section-title {
-  font-size: 0.95rem;
-  margin: 0.9rem 0 0.3rem;
-}
-
-.section-title.added {
-  color: var(--good);
-}
-
-.section-title.updated {
-  color: var(--accent);
-}
-
-.section-title.fixed {
-  color: var(--warn);
+.release-section {
+  margin: 0.9rem 0 0.35rem;
 }
 
 ul {

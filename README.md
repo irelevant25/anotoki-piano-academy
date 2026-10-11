@@ -173,6 +173,15 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   form), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
+- **Every page drawn by the anotoki family's kit (2026-10-11, later
+  still).** The pages' buttons, cards, notes and messages, badges, the
+  tempo's and the piano's selects, What's new's dialog, "Working…", "Could
+  not load your progress" and Stats' table (on a phone a small card a
+  round) are the family's UI kit's (`@anotoki/lib` 0.4.1), in Piano's
+  colours - its green a shade darker in light, so its words read well. The
+  path, the practice screens, the keyboard, the staff and the piano's
+  button stay Piano's own. No new words, no migration. In What's new's
+  0.4.0 (not released yet).
 - **Signing in, People and the admin tools through the anotoki family's
   library (2026-10-11, later).** `anotoki-lib` 0.4.1, both halves. Signing
   in is the family's (the same tokens in the browser, so nobody is signed

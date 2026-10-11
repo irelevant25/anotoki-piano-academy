@@ -1,3 +1,7 @@
-app-notation {
-  margin-bottom: 0.25rem;
+@use "../practice";
+
+// The notes the piece is made of.
+.known-notes {
+  color: var(--anotoki-muted);
+  font-size: 0.8125rem;
 }

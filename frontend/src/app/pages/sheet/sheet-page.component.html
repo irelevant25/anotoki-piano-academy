@@ -1,28 +1,26 @@
-<div class="card">
-    <h2>{{ 'sheet.title' | translate }}</h2>
+<anotoki-card [heading]="'sheet.title' | translate">
     @if (knownTreble.length < minKnown) {
-        <p>{{ 'sheet.learnFirst' | translatePlural: minKnown : { known: knownTreble.length } }} {{ 'sheet.about' | translate }}</p>
-        <button id="sh-goto-path" type="button" (click)="goToPath()">{{ 'sheet.goToPath' | translate }}</button>
-    } @else {
-        <p class="tag">{{ 'sheet.knownNotes' | translate: { notes: knownNames } }}</p>
-        <div class="controls-row">
-            <label>
-                {{ 'tempo.label' | translate }}
-                <select id="sh-bpm" (change)="chooseTempo($event)">
-                    @for (tempo of tempos; track tempo) {
-                        <option [value]="tempo" [selected]="tempo === bpm()">{{ 'tempo.bpm' | translate: { bpm: tempo } }}</option>
-                    }
-                </select>
-            </label>
-            <button id="sh-new" type="button" (click)="newSheet()">{{ 'sheet.newSheet' | translate }}</button>
-            <button id="sh-start" type="button" [disabled]="playing()" (click)="start()">{{ 'player.start' | translate }}</button>
+        <div class="stack">
+            <p>{{ 'sheet.learnFirst' | translatePlural: minKnown : { known: knownTreble.length } }} {{ 'sheet.about' | translate }}</p>
+            <div class="cluster">
+                <button anotokiButton id="sh-goto-path" (click)="goToPath()">{{ 'sheet.goToPath' | translate }}</button>
+            </div>
         </div>
-        <app-notation id="sh-notation" />
-        <p class="feedback" id="sh-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
-            @if (feedback().key; as key) {
-                {{ key | translate: feedback().params }}
-            }
-        </p>
-        <app-piano-keyboard id="sh-keyboard" [model]="keyboard" [lowMidi]="48" [highMidi]="84" />
+    } @else {
+        <div class="practice">
+            <p class="known-notes">{{ 'sheet.knownNotes' | translate: { notes: knownNames } }}</p>
+            <div class="cluster controls">
+                <anotoki-select id="sh-bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm().toString()" (valueChange)="chooseTempo($event)" />
+                <button anotokiButton id="sh-new" (click)="newSheet()">{{ 'sheet.newSheet' | translate }}</button>
+                <button anotokiButton id="sh-start" [disabled]="playing()" (click)="start()">{{ 'player.start' | translate }}</button>
+            </div>
+            <app-notation id="sh-notation" />
+            <p class="feedback" id="sh-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
+                @if (feedback().key; as key) {
+                    {{ key | translate: feedback().params }}
+                }
+            </p>
+            <app-piano-keyboard id="sh-keyboard" [model]="keyboard" [lowMidi]="48" [highMidi]="84" />
+        </div>
     }
-</div>
+</anotoki-card>

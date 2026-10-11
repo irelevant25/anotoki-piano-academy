@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/cor
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
 import { AnotokiAuth } from '@anotoki/lib/auth';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
 import { BootService } from '../../core/state/boot.service';
 
 /**
@@ -34,7 +36,7 @@ import { BootService } from '../../core/state/boot.service';
   templateUrl: './admin-layout.component.html',
   styleUrl: './admin-layout.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink],
+  imports: [RouterOutlet, RouterLink, ButtonComponent, CardComponent],
 })
 export class AdminLayoutComponent {
   protected readonly auth = inject(AnotokiAuth);

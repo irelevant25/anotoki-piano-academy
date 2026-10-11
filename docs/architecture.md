@@ -396,21 +396,36 @@ analyzer only).
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
-the anotoki family's, each imported from its own entry point
-(`@anotoki/lib/ui/config`, `/ui/icon`, `/ui/dialog`...: the first load
-carries only the pieces it draws). They draw with the family's tokens, which
+the anotoki family's - and so are the pages' own building blocks (since
+2026-10-11): every button (`anotokiButton`), card (`<anotoki-card>`), note
+and message (`<anotoki-alert>`: the notes under the bar, the review's
+reminder, the progress file's warning and refusals, the piano's state),
+badge ("Coming soon", "Latest", "Not saved yet", What's new's lists), field
+(`<anotoki-select>`: the tempo, the MIDI device), dialog (What's new),
+spinner, error state ("Could not load your progress"), empty state (Stats
+with no round yet) and table (the family's table styles: a small card a
+round on a phone). Each is imported
+from its own entry point (`@anotoki/lib/ui/config`, `/ui/button`,
+`/ui/card`...: the first load carries only the pieces it draws; the fields,
+`/ui/forms`, are lazy - the piano's select in the bar is a `@defer` block,
+loaded once the page is idle). They draw with the family's tokens, which
 `styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
-a site gives the colours only), with the family's corners, shadows and
-font, Manrope; Piano's own element rules (bare buttons and selects) are
-kept off them. Their words are the library's own keys, `anotoki.*` (the
-translations module's `forKit()`): the database's strings - this app's
-wording, which migration 009 copied there, or the owner's rewording - else
-the kit's own English and informal Slovak (and, while no bundle is in
-memory, the theme switch's "Theme: light" kept in code). Piano's own stay
-its own for now: the pages, the keyboard, the
-notation, the piano's widget (on the family's popover), What's new,
-`.btn-primary`, `.card`, `.chip` (those three onto the kit's components in
-a later phase).
+a site gives the colours only), with the family's corners, shadows, font
+(Manrope) and base (`anotoki.base`: type, links, the focus ring), and its
+utilities (`.stack`, `.cluster`, `.facts`...) and tables. Their words are
+the library's own keys, `anotoki.*` (the translations module's
+`forKit()`): the database's strings - this app's wording, which migration
+009 copied there, or the owner's rewording - else the kit's own English and
+informal Slovak (and, while no bundle is in memory, the theme switch's
+"Theme: light" kept in code). What is Piano's own is what no other site
+has, built from the family's tokens: the path (the call to go on, the
+phases' heads, the units, the step chips), a lesson's steps and its result,
+the practice screens (`pages/_practice.scss`), the figures in tiles
+(`pages/_stat-tiles.scss`), the keyboard, the notation, the piano's button
+in the bar and What's new's list of releases. Piano has no global rule for
+buttons, selects or cards any more (`styles.scss` keeps the palette,
+Piano's own colours and `body`'s word breaking): nothing of Piano's can
+reach the kit's components.
 
 **The words** (`@anotoki/lib/translations`, wired in
 `core/i18n/site-translations.ts`; the PHP half in `api/translations.php`):
@@ -445,7 +460,7 @@ reader) and the first line of both menus (`menuNote`). Its menus' keys are
 the family's: arrows, Home and End; Escape, a click outside, Tab and
 Shift+Tab close the menu - Tab with the focus on its button. Under `/admin`
 it has the admin sections (`ADMIN_LINKS`, English), folding up to its own
-`ADMIN_PHONE_BAR_MAX` (1280 px: eight sections need 1258), the family's
+`ADMIN_PHONE_BAR_MAX` (1280 px: eight sections need 1255), the family's
 wordmark short at every width ("Piano" with "admin panel" under it;
 "anotoki Piano Academy · admin panel" the link's name - the whole one beside
 eight sections would not fit the family's row), "Back to Piano Academy" in

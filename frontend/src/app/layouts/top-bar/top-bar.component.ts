@@ -6,6 +6,7 @@ import { AnotokiAuth } from '@anotoki/lib/auth';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { TopBarBrand, TopBarComponent as FamilyTopBarComponent, TopBarLink, TopBarMenuItem, TopBarMenuNote, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
+import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
 import { ADMIN_TOOL_ROUTES } from '../../core/site-admin';
@@ -63,11 +64,11 @@ export const ADMIN_BRAND = { area: 'Piano Academy', panel: 'admin panel', label:
  * into one menu button. Piano's own number (the survey's is 760), measured
  * with the real labels in English and Slovak (the browser check's --measure):
  * the widest row - "anotoki Piano Academy", the five sections, "Not saved
- * yet", the piano with a device name at its widest (8rem), the language, the
- * family's theme switch and the person's initial - needs 1293 px in English
- * and 1314 px in Slovak, in Manrope (1221 and 1254 with "No piano"; the
- * admin panel's row 1098) - inside the family's row too, which is never
- * wider than 84rem (1344 px).
+ * yet" (the family's badge), the piano with a device name at its widest
+ * (8rem), the language, the family's theme switch and the person's initial -
+ * needs 1290 px in English and 1312 px in Slovak, in Manrope (1218 and 1252
+ * with "No piano"; measured 2026-10-11) - inside the family's row too, which
+ * is never wider than 84rem (1344 px).
  */
 export const PHONE_BAR_MAX = 1320;
 /** From this width the person's name stands beside the initial (200 px for it, as in the family's bar). */
@@ -82,7 +83,7 @@ export const NAME_BAR_MIN = PHONE_BAR_MAX + 201;
  * as Japanese Academy's and the build analyzer's admin panels are: the full
  * wordmark beside eight sections would not fit in the family's row (84rem).
  * Measured as PHONE_BAR_MAX is (--measure), with a two-digit count beside
- * Feedback and "Not saved yet" showing: 1258 px, in English and with Slovak
+ * Feedback and "Not saved yet" showing: 1255 px, in English and with Slovak
  * chosen alike (the panel is English) - room for a scrollbar above it.
  */
 export const ADMIN_PHONE_BAR_MAX = 1280;
@@ -95,7 +96,8 @@ export const ADMIN_SHORT_BRAND_MAX = 100000;
  * (@anotoki/lib/shell's <anotoki-top-bar>), told what is Piano Academy's -
  * its brand, its sections, who is signed in and what they may do, and the
  * two widgets it carries before the language: "Not saved yet" while some
- * progress waits, and the piano (ui/midi-panel). The family's bar draws the
+ * progress waits (the family's warning badge), and the piano
+ * (ui/midi-panel). The family's bar draws the
  * row in the family's order, folds into one menu button up to PHONE_BAR_MAX
  * ("Piano", brand.short, beside the mark), and has the family's menus, keys,
  * language chooser and theme switch (light / dark / as the device is set).
@@ -128,7 +130,7 @@ export const ADMIN_SHORT_BRAND_MAX = 100000;
  */
 @Component({
   selector: 'app-top-bar',
-  imports: [FamilyTopBarComponent, MidiPanelComponent, TranslatePipe],
+  imports: [FamilyTopBarComponent, MidiPanelComponent, TranslatePipe, BadgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './top-bar.component.html',
   styleUrl: './top-bar.component.scss',

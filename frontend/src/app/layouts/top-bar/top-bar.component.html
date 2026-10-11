@@ -15,7 +15,7 @@
     [phoneMark]="phoneMark()"
     [menuNote]="menuNote()">
     @if (store.unsaved() && !bar.phone()) {
-        <span topBarWidgets class="save-status" id="save-status" [title]="'account.notSavedHint' | translate">{{ "account.notSaved" | translate }}</span>
+        <anotoki-badge topBarWidgets class="save-status" id="save-status" tone="warning" [title]="'account.notSavedHint' | translate">{{ "account.notSaved" | translate }}</anotoki-badge>
     }
     @if (!inAdmin()) {
         <app-midi-panel topBarWidgets [compact]="bar.phone()" />

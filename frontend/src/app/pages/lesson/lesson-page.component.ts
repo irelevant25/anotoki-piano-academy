@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import { TranslatePipe, TranslationParams, TranslationService } from '@anotoki/lib/translations';
+import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { CardComponent } from '@anotoki/lib/ui/card';
+import { IconComponent } from '@anotoki/lib/ui/icon';
 import { phaseTitle, stepShort, stepTitle, unitTitle } from '../../core/i18n/path-words';
 import { PathStep, StepRecord } from '../../core/music/music.types';
 import { PASS_ACCURACY, PathService, STEP_TYPES } from '../../core/music/path.service';
@@ -26,14 +29,16 @@ interface ResultView {
  * One learning-path step (/lesson/:unitId/:stepId), then its result: passing
  * (best accuracy >= PASS_ACCURACY) opens the next step, otherwise the learner
  * tries again. Each step type has its own component; all of them report the
- * moment an attempt ends (StepOutcome) and stop listening to the piano.
+ * moment an attempt ends (StepOutcome) and stop listening to the piano. The
+ * card and the buttons are the family's; the steps' dots, the steps and the
+ * result are Piano's own.
  */
 @Component({
   selector: 'app-lesson-page',
   templateUrl: './lesson-page.component.html',
   styleUrl: './lesson-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MeetStepComponent, DrillStepComponent, SequenceStepComponent, TranslatePipe],
+  imports: [MeetStepComponent, DrillStepComponent, SequenceStepComponent, TranslatePipe, ButtonComponent, CardComponent, IconComponent],
 })
 export class LessonPageComponent {
   private readonly router = inject(Router);

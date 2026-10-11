@@ -1,42 +1,44 @@
 @if (!finished()) {
-    <div class="card">
-        <h2>{{ 'trainer.title' | translate }}</h2>
-        <p class="tag">
-            <span>{{ prompt()[0] }}</span>
-            @if (prompt()[2]) {
-                <span id="tr-progress">{{ index() + 1 }} / {{ roundLength }}</span>
-            }
-            <span>{{ prompt()[1] }} &middot; {{ correctSoFar()[0] }}</span>
-            @if (correctSoFar()[2]) {
-                <span id="tr-correct">{{ correctCount() }}</span>
-            }
-            <span>{{ correctSoFar()[1] }}</span>
-        </p>
-        <app-notation id="tr-notation" />
-        <p class="prompt" id="tr-name">{{ name() }}</p>
-        <p class="feedback" id="tr-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
-            @if (feedback().key; as key) {
-                {{ key | translate: feedback().params }}
-            }
-        </p>
-        <app-piano-keyboard id="tr-keyboard" [model]="keyboard" [lowMidi]="41" [highMidi]="79" />
-    </div>
+    <anotoki-card [heading]="'trainer.title' | translate">
+        <div class="practice">
+            <p class="trainer-progress">
+                <span>{{ prompt()[0] }}</span>
+                @if (prompt()[2]) {
+                    <span id="tr-progress">{{ index() + 1 }} / {{ roundLength }}</span>
+                }
+                <span>{{ prompt()[1] }} &middot; {{ correctSoFar()[0] }}</span>
+                @if (correctSoFar()[2]) {
+                    <span id="tr-correct">{{ correctCount() }}</span>
+                }
+                <span>{{ correctSoFar()[1] }}</span>
+            </p>
+            <app-notation id="tr-notation" />
+            <p class="prompt" id="tr-name">{{ name() }}</p>
+            <p class="feedback" id="tr-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
+                @if (feedback().key; as key) {
+                    {{ key | translate: feedback().params }}
+                }
+            </p>
+            <app-piano-keyboard id="tr-keyboard" [model]="keyboard" [lowMidi]="41" [highMidi]="79" />
+        </div>
+    </anotoki-card>
 } @else {
-    <div class="card" id="tr-done">
-        <h2>{{ 'trainer.done.title' | translate }}</h2>
-        <div class="grid">
-            <div class="stat-tile">
-                <div class="value">{{ correctCount() }}/{{ roundLength }}</div>
-                <div class="label">{{ 'trainer.done.correct' | translate }}</div>
+    <anotoki-card id="tr-done" [heading]="'trainer.done.title' | translate">
+        <div class="stack">
+            <div class="stat-tiles">
+                <div class="stat-tile">
+                    <div class="value">{{ correctCount() }}/{{ roundLength }}</div>
+                    <div class="label">{{ 'trainer.done.correct' | translate }}</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="value">{{ 'common.percent' | translate: { value: accuracy() } }}</div>
+                    <div class="label">{{ 'trainer.done.accuracy' | translate }}</div>
+                </div>
             </div>
-            <div class="stat-tile">
-                <div class="value">{{ 'common.percent' | translate: { value: accuracy() } }}</div>
-                <div class="label">{{ 'trainer.done.accuracy' | translate }}</div>
+            <div class="cluster">
+                <button anotokiButton id="tr-again" (click)="newRound()">{{ 'trainer.done.again' | translate }}</button>
+                <button anotokiButton id="tr-stats" (click)="viewStats()">{{ 'trainer.done.stats' | translate }}</button>
             </div>
         </div>
-        <div class="controls-row done-actions">
-            <button id="tr-again" type="button" (click)="newRound()">{{ 'trainer.done.again' | translate }}</button>
-            <button id="tr-stats" type="button" (click)="viewStats()">{{ 'trainer.done.stats' | translate }}</button>
-        </div>
-    </div>
+    </anotoki-card>
 }

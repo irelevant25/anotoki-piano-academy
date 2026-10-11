@@ -164,24 +164,24 @@ describe('Home page: the path in the learner’s words', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await page('en');
 
-    expect(text('.continue-card .tag')).toBe('Start here');
+    expect(text('.continue-card .continue-tag')).toBe('Start here');
     expect(text('.continue-card h2')).toBe('Unit 1 · C, D, E');
     expect(text('.continue-step')).toBe('Meet the notes');
     expect(text('#continue')).toBe('Start learning');
     expect(host.querySelector('.review-banner')).toBeNull();
 
     expect(all('.phase h2')).toEqual(['Right hand']);
-    expect(text('.phase .phase-head .tag')).toBe('Learn the notes from Middle C up to the next C, one small group at a time.');
+    expect(text('.phase .phase-description')).toBe('Learn the notes from Middle C up to the next C, one small group at a time.');
     expect(all('.unit-head strong')).toEqual(['Unit 1 · C, D, E', 'Unit 2 · G', 'Unit 3 · F', 'Unit 4 · A', 'Unit 5 · B and high C']);
-    expect(all('.unit-head .tag')[0]).toBe('New: C4, D4, E4 · Song: Hot Cross Buns');
-    expect(all('.unit-head .tag')[4]).toBe('New: B4, C5 · Song: Joy to the World (opening, simplified rhythm)');
+    expect(all('.unit-head .unit-details')[0]).toBe('New: C4, D4, E4 · Song: Hot Cross Buns');
+    expect(all('.unit-head .unit-details')[4]).toBe('New: B4, C5 · Song: Joy to the World (opening, simplified rhythm)');
     expect(all('.unit:first-child .step-chip')).toEqual(['▶ Meet', 'Drill', 'Read', 'In time', 'Song']);
     expect(Array.from(host.querySelectorAll('.unit:first-child .step-chip')).map((chip) => chip.getAttribute('title'))).toEqual(['Meet the notes', 'Note drill', 'Read a melody', 'Play in time', 'Song']);
 
     expect(all('.phase.is-coming strong')).toEqual(['Left hand', 'Both hands', 'Left-hand chords', 'Right-hand chords', 'Melody and chords']);
-    expect(all('.phase.is-coming .chip')).toEqual(['Coming soon', 'Coming soon', 'Coming soon', 'Coming soon', 'Coming soon']);
-    expect(text('.card:last-child h2')).toBe('Free practice');
-    expect(all('.card:last-child .controls-row button')).toEqual(['Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+    expect(all('.phase.is-coming anotoki-badge')).toEqual(['Coming soon', 'Coming soon', 'Coming soon', 'Coming soon', 'Coming soon']);
+    expect(text('.free-practice h2')).toBe('Free practice');
+    expect(all('.free-practice button')).toEqual(['Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
 
     expect(warn).not.toHaveBeenCalled();
   });
@@ -196,17 +196,17 @@ describe('Home page: the path in the learner’s words', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await page('sk');
 
-    expect(text('.continue-card .tag')).toBe('Začni tu');
+    expect(text('.continue-card .continue-tag')).toBe('Začni tu');
     expect(text('.continue-card h2')).toBe('Lekcia 1 · C, D, E');
     expect(text('.continue-step')).toBe('Zoznám sa s notami');
     expect(text('#continue')).toBe('Začať sa učiť');
     expect(all('.phase h2')).toEqual(['Pravá ruka']);
     expect(all('.unit-head strong')).toEqual(['Lekcia 1 · C, D, E', 'Lekcia 2 · G', 'Lekcia 3 · F', 'Lekcia 4 · A', 'Lekcia 5 · B a vysoké C']);
-    expect(all('.unit-head .tag')[0]).toBe('Nové: C4, D4, E4 · Skladba: Hot Cross Buns');
+    expect(all('.unit-head .unit-details')[0]).toBe('Nové: C4, D4, E4 · Skladba: Hot Cross Buns');
     expect(all('.unit:first-child .step-chip')).toEqual(['▶ Zoznámenie', 'Precvičovanie', 'Čítanie', 'V rytme', 'Skladba']);
     expect(all('.phase.is-coming strong')).toEqual(['Ľavá ruka', 'Obe ruky', 'Akordy ľavou rukou', 'Akordy pravou rukou', 'Melódia a akordy']);
-    expect(all('.phase.is-coming .chip')[0]).toBe('Už čoskoro');
-    expect(all('.card:last-child .controls-row button')).toEqual(['Tréning nôt', 'Hra z nôt', 'Skladby', 'Štatistiky']);
+    expect(all('.phase.is-coming anotoki-badge')[0]).toBe('Už čoskoro');
+    expect(all('.free-practice button')).toEqual(['Tréning nôt', 'Hra z nôt', 'Skladby', 'Štatistiky']);
 
     expect(warn).not.toHaveBeenCalled();
   });
@@ -215,14 +215,14 @@ describe('Home page: the path in the learner’s words', () => {
     await page('en');
     await having({}, played({ 'rh-1/meet': 100, 'rh-1/drill': 90, 'rh-1/read': 70 }));
     expect(all('.unit:first-child .step-chip')).toEqual(['✓ Meet', '✓ Drill 90%', '▶ Read', 'In time', 'Song']);
-    expect(text('.continue-card .tag')).toBe('Continue where you left off');
+    expect(text('.continue-card .continue-tag')).toBe('Continue where you left off');
     expect(text('.continue-step')).toBe('Read a melody');
     expect(text('#continue')).toBe('Continue');
 
     await page('sk');
     await having({}, played({ 'rh-1/meet': 100, 'rh-1/drill': 90, 'rh-1/read': 70 }));
     expect(all('.unit:first-child .step-chip')).toEqual(['✓ Zoznámenie', '✓ Precvičovanie 90 %', '▶ Čítanie', 'V rytme', 'Skladba']);
-    expect(text('.continue-card .tag')).toBe('Pokračuj tam, kde sa naposledy skončilo');
+    expect(text('.continue-card .continue-tag')).toBe('Pokračuj tam, kde sa naposledy skončilo');
     expect(text('#continue')).toBe('Pokračovať');
   });
 
@@ -273,7 +273,7 @@ describe('Home page: the path in the learner’s words', () => {
     await page('sk');
     await having({}, played(Object.fromEntries(path.pathSteps.map((entry) => [entry.key, 100]))));
     expect(host.querySelector('#continue')).toBeNull();
-    expect(text('.continue-card .tag')).toBe('Všetky dostupné lekcie sú hotové');
+    expect(text('.continue-card .continue-tag')).toBe('Všetky dostupné lekcie sú hotové');
     expect(text('.continue-card h2')).toBe('Pravú ruku máš hotovú! 🎉');
     expect(all('.unit-badge')).toEqual(['✓', '✓', '✓', '✓', '✓']);
   });

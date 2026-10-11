@@ -2,21 +2,26 @@
     @if (auth.isStaff()) {
         <router-outlet />
     } @else if (!auth.signedIn()) {
-        <div class="card no-access" id="admin-signed-out">
-            @if (auth.signInFailure()) {
-                <h2>You are not signed in</h2>
-                <p>The admin panel is for the people who keep Piano Academy's words, signed in with their anotoki account. The sign-in did not complete - sign in to try again.</p>
-            } @else {
-                <h2>You are signed out</h2>
-                <p>Your session has ended. Sign in again: what you typed on the Translations and Languages pages is kept in this tab, and will be in its boxes again.</p>
-            }
-            <button type="button" class="btn-primary" id="admin-sign-in" (click)="signIn()">Sign in</button>
-        </div>
+        <anotoki-card class="no-access" id="admin-signed-out" [heading]="auth.signInFailure() ? 'You are not signed in' : 'You are signed out'">
+            <div class="stack">
+                @if (auth.signInFailure()) {
+                    <p>The admin panel is for the people who keep Piano Academy's words, signed in with their anotoki account. The sign-in did not complete - sign in to try again.</p>
+                } @else {
+                    <p>Your session has ended. Sign in again: what you typed on the Translations and Languages pages is kept in this tab, and will be in its boxes again.</p>
+                }
+                <div class="cluster">
+                    <button anotokiButton variant="primary" id="admin-sign-in" (click)="signIn()">Sign in</button>
+                </div>
+            </div>
+        </anotoki-card>
     } @else {
-        <div class="card no-access" id="admin-no-role">
-            <h2>This part is for the people who keep Piano Academy's words</h2>
-            <p>Your anotoki account has no editor role here. The app's administrator can give it to you in the anotoki account's admin panel.</p>
-            <a class="btn-primary button-link" routerLink="/">Back to Piano Academy</a>
-        </div>
+        <anotoki-card class="no-access" id="admin-no-role" heading="This part is for the people who keep Piano Academy's words">
+            <div class="stack">
+                <p>Your anotoki account has no editor role here. The app's administrator can give it to you in the anotoki account's admin panel.</p>
+                <div class="cluster">
+                    <a anotokiButton variant="primary" routerLink="/">Back to Piano Academy</a>
+                </div>
+            </div>
+        </anotoki-card>
     }
 </div>

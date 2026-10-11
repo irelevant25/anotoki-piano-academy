@@ -180,15 +180,21 @@ Working conventions specific to this repo:
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
-  the app's root) are the family's - never copy one into `ui/` - each
+  the app's root) are the family's - and every page's buttons
+  (`anotokiButton`), cards, alerts (the notes under the bar too), badges,
+  selects (`/ui/forms`, lazy: the piano's in a `@defer`), What's new's
+  dialog, the error state and the table styles - never copy one into `ui/`,
+  never restyle one (a site gives its colours only) - each
   imported from its own entry point (`@anotoki/lib/ui/config`, `/ui/icon`,
-  `/ui/dialog`...; never the `@anotoki/lib/ui` barrel). Their words are the
+  `/ui/button`...; never the `@anotoki/lib/ui` barrel). Their words are the
   library's keys, `anotoki.*` (`forKit()`: the database's strings - this
   app's wording, the owner's rewordings -, else the kit's own); colours are
-  the family's tokens in Piano's palette (`anotoki.root()` in `styles.scss`),
-  the font Manrope. Piano's own controls (bare buttons and selects,
-  `.btn-primary`, `.card`, `.chip`) keep Piano's look; their rules never
-  reach the kit's components (`$piano-own`). Specs read the kit's markup by
+  the family's tokens in Piano's palette (`anotoki.root()` in `styles.scss`,
+  with the family's base, utilities and tables), the font Manrope. What is
+  Piano's alone (the path, the practice screens - `pages/_practice.scss` -,
+  the tiles - `pages/_stat-tiles.scss` -, the keyboard, the staff, the
+  piano's button) is built from the `--anotoki-*` tokens; there is no global
+  rule for buttons, selects or cards. Specs read the kit's markup by
   its own class names (`anotoki-<component>__<part>`); `provideTestKit()`,
   `drawTestQuestions()` (`core/testing/test-kit.ts`), the library's
   `provideTestTranslations()` (`@anotoki/lib/translations/testing`).
