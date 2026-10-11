@@ -11,16 +11,21 @@ declare(strict_types=1);
  *   php migration.php --status     say what has run and what has not
  *   php migration.php --dry-run    say what would be applied, and apply nothing
  *
- * The migrations are the schema (migrations/piano_academy/NNN_name.sql, then
- * the family's library's set of the words, anotoki_translations - named so
- * here): a database is what you get by applying 001 and everything after it
- * in order. A file recorded as applied is never run again, so editing one
- * that has been applied changes nothing where it ran - write another instead.
+ * The migrations are the schema (the family's library's admin tools' set,
+ * anotoki_admin, then migrations/piano_academy/NNN_name.sql, then the
+ * library's sets of the words and the people, anotoki_translations and
+ * anotoki_people - the library's named with their set here): a database is
+ * what you get by applying them all in order. A file recorded as applied is
+ * never run again, so editing one that has been applied changes nothing
+ * where it ran - write another instead.
  *
  * The connection is config/database.local.php, which setup.php writes. The
  * engine is the anotoki family's (anotoki/lib, api/migrations.php): it takes
  * the same lock as setup.php's Save and an administrator's Apply in the app -
- * while one of those runs, this says so and applies nothing.
+ * while one of those runs, this says so and applies nothing. Before an update
+ * of a database that has something applied, a backup of it is made
+ * (storage/backups; the library's before-migration backup, which the admin
+ * panel's Backups page lists) - a backup that cannot be made stops it.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -108,9 +113,11 @@ if ($dryRun) {
     exit(0);
 }
 
-// What is pending is asked again under the lock: another update may have applied some since.
+// What is pending is asked again under the lock: another update may have applied some since. A backup of the
+// database as it is comes first (storage/backups: the anotoki family's backups) - a database with nothing applied
+// has nothing to keep.
 try {
-    $result = $migrator->apply();
+    $result = databaseUpdater(dbConnect($settings))->apply();
 } catch (Throwable $e) {
     say('red', '  Cannot reach it: ' . $e->getMessage());
     exit(1);
@@ -118,6 +125,14 @@ try {
 
 if ($result['busy']) {
     say('red', '  Another update is running (the setup page, the admin panel\'s Migrations page, or another php migration.php). Nothing was applied; try again in a moment.');
+    exit(1);
+}
+
+if ($result['note'] !== null) {
+    say('cyan', '  ' . $result['note']);
+}
+if ($result['failed'] === null && $result['error'] !== null) {
+    say('red', '  ' . $result['error']);
     exit(1);
 }
 

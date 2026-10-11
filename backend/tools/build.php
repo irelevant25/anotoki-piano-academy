@@ -25,8 +25,11 @@ declare(strict_types=1);
  *   config/          config.php only - setup.php writes the *.local.php files here
  *   migrations/      the database's migrations: the tables, and the app's own
  *                    strings in English and Slovak
- *   vendor/          Slim and its dependencies (the host cannot run composer)
- *   storage/         empty; PHP writes the IAM key cache, the setup token and lock
+ *   vendor/          Slim, the anotoki family's library and their dependencies (the
+ *                    host cannot run composer)
+ *   storage/         empty; PHP writes the IAM key cache, the setup token and lock,
+ *                    the error log (logs/), the backups (backups/) and the library's
+ *                    own key (anotoki-lib.key) - each folder closed to the web
  *
  * Left out: every *.local.php (your settings), router.php, migration.php and
  * tools/ (for computers with a shell - this build, the progress tool, and the

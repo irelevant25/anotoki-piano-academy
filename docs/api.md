@@ -16,28 +16,37 @@ Before any route, the site's gate (the anotoki family's - `anotoki/lib`'s
 - a migration waiting -> `503 {code: "update_pending", message: "The site is
   being updated. Try again in a few minutes."}` with `Retry-After: 60` on
   every path but the open ones: `GET /api/auth/config`, `GET
-  /api/translations/{code}`, `GET /api/health`, `/api/admin/migrations...`
-  (and `GET /api/site-status`). "Behind" below means that answer;
+  /api/translations/{code}`, `GET /api/health`, `/api/admin/migrations...`,
+  the error log's `/api/admin/errors...` and the backups'
+  `/api/admin/backups...` but a restore (and `GET /api/site-status`).
+  "Behind" below means that answer;
 - the database out of reach: through - a route that needs it answers
   `503 database_unavailable` as ever.
 
-A token that is sent must check out, or the answer is `401 invalid_token`
-(`WWW-Authenticate: Bearer realm="piano-academy", error="invalid_token"`); no
-token where one is needed is `401 sign_in_required`.
+Who is asking is read once, in front of every route but the first four
+below (the anotoki family's `Identify`, `anotoki/lib` 0.4.1). A token that is
+sent must check out, or the answer is `401 invalid_token`
+(`WWW-Authenticate: Bearer realm="piano-academy", error="invalid_token"`) -
+`Authorization: Bearer` with no token too; no token where one is needed is
+`401 sign_in_required`. The library's refusals of who is asking are
+`Cache-Control: no-store`.
 
 Only `Authorization: Bearer ...` is a sign-in; another scheme (`Basic ...`)
 counts as no header. While the IAM says this app does not require sign-in,
 one's own progress (the next section's first four routes) is also a
 **visitor's** - see "Without signing in" below.
 
-## Anybody (no token read)
+## Anybody
+
+The first four read no token at all.
 
 | Route | Answers |
 | --- | --- |
 | `GET /api/health` | `{ok: true}`; asked from this computer (loopback) also `database` and `pending` (the migrations still to apply). Answers while behind |
-| `GET /api/auth/config` | `{issuer, clientId, loginRequired}`: how the browser signs in, and whether the IAM says this app requires sign-in (its "Sign-in required" switch for `piano-academy`, read by the SDK from `{issuer}/api/public/applications/piano-academy`, kept a minute, `true` whenever nothing better is known - an IAM out of reach with nothing read, a 404, an answer about another app). While it is `true`, every learner route requires a token; while `false`, one's own progress is also a visitor's (below). Answers while behind: somebody can sign in then |
+| `GET /api/auth/config` | `{issuer, client_id, login_required, sign_in_available}` (the anotoki family's `AuthRoutes::config()`, snake_case; `no-store`): how the browser signs in, and whether the IAM says this app requires sign-in (its "Sign-in required" switch for `piano-academy`, read by the library's `SignInRule` from `{issuer}/api/public/applications/piano-academy`, kept a minute, `true` whenever nothing better is known - an IAM out of reach with nothing read, a 404, an answer about another app). `sign_in_available`: `false` once the IAM answered that it does not know this app - the pages offer no sign-in then. While `login_required` is `true`, every learner route requires a token; while `false`, one's own progress is also a visitor's (below). Answers while behind: somebody can sign in then |
 | `GET /api/translations/{code}` | a language's strings with English underneath: `{language, languages: [{code, name, native_name}], values, english?}` (the anotoki family's bundle, `anotoki/lib`'s `TranslationsRoutes::bundle()` - the IAM's format, snake_case; the library's own words, `anotoki.*`, among the values); ETag + `no-cache` (304); `sk-sk` is answered by `sk`, an unknown code in English, a code that is none is `404 not_found`. Answers while behind (the gate's open path, `TranslationsRoutes::openPath()`), from the words the database has - without the words' tables or their English yet (a fresh database before its first Apply), or with the database out of reach: `503 {error, code: "translations_unavailable"}` with `Retry-After: 60`, and the pages read the English kept in code |
 | `GET /api/site-status` | where the site stands, for the pages: `{state: "ready" \| "not_set_up" \| "update_pending" \| "unavailable", installed}` and nothing else (the family's `MigrationsRoutes::status()`); always `200`, in every state, to anybody - no token, key or header is read, so a sign-in the IAM requires, a token that does not verify or a settings file PHP cannot run never turns it into a 401 or a 500; `no-store` |
+| `POST /api/feedback` | a message from the form at the foot of every page (the family's `FeedbackRoutes::public()`): `{kind: "bug" \| "idea" \| "other", section?, subject?, message, email?, page?, language?, anonymous?}` -> `201 {ok: true}` (no id). `section` one of `Learn`, `Note Trainer`, `Sheet Practice`, `Songs`, `Stats`; `page` kept as a path, without its query. Who sent it comes from the token alone - nobody for a visitor; a signed-in sender who types no address has the account's as the reply address, unless `anonymous` (then neither the id nor an address is kept). Nothing of where it came from is kept. `422` with its code (`kind_unknown`, `message_required`, `subject_required`, `subject_too_long`, `section_unknown`, `email_invalid`, `too_long`); `429 too_many` with `retry_after` past 5 an hour or 20 a day from one address, or 300 a day in all; a filled `website` (the honeypot) is answered as a kept message, and nothing is kept. No mail. `503 feature_unavailable` while its table waits; behind -> 503 |
 
 ## Signed in (any role, or none): one's own progress
 
@@ -69,7 +78,7 @@ header `Progress-Generation: <n>`:
   the old documents again.
 
 Only an import (`POST /api/me/import`, or `php tools/progress.php --import`),
-an administrator's delete (`DELETE /api/admin/people/{id}`) and a visitor's
+an administrator's delete (`DELETE /api/admin/people/{sub}`) and a visitor's
 move at sign-in that adds notes or path steps (`POST /api/visitor/move`) start
 a new generation. Ordinary saves keep it: two tabs learning side by side never refuse
 each other (the last save wins, as before). An import answers the new generation.
@@ -79,10 +88,13 @@ each other (the last save wins, as before). An import answers the new generation
 `GET /api/state`, `PUT /api/progress`, `PUT /api/path` and `POST /api/sessions`
 are also a **visitor's** (`api/visitors.php`): somebody who has not signed in,
 known by the key the server handed their browser, sent back in the
-`X-Visitor-Key` request header. Who a request is, in this order: a Bearer
-header - that person, or 401 (the key is not read); sign-in required - 401
-`sign_in_required` (the key is not looked up); `X-Visitor-Key` - that visitor;
-else nobody.
+`X-Visitor-Key` request header. Who a request is, in this order (the
+family's `Identify`): a Bearer header - that person, or 401 (the key is not
+read); sign-in required - nobody, so these routes answer 401
+`sign_in_required` (the key is not looked up); `X-Visitor-Key` - that
+visitor, or `401 visitor_unknown`; else nobody. The key is read on every
+route but the public ones, and opens none but these four (the browser sends
+it to them alone).
 
 - **Nobody's first save makes a visitor**, in the save's own transaction once
   its body checks out: a whole-document save names `Progress-Generation: 0`
@@ -182,7 +194,10 @@ the words' tables not there yet `503 translations_unavailable` (`Retry-After:
 60`); a `{code}` that is no language code `404 not_found`. A save is checked
 string by string (placeholders, markup, length) and refused whole, `422` with
 the key, the language and what is wrong. Answers carry `Cache-Control:
-no-store`.
+no-store`. A save, an import and a language's change are written into the
+audit log (`translations.saved`, `translations.imported`,
+`language.created|updated|deleted`), by the request's person; so is a
+person's own import (`progress.imported`).
 
 | Route | Answers |
 | --- | --- |
@@ -195,15 +210,23 @@ no-store`.
 ## ADMIN alone
 
 `403 forbidden` "Only an administrator of Piano Academy may do this." for
-anybody else signed in, an editor included.
+anybody else signed in, an editor included. The People and admin tools'
+routes are the anotoki family's (`anotoki/lib` 0.4.1), in its shapes; each
+group checks the site's ADMIN once more itself, behind this app's check.
 
 | Route | Answers |
 | --- | --- |
 | `POST /api/admin/languages` | `{code, name, native_name, enabled?}` -> 201 `{language}`; 409 `language_exists`, 422 `invalid_language`, `too_many_languages`. Behind -> 503 |
 | `PUT /api/admin/languages/{code}` | `{name?, native_name?, enabled?, sort_order?}` -> `{language}`; 409 `fallback_language`. Behind -> 503 |
 | `DELETE /api/admin/languages/{code}` | 200 `{strings}`: the strings that went with it; 409 `fallback_language`, `seeded_language` (English and Slovak, which the migrations write strings for). Behind -> 503 |
-| `GET /api/admin/people` | `{people: [{id, username, firstSeen, lastSeen, notes, steps, sessions}], visitors: {count, sessions}}`, the people who signed in, the most recently seen first; the visitors only counted (they go 30 days after their last visit). Behind -> 503 |
-| `DELETE /api/admin/people/{id}` | 204: everything the app keeps of that person goes, in one transaction - notes, path, sessions, an `imports` row, the users row (a string they reworded stays, by nobody). A tab of theirs still open gets `409 progress_changed` on its next save; their next visit starts empty. `404 not_found` for an id with nobody (an `{id}` that is not a whole number is no route). Deleting oneself is allowed. Behind -> 503 |
-| `GET /api/admin/migrations` | the admin panel's Migrations page - the anotoki family's (`anotoki/lib`'s `MigrationsRoutes::admin()`, `Migrator::status()`): `{sets: ["piano_academy"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - applied in the order they ran, `applied_at` ISO 8601 UTC ("2026-10-06T10:01:02Z"); pending in the order they will run; missing: recorded, but the file is not there. Reads only the migrations (the role check keeps the caller's users row, as on every signed-in route) - works while behind |
-| `GET /api/admin/migrations/file?set=piano_academy&name=NNN_name.sql` | `{set, name, sql}`: a file of the set as it is; anything else `404 {code: "not_found", message}` - works while behind |
-| `POST /api/admin/migrations/apply` | applies what is pending, in order, each file in its own transaction with its record, under the update lock, stopping at the first that fails (rolled back whole) -> `{applied: [{set, name}], failed: {set, name} \| null, error: string \| null, note: null}` - `error` is what PostgreSQL said, "statement N of M: ..." and the statement's first lines (ADMIN only; logged too, "[db] the migration ... failed"; the owner, 2026-10-04) - a failure is answered 200, so the page can say it; `409 {code: "busy", message}` while setup.php, `php migration.php` or another update runs, nothing applied - works while behind. (Until 2026-10-04: `/api/admin/database` and `.../update` - gone, nothing outside the app used them.) |
+| `GET /api/admin/people?q=&page=` | the family's People page (`PeopleRoutes::admin()`): `{people: [{sub, name, first_seen_at, last_seen_at, anonymized_at, iam_url, notes, steps, sessions}], columns, total, page, page_size: 50, visitors: {count, sessions}, sync, ready, problems}` - the people who signed in, the most recently seen first, 50 a page; `q` a name (any case) or an IAM id (`422 invalid_query` for one no name could be); `anonymized_at` when the IAM deleted the account (the name is `deleted-{sub}` then); `sync` where the scrub stands; the visitors only counted (they go 30 days after their last visit). Behind -> 503 |
+| `DELETE /api/admin/people/{sub}` | `200 {deleted: {Notes, Steps, Rounds}}` (the counts): everything the app keeps of that person goes, in one transaction - notes, path, sessions, an `imports` row, the users row (a string they reworded stays, by nobody), and their feedback's reply address and browser (the words stay). A tab of theirs still open gets `409 progress_changed` on its next save; their next visit starts empty. A backup made before keeps it: a restore brings it back (until the library's 0.4.2). `404 not_found` for nobody - a visitor's id too. Deleting oneself is allowed. Audited (`person.data_deleted`); the page's question is all it asks. Behind -> 503 |
+| `POST /api/admin/people/sync` | the scrub of the IAM's deleted accounts now (it also runs after an answer, at most hourly): `{run, sync}`; audited (`people.synced`). Behind -> 503 |
+| `GET /api/admin/migrations` | the admin panel's Migrations page - the anotoki family's (`anotoki/lib`'s `MigrationsRoutes::admin()`, `Migrator::status()`): `{sets: ["anotoki_admin", "piano_academy", "anotoki_translations", "anotoki_people"], applied: [{set, name, applied_at}], pending: [{set, name, ready, blocked}], missing: [{set, name, applied_at}]}` - applied in the order they ran, `applied_at` ISO 8601 UTC ("2026-10-06T10:01:02Z"); pending in the order they will run; missing: recorded, but the file is not there. Reads only the migrations (the role check reads the token alone and records nobody) - works while behind |
+| `GET /api/admin/migrations/file?set=piano_academy&name=NNN_name.sql` | `{set, name, sql}`: a file of a set as it is; anything else `404 {code: "not_found", message}` - works while behind |
+| `POST /api/admin/migrations/apply` | a backup of the database as it is first (the library's before-migration backup, once per list of pending files; `note` names it; one that cannot be made stops the update before anything runs), then applies what is pending, in order, each file in its own transaction with its record, under the update lock, stopping at the first that fails (rolled back whole) -> `{applied: [{set, name}], failed: {set, name} \| null, error: string \| null, note}` - `error` is what PostgreSQL said, "statement N of M: ..." and the statement's first lines (ADMIN only; logged too, "[db] the migration ... failed"; the owner, 2026-10-04) - a failure is answered 200, so the page can say it; `409 {code: "busy", message}` while setup.php, `php migration.php` or another update runs, nothing applied - works while behind; audited (`migrations.applied`). (Until 2026-10-04: `/api/admin/database` and `.../update` - gone, nothing outside the app used them.) |
+| `/api/admin/errors` | the error log (the family's `ErrorLogRoutes::admin()`; `storage/logs/`, 30 days): `GET ?days=&level=&status=&search=` the report (`{total, errors, warnings, notices, distinct, truncated, days, daily, statuses, groups, dropped}`), `GET /{fingerprint}` every occurrence of one, `DELETE ?before=YYYY-MM-DD` the days before (none: all) -> `{deleted}`, audited (`errors.cleared`). A line holds no query, header, body, token or address. Works while behind |
+| `/api/admin/audit` | the audit log (`AuditRoutes::admin()`), read only: `GET ?actor=&action=&target_type=&target_id=&from=&to=&page=` -> `{total, page, pageSize: 50, items}`, `GET /facets`. `503 feature_unavailable` while its table waits |
+| `/api/admin/feedback` | feedback (`FeedbackRoutes::admin()`): `GET ?kind=&status=&section=&search=&page=` -> `{total, page, pageSize: 25, items}`, `GET /facets`, `GET /unread` -> `{unread}` (the admin bar's count), `GET /{id}` -> `{message}` (a new one becomes read), `PUT /{id}/status {status: new \| read \| resolved \| spam}`, `DELETE /{id}` -> `{deleted: true}` - both audited. Spam goes after 30 days, a resolved message a year after it was resolved. `503 feature_unavailable` while its table waits |
+| `/api/admin/backups` | the backups (`BackupsRoutes::admin()`; `storage/backups/`): `GET` -> `{backups, status}`, `GET /proof` -> `{kind: "recent_sign_in"}`, `POST {description?}` -> `201 {backup}`, `GET /{id}`, `DELETE /{id}`, `POST /{id}/ticket` -> `{url, expires_in}` (a download), `GET /{id}/preview` (what a restore would take away), `POST /{id}/restore {confirm: the id's last 6 characters}`. Making, downloading, deleting and restoring one need a sign-in of the last ten minutes: `403 reauth_required` otherwise (the page offers "Sign in again"); each is audited (`backup.*`). A restore runs only where the database's migrations and columns are the backup's (`409 schema_differs`), after a backup of its own; before it answers, every progress takes a new generation (a page left open since before gets `409 progress_changed` on its next save) and the scrub of the IAM's deleted accounts runs again - what could not be done is its `after_restore_error`. Not encrypted (the owner, 2026-10-11). Kept: the newest 14 daily, 5 before an update, 5 before a restore; one made by hand until the owner deletes it - no backup goes for its age (the owner, 2026-10-11). Works while behind, but a restore |
+| `GET /api/admin/backups/{id}/file?ticket=` | the backup itself, as an attachment - deliberately outside every admin check (a browser's navigation sends no token): the ticket from `POST /{id}/ticket` is the check - good once, for that backup, for 60 seconds; anything else `403 ticket_invalid` |

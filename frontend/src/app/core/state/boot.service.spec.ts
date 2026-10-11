@@ -1,14 +1,14 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { VISITOR_KEY_HEADER, anotokiAuthInterceptor } from '@anotoki/lib/auth';
 import { ANOTOKI_MIGRATIONS_CONFIG, SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ApiService, VISITOR_OWNER } from '../api/api.service';
-import { authInterceptor } from '../auth/auth.interceptor';
-import { AuthService, NotSetUpError } from '../auth/auth.service';
-import { VISITOR_KEY_HEADER, VISITOR_STORAGE_KEY, VisitorKey } from '../auth/visitor-key';
+import { VISITOR_STORAGE_KEY, VisitorKey } from '../auth/visitor-key';
 import { provideSiteTranslations } from '../i18n/site-translations';
+import { TestAuth, provideTestAuth, provideTestAuthInterceptor } from '../testing/test-auth';
 import { BootService } from './boot.service';
 import { ProgressStore } from './progress-store.service';
 import { provideSiteMigrations } from './site-migrations';
@@ -25,62 +25,28 @@ const RETRY_WAIT_MS = 500;
 const forStrings = (request: { url: string }): boolean => request.url.startsWith('/api/translations/');
 
 /**
- * AuthService as far as the start uses it: the sign-in settings read (or the
- * error they fail with), and who is signed in. The real one would load the
- * IAM's SDK; what it does with /api/auth/config is its own spec's.
+ * The family's AnotokiAuth as far as the start uses it (core/testing/test-auth.ts):
+ * somebody signed in - person 7 - unless a case says otherwise; the sign-in
+ * settings read unless it says `unavailable()`. Reading the settings, a
+ * callback and a session restored are the library's (AnotokiAuth.init(),
+ * tested there): here init() does nothing, and the state is the case's.
  */
-function standInAuth() {
-  const auth = {
-    /** What reading the sign-in settings throws: nothing, NotSetUpError, or anything else. */
-    failing: null as unknown,
-    person: '7' as string | null,
-    admin: false,
-    /** The IAM's switch as the settings said it (true: a sign-in is required). */
-    required: true,
-    /** The sign-in settings were read: what the strings may be asked for on (core/i18n/site-translations.ts's canAsk). */
-    read: false,
-    /** The sign-in listeners BootService added (onAuthChange). */
-    listeners: [] as (() => void)[],
-    init: vi.fn(async () => {
-      if (auth.failing) throw auth.failing;
-      auth.read = true;
-    }),
-    settingsRead: () => auth.read,
-    signedIn: () => auth.person !== null,
-    loginRequired: () => auth.required,
-    requireSignInNow: vi.fn(() => {
-      auth.required = true;
-    }),
-    userKey: () => auth.person,
-    user: () => null,
-    // The account's preferences: none here (an IAM before its 015) - the language is decided as it always was.
-    preferences: () => null,
-    isAdmin: () => auth.admin,
-    isStaff: () => auth.admin,
-    accessToken: vi.fn(async () => (auth.person !== null ? 'token-7' : null)),
-    refreshToken: vi.fn(async () => null),
-    onAuthChange: (listener: () => void) => {
-      auth.listeners.push(listener);
-      return () => undefined;
-    },
-    signIn: vi.fn(async (_returnTo?: string, _uiLocales?: string) => true),
-    signOut: vi.fn(),
-  };
-  return auth;
+function standInAuth(): TestAuth {
+  return new TestAuth().signInAs({ sub: '7' });
 }
 
 describe('BootService', () => {
   let boot: BootService;
   let http: HttpTestingController;
   let store: ProgressStore;
-  let auth: ReturnType<typeof standInAuth>;
+  let auth: TestAuth;
 
   beforeEach(() => {
     localStorage.clear();
     auth = standInAuth();
     // The strings are there already and cost no request (the stand-in): these cases are about the sign-in and the progress.
     // Where the site stands is the family's SiteStatus - not asked here (the app's initializer asks it): ready, but where a case says.
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), ...provideTestAuth(auth)] });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(ProgressStore);
@@ -90,8 +56,11 @@ describe('BootService', () => {
   afterEach(() => http.verify());
 
   it('an app that is not set up says so, and loads nothing', async () => {
-    auth.failing = new NotSetUpError();
+    // The sign-in settings answered 503 not_set_up: the family's interceptor told SiteStatus, and the sign-in cannot be set up.
+    TestBed.inject(SiteStatus).report('not_set_up');
+    auth.unavailable();
     await boot.start();
+    expect(auth.init).toHaveBeenCalledTimes(1);
     expect(boot.status()).toBe('not-set-up');
     http.expectNone('/api/state');
   });
@@ -111,12 +80,12 @@ describe('BootService', () => {
     expect(store.progress()['60']).toMatchObject({ status: 'review', repetitions: 2 });
   });
 
-  it('nobody signed in: no progress is asked for, and the status says so - the sign-in guard goes on from there', async () => {
-    auth.person = null;
+  it('nobody signed in: no progress is asked for, and the status says so - the family\'s guard goes on from there', async () => {
+    auth.signedOut();
     await boot.start();
     expect(boot.status()).toBe('sign-in');
     http.expectNone('/api/state');
-    // The start itself sends nobody anywhere: that is the routes' guard's (core/auth/sign-in.guard.ts).
+    // The start itself sends nobody anywhere: that is the routes' guard's (personOrVisitorGuard, app.routes.ts).
     expect(auth.signIn).not.toHaveBeenCalled();
   });
 
@@ -134,10 +103,8 @@ describe('BootService', () => {
   it('while an update waits the start signs in and stops there: nothing that would fail is asked for - for everybody', async () => {
     for (const who of ['a learner', 'nobody', 'a visitor'] as const) {
       TestBed.resetTestingModule();
-      auth = standInAuth();
-      auth.person = who === 'a learner' ? '7' : null;
-      auth.required = who !== 'a visitor';
-      TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
+      auth = who === 'a learner' ? standInAuth() : who === 'nobody' ? new TestAuth().signedOut() : new TestAuth().visiting();
+      TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), ...provideTestAuth(auth)] });
       TestBed.inject(SiteStatus).report('update_pending');
       boot = TestBed.inject(BootService);
       await boot.start();
@@ -155,7 +122,7 @@ describe('BootService', () => {
     for (const code of ['unavailable', 'not_set_up']) {
       TestBed.resetTestingModule();
       auth = standInAuth();
-      TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
+      TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations(), provideSiteMigrations(), ...provideTestAuth(auth)] });
       TestBed.inject(SiteStatus).report(code);
       boot = TestBed.inject(BootService);
       await boot.start();
@@ -180,7 +147,7 @@ describe('BootService', () => {
   });
 
   it('while an update waits an ADMIN has the Migrations page alone - and once it applied what was pending, the app starts where it stands', async () => {
-    auth.admin = true;
+    auth.signInAs({ sub: '7', roles: ['MEMBER', 'ADMIN'] });
     const site = TestBed.inject(SiteStatus);
     site.report('update_pending');
     await boot.start();
@@ -218,11 +185,12 @@ describe('BootService', () => {
     expect([boot.status(), boot.onlyMigrations()]).toEqual(['waiting', false]);
   });
 
-  it('an API that cannot be reached is the error card', async () => {
+  it('sign-in settings that cannot be read, on a site that is otherwise ready, are the error card', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    auth.failing = new Error('offline');
+    auth.unavailable();
     await boot.start();
     expect(boot.status()).toBe('load-error');
+    http.expectNone('/api/state');
     consoleError.mockRestore();
   });
 
@@ -243,11 +211,20 @@ describe('BootService', () => {
     boot.signOut();
     expect(auth.signOut).toHaveBeenCalledTimes(1);
   });
+
+  it('signs in through the family\'s module - which asks beforeSignIn() first, and opens the IAM in the language read here (core/auth/site-auth.ts)', async () => {
+    await boot.signIn();
+    expect(auth.signIn.mock.calls).toEqual([[]]);
+    // Could not start (the browser refuses the storage the sign-in is kept in): the page stays, and says why.
+    auth.signIn.mockResolvedValueOnce(false);
+    await boot.signIn();
+    expect(auth.signIn).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('BootService: where the language comes into the start', () => {
   const order: string[] = [];
-  let auth: ReturnType<typeof standInAuth>;
+  let auth: TestAuth;
   let boot: BootService;
   let statusAtInit: string | null = null;
 
@@ -255,21 +232,18 @@ describe('BootService: where the language comes into the start', () => {
     localStorage.clear();
     order.length = 0;
     statusAtInit = null;
-    auth = standInAuth();
-    auth.person = null;
+    auth = new TestAuth().signedOut();
     auth.init.mockImplementation(async () => {
       order.push('auth');
-      if (auth.failing) throw auth.failing;
-      auth.read = true;
     });
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations({}, { language: 'sk' }), provideSiteMigrations(), { provide: AuthService, useValue: auth }],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideTestTranslations({}, { language: 'sk' }), provideSiteMigrations(), ...provideTestAuth(auth)],
     });
     boot = TestBed.inject(BootService);
     TestBed.inject(SiteStatus).markReady();
     // What the start of the strings may ask the server for: whether the sign-in settings were read then (canAsk).
     vi.spyOn(TestBed.inject(TranslationService), 'init').mockImplementation(async () => {
-      order.push(`i18n:${auth.settingsRead() ? 'asks' : 'asks nothing'}`);
+      order.push(`i18n:${auth.state() !== 'unavailable' ? 'asks' : 'asks nothing'}`);
       statusAtInit = boot.status();
     });
   });
@@ -279,16 +253,17 @@ describe('BootService: where the language comes into the start', () => {
     vi.restoreAllMocks();
   });
 
-  it('gets the strings once the sign-in settings are read, and before anybody is sent to sign in: the sign-in card has them', async () => {
+  it('gets the strings once the sign-in settings are read, and before anybody is sent to sign in: the failure\'s screen has them', async () => {
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:asks']);
-    // Nothing was drawn meanwhile: the card comes after the strings.
+    // Nothing was drawn meanwhile: the screen comes after the strings.
     expect(statusAtInit).toBe('loading');
     expect(boot.status()).toBe('sign-in');
   });
 
   it('asks for nothing when the app is not set up: only what the browser kept, before the status page is shown', async () => {
-    auth.failing = new NotSetUpError();
+    TestBed.inject(SiteStatus).report('not_set_up');
+    auth.unavailable();
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:asks nothing']);
     expect(statusAtInit).toBe('loading');
@@ -297,16 +272,11 @@ describe('BootService: where the language comes into the start', () => {
 
   it('asks for nothing when the backend cannot be reached either', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    auth.failing = new Error('offline');
+    auth.unavailable();
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:asks nothing']);
     expect(boot.status()).toBe('load-error');
     consoleError.mockRestore();
-  });
-
-  it('signs in with the language the app is read in, so the IAM’s pages open in the same one - and back to this address', async () => {
-    await boot.signIn();
-    expect(auth.signIn.mock.calls).toEqual([[undefined, 'sk']]);
   });
 
   it('while an update waits it still gets the sign-in and the strings - the status page has them - and the family\'s page signs in the same way', async () => {
@@ -314,9 +284,9 @@ describe('BootService: where the language comes into the start', () => {
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:asks']);
     expect(boot.status()).toBe('waiting');
-    // The status page's "Sign in" is this one (core/state/site-migrations.ts): to the IAM in the page's language, back to this address.
+    // The status page's "Sign in" is this one (core/state/site-migrations.ts): to the IAM, back to this address.
     await TestBed.inject(ANOTOKI_MIGRATIONS_CONFIG).signIn();
-    expect(auth.signIn.mock.calls).toEqual([[undefined, 'sk']]);
+    expect(auth.signIn).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -324,7 +294,7 @@ describe('BootService with the real translation service', () => {
   let boot: BootService;
   let http: HttpTestingController;
   let i18n: TranslationService;
-  let auth: ReturnType<typeof standInAuth>;
+  let auth: TestAuth;
 
   beforeEach(() => {
     localStorage.clear();
@@ -332,7 +302,7 @@ describe('BootService with the real translation service', () => {
     vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue(['sk-SK', 'en']);
     auth = standInAuth();
     // The family's translation service as this app wires it (core/i18n/site-translations.ts): the kept English, canAsk.
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideSiteTranslations(), provideSiteMigrations(), { provide: AuthService, useValue: auth }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideSiteTranslations(), provideSiteMigrations(), ...provideTestAuth(auth)] });
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     i18n = TestBed.inject(TranslationService);
@@ -346,7 +316,8 @@ describe('BootService with the real translation service', () => {
   });
 
   it('asks for no strings when the sign-in settings cannot be read: the shell is worded from the English kept in code', async () => {
-    auth.failing = new NotSetUpError();
+    TestBed.inject(SiteStatus).report('not_set_up');
+    auth.unavailable();
     await boot.start();
     await settle();
 
@@ -359,7 +330,7 @@ describe('BootService with the real translation service', () => {
 
   it('asks for no strings when the backend cannot be reached at all', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    auth.failing = new Error('offline');
+    auth.unavailable();
     await boot.start();
     await settle();
 
@@ -414,7 +385,7 @@ describe('BootService with the real translation service', () => {
 
   it('started in place after an ADMIN applied what was pending, it asks for the strings it could not have while the database had none', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    auth.admin = true;
+    auth.signInAs({ sub: '7', roles: ['MEMBER', 'ADMIN'] });
     const site = TestBed.inject(SiteStatus);
     site.report('update_pending');
     // The words answer while an update waits - but a database without their tables (002 waiting) has none to give.
@@ -450,11 +421,6 @@ describe('BootService with the real translation service', () => {
     expect(i18n.t('title.learn')).toBe('Učenie');
     consoleError.mockRestore();
   });
-
-  it('signs in without naming a language while there are no strings: the kept English is nobody’s choice', async () => {
-    await boot.signIn();
-    expect(auth.signIn.mock.calls).toEqual([[undefined, undefined]]);
-  });
 });
 
 describe('BootService: visitors, and the move at a sign-in', () => {
@@ -468,19 +434,21 @@ describe('BootService: visitors, and the move at a sign-in', () => {
   let http: HttpTestingController;
   let store: ProgressStore;
   let api: ApiService;
-  let auth: ReturnType<typeof standInAuth>;
+  let auth: TestAuth;
 
-  /** Builds the app around the stand-in IAM, as it is when the page loads - its interceptors as app.config.ts has them, the site ready. */
+  /** Builds the app around the stand-in sign-in, as it is when the page loads - its interceptors as app.config.ts has them, the site ready. */
   function start(): void {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(withInterceptors([siteStatusInterceptor, authInterceptor])),
+        provideHttpClient(withInterceptors([siteStatusInterceptor, anotokiAuthInterceptor])),
         provideHttpClientTesting(),
         provideTestTranslations(),
         provideSiteMigrations(),
-        { provide: AuthService, useValue: auth },
+        ...provideTestAuth(auth),
+        ...provideTestAuthInterceptor(),
       ],
     });
+    auth.store = TestBed.inject(VisitorKey);
     boot = TestBed.inject(BootService);
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(ProgressStore);
@@ -501,8 +469,7 @@ describe('BootService: visitors, and the move at a sign-in', () => {
 
   describe('nobody signed in, no sign-in required: a visitor', () => {
     beforeEach(() => {
-      auth.person = null;
-      auth.required = false;
+      auth.visiting();
       start();
     });
 
@@ -560,31 +527,43 @@ describe('BootService: visitors, and the move at a sign-in', () => {
       http.expectOne('/api/state').flush({ error: 'Sign in.', code: 'sign_in_required' }, { status: 401, statusText: 'Unauthorized' });
       await started;
       expect([boot.status(), boot.visiting(), auth.loginRequired()]).toEqual(['sign-in', false, true]);
+      expect(auth.noteSignInRequired).toHaveBeenCalledTimes(1);
       expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
     });
 
     it('a sign-in that came back refused leaves a visitor a visitor (the page says why)', async () => {
+      auth.failed('access_denied');
       const started = boot.start();
       await settle();
       http.expectOne('/api/state').flush({ ...STATE, generation: 0 });
       await started;
-      expect(boot.status()).toBe('ready');
+      expect([boot.status(), boot.visiting()]).toEqual(['ready', true]);
     });
 
-    it('signing in from a visitor’s page waits for the saves on their way first, as signing out does', async () => {
+    it('before leaving a visitor’s page for the IAM the saves on their way arrive first, as before signing out - and it goes on', async () => {
       const started = boot.start();
       await settle();
       http.expectOne('/api/state').flush({ ...STATE, generation: 0 });
       await started;
       const settling = vi.spyOn(store, 'settle').mockResolvedValue();
-      await boot.signIn();
+      expect(await boot.beforeSignIn()).toBe(true);
       expect(settling).toHaveBeenCalledTimes(1);
-      expect(settling.mock.invocationCallOrder[0]).toBeLessThan(auth.signIn.mock.invocationCallOrder[0]);
     });
   });
 
+  it('a person’s page leaves for the IAM without waiting for anything of its own', async () => {
+    start();
+    const started = boot.start();
+    await settle();
+    http.expectOne('/api/state').flush({ ...STATE, generation: 3 });
+    await started;
+    const settling = vi.spyOn(store, 'settle').mockResolvedValue();
+    expect(await boot.beforeSignIn()).toBe(true);
+    expect(settling).not.toHaveBeenCalled();
+  });
+
   it('a sign-in required from the start: the sign-in status, nothing asked for - and a key held is left alone', async () => {
-    auth.person = null;
+    auth.signedOut();
     start();
     localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
     await boot.start();
@@ -658,6 +637,10 @@ describe('BootService: visitors, and the move at a sign-in', () => {
       expect([boot.status(), boot.visitorMoved(), boot.visitorNotMoved()]).toEqual(['ready', null, true]);
       expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
       expect(consoleError).toHaveBeenCalled();
+      // The page goes on without asking again by itself: the next sign-in or page load does.
+      TestBed.tick();
+      await settle();
+      http.expectNone('/api/visitor/move');
     });
 
     it('a server error or no answer at all: the same, without waiting', async () => {
@@ -712,9 +695,13 @@ describe('BootService: visitors, and the move at a sign-in', () => {
       await settle();
       http.expectOne('/api/state').flush({ ...STATE, generation: 12 });
       await started;
+      // The first look is at what the start found: nothing more to do.
+      TestBed.tick();
 
+      // Another tab visited (it holds a key now), and the person's sign-in came round again (a refresh, a sign-in).
       localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
-      for (const listener of auth.listeners) listener();
+      auth.signInAs({ sub: '7' });
+      TestBed.tick();
       (await theMove()).flush(moved());
       await settle();
       http.expectOne('/api/state').flush({ ...STATE, generation: 13 });

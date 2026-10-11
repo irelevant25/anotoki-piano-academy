@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { AuthService } from './auth.service';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { VISITOR_STORAGE_KEY, VisitorKey } from './visitor-key';
 
 const KEY = 'k'.repeat(43);
@@ -12,7 +12,7 @@ describe('VisitorKey: the key a visitor’s progress is found by, kept by this b
   let visitor: VisitorKey;
 
   function make(): VisitorKey {
-    TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: { signedIn: () => signedIn(), loginRequired: () => loginRequired() } }] });
+    TestBed.configureTestingModule({ providers: [{ provide: AnotokiAuth, useValue: { signedIn: () => signedIn(), loginRequired: () => loginRequired() } }] });
     return TestBed.inject(VisitorKey);
   }
 

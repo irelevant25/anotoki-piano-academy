@@ -1,12 +1,9 @@
 import { DestroyRef, Injectable, computed, inject, signal, untracked } from '@angular/core';
+import { AnotokiAuth, VisitorKeyStore } from '@anotoki/lib/auth';
 import { readStorage, writeStorage } from '../util/storage';
-import { AuthService } from './auth.service';
 
 /** Where this browser keeps its visitor key (localStorage: every tab of the app shares it). */
 export const VISITOR_STORAGE_KEY = 'piano-academy:visitor';
-
-/** The header the key goes in, both ways (the backend's VISITOR_HEADER). */
-export const VISITOR_KEY_HEADER = 'X-Visitor-Key';
 
 /** A key as the server makes them: 32 random bytes, base64url without padding. Anything else is no key. */
 export const VISITOR_KEY_SHAPE = /^[A-Za-z0-9_-]{43}$/;
@@ -14,12 +11,14 @@ export const VISITOR_KEY_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 /**
  * The visitor key: what lets somebody who has not signed in keep their
  * progress while the IAM does not require a sign-in here
- * (AuthService.loginRequired). The server makes it on the first save of
+ * (AnotokiAuth.loginRequired). The server makes it on the first save of
  * somebody with neither a token nor a key and sends it once, in the
  * `X-Visitor-Key` header of that answer; it keeps only its hash. This browser
- * keeps the key in localStorage, and the auth interceptor sends it on the
- * requests ApiService issued as a visitor's (ISSUED_AS) - never on a
- * person's, but for the move after a sign-in.
+ * keeps the key in localStorage, and the family's interceptor
+ * (@anotoki/lib/auth: this is the site's key store it is given,
+ * core/auth/site-auth.ts) sends it on the progress routes' requests ApiService
+ * issued as a visitor's (ISSUED_AS) - never on a person's, but for the move
+ * after a sign-in.
  *
  * - **Read at send time.** `current()` reads storage on every request, and a
  *   `storage` event keeps the `key` signal in step, so every tab sends the key
@@ -40,13 +39,13 @@ export const VISITOR_KEY_SHAPE = /^[A-Za-z0-9_-]{43}$/;
  *
  * A browser that refuses storage: the key lives in memory for the tab.
  *
- * This service reads AuthService and nothing else; AuthService knows nothing
- * of visitors, and the move is BootService's (it needs ApiService, which
- * needs this) - no circle.
+ * This service reads AnotokiAuth and nothing else; the family's module is
+ * given it as a function, read when a request needs it, and the move is
+ * BootService's (it needs ApiService, which needs this) - no circle.
  */
 @Injectable({ providedIn: 'root' })
-export class VisitorKey {
-  private readonly auth = inject(AuthService);
+export class VisitorKey implements VisitorKeyStore {
+  private readonly auth = inject(AnotokiAuth);
 
   /** The key, while storage cannot keep it (or would not). */
   private memory: string | null = null;

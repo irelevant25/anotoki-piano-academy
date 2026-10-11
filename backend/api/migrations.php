@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use Anotoki\Lib\Admin\Schema as AdminSchema;
 use Anotoki\Lib\Migrations\Http\SiteState;
 use Anotoki\Lib\Migrations\MigrationSet;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\People\Schema as PeopleSchema;
 use Anotoki\Lib\Translations\Schema as TranslationsSchema;
 
 /**
@@ -14,18 +16,24 @@ use Anotoki\Lib\Translations\Schema as TranslationsSchema;
  * in every anotoki repository. This file only says what is Piano Academy's
  * own: the folder, the lock, the shape its first record had, its settings.
  *
- * The migrations are the schema: migrations/piano_academy/NNN_name.sql, the
- * app's own set, then the library's set of the words (anotoki_translations:
- * the family's one schema of languages, keys and strings - which this app's
- * 002 made long before, so the library's 001 only proves its shape - and the
- * library's own words, anotoki.*; in vendor/anotoki/lib/php/migrations/).
- * Each set is applied in natural order (100 after 99), the app's first, each
- * file in a transaction of its own together with its row in the `migrations`
- * table - all of it or none of it - stopping at the first that fails, because
- * every migration is written expecting the ones before it to have run. The
- * library's files are recorded as `anotoki_translations/001_....sql` in the
- * same table, whose shape does not change. Nothing is ever un-applied: a
- * rollback that half works is worse than none.
+ * The migrations are the schema, in four sets, in this order (the library's
+ * README): the library's admin tools' set first (anotoki_admin: the audit
+ * log's and feedback's tables - nothing of this app's builds on it, and
+ * nothing but the library makes an anotoki_* table); this app's own,
+ * migrations/piano_academy/NNN_name.sql; then the library's set of the words
+ * (anotoki_translations: the family's one schema of languages, keys and
+ * strings - which this app's 002 made long before, so the library's 001 only
+ * proves its shape - and the library's own words, anotoki.*); then its set
+ * of the people (anotoki_people: where the scrub of the IAM's deleted
+ * accounts stands - after this app's 010, which adds users.anonymized_at).
+ * The library's files are in vendor/anotoki/lib/php/migrations/. Each set is
+ * applied in natural order (100 after 99), each file in a transaction of its
+ * own together with its row in the `migrations` table - all of it or none of
+ * it - stopping at the first that fails, because every migration is written
+ * expecting the ones before it to have run. The library's files are recorded
+ * as `<set>/<file>` (`anotoki_translations/001_....sql`) in the same table,
+ * whose shape does not change. Nothing is ever un-applied: a rollback that
+ * half works is worse than none.
  *
  * Whoever applies them - setup.php's Save, php migration.php, an
  * administrator's Apply on the admin panel's Migrations page
@@ -33,7 +41,10 @@ use Anotoki\Lib\Translations\Schema as TranslationsSchema;
  * the same PostgreSQL advisory lock first (DATABASE_UPDATE_LOCK), so two of
  * them never apply the same file at once: the second is told it is busy, and
  * applies nothing. The lock is the database's own: it is let go when the
- * update ends, or when its connection does.
+ * update ends, or when its connection does. The three ways of updating a
+ * database that is in use make a backup of it first (api/admin_tools.php's
+ * databaseUpdater(): the library's before-migration backup); the tests'
+ * builders make none.
  *
  * Where the site stands is decided afresh for every request (siteState(), the
  * SiteGate in api/index.php, GET /api/site-status): not set up (the settings
@@ -59,15 +70,17 @@ function migrationSet(): MigrationSet
 }
 
 /**
- * Every set, in the order they run: the app's own, then the library's set of
- * the words (anotoki/lib's Translations\Schema::migrationSet()) - after it,
- * as the library asks of a site whose own migrations made those tables.
+ * Every set, in the order they run (anotoki/lib's README): the library's
+ * admin tools' set FIRST (Admin\Schema::migrationSet()), the app's own, then
+ * the library's set of the words (Translations\Schema::migrationSet()) - after
+ * it, as the library asks of a site whose own migrations made those tables -
+ * and of the people (People\Schema::migrationSet()), after the app's 010.
  *
  * @return list<MigrationSet>
  */
 function migrationSets(): array
 {
-    return [migrationSet(), TranslationsSchema::migrationSet()];
+    return [AdminSchema::migrationSet(), migrationSet(), TranslationsSchema::migrationSet(), PeopleSchema::migrationSet()];
 }
 
 /**

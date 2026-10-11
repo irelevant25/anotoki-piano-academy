@@ -6,8 +6,8 @@
  * sign-in, and the progress file's place on Stats).
  *
  * A learner never sees the server's sentence: a visitor's refused save is
- * worded from its code here, as the sign-in card words a failure in
- * error-text.ts.
+ * worded from its code here, as the family's screen words a sign-in that did
+ * not work (anotoki.signIn.*, from its code alone).
  */
 
 /**

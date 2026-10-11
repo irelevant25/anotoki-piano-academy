@@ -12,11 +12,13 @@ PostgreSQL. Everybody signs in through the anotoki IAM - the only way in, on a
 development computer too; the IAM's roles decide the admin panel (EDITOR
 rewords the app's words, ADMIN also keeps the languages, applies the
 database's migrations (the family's Migrations page, also while an update
-waits) and sees and deletes people's data - the admin panel, `/admin`, English;
-"Admin panel" wherever it is named). Every page signs in first (the routes' `signInGuard`; the sign-in
-card only after a failed sign-in) - but while the IAM requires no sign-in a
-visitor practises on the learner pages (`/admin` always signs in:
-`adminSignInGuard`). Each person exports and imports their own
+waits), sees and deletes people's data and keeps the admin tools - the error
+log, the audit log, feedback, backups - the admin panel, `/admin`, English;
+"Admin panel" wherever it is named). Every page signs in first (the family's
+guards, `personOrVisitorGuard`, `staffGuard`, `adminGuard`; a sign-in that did
+not work goes to the family's screen, `/sign-in-failed`) - but while the IAM
+requires no sign-in a visitor practises on the learner pages (`/admin` always
+signs in). Each person exports and imports their own
 progress (Stats, "Your progress file"). Its main
 flow is a Duolingo-style learning path (phases -> units -> steps: meet, drill,
 read, play in time, song; 80% to pass a step). It speaks English and Slovak:
@@ -45,8 +47,8 @@ Working conventions specific to this repo:
 - The domain logic (`frontend/src/app/core/music/`: theory, srs, songs, path)
   is pure and unit-tested; views use it and save the result. Never fork it into
   a component or into PHP.
-- All API calls go through `core/api/api.service.ts` (HttpClient + the auth
-  interceptor); sessions go through its outbox; progress through
+- All API calls go through `core/api/api.service.ts` (HttpClient + the family's
+  `anotokiAuthInterceptor`); sessions go through its outbox; progress through
   `ProgressStore` (chained saves, retries).
 - Play-along sequences go through `core/player/sequence-player.ts`; don't write
   another grading loop. Tempo mode is clock-driven (a press matches the nearest
@@ -61,17 +63,22 @@ Working conventions specific to this repo:
   the request's user id (only ever from the verified token). The site's
   strings are the exception: public to read, the staff's to write. Roles come
   from the token and are checked on whole route groups in
-  `api/routes/admin.php` (`requireRole(...ROLES_STAFF)`, `requireRole(ROLE_ADMIN)`;
-  403 `forbidden`); MEMBER (every account) is an ordinary learner; only a
+  `api/routes/admin.php` (`requireRole(...ROLES_STAFF)`, `requireRole(ROLE_ADMIN)`,
+  `adminByToken()` for the admin tools and the Migrations routes; 403
+  `forbidden`); MEMBER (every account) is an ordinary learner; only a
   Bearer header is a sign-in, and one that does not verify is 401
-  everywhere. Whether sign-in is required is the IAM's switch, read by the
-  vendored SDK 1.1.0 (`authLoginRequired()`, never a fetch of our own) and
-  relayed by `/api/auth/config`; no test asks a real IAM. While it is off a
+  everywhere. Signing in is the anotoki family's (`anotoki/lib`'s
+  `Anotoki\Lib\Auth`, wired in `api/auth.php` and `api/meddleware/auth.php`
+  in this app's `{error, code}`). Whether sign-in is required is the IAM's
+  switch, read by the library's `SignInRule` (`authLoginRequired()`, never a
+  fetch of our own) and relayed by `/api/auth/config`; no test asks a real
+  IAM (the library's stand-in and `TestIam`). While it is off a
   person who has not signed in is a visitor (`api/visitors.php`, migration
   005: a negative users id, a key the server hands out once in
-  `X-Visitor-Key`, only its hash kept): only `requireOwner()` and the move at
-  sign-in (`POST /api/visitor/move`, token and key, `visitorMove()`: a path
-  step both have merged so a pass is never lost) read the key, a
+  `X-Visitor-Key`, only its hash kept): the family's `Identify` reads the key
+  in front of the routes, but only `requireOwner()` and the move at sign-in
+  (`POST /api/visitor/move`, token and key, `visitorMove()`: a path step
+  both have merged so a pass is never lost) act for a visitor, a
   Bearer header never falls back to it, a visitor is made only inside a
   save's transaction, `requireUser()` / `requireRole()` refuse a visitor, and
   a table of a person's data belongs in `STORE_PERSON_TABLES` (the sweep and
@@ -84,7 +91,9 @@ Working conventions specific to this repo:
   time; `BootService` moves a held key before it loads a person's state and
   takes the visitor's outbox on at every signed-in start. A new API call
   goes through `ApiService.request()` - a person's only (`asPerson`) unless
-  it is one of a visitor's four (state, progress, path, sessions). A
+  it is one of a visitor's four (state, progress, path, sessions -
+  `VISITOR_PREFIXES` in `core/auth/site-auth.ts`, the only paths the key
+  goes to). A
   visitor's words are the shell's (`app.component`: the notice on Learn and
   Stats only, sign-in required meanwhile, a refused sign-in, a save refused,
   the progress ended; after a sign-in moved / kept / not moved), keys of
@@ -113,11 +122,13 @@ Working conventions specific to this repo:
   one; 004 is applied in the owner's database and frozen; 005, visitors,
   006, two sentences of the account's preferences, 007, the old "not set
   up yet" card's words deleted, 008, the round theme button's words deleted,
-  and 009, the kit's words copied under the library's keys, are written
-  whole and final and wait for the owner at the hand-over - a later change
-  is 010), applied by the anotoki family's engine (`anotoki/lib`'s
-  `Migrator`, `api/migrations.php`: this app's set, then the library's
-  `anotoki_translations`);
+  009, the kit's words copied under the library's keys, 010, the people's
+  `users.anonymized_at`, and 011, the sign-in failure's words moved under the
+  library's keys, are written whole and final and wait for the owner at the
+  hand-over - a later change is 012), applied by the anotoki family's engine
+  (`anotoki/lib`'s `Migrator`, `api/migrations.php`: the library's
+  `anotoki_admin`, this app's set, then the library's `anotoki_translations`
+  and `anotoki_people`; a backup before every update, `databaseUpdater()`);
   note progress and path progress are whole jsonb documents;
   sessions are rows. A save of a whole document names the generation of the
   progress (`Progress-Generation`; 409 `progress_changed` for an old one -
@@ -142,7 +153,7 @@ Working conventions specific to this repo:
   anotokiSitePages>` (0.2.0) - only while it shows it, so no page runs behind
   it; the Migrations page is lazy from `@anotoki/lib/migrations/page`;
   `BootService` waits (`waiting`) and
-  the sign-in guard sends nobody to the IAM then. A new route that must
+  the sign-in guards send nobody to the IAM then. A new route that must
   answer while an update waits goes into `siteOpenPaths()` (`api/index.php`).
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 - Before reporting done: `php tests/run.php` in `backend/` (and under the
@@ -154,7 +165,18 @@ Working conventions specific to this repo:
   editing a migration that is not released yet:
   `php tests/tools/testdb.php template --fresh`.
 
-- The anotoki family's kit (`@anotoki/lib` 0.3.0, wired in
+- Signing in, the People page and the admin tools are the family's
+  (`anotoki-lib` 0.4.1): in the browser `@anotoki/lib/auth`, wired in
+  `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
+  `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
+  no sign-in by the IAM's hint); People (`api/people.php`,
+  `@anotoki/lib/people/page`: delete after this app's question, audited; the
+  scrub of the accounts the IAM deleted); the admin tools, the site's ADMIN
+  alone (`api/admin_tools.php`, `core/site-admin.ts`): the error log, the
+  audit log (`audit()`), feedback (the footer's "Send feedback", no mail,
+  the admin bar's count) and backups (daily, before an update, by hand). A
+  spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
+- The anotoki family's kit (`@anotoki/lib` 0.4.1, wired in
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
@@ -178,17 +200,19 @@ Working conventions specific to this repo:
   set), the person's menu ("Admin panel" for the staff while the site is
   ready); a phone's up to `PHONE_BAR_MAX` (1320, measured - `run.mjs
   --measure`; the bar's `phoneMax`, no .scss copy); the menus' Tab and
-  Shift+Tab close onto the menu button; under `/admin` the admin sections
-  and the wordmark "anotoki Piano Academy · admin panel", English
+  Shift+Tab close onto the menu button; under `/admin` the admin sections,
+  folding up to its own `ADMIN_PHONE_BAR_MAX` (1280, measured the same way),
+  and the wordmark short at every width ("Piano", "admin panel" under it;
+  "anotoki Piano Academy · admin panel" the link's name), English
   (`effectiveLanguage`), no chooser, no piano. Its words are keys, in
   kept-english.ts too.
 - The theme, the dates, the clock and the language are the anotoki
-  account's for somebody signed in (the IAM's 015; the vendored browser SDK
-  1.2.0 - `AuthService.preferences`, null for nobody, a visitor or an IAM
+  account's for somebody signed in (the IAM's 015; the family's
+  `AnotokiAuth.preferences`, null for nobody, a visitor or an IAM
   that sends none: then nothing changes and nothing is saved). The theme
   switch saves through the family's `ThemeService` (one save at a time, the
   latest last; the account's theme back and `anotoki.theme.notSaved` when refused),
-  the language chooser through the family's `TranslationService` (`forShell()` -> `setLanguage()`, its `account.save` the SDK's `savePreferences()`)
+  the language chooser through the family's `TranslationService` (`forShell()` -> `setLanguage()`, its `account.save` `AnotokiAuth.savePreferences()`)
   (`invalid_request`: silent; else, `access_denied` too, `anotoki.language.notSaved`
   - words that promise no retry); a date or time a page writes goes
   through the `localDate` pipe, which follows the account's order and clock
@@ -210,7 +234,9 @@ its screenshots (`--keep`). Verify other interactive changes on a throwaway copy
 `PIANO_TEST_CONFIG=storage/manual php -S 127.0.0.1:8590 router.php` (the
 built frontend is served too - `npm run build` first), and
 `php tests/tools/testdb.php drop piano_test_manual` afterwards. Sign in through
-the stand-in IAM (`tests/tools/fake-iam.php` on 8597), never the real IAM;
+the family's stand-in IAM (`vendor/anotoki/lib/php/testing/stand-in-iam.php`
+on 8597, its key from `TestIam::create()` - the browser check's `run.mjs`
+shows how), never the real IAM;
 throwaway servers on 8590-8599. Drive the
 app with `playwright-core` and the installed Edge (`channel: 'msedge'`),
 dispatching synthetic note-ons via

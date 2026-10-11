@@ -1,13 +1,13 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { type AnotokiPreferences } from '@anotoki/lib/auth';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { MockInstance } from 'vitest';
-import { type AnotokiPreferences } from '../../core/auth/anotoki-auth';
-import { AuthService } from '../../core/auth/auth.service';
 import { ProgressMap, Session } from '../../core/music/music.types';
 import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
+import { TestAuth, provideTestAuth } from '../../core/testing/test-auth';
 import { OwnProgressComponent } from './own-progress/own-progress.component';
 import { StatsPageComponent, computeStreak, localDayKey, practiceMinutes } from './stats-page.component';
 
@@ -131,12 +131,13 @@ describe('Stats: the page in the language of the reader', () => {
         language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH),
         { provide: ProgressStore, useValue: { progress, sessions, knownNotes: signal<number[]>([]) } },
         { provide: BootService, useValue: boot },
+        ...provideTestAuth(),
       ],
     });
     TestBed.overrideComponent(StatsPageComponent, { remove: { imports: [OwnProgressComponent] }, add: { imports: [OwnProgressStandIn] } });
-    const auth = TestBed.inject(AuthService);
-    (auth as unknown as { authenticated: { set(value: boolean): void } }).authenticated.set(signedIn);
-    auth.user.set(signedIn ? { sub: '7', preferred_username: 'mia', email: null, email_verified: true, locale: null, roles: ['MEMBER'], preferences } : null);
+    const auth = TestBed.inject(TestAuth);
+    if (signedIn) auth.signInAs({ sub: '7', preferred_username: 'mia', preferences });
+    else auth.visiting();
     fixture = TestBed.createComponent(StatsPageComponent);
     host = fixture.nativeElement;
     await fixture.whenStable();

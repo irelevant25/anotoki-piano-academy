@@ -1,8 +1,8 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationService } from '@anotoki/lib/translations';
 import { ApiError, ApiService, VISITOR_OWNER, VisitorMove } from '../api/api.service';
-import { AuthService, NotSetUpError } from '../auth/auth.service';
 import { VisitorKey } from '../auth/visitor-key';
 import { MidiService } from '../midi/midi.service';
 import { AppState } from '../music/music.types';
@@ -17,9 +17,9 @@ import { ProgressStore } from './progress-store.service';
  *                out of reach): the sign-in and the strings are there, the progress is not asked
  *                for - the family's status page stands in every page's place, and an ADMIN's
  *                Apply on the Migrations page goes on from here (resumeAfterUpdate())
- *   sign-in      nobody signed in, and the IAM requires a sign-in: the sign-in guard sends the
- *                browser to the IAM - or, after a sign-in that came back without one, lets the
- *                sign-in card be drawn
+ *   sign-in      nobody signed in, and the IAM requires a sign-in: the family's guard sends the
+ *                browser to the IAM - or, after a sign-in that came back without one, to the
+ *                family's screen that says why (/sign-in-failed, core/auth/site-auth.ts)
  *   load-error   the progress could not be loaded - and the app does not run without it
  *   ready        the progress is in memory - a person's, or a visitor's (`visiting`); the views run
  */
@@ -40,7 +40,7 @@ export const MOVE_RETRY_MAX_MS = 5000;
  * because the first save would overwrite the real progress with it.
  *
  * Nobody signed in while the IAM does not require a sign-in here
- * (AuthService.loginRequired): a VISITOR - the page's data owner is
+ * (AnotokiAuth.loginRequired): a VISITOR - the page's data owner is
  * VISITOR_OWNER, and its state is the visitor's whose key this browser holds
  * (core/auth/visitor-key.ts), or nobody's (empty, generation 0) until the
  * first save makes one. A key the server no longer knows is forgotten
@@ -58,16 +58,25 @@ export const MOVE_RETRY_MAX_MS = 5000;
  * Every signed-in start also takes on the rounds a visitor of this browser
  * left in its outbox (ApiService.adoptOutbox(): their Idempotency-Keys stop
  * doubles), whoever moved the rest. The move runs again after a sign-in
- * that comes back in the middle of practising (the sign-in listener below -
- * no injection circle: VisitorKey knows only AuthService).
+ * that comes back in the middle of practising (the effect below - no
+ * injection circle: VisitorKey knows only AnotokiAuth).
  *
- * Between the two comes the language and its strings (the family's
- * TranslationService, @anotoki/lib/translations): once the sign-in settings
- * are read and before anybody is asked to sign in, so the sign-in card is in
- * the learner's language. Where the settings could not be read nothing is
- * asked for (the service's `canAsk` is AuthService.settingsRead) - the shell
- * words itself from the strings kept from the last visit, or from the English
- * kept in code.
+ * The sign-in itself is the anotoki family's (@anotoki/lib/auth,
+ * core/auth/site-auth.ts): AnotokiAuth.init() reads the backend's sign-in
+ * settings, finishes a callback (the address the person came from back in
+ * the address bar before the router reads it) or restores the session. It
+ * never rejects: settings that could not be read leave it `unavailable`.
+ * Between it and the progress comes the language and its strings (the
+ * family's TranslationService, @anotoki/lib/translations): once the sign-in
+ * settings are read and before anybody is asked to sign in, so the failure's
+ * screen is in the learner's language. Where the settings could not be read
+ * nothing is asked for (the service's `canAsk`: the sign-in is not
+ * `unavailable`) - the shell words itself from the strings kept from the last
+ * visit, or from the English kept in code.
+ *
+ * Another person signing in in another tab - or anybody, on a page shown to
+ * a visitor - loads this one afresh: the family's module does that (it holds
+ * the other person's progress).
  *
  * While the site is not ready - an update waits, or its database is out of
  * reach: SiteStatus, asked by the app's initializer before this starts, or
@@ -79,17 +88,16 @@ export const MOVE_RETRY_MAX_MS = 5000;
  * nothing to apply goes on from there (resumeAfterUpdate()); everybody
  * else's status page loads the page again once the site is back.
  *
- * Also here: another person signing in in another tab reloads this one (it
- * holds the other person's progress), and leaving the page with a save that
- * did not get through asks first.
+ * Also here: leaving the page with a save that did not get through asks
+ * first.
  *
- * Nobody signed in is not sent anywhere from here: the routes' sign-in guard
- * (core/auth/sign-in.guard.ts) does that, once the start is over - and it
- * reads the status this service ends with (and `visiting`).
+ * Nobody signed in is not sent anywhere from here: the family's guards on the
+ * routes (personOrVisitorGuard, staffGuard, adminGuard - app.routes.ts) do
+ * that, once the start is over.
  */
 @Injectable({ providedIn: 'root' })
 export class BootService {
-  private readonly auth = inject(AuthService);
+  private readonly auth = inject(AnotokiAuth);
   private readonly api = inject(ApiService);
   private readonly store = inject(ProgressStore);
   private readonly midi = inject(MidiService);
@@ -111,7 +119,7 @@ export class BootService {
   readonly visitorMoved = signal<VisitorMoved | null>(null);
   /** The move after a sign-in did not happen this time: the key is kept, and it is asked again. */
   readonly visitorNotMoved = signal(false);
-  /** Whose progress is in memory (AuthService.userKey(), or VISITOR_OWNER). */
+  /** Whose progress is in memory (the IAM user id, AnotokiAuth.sub(), or VISITOR_OWNER). */
   private loadedFor: string | null = null;
   /** Leaving for the IAM on purpose: no "unsaved changes" question. */
   private leaving = false;
@@ -119,22 +127,26 @@ export class BootService {
   private moving: Promise<boolean> | null = null;
 
   constructor() {
-    this.auth.onAuthChange(() => {
-      // Somebody signed in in another tab who is not whose progress this page holds (a person's, or a visitor's).
-      const key = this.auth.userKey();
-      if (this.status() === 'ready' && key !== null && key !== this.loadedFor) {
-        this.leaving = true;
-        location.reload();
-        return;
-      }
-      // Signed in again in the middle of practising, with a visitor key held (another tab visited meanwhile).
-      if (this.status() === 'ready' && key !== null && this.visitorKey.current() !== null) {
-        void this.moveVisitor().then((found) => {
-          if (this.api.adoptOutbox(VISITOR_OWNER) > 0) this.store.retryUnsaved();
-          if (found) this.store.reloadFromServer().catch((error: unknown) => console.error('The progress could not be loaded after the move.', error));
-        });
-      }
-      if (this.store.hasUnsaved()) this.store.retryUnsaved();
+    // Signed in, signed out, or the person's claims anew - in this tab or another. (Another person signing in, or
+    // anybody on a visitor's page, loads the page afresh: the family's module does that itself.)
+    let looked = false;
+    effect(() => {
+      const key = this.auth.user()?.sub ?? null;
+      untracked(() => {
+        // The first look is at what the start found, and dealt with: only a change after it is news.
+        if (!looked) {
+          looked = true;
+          return;
+        }
+        // Signed in again in the middle of practising, with a visitor key held (another tab visited meanwhile).
+        if (this.status() === 'ready' && key !== null && key === this.loadedFor && this.visitorKey.current() !== null) {
+          void this.moveVisitor().then((found) => {
+            if (this.api.adoptOutbox(VISITOR_OWNER) > 0) this.store.retryUnsaved();
+            if (found) this.store.reloadFromServer().catch((error: unknown) => console.error('The progress could not be loaded after the move.', error));
+          });
+        }
+        if (this.store.hasUnsaved()) this.store.retryUnsaved();
+      });
     });
 
     globalThis.addEventListener?.('beforeunload', (event: BeforeUnloadEvent) => {
@@ -149,26 +161,29 @@ export class BootService {
    * where the site stands). Never throws: the status says what happened.
    */
   async start(): Promise<void> {
-    try {
-      await this.auth.init();
-    } catch (error) {
-      // Nothing can be asked for: the strings kept from the last visit when
-      // there are any, the English kept in code otherwise - and no request
-      // (the settings were not read: core/i18n/site-translations.ts's canAsk).
-      await this.i18n.init();
-      if (error instanceof NotSetUpError) {
+    // Never rejects: settings that could not be read leave the sign-in `unavailable`.
+    await this.auth.init();
+
+    // The language and its strings, before the signed-in test: the failure's
+    // screen has them too. It never rejects - a bundle that does not come is
+    // "no bundle", and the start goes on. Without the sign-in settings nothing
+    // is asked for (core/i18n/site-translations.ts's canAsk): the strings kept
+    // from the last visit when there are any, the English kept in code
+    // otherwise.
+    await this.i18n.init();
+
+    if (this.auth.state() === 'unavailable') {
+      // Not set up (the family's status page says so), the site not ready, or the backend out of reach.
+      if (this.site.state() === 'not-set-up') {
         this.status.set('not-set-up');
-        return;
+      } else if (this.site.blocked()) {
+        this.status.set('waiting');
+      } else {
+        console.error('Failed to load the sign-in settings.');
+        this.status.set('load-error');
       }
-      console.error('Failed to load the sign-in settings.', error);
-      this.status.set('load-error');
       return;
     }
-
-    // The language and its strings, before the signed-in test: the sign-in
-    // card has them too. It never rejects - a bundle that does not come is
-    // "no bundle", and the start goes on.
-    await this.i18n.init();
 
     // The site is not ready: the sign-in is in place, the progress is not asked for (see the class).
     if (this.site.blocked()) {
@@ -181,7 +196,7 @@ export class BootService {
   /** The rest of the start: whose progress it is, and the progress. */
   private async run(): Promise<void> {
     if (this.auth.signedIn()) {
-      this.loadedFor = this.auth.userKey();
+      this.loadedFor = this.auth.sub();
       this.api.setDataOwner(this.loadedFor);
       // What this browser kept as a visitor first: the state loaded next holds it.
       await this.moveVisitor();
@@ -198,9 +213,9 @@ export class BootService {
     try {
       this.store.load(await this.fetchState());
     } catch (error) {
-      // A 401 after which the SDK holds no session any more means the sign-in
-      // is over - or, for a visitor, that the IAM requires one now (the
-      // interceptor said so: AuthService.requireSignInNow()); with a session
+      // A 401 after which nobody is signed in any more means the sign-in is
+      // over - or, for a visitor, that the IAM requires one now (the
+      // interceptor said so: AnotokiAuth.noteSignInRequired()); with a session
       // left, the IAM could not be reached to renew it - that is the error
       // card's "Try again".
       if (error instanceof ApiError && error.status === 401 && !this.auth.signedIn()) {
@@ -284,11 +299,14 @@ export class BootService {
   }
 
   /**
-   * Before leaving a visitor's page for the IAM: the saves on their way
-   * arrive first (as before signing out), so the move takes them along.
+   * Before leaving a visitor's page for the IAM (the family's module asks it -
+   * core/auth/site-auth.ts - whoever starts the sign-in): the saves on their
+   * way arrive first (as before signing out), so the move takes them along.
+   * Always goes on.
    */
-  async beforeSignIn(): Promise<void> {
+  async beforeSignIn(): Promise<boolean> {
     if (this.visiting()) await this.store.settle();
+    return true;
   }
 
   /**
@@ -311,17 +329,14 @@ export class BootService {
   }
 
   /**
-   * To the IAM, in the language the app is read in - so its pages open in the
-   * same one. Only a language that came with a bundle is passed (the
-   * service's signInLanguage): while there is none the page is in the kept
-   * English, which nobody chose, and saying so would override what the IAM
-   * knows about the person.
+   * To the IAM, and back to this page - its pages in the language the app is
+   * read in (core/auth/site-auth.ts: only one that came with a bundle). A
+   * visitor's saves arrive first (beforeSignIn()).
    */
   async signIn(): Promise<void> {
-    await this.beforeSignIn();
     this.leaving = true;
-    // Could not start: the sign-in card words why (AuthService.signInFailure), and the page stays.
-    if (!(await this.auth.signIn(undefined, this.i18n.signInLanguage()))) {
+    // Could not start: the page stays, and says why (AnotokiAuth.signInFailure).
+    if (!(await this.auth.signIn())) {
       this.leaving = false;
     }
   }
@@ -340,7 +355,7 @@ export class BootService {
   /** Signs out now - after settleBeforeSignOut(), and the learner's yes when it said something would be lost. */
   signOut(): void {
     this.leaving = true;
-    this.auth.signOut();
+    void this.auth.signOut();
   }
 }
 

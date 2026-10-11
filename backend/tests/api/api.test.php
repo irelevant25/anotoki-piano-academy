@@ -52,7 +52,7 @@ test('health and the sign-in settings: the IAM, and nothing about a mode', funct
     assert_same('no-store', $health['headers']['cache-control'] ?? null);
     assert_same('nosniff', $health['headers']['x-content-type-options'] ?? null);
     assert_match("/default-src 'none'/", $health['headers']['content-security-policy'] ?? '');
-    assert_same(['issuer' => TEST_ISSUER, 'clientId' => TEST_CLIENT, 'loginRequired' => true], call($GLOBALS['app']['base'], 'GET', '/api/auth/config')['body']);
+    assert_same(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'login_required' => true, 'sign_in_available' => true], call($GLOBALS['app']['base'], 'GET', '/api/auth/config')['body']);
 });
 
 test('nobody gets in without a token that checks out - by any name, through any proxy - and a refused one writes nothing', function (): void {
@@ -299,7 +299,7 @@ test('a database behind the code: the app does not start on it - the site is bei
         'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam(), $empty),
         'PIANO_FRONTEND_DIST' => test_frontend_build(),
     ], '/api/health');
-    assert_same(array_map('migrationLabel', every_migration()), call($behind['base'], 'GET', '/api/health')['body']['pending'], 'the app\'s own, then the library\'s named with their set');
+    assert_same(array_map('migrationLabel', every_migration()), call($behind['base'], 'GET', '/api/health')['body']['pending'], 'the library\'s admin tools\' set, the app\'s own, then the library\'s words\' and people\'s - the library\'s named with their set');
     foreach (['signed in' => bearer(test_token(LEARNER)), 'nobody' => []] as $who => $headers) {
         $state = call($behind['base'], 'GET', '/api/state', null, $headers);
         assert_same([503, ['code' => 'update_pending', 'message' => 'The site is being updated. Try again in a few minutes.']], [$state['status'], $state['body']], $who);
@@ -316,6 +316,6 @@ test('a database behind the code: the app does not start on it - the site is bei
 test('the learner\'s data sits under the learner\'s id, and the server logged no PHP problem', function (): void {
     assert_same((int) dbValue('SELECT count(*) FROM sessions'), (int) dbValue('SELECT count(*) FROM sessions WHERE user_id = ?', [LEARNER]));
     assert_same(['60', '62'], array_column(dbAll('SELECT jsonb_object_keys(notes) AS k FROM progress WHERE user_id = ? ORDER BY 1', [LEARNER]), 'k'));
-    $problems = array_values(array_filter(server_problems($GLOBALS['app']), static fn(string $line): bool => !str_contains($line, '[auth] token refused')));
+    $problems = array_values(array_filter(server_problems($GLOBALS['app']), static fn(string $line): bool => !str_contains($line, '[anotoki auth] token refused')));
     assert_same([], $problems);
 });

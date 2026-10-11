@@ -419,6 +419,18 @@ function setupShortError(string $message): string
 }
 
 /**
+ * A GET from this server, as the anotoki family's library asks the IAM
+ * (anotoki/lib's HttpGet: http or https alone, no redirects): the body of a
+ * 200, or null.
+ */
+function setupHttpGet(string $url): ?string
+{
+    $answer = \Anotoki\Lib\Support\HttpGet::fetch($url, 5.0);
+
+    return $answer['status'] === 200 && is_string($answer['body']) ? $answer['body'] : null;
+}
+
+/**
  * Asks the IAM for its discovery document and its keys - from this server,
  * because this server is what checks every sign-in against them.
  *
@@ -426,7 +438,7 @@ function setupShortError(string $message): string
  */
 function setupTestIam(string $issuer, string $clientId): array
 {
-    $body = anotoki_iam_http_get($issuer . '/.well-known/openid-configuration', 5);
+    $body = setupHttpGet($issuer . '/.well-known/openid-configuration');
     if ($body === null) {
         return [false, 'No answer from ' . $issuer . '/.well-known/openid-configuration. Is the IAM running, and is the address right?'];
     }
@@ -438,7 +450,7 @@ function setupTestIam(string $issuer, string $clientId): array
         return [false, 'The IAM there calls itself ' . $discovery['issuer'] . ' - use exactly that address.'];
     }
 
-    $keys = anotoki_iam_http_get($discovery['jwks_uri'], 5);
+    $keys = setupHttpGet($discovery['jwks_uri']);
     $set = $keys === null ? null : json_decode($keys, true);
     $count = is_array($set) && isset($set['keys']) && is_array($set['keys']) ? count($set['keys']) : 0;
     if ($count === 0) {
@@ -488,7 +500,9 @@ if ($method === 'POST') {
                 // the one made in the hosting panel is what the connection finds.
             }
             $pdo = dbConnect($db);
-            $migrated = databaseMigrator($pdo)->apply();
+            // A database with something applied already is backed up first (storage/backups: the anotoki
+            // family's backups); a new one has nothing to keep.
+            $migrated = databaseUpdater($pdo, $db)->apply();
             if ($migrated['busy']) {
                 throw new RuntimeException('Another database update is running (php migration.php, or an administrator in the app). Wait a moment and press Save again.');
             }

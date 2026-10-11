@@ -9,7 +9,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * At sign-in, the progress this browser made without signing in becomes the
  * signed-in person's - the one place the two meet, so it takes both: the
  * person's token (requireUser()) and the visitor's key, which this route
- * reads itself (the only reader of X-Visitor-Key besides requireOwner()).
+ * reads itself (the library's Identify never reads a key beside a Bearer
+ * header: meddleware/auth.php).
  *
  *   POST /api/visitor/move   X-Visitor-Key: <key>
  *        -> {found, notes: {moved, kept}, steps: {moved, merged, kept}, sessions, generation}

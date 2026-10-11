@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
-import { AuthService } from '../../core/auth/auth.service';
 import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
 import { stepShort, unitTitle } from '../../core/i18n/path-words';
 import { Session, SessionMode } from '../../core/music/music.types';
@@ -103,7 +103,7 @@ export class StatsPageComponent {
   private readonly songs = inject(SongsService);
   private readonly i18n = inject(TranslationService);
   private readonly boot = inject(BootService);
-  protected readonly signedIn = inject(AuthService).signedIn;
+  protected readonly signedIn = inject(AnotokiAuth).signedIn;
 
   protected readonly keyboard = new KeyboardModel();
   protected readonly curriculumLength = this.theory.curriculum.length;

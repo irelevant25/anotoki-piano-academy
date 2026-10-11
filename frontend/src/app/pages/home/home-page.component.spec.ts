@@ -5,6 +5,7 @@ import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { NoteState, PathProgress, ProgressMap } from '../../core/music/music.types';
 import { PathService } from '../../core/music/path.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
+import { provideTestAuth } from '../../core/testing/test-auth';
 import { HomePageComponent } from './home-page.component';
 
 /** Every string the home page asks for: its own, the path's, and the four modes of the navigation. */
@@ -142,7 +143,9 @@ describe('Home page: the path in the learner’s words', () => {
 
   async function page(language: 'en' | 'sk', strings: Record<string, string> = language === 'sk' ? SLOVAK : ENGLISH): Promise<void> {
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({ providers: [provideRouter([]), language === 'sk' ? provideTestTranslations(strings, { language: 'sk', english: ENGLISH }) : provideTestTranslations(strings)] });
+    TestBed.configureTestingModule({
+      providers: [provideRouter([]), language === 'sk' ? provideTestTranslations(strings, { language: 'sk', english: ENGLISH }) : provideTestTranslations(strings), ...provideTestAuth()],
+    });
     store = TestBed.inject(ProgressStore);
     path = TestBed.inject(PathService);
     fixture = TestBed.createComponent(HomePageComponent);

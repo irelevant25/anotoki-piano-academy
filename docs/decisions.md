@@ -2,6 +2,119 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-11, later - signing in, people and the admin tools through the family's library (`anotoki-lib` 0.4.1)
+
+Every anotoki site signed in through the IAM with copies of its SDKs, kept
+its own record of people and would have built its own admin tools; the owner
+asked for one implementation, the library's. Both halves are 0.4.1 (never
+0.4.0, two of whose queries failed on PHP 8.2). The owner's decisions, and
+what they mean here:
+
+- **Signing in is the library's.** The vendored SDKs (`api/anotoki_iam.php`,
+  `core/auth/anotoki-auth.mjs`), this app's `AuthService`, interceptor,
+  guards, sign-in card and its stand-in IAM (`tests/tools/fake-iam.php`)
+  went; `Anotoki\Lib\Auth` and `@anotoki/lib/auth` stand there, wired in
+  `api/auth.php`, `api/meddleware/auth.php` and `core/auth/site-auth.ts`,
+  refusing in this app's `{error, code}`. The tokens stay where the SDK kept
+  them (`anotoki-auth:piano-academy`): nobody is signed out by the move. What
+  stays this app's: the visitors - the key and the paths it goes to, the move
+  at sign-in, and the first save that makes a visitor while the others wait
+  (in `ApiService`, not the library's interceptor: a waiting save works its
+  `Progress-Generation` out after that save has answered) - the roles'
+  words, and `beforeSignIn` (a visitor's saves arrive first).
+- **No sign-in by the IAM's hint** (genshin and the build analyzer only):
+  `hint: false`. With it the page does not follow a sign-out at the IAM as
+  it loads either - as before.
+- **A sign-in that did not work has a screen of its own**, the family's
+  (`/sign-in-failed`: why, Try again, Back), in place of the sign-in card.
+  Migration 011 moves this app's three sentences under the library's keys -
+  every language, the owner's wording, who saved it and when - and deletes
+  the card's five keys; its gate proves every string arrived as it was.
+- **People is the library's page; the delete stays this app's.** The page's
+  question is all a delete asks (no recent sign-in), and every delete is
+  audited (`person.data_deleted`). The scrub of the accounts the IAM deleted
+  blanks the name (`deleted-{sub}`; migration 010 adds `users.anonymized_at`
+  and nothing else) and, through this app's hook, the address and browser
+  that person's feedback gave; the progress stays, nobody's. No transition
+  machinery: the sites are not public yet.
+- **The admin tools are for the site's ADMIN alone** - EDITORs see none of
+  them: the error log, the audit log, feedback and backups. No file
+  explorer: this app keeps no files of its own.
+- **Feedback mails nobody**: the admin bar's Feedback link counts the new
+  ones. **A signed-in sender's account address is the reply address unless
+  they tick "Send it without my name"** (the owner, 2026-10-11: "it's their
+  choice"); the form says so under the box. That address is kept with the
+  message alone, and forgotten - with the browser's name; the words stay -
+  when the People page deletes that person and when the scrub blanks an
+  account the IAM deleted.
+- **Backups have no maximum age** (the owner, 2026-10-11): a backup is kept
+  until the owner deletes it, and nothing deletes one for its age - one made
+  by hand stays (the page marks it stale after 90 days and deletes nothing
+  for it); the automatic ones are the library's, kept by count (the newest
+  14 daily, 5 before an update, 5 before a restore). So a deleted person's
+  data stays in the backups made before their scrub until those go. A
+  restore runs here, after a backup of its own; before it answers, every
+  progress - a visitor's too - takes a new generation, far past any number
+  handed out (the restore sets the rows and the sequence back to the
+  backup's day: a page left open since then would otherwise save over what
+  was restored, and the next import hand out a number an open page holds),
+  and the scrub of the IAM's deleted accounts runs again. Either that cannot
+  finish is said - the Backups page, the error log - and a scrub left
+  undone runs with the next request, not an hour later. The owner's own
+  `pg_dump` files in `storage/backups/` are never touched - the library
+  deletes only files of its own names.
+- **The backups are not encrypted** (the owner, 2026-10-11, for every site:
+  only the IAM's are, from its master key). This site has no secret of its
+  own to derive a key from, and one kept beside the files in `storage/`
+  would protect nothing. What a backup holds: every table - each person's
+  IAM id and name, when first and last seen, their progress, path and
+  rounds; the visitors' rows (a hash of each key, never the key); the words
+  and who last reworded them; the feedback messages with their reply
+  addresses, browsers and pages; the audit log (who did what - never an
+  address); the scrub's own record (the ids the IAM deleted, and when); the
+  applied migrations and their SQL. Not in one: a token or a password (none
+  is kept), the settings (the database's password is in `config/`), the
+  error log (files of its own). Who can read one: the site's ADMIN, on the
+  Backups page (a download needs a sign-in of the last ten minutes and a
+  single-use link of a minute); whoever can read the host's files - its FTP
+  account and the hosting's staff (`storage/` is closed to the web by the
+  upload's `.htaccess`; a host that ignored it would serve the files); and
+  wherever a downloaded copy is kept: it is as private as that place.
+- **A restore brings back what was deleted for a person** (People - Delete
+  their progress) since the backup was made, until the library's 0.4.2
+  keeps such a delete across a restore. Until then, after a restore, delete
+  them again; the People page's question says so before a delete.
+- **The pages' own errors are not logged yet**: they go to every site's error
+  log with the library's 0.4.2 (its Angular reporter). `ErrorLogRoutes::client`
+  is not mounted until then.
+- **What's new tells what a learner notices**: 0.4.0 (still unreleased)
+  gains "Send feedback" and the sign-in failure's page; the admin tools are
+  the staff's.
+- **The admin panel's bar folds at its own width**: an ADMIN's eight
+  sections and the count beside Feedback need 1258 px with the brand short,
+  and the whole wordmark beside them would not fit the family's row (84rem)
+  at any width - so there the brand is short at every width ("Piano",
+  "admin panel" under it; the whole name stays the link's) and the bar folds
+  up to `ADMIN_PHONE_BAR_MAX` 1280, as Japanese Academy's and the build
+  analyzer's admin panels do. The learner's bar is as it was.
+
+What changed in behaviour, beyond the pages: `Authorization: Bearer` with no
+token is `401 invalid_token` (it was `sign_in_required`); a request a role
+check refuses records nobody; the library's `Identify` reads a visitor's key
+on every route but the public ones while no sign-in is required (only
+`requireOwner()` takes a visitor, and the browser sends the key only to the
+progress routes); the browser tries a visitor's request once more after
+`visitor_unknown`, without the key; an EDITOR who opens an ADMIN page goes to
+the start page (it was Translations); the day's backup is made after the
+first good answer of each UTC day; on a LATIN1 database the admin set's two
+tables are made before 002 refuses it.
+
+The first load is 519.0 kB (it was 482.7 kB - over the 500 kB warning): the
+library's auth module is 32.5 kB where this app's SDK and services were about
+17 kB, and the feedback form's words add 4.2 kB. A lazy Home (about -15 kB)
+or the feedback form's setup inside the dialog's chunk (about -5 kB) would
+bring it back under; the owner's call.
+
 ## 2026-10-11 - the words through the family's library (`anotoki-lib` 0.3.0)
 
 Every anotoki site kept its words in the same three tables, each with code of

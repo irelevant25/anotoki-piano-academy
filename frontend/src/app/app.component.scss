@@ -71,14 +71,17 @@
   font-size: 0.85rem;
 }
 
-.version {
+// The footer's two buttons: the feedback form, and the version (what is new).
+.version,
+.footer-link {
   background: transparent;
   border-color: transparent;
   color: var(--text-dim);
   font-size: 0.85rem;
 }
 
-.version:hover {
+.version:hover,
+.footer-link:hover {
   color: var(--accent);
 }
 

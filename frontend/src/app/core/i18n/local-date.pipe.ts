@@ -1,7 +1,6 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
+import { AnotokiAuth, type AnotokiPreferences } from '@anotoki/lib/auth';
 import { TranslationService } from '@anotoki/lib/translations';
-import { type AnotokiPreferences } from '../auth/anotoki-auth';
-import { AuthService } from '../auth/auth.service';
 import { formatClock, formatDatePattern } from './date-patterns';
 
 /** A day in full, a day with its time, or the admin panel's stamp of numbers. */
@@ -30,7 +29,7 @@ const SERVER_CLOCK = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/;
  * follow the browser's language whatever the page is in.
  *
  * A signed-in person's own date order and clock (the account's, which every
- * anotoki site follows - AuthService.preferences) win over the language's:
+ * anotoki site follows - AnotokiAuth.preferences) win over the language's:
  * "6.10.2026" for a day, "6.10.2026 2:30 pm" for a moment - a date and a time
  * side by side once either is chosen, each half the language's own where it
  * is not. Nobody signed in (a visitor), or nothing chosen: as before.
@@ -51,7 +50,7 @@ const SERVER_CLOCK = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/;
 @Pipe({ name: 'localDate', pure: false })
 export class LocalDatePipe implements PipeTransform {
   private readonly _i18n = inject(TranslationService);
-  private readonly _auth = inject(AuthService);
+  private readonly _auth = inject(AnotokiAuth);
 
   transform(value: string | null | undefined, style: LocalDateStyle = 'day'): string {
     return localDateText(value, style, this._i18n.locale(), this._auth.preferences());

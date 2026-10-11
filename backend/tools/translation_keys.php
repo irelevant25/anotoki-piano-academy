@@ -26,10 +26,9 @@ use Anotoki\Lib\Translations\Cli\KeyScanner;
  * What is Piano Academy's own:
  *
  *   - the sources, frontend/src/app: every .ts and .html but the specs,
- *     core/testing/ (the specs' helpers), the vendored sign-in SDK
- *     (core/auth/anotoki-auth.*) and core/i18n/kept-english.ts - the English
- *     the shell falls back to while it has no strings at all, a second copy
- *     of some of them: a key named only there is used by nothing;
+ *     core/testing/ (the specs' helpers) and core/i18n/kept-english.ts - the
+ *     English the shell falls back to while it has no strings at all, a
+ *     second copy of some of them: a key named only there is used by nothing;
  *   - the keys put together at run time, declared in core/i18n/dynamic-keys.ts
  *     (prefix -> every tail; the file is read only for what it declares);
  *   - the pipes and calls are the library's (translate, translatePlural; t,
@@ -54,7 +53,7 @@ function translationKeyScanner(?string $root = null): KeyScanner
 {
     return new KeyScanner(
         $root ?? translationKeysFrontendRoot(),
-        exclude: ['core/testing/**', 'core/auth/anotoki-auth.*', TRANSLATION_KEPT_ENGLISH_FILE],
+        exclude: ['core/testing/**', TRANSLATION_KEPT_ENGLISH_FILE],
         dynamicKeys: TRANSLATION_DYNAMIC_KEYS_FILE,
     );
 }

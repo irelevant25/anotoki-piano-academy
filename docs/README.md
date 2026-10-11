@@ -7,7 +7,7 @@ frontend's. These pages are for changing it.
 
 | Page | What it holds |
 | --- | --- |
-| [architecture.md](architecture.md) | the parts and how a request goes through them: the IAM token, the roles, the route groups, the site's gate (not set up, an update waiting - the anotoki family's library), a database update (this app's migrations and the library's); the frontend's start, its sign-in guard, the family's kit and the words, the admin panel, saving and the generation, the own progress file |
+| [architecture.md](architecture.md) | the parts and how a request goes through them: the IAM token (the anotoki family's library), the roles, the route groups, the site's gate (not set up, an update waiting), a database update (this app's migrations and the library's, a backup first); the people and the admin tools; the frontend's start, its sign-in guards and failure screen, the family's kit and the words, the admin panel, feedback, saving and the generation, the own progress file |
 | [api.md](api.md) | every route of the API: who may call it, what it answers, how it refuses |
 | [decisions.md](decisions.md) | the choices made, with their reasons - read before undoing one |
 
@@ -78,3 +78,15 @@ migration set after this app's; the kit's words are the library's keys
 (`anotoki.*`), and migration 009 (words only) copies this app's wording there
 and goes with 005 to 008 at the hand-over - `architecture.md` ("The words",
 "A database update"), `api.md`; `decisions.md`.
+Then (2026-10-11, later) the library's 0.4.1, both halves: signing in is
+the family's (the IAM's SDKs, this app's auth service, interceptor, guards
+and sign-in card gone; a sign-in that did not work goes to the family's
+screen; no sign-in by the IAM's hint), the People page is the family's with
+the scrub of the accounts the IAM deleted (migration 010:
+`users.anonymized_at`), and the admin tools - the error log, the audit log,
+feedback (the visitors' form from the footer, the bar's count, no mail),
+backups - are the family's, for the site's ADMIN alone; migration 011
+(words only) moves the sign-in card's three failure sentences under the
+library's keys. 010 and 011 go with 005 to 009 at the hand-over -
+`architecture.md` ("A request", "People and the admin tools", "The
+frontend"), `api.md`; `decisions.md`.

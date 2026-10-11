@@ -9,8 +9,9 @@
     [signIn]="signIn()"
     [signOut]="signOut"
     [languages]="!inAdmin()"
-    [phoneMax]="phoneMax"
-    [nameMin]="nameMin"
+    [phoneMax]="phoneMax()"
+    [nameMin]="nameMin()"
+    [shortBrandMax]="shortBrandMax()"
     [phoneMark]="phoneMark()"
     [menuNote]="menuNote()">
     @if (store.unsaved() && !bar.phone()) {

@@ -3,10 +3,13 @@
     "version": "0.4.0",
     "date": "2026-10-07",
     "changes": {
-      "added": [],
+      "added": [
+        "Send feedback, at the foot of every page: tell us about a problem or an idea - signed in or not"
+      ],
       "updated": [
         "While Piano Academy is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done",
-        "Piano Academy now looks like the other anotoki sites: the same font and the same bar at the top. The theme switch in the bar shows its three choices side by side - light, dark, or as your device is set"
+        "Piano Academy now looks like the other anotoki sites: the same font and the same bar at the top. The theme switch in the bar shows its three choices side by side - light, dark, or as your device is set",
+        "If signing in does not work, a page of its own says why, with Try again and a way back to where you were"
       ],
       "fixed": []
     }

@@ -89,13 +89,17 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     sort($top);
     assert_same(['.htaccess', '.piano-academy-build', 'api', 'changelog.json', 'config', 'index.html',
         'main-TEST.js', 'media', 'migrations', 'setup.php', 'storage', 'styles-TEST.css', 'theme-boot.js', 'vendor'], $top);
-    foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/anotoki_iam.php', 'api/routes/progress.php', 'api/routes/visitor.php', 'api/routes/public.php',
+    foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/admin_tools.php', 'api/routes/progress.php', 'api/routes/visitor.php', 'api/routes/public.php',
         'api/translations.php', 'api/routes/admin.php', 'api/migrations.php', 'api/meddleware/auth.php', 'api/meddleware/security.php',
         'api/store.php', 'api/transfer.php', 'api/people.php', 'api/visitors.php', 'api/client_address.php', 'api/after_response.php',
         'config/config.php', 'config/.htaccess', 'migrations/piano_academy/001_init.sql', 'migrations/piano_academy/002_languages_and_translations.sql',
         'migrations/piano_academy/003_site_strings.sql', 'migrations/piano_academy/004_family_shell.sql', 'migrations/piano_academy/005_visitors.sql',
-        'migrations/piano_academy/006_account_preferences.sql', 'migrations/piano_academy/007_site_status_words.sql', 'migrations/.htaccess', 'vendor/autoload.php',
+        'migrations/piano_academy/006_account_preferences.sql', 'migrations/piano_academy/007_site_status_words.sql',
+        'migrations/piano_academy/010_people.sql', 'migrations/piano_academy/011_sign_in_failure_words.sql', 'migrations/.htaccess', 'vendor/autoload.php',
         'vendor/slim/slim/Slim/App.php', 'vendor/anotoki/lib/php/src/Migrations/Migrator.php', 'vendor/anotoki/lib/php/src/Migrations/Http/SiteGate.php',
+        'vendor/anotoki/lib/php/src/Auth/Http/Identify.php', 'vendor/anotoki/lib/php/src/People/Http/PeopleRoutes.php',
+        'vendor/anotoki/lib/php/src/Backups/Backups.php', 'vendor/anotoki/lib/php/migrations/admin/001_audit_log.sql',
+        'vendor/anotoki/lib/php/migrations/people/001_people.sql',
         'vendor/.htaccess', 'storage/.htaccess', 'media/font-TEST.woff2'] as $file) {
         assert_true(in_array($file, $files, true), "$file is in the upload");
     }
@@ -107,7 +111,8 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     foreach ($files as $file) {
         assert_false((bool) preg_match('~\.local\.php$|^server|^tests/|^tools/|router\.php|migration\.php|^secret\.php|^\.htaccess.+|package\.json~', $file), "$file should not be uploaded");
     }
-    assert_same(md5_file(TEST_BACKEND . '/api/anotoki_iam.php'), md5_file("$dist/api/anotoki_iam.php"), 'the IAM\'s verifier as it is');
+    // The IAM's tokens are checked by the family's library now (vendor/anotoki/lib, Anotoki\Lib\Auth): the SDK's copy is gone.
+    assert_false(in_array('api/anotoki_iam.php', $files, true), 'no copy of the IAM\'s SDK');
     foreach (['config', 'migrations', 'vendor', 'storage'] as $folder) {
         assert_match('/Require all denied/', (string) file_get_contents("$dist/$folder/.htaccess"), "$folder/ is closed to the web");
     }
@@ -170,17 +175,17 @@ test('the setup page on a real host: the token, the tests, the database - and th
 
     $done = site_form($site, '/setup.php', form($token, $database));
     assert_match('/<h1>Installed<\/h1>/', $done['raw']);
-    assert_match('/Made the tables \(001_init\.sql, 002_/', $done['raw']);
+    assert_match('~Made the tables \(anotoki_admin/001_audit_log\.sql, anotoki_admin/002_feedback\.sql, 001_init\.sql, 002_~', $done['raw'], 'the library\'s admin tools\' set first');
     assert_match('/The setup page has deleted itself/', $done['raw']);
     assert_no_match('/<script/', $done['raw'], 'no script to ask the deleted file for');
 
     assert_match('/Every anotoki account holds the MEMBER role here and can use it; the IAM\'s page for this application says whether signing in is required and which roles may sign in\. The IAM\'s administrators are its administrators \(ADMIN\), and the IAM gives the EDITOR role to whoever may reword its words\./', $done['raw']);
     assert_same(['issuer' => 'https://iam.anotoki.eu', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], require "$dist/config/auth.local.php", 'the IAM, and nothing else');
     assert_false(is_file("$dist/config/visitors.local.php"), 'setup never writes the optional visitors settings');
-    // The site would now ask the live IAM whether it requires sign-in: no test
-    // does. Its answer is given as a file instead (the settings are otherwise
-    // the ones just written).
-    file_put_contents("$dist/config/auth.local.php", '<?php return ' . var_export(test_offline_auth((require "$dist/config/auth.local.php") + ['application_file' => test_application_file()]), true) . ";\n");
+    // The site would now ask the live IAM whether it requires sign-in, and
+    // which accounts it deleted: no test does. Its answers are given as files
+    // instead (the settings are otherwise the ones just written).
+    file_put_contents("$dist/config/auth.local.php", '<?php return ' . var_export(test_offline_auth((require "$dist/config/auth.local.php") + ['application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file()]), true) . ";\n");
     assert_same($database, (require "$dist/config/database.local.php")['name']);
     assert_true(is_file("$dist/storage/installed.lock"), 'the lock');
     assert_false(is_file("$dist/setup.php"), 'the setup page deleted itself');
@@ -192,7 +197,7 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_no_match('/Install Piano Academy|name="token"/', $gone['raw'], 'no setup page any more');
 
     // the site itself, through api/index.php
-    assert_same(['issuer' => 'https://iam.anotoki.eu', 'clientId' => 'piano-academy', 'loginRequired' => true], site($site, 'GET', '/api/auth/config')['body']);
+    assert_same(['issuer' => 'https://iam.anotoki.eu', 'client_id' => 'piano-academy', 'login_required' => true, 'sign_in_available' => true], site($site, 'GET', '/api/auth/config')['body']);
     assert_same([], glob("$dist/storage/cache/anotoki-iam-application-*") ?: [], 'the live IAM was not asked: nothing of its answer kept');
     assert_same(401, site($site, 'GET', '/api/state')['status'], 'nobody gets in without a token');
     assert_same(401, site($site, 'GET', '/api/admin/migrations')['status'], 'nor into the admin panel');

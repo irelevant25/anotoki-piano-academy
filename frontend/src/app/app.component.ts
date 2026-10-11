@@ -1,23 +1,23 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { AnotokiAuth, SignInFailure, failureText, signInWords } from '@anotoki/lib/auth';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
 import { LoadErrorComponent } from './boot/load-error/load-error.component';
-import { SignInCardComponent } from './boot/sign-in-card/sign-in-card.component';
 import { ApiService } from './core/api/api.service';
-import { AuthService, SignInFailure } from './core/auth/auth.service';
+import { CALLBACK_PATH, SIGN_IN_FAILED_ROUTE } from './core/auth/site-auth';
 import { VisitorKey } from './core/auth/visitor-key';
 import { ChangelogService } from './core/changelog/changelog.service';
-import { signInFailureKey, signInFailureParams } from './core/i18n/error-text';
 import { VISITOR_KEEP_DAYS, VISITOR_WORDS } from './core/i18n/visitor-words';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
 import { MIGRATIONS_ROUTE } from './core/state/site-migrations';
 import { TopBarComponent } from './layouts/top-bar/top-bar.component';
 import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog.component';
+import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.component';
 
 /**
  * The frame around every view: the family's top bar (layouts/top-bar: the
@@ -44,7 +44,14 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * afresh once it is back, without opening the gate first).
  *
  * The family's "Are you sure?" (<anotoki-confirm-host>, ConfirmService) is
- * drawn here once, for every question the app asks.
+ * drawn here once, for every question the app asks. The footer's "Send
+ * feedback" opens the family's form in a dialog (ui/feedback-dialog, loaded
+ * only when it is opened: no first load carries the form).
+ *
+ * The sign-in's own pages - the IAM's callback and the family's screen that
+ * says why a sign-in did not work - are drawn in the view's place whatever
+ * the start says: nobody is signed in on them, so the app has no progress to
+ * run on.
  *
  * For a VISITOR - practising without signing in, while the IAM does not
  * require it (BootService.visiting) - the notes of core/i18n/visitor-words.ts:
@@ -55,8 +62,9 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * that the progress this browser kept has ended (VisitorKey.lost); that a
  * save was refused because this browser keeps as much as a visitor may, or
  * too many people started without signing in this hour
- * (ApiService.visitorRefusal); and why a sign-in came back refused (the
- * signed-out banner's words, which a visitor does not get). After a sign-in
+ * (ApiService.visitorRefusal); and why a sign-in came back refused (in the
+ * family's words, anotoki.signIn.* - a visitor stays on their page rather
+ * than going to the failure's screen). After a sign-in
  * that brought this browser's progress into the account: that it did (and
  * that the account kept its own where it had some) - or that it could not
  * this time (BootService.visitorMoved / visitorNotMoved).
@@ -76,7 +84,7 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
     TranslatePipe,
     TopBarComponent,
     ChangelogDialogComponent,
-    SignInCardComponent,
+    FeedbackDialogComponent,
     LoadErrorComponent,
     SiteGateComponent,
     SitePagesDirective,
@@ -86,7 +94,7 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
 export class AppComponent {
   protected readonly boot = inject(BootService);
   protected readonly changelog = inject(ChangelogService);
-  protected readonly auth = inject(AuthService);
+  protected readonly auth = inject(AnotokiAuth);
   private readonly api = inject(ApiService);
   protected readonly visitorKey = inject(VisitorKey);
   private readonly i18n = inject(TranslationService);
@@ -108,20 +116,23 @@ export class AppComponent {
   /**
    * Inside the gate, the page rather than a card of the start: the app runs -
    * or an ADMIN is on the Migrations page, which works while the rest of the
-   * app waits for an update. One outlet for both, so that page stays (with
-   * what its Apply said) as the app starts after it. Otherwise the card that
-   * says where the start is (loading, the sign-in card, could not load).
+   * app waits for an update, or the address is one of the sign-in's own pages
+   * (the callback, the failure's screen). One outlet for all, so the
+   * Migrations page stays (with what its Apply said) as the app starts after
+   * it. Otherwise the card that says where the start is (loading, could not
+   * load).
    * (Whether anything of the view is made at all is the gate's - also in the
    * moment the status page finds the site back: since anotoki-lib 0.2.0 it
    * reloads without opening the gate first, so no page of a start that waited
    * is made for that moment.)
    */
   protected readonly pageShown = computed(
-    () => this.boot.status() === 'ready' || (this.auth.isAdmin() && (this.path() === MIGRATIONS_ROUTE || this.path().startsWith(MIGRATIONS_ROUTE + '/'))),
+    () =>
+      this.boot.status() === 'ready' ||
+      this.path() === SIGN_IN_FAILED_ROUTE ||
+      this.path() === CALLBACK_PATH ||
+      (this.auth.isAdmin() && (this.path() === MIGRATIONS_ROUTE || this.path().startsWith(MIGRATIONS_ROUTE + '/'))),
   );
-
-  /** A sign-in that came back without one, or could not start: the card says so (otherwise the guard is on its way to the IAM). */
-  protected readonly signInFailed = computed(() => this.auth.signInFailure() !== null);
 
   /**
    * Signed out in the middle of practising (the sign-in ran out elsewhere):
@@ -133,11 +144,15 @@ export class AppComponent {
   /**
    * Why the banner's (or the bar's) Sign in did nothing: a sign-in that could
    * not start in the middle of practising (the browser refused the storage
-   * the sign-in in progress is kept in) - worded as the sign-in card words it.
+   * the sign-in in progress is kept in) - in the family's words of the
+   * failure's screen (anotoki.signIn.*, from the code alone: an owner's
+   * rewording in the database, else this app's English kept in code, else
+   * the library's own).
    */
   protected readonly signInWhy = computed(() => {
     const failure = this.auth.signInFailure();
-    return failure ? this.i18n.t(signInFailureKey(failure.code), signInFailureParams(failure.code)) : '';
+    if (!failure) return '';
+    return failureText(failure.code, signInWords(this.i18n.signInLanguage(), undefined, (key) => this.i18n.libraryWord(key)).words);
   });
 
   protected readonly words = VISITOR_WORDS;
@@ -149,7 +164,7 @@ export class AppComponent {
   /** How long this browser's progress is kept, and that signing in keeps it: on Learn and Stats only, while no sign-in is required. */
   protected readonly visitorNotice = computed(() => this.visitor() && !this.auth.loginRequired() && (this.path() === '/' || this.path() === '/stats'));
 
-  /** The API said a sign-in is required now (AuthService.requireSignInNow()): the visitor's saves wait for it. */
+  /** The API said a sign-in is required now (AnotokiAuth.noteSignInRequired()): the visitor's saves wait for it. */
   protected readonly visitorSignInNow = computed(() => this.visitor() && this.auth.loginRequired());
 
   /** The server no longer knows this browser's key: what it kept has ended. Once, closable. */
@@ -164,7 +179,7 @@ export class AppComponent {
   /**
    * Why a sign-in started from a visitor's page did not happen - refused by
    * the IAM (access_denied: this account may not use Piano Academy now) or
-   * unable to start - in the sign-in card's words, never swallowed: the
+   * unable to start - in the failure's screen's words, never swallowed: the
    * visitor stays on their page, and the signed-out banner is not theirs.
    */
   protected readonly visitorSignInWhy = computed(() => {
@@ -175,6 +190,9 @@ export class AppComponent {
   protected closeVisitorSignInWhy(): void {
     this.whyClosed.set(this.auth.signInFailure());
   }
+
+  /** The feedback form's dialog is open (its code is loaded the first time). */
+  protected readonly feedbackOpen = signal(false);
 
   protected openChangelog(): void {
     this.changelogDialog().open();

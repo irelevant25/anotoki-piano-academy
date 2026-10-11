@@ -207,7 +207,8 @@ function transferPreview(int $userId, array $data): array
 function transferImport(int $userId, array $data, bool $replace = false): array
 {
     return dbTx(static function () use ($userId, $data, $replace): array {
-        usersSeen($userId, null);
+        // A request's person has their row already (the people module); the command line's may not yet.
+        usersEnsure($userId);
         storeLockGeneration($userId);
 
         $current = storeProgressCounts($userId);

@@ -58,6 +58,9 @@ function held_routes(): array
         ['PUT', '/api/admin/translations', ['values' => new stdClass()]],
         ['GET', '/api/admin/people', null],
         ['DELETE', '/api/admin/people/1', null],
+        ['GET', '/api/admin/audit', null],
+        ['GET', '/api/admin/feedback', null],
+        ['POST', '/api/feedback', ['kind' => 'idea', 'message' => 'x']],
         ['GET', '/api/nope', null],
     ];
 }
@@ -146,10 +149,10 @@ test('an update waiting: 503 update_pending everywhere but the open paths - whic
     $name = test_empty_db('waiting');
     $pdo = dbConnect(machineDatabaseSettings(), $name);
     // Everything but the newest migration: the words' tables are there, and so is an update to apply - the app's
-    // newest, and the library's set of the words after it.
+    // newest, and the library's sets of the words and the people after it (its admin tools' set ran first).
     $newest = migrationFiles()[count(migrationFiles()) - 1];
     assert_same(null, test_migrate_before($pdo, $newest)['failed']);
-    $waiting = array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] !== MIGRATIONS_SET || $file['name'] === $newest));
+    $waiting = array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] === MIGRATIONS_SET ? $file['name'] === $newest : $file['set'] !== 'anotoki_admin'));
     $app = server_on(test_config_dir(test_auth_iam(), $name));
 
     // Asked by anybody - the tests' IAM requires a sign-in, and nobody is signed in.
@@ -177,7 +180,7 @@ test('an update waiting: 503 update_pending everywhere but the open paths - whic
 
     // Open: the sign-in settings (signing in works while an update waits), the words, the health check...
     $signIn = call($app['base'], 'GET', '/api/auth/config');
-    assert_same([200, ['issuer', 'clientId', 'loginRequired']], [$signIn['status'], array_keys((array) $signIn['body'])]);
+    assert_same([200, ['issuer', 'client_id', 'login_required', 'sign_in_available']], [$signIn['status'], array_keys((array) $signIn['body'])]);
     $words = call($app['base'], 'GET', '/api/translations/sk');
     assert_same([200, 'sk'], [$words['status'], $words['body']['language'] ?? null], 'the words the database has');
     assert_true(count((array) ($words['body']['values'] ?? [])) > 100, 'all of them');
@@ -206,7 +209,7 @@ test('the database out of reach: unavailable - nothing is held at the gate, and 
     $app = server_on($config, '/');
 
     assert_status_to_everybody($app['base'], ['state' => 'unavailable', 'installed' => false]);
-    assert_same(['issuer', 'clientId', 'loginRequired'], array_keys((array) call($app['base'], 'GET', '/api/auth/config')['body']), 'what needs no database answers');
+    assert_same(['issuer', 'client_id', 'login_required', 'sign_in_available'], array_keys((array) call($app['base'], 'GET', '/api/auth/config')['body']), 'what needs no database answers');
     $state = call($app['base'], 'GET', '/api/state', null, bearer(test_token(PERSON)));
     assert_same([503, ['error' => 'The database is not reachable right now.', 'code' => 'database_unavailable']], [$state['status'], $state['body']], 'the app\'s own answer, as before');
 });
@@ -225,11 +228,11 @@ test('ready: the status says so to anybody - sign-in required or not, the IAM in
     // The IAM out of reach - nothing answers at its address, so asked whether a sign-in is required the app fails
     // closed: the status asks it nothing.
     $offline = start_app(test_auth_iam(['issuer' => 'http://127.0.0.1:1', 'application_file' => null]));
-    assert_same(true, call($offline['base'], 'GET', '/api/auth/config')['body']['loginRequired'] ?? null, 'the IAM out of reach: a sign-in is required');
+    assert_same(true, call($offline['base'], 'GET', '/api/auth/config')['body']['login_required'] ?? null, 'the IAM out of reach: a sign-in is required');
     assert_status_to_everybody($offline['base'], ['state' => 'ready', 'installed' => false]);
 
     assert_same(200, call($app['base'], 'GET', '/api/state', null, bearer(test_token(PERSON)))['status']);
     assert_same(404, call($app['base'], 'GET', '/api/nope')['status']);
     assert_same(405, call($app['base'], 'POST', '/api/site-status')['status'], 'the status is only read');
-    assert_same([], array_values(array_filter(server_problems($app), static fn(string $line): bool => !str_contains($line, '[auth] token refused'))));
+    assert_same([], array_values(array_filter(server_problems($app), static fn(string $line): bool => !str_contains($line, '[anotoki auth] token refused'))));
 });

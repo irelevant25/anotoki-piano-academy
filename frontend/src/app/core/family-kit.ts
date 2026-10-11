@@ -1,9 +1,9 @@
 import { EnvironmentProviders, inject } from '@angular/core';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { provideAnotokiShell } from '@anotoki/lib/shell';
 import { TranslationService } from '@anotoki/lib/translations';
 import { IconPaths, provideAnotokiUi } from '@anotoki/lib/ui/config';
 import { rect } from '@anotoki/lib/ui/icon';
-import { AuthService } from './auth/auth.service';
 
 /** Where the theme on the screen is kept - the kit's theme-boot.js (index.html, data-storage-key) reads it before the first paint. */
 export const THEME_KEY = 'piano-academy:theme';
@@ -32,10 +32,10 @@ export const PIANO_ICON: IconPaths = [rect(2, 5, 20, 14, 2), 'M8 19v-5', 'M12 19
  *   (kept-english.ts, KEPT_LIBRARY_ENGLISH), else the kit's own built-in
  *   English and informal Slovak - never a key.
  * - The theme is the family's ThemeService: the anotoki account's for
- *   somebody signed in (the IAM's 015 - AuthService.preferences, null for
+ *   somebody signed in (the IAM's 015 - AnotokiAuth.preferences, null for
  *   nobody, a visitor, an IAM that sends none: then this device's, and
- *   nothing is saved), saved from the bar's switch with the SDK's
- *   savePreferences(); the theme on the screen kept under THEME_KEY.
+ *   nothing is saved), saved from the bar's switch with
+ *   AnotokiAuth.savePreferences(); the theme on the screen kept under THEME_KEY.
  * - The language chooser is the translations module's (forShell()): this
  *   app's languages, under their own names, a choice through setLanguage() -
  *   which saves a signed-in person's choice to the account and says when it
@@ -50,7 +50,7 @@ export function provideFamilyKit(): EnvironmentProviders[] {
       icons: { piano: PIANO_ICON },
     })),
     provideAnotokiShell(() => {
-      const auth = inject(AuthService);
+      const auth = inject(AnotokiAuth);
       return {
         theme: {
           storageKey: THEME_KEY,

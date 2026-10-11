@@ -1,11 +1,10 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { authInterceptor } from '../auth/auth.interceptor';
-import { AuthService } from '../auth/auth.service';
-import { VISITOR_KEY_HEADER, VISITOR_STORAGE_KEY } from '../auth/visitor-key';
+import { VISITOR_KEY_HEADER, anotokiAuthInterceptor } from '@anotoki/lib/auth';
+import { VISITOR_STORAGE_KEY, VisitorKey } from '../auth/visitor-key';
 import { VISITOR_WORDS } from '../i18n/visitor-words';
+import { TestAuth, provideTestAuth, provideTestAuthInterceptor, testPerson } from '../testing/test-auth';
 import { ApiService, GENERATION_HEADER, VISITOR_OWNER } from './api.service';
 
 /** Lets the service's awaits run until it has sent its next request. */
@@ -17,24 +16,18 @@ const ROUND = { mode: 'trainer' as const, attempts: 4, correct: 4, accuracy: 100
 const STORED = { id: '1-a', recordedAt: '2026-10-05T08:00:00.000Z', ...ROUND };
 
 describe('ApiService on a visitor’s page (nobody signed in, no sign-in required)', () => {
-  const person = signal<string | null>(null);
-  const loginRequired = signal(false);
-  const auth = {
-    signedIn: () => person() !== null,
-    userKey: () => person(),
-    loginRequired: () => loginRequired(),
-    requireSignInNow: () => loginRequired.set(true),
-    accessToken: async () => (person() !== null ? 'token-7' : null),
-    refreshToken: async () => null,
-  };
+  let auth: TestAuth;
   let api: ApiService;
   let http: HttpTestingController;
 
   beforeEach(() => {
     localStorage.clear();
-    person.set(null);
-    loginRequired.set(false);
-    TestBed.configureTestingModule({ providers: [provideHttpClient(withInterceptors([authInterceptor])), provideHttpClientTesting(), { provide: AuthService, useValue: auth }] });
+    // A visitor's page, the family's interceptor as app.config.ts has it (core/auth/site-auth.ts: the progress routes carry the key).
+    auth = new TestAuth().visiting();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(withInterceptors([anotokiAuthInterceptor])), provideHttpClientTesting(), ...provideTestAuth(auth), ...provideTestAuthInterceptor()],
+    });
+    auth.store = TestBed.inject(VisitorKey);
     api = TestBed.inject(ApiService);
     http = TestBed.inject(HttpTestingController);
     api.setDataOwner(VISITOR_OWNER);
@@ -177,10 +170,9 @@ describe('ApiService on a visitor’s page (nobody signed in, no sign-in require
     expect(api.unsavedSessions()).toBe(0);
   });
 
-  it('never sends a person’s call for a visitor - the own file, the admin panel, the move: 401 here, nothing sent', async () => {
+  it('never sends a person’s call for a visitor - the own file, the move: 401 here, nothing sent', async () => {
     await expect(api.exportMyProgress()).rejects.toMatchObject({ status: 401, code: 'sign_in_required' });
     await expect(api.previewImport('{}')).rejects.toMatchObject({ status: 401 });
-    await expect(api.people()).rejects.toMatchObject({ status: 401 });
     await expect(api.moveVisitor(KEY)).rejects.toMatchObject({ status: 401 });
     await settle();
     http.expectNone(() => true);
@@ -189,10 +181,11 @@ describe('ApiService on a visitor’s page (nobody signed in, no sign-in require
   it('sends nothing more once somebody signed in (the page loads again) or a sign-in is required now (the key stays)', async () => {
     await loaded(31);
     localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
-    person.set('7');
+    // Somebody signed in in another tab: the IAM's client holds them, and the page is about to load afresh.
+    auth.person.set(testPerson({ sub: '7' }));
     await expect(api.saveProgress({})).rejects.toMatchObject({ status: 409, wrongUser: true });
-    person.set(null);
-    loginRequired.set(true);
+    // Signed out again - and the IAM requires a sign-in now.
+    auth.signedOut();
     await expect(api.saveProgress({})).rejects.toMatchObject({ status: 401, code: 'sign_in_required' });
     await expect(api.fetchState()).rejects.toMatchObject({ status: 401 });
     await settle();
@@ -201,7 +194,7 @@ describe('ApiService on a visitor’s page (nobody signed in, no sign-in require
   });
 
   it('a person’s page takes no generation 0: nobody’s progress is never a person’s', async () => {
-    person.set('7');
+    auth.signInAs({ sub: '7' });
     api.setDataOwner('7');
     await loaded(0);
     await expect(api.saveProgress({})).rejects.toMatchObject({ status: 409, code: 'progress_changed' });
@@ -211,7 +204,7 @@ describe('ApiService on a visitor’s page (nobody signed in, no sign-in require
 
   describe('after a sign-in', () => {
     beforeEach(() => {
-      person.set('7');
+      auth.signInAs({ sub: '7' });
       api.setDataOwner('7');
     });
 

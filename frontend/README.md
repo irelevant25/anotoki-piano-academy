@@ -24,25 +24,31 @@ src/
                                      own controls - bare buttons and selects, .btn-primary, .card, .chip - by
                                      rules that never reach the family's components ($piano-own)
   app/
-    app.config.ts, app.routes.ts     providers (the interceptors - the family's siteStatusInterceptor first -;
-                                     the words, provideSiteTranslations(); the family's kit and frame,
-                                     provideFamilyKit(); where the site stands asked, then the start, in the app
-                                     initializer) and the routes: every learner page behind signInGuard (a visitor
-                                     too, while the IAM requires no sign-in), /admin behind adminSignInGuard
-                                     (always a sign-in); /admin/translations and /admin/languages are the family's
-                                     pages (@anotoki/lib/translations/admin, lazy; anotokiUnsavedChangesGuard),
-                                     /admin/migrations the family's Migrations page (@anotoki/lib/migrations/page, lazy)
+    app.config.ts, app.routes.ts     providers (the interceptors - the family's siteStatusInterceptor first, then
+                                     its anotokiAuthInterceptor -; the words, provideSiteTranslations(); the sign-in,
+                                     provideSiteAuth(); the family's kit and frame, provideFamilyKit(); People, the
+                                     admin tools and the feedback form, provideSiteAdmin(); where the site stands
+                                     asked, then the start, in the app initializer) and the routes: every learner
+                                     page behind the family's personOrVisitorGuard (a visitor too, while the IAM
+                                     requires no sign-in), /admin behind staffGuard (always a sign-in), each ADMIN
+                                     page behind adminGuard; /auth/callback and /sign-in-failed the family's
+                                     (AuthCallbackComponent, SignInFailureComponent); every admin page the family's,
+                                     lazy - /admin/translations and /admin/languages (@anotoki/lib/translations/admin;
+                                     anotokiUnsavedChangesGuard), /admin/people (@anotoki/lib/people/page),
+                                     /admin/errors, /audit, /feedback, /backups (@anotoki/lib/admin/*),
+                                     /admin/migrations (@anotoki/lib/migrations/page)
     app.component.*                  the frame: the top bar, the notes that cannot be missed (signed out,
                                      progress changed elsewhere; a visitor's: the notice on Learn and Stats,
                                      sign-in required meanwhile, a refused sign-in, a save refused, the progress
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
                                      ready), the family's <anotoki-site-gate> with the page or a boot card as its
                                      marked template (<ng-template anotokiSitePages>: made only while the gate
-                                     shows it, so nothing runs behind the status page), the footer's version,
-                                     the family's questions (<anotoki-confirm-host>: ConfirmService)
-    boot/                            the cards drawn instead of the app: sign in (after a failed sign-in
-                                     only), could not load. (Not set up, being updated, not available: the
-                                     family's status page, @anotoki/lib/migrations)
+                                     shows it, so nothing runs behind the status page), the footer's "Send
+                                     feedback" (ui/feedback-dialog, in a @defer) and version, the family's
+                                     questions (<anotoki-confirm-host>: ConfirmService)
+    boot/                            the card drawn instead of the app: could not load. (Not set up, being
+                                     updated, not available: the family's status page, @anotoki/lib/migrations; a
+                                     sign-in that did not work: the family's screen on /sign-in-failed)
     core/
       family-kit.ts                  provideFamilyKit(): the anotoki family's kit (@anotoki/lib/ui/config) and frame
                                      (@anotoki/lib/shell) wired to this app's - their words (TranslationService's
@@ -50,11 +56,14 @@ src/
                                      the theme (the family's ThemeService: the account's for somebody signed in,
                                      saved from the bar's switch; this device's otherwise, under
                                      piano-academy:theme), the language chooser (forShell())
-      auth/                          AuthService (the IAM's browser SDK 1.2.0, vendored; loginRequired - the IAM's
-                                     switch; preferences - the account's theme, dates and clock while signed in -
-                                     and savePreferences()), the sign-in guards, the interceptor (the token for a
-                                     person's request, the key for a visitor's - as ApiService issued it),
-                                     VisitorKey (the visitor's key in localStorage)
+      auth/                          site-auth.ts (provideSiteAuth(): the family's sign-in, @anotoki/lib/auth, wired
+                                     to this app - AnotokiAuth: the state, the person, loginRequired - the IAM's
+                                     switch -, preferences - the account's theme, dates and clock while signed in -
+                                     and savePreferences(); its interceptor: the token for a person's request, the
+                                     key for a visitor's on the progress routes - as ApiService issued it; no sign-in
+                                     by the IAM's hint), VisitorKey (the visitor's key in localStorage)
+      site-admin.ts                  provideSiteAdmin(): the family's People page (this app's counts and its
+                                     question before a delete), admin tools and feedback form wired to this app
       api/                           ApiService: one method a route of ../backend; who each call is for
                                      (ISSUED_AS); the session outbox; the generation every save names; a
                                      visitor's one "maker"; the move at a sign-in
@@ -71,26 +80,29 @@ src/
                                      the sign-in settings are read, the admin pages' checks), the localDate pipe
                                      and date-patterns (the account's date order and clock for somebody signed in),
                                      the kept English (KEPT_ENGLISH; KEPT_LIBRARY_ENGLISH: the library's words this
-                                     app says its own way), dynamic-keys, error-text, visitor-words (the keys of
+                                     app says its own way - the theme switch's, the sign-in failure's), dynamic-keys,
+                                     visitor-words (the keys of
                                      practising without signing in, VISITOR_KEEP_DAYS; visitorRefusalKey() -
                                      ApiService.visitorRefusal; the shell (app.component) and Stats draw them)
-      testing/                       jsdom's missing dialog, popover and checkVisibility (provideTestKit()), the
+      testing/                       TestAuth (the family's AnotokiAuth stood in for: provideTestAuth(),
+                                     provideTestAuthInterceptor()), jsdom's missing dialog, popover and checkVisibility (provideTestKit()), the
                                      family's question read and answered (drawTestQuestions()); a spec's strings
                                      are the library's provideTestTranslations() (@anotoki/lib/translations/testing)
       midi/, notation/, player/, audio/, changelog/, util/
     layouts/top-bar/                 the anotoki family's one bar (@anotoki/lib/shell's <anotoki-top-bar>), told
                                      Piano's brand, sections, person and menu items; its widgets "Not saved yet"
                                      and the piano; a phone's up to PHONE_BAR_MAX (1320); under /admin the
-                                     admin sections and the wordmark, in English
-    layouts/admin-layout/            /admin's frame: the page, or why there is nothing for you
+                                     admin sections - Feedback with the count of new ones - folding up to
+                                     ADMIN_PHONE_BAR_MAX (1280), and the wordmark short at every width, in
+                                     English
+    layouts/admin-layout/            /admin's frame: the page, or why there is nothing for you; asks for the
+                                     feedback's count when an ADMIN opens it
     pages/                           home (the path), lesson (+ steps), trainer, sheet, songs, stats
                                      (+ own-progress: your progress file - signed in; a visitor gets the sign-in
-                                     line in its place), auth-callback
-    pages/admin/                     the admin panel's own: People (ADMIN), adminGuard, admin-error. Translations
-                                     (EDITOR, ADMIN), Languages and Migrations (ADMIN) are the family's pages
-                                     (@anotoki/lib/translations/admin, @anotoki/lib/migrations/page)
+                                     line in its place). Every admin page is the family's (above)
     ui/                              Piano's own: the piano's widget in the bar (midi-panel, its box the family's
-                                     popover), the piano keyboard, the notation, What's new (changelog-dialog)
+                                     popover), the piano keyboard, the notation, What's new (changelog-dialog),
+                                     feedback-dialog (the family's form in the family's dialog)
 public/                              changelog.json (the version shown: MAJOR.MINOR.PATCH, the newest entry's -
                                      package.json's too), anotoki.png (the family's mark), favicon.svg
 proxy.conf.json                      /api and /setup.php to the backend on :8300
@@ -98,7 +110,7 @@ proxy.conf.json                      /api and /setup.php to the backend on :8300
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.3.0): in
+half is the backend's `anotoki/lib`; one version for both - 0.4.1): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -125,6 +137,17 @@ first load - and a spec reads the kit's markup by the kit's own class names
   anotokiSitePages>`, `app.component.html`) and makes it only while it shows
   it - given as it is, the view would be made behind the status page too.
 - `@anotoki/lib/migrations/page` - the admin panel's Migrations page, lazy.
+- `@anotoki/lib/auth` - signing in (`AnotokiAuth`, `provideAnotokiAuth`,
+  `anotokiAuthInterceptor`, `ISSUED_AS` and `CARRIES_VISITOR_KEY`, the
+  guards, `AuthCallbackComponent`, `SignInFailureComponent`, `failureText()`),
+  wired in `core/auth/site-auth.ts`.
+- `@anotoki/lib/people` and `/people/page` - the People page, lazy;
+  `@anotoki/lib/admin` (`provideAnotokiAdmin`, `FeedbackUnread`) and
+  `/admin/errors`, `/admin/audit`, `/admin/feedback`, `/admin/backups` - the
+  admin tools' pages, lazy; `@anotoki/lib/feedback` and `/feedback/form` -
+  the visitors' form, in the footer's dialog (`/ui/dialog`); all wired in
+  `core/site-admin.ts`.
+- `@anotoki/lib/words` - the library's words (`LIBRARY_WORDS`).
 
 To update it: the new release's URL in `package.json`, then `bun install` and
 `npm install --package-lock-only`, with the backend's half to the same
@@ -147,7 +170,8 @@ written in its templates (the family's pages in theirs). State holds keys
 and ids, never sentences, and a learner never sees the server's own sentence.
 
 The top bar is the anotoki family's (`<anotoki-top-bar>`, wrapped by
-`layouts/top-bar`). Its fold, `PHONE_BAR_MAX`, is measured: `node
+`layouts/top-bar`). Its folds, `PHONE_BAR_MAX` and the admin panel's
+`ADMIN_PHONE_BAR_MAX`, are measured: `node
 .claude/skills/check-in-browser/scripts/run.mjs --measure` prints what the
 row needs with the real labels - change the number in `top-bar.component.ts`
 (the family's bar takes it as `phoneMax`; there is no copy in a `.scss`).
@@ -168,7 +192,8 @@ signed out sends you to the IAM first, and back.
 ## Tests
 
 `npm test` runs every `*.spec.ts` beside its code: no server, no browser -
-`HttpTestingController` answers the API, stand-ins stand for the IAM's SDK,
+`HttpTestingController` answers the API, `TestAuth` stands for the family's
+`AnotokiAuth` (`core/testing/test-auth.ts`),
 the library gives a spec its strings (`provideTestTranslations()`,
 `@anotoki/lib/translations/testing`), `core/testing/` jsdom
 what it lacks for the family's components (`provideTestKit()`: the dialog,
@@ -182,9 +207,10 @@ Migrations link, an ADMIN told an update waits and on the Migrations page,
 a signed-out ADMIN's Sign in coming back to the page, the setup page only
 while never installed, the start waiting and resumed after an Apply, no page
 made behind the status page (an update in the middle of practising takes the
-page away); the sign-in
-guard (the way to the IAM and back, the failure escape, the boot states,
-nobody sent to the IAM while the site is not ready); the
+page away); the sign-in as this app wires the family's (`core/auth/site-auth.spec.ts`:
+its settings, the visitors' paths, the failure's route, no hint; the
+routes' guards in `app.routes.spec.ts`; the failure screen in the shell in
+both languages); the
 routes and the admin panel's split by role; every save naming the generation,
 none sent without one, a 409 settled by loading again and the other tabs told,
 a reload in the middle of a round sending none of the old notes, a 428 kept
@@ -202,8 +228,11 @@ row, the sections lit, the menus' keys - Tab and Shift+Tab onto the menu
 button, the phone's menu and its dot, "Not saved yet", the admin panel in
 English with its wordmark, the way into it only while the site is ready, the
 sign-out question); the piano's widget (its box the family's popover); the
-admin panel's routes (the family's Translations and Languages pages, lazy,
-their guard as this app wires it) and People; the family's kit wired to
+admin panel's routes (every page the family's, lazy, the ADMIN pages behind
+`adminGuard`), People and the admin tools as this app wires them
+(`core/site-admin.spec.ts`: the question before a delete, the visitors'
+line, the feedback form's sections), the Feedback link's count and the
+footer's form (the shell's spec); the family's kit wired to
 this app (`core/family-kit.spec.ts`: its words the database's strings of the
 library's keys - the owner's wording -, English in the admin panel, the
 kit's own where the database has none and never a key, this app's English
@@ -225,4 +254,4 @@ backend's (the library's `KeyScanner` as `tools/translation_keys.php` sets it
 up; `php tests/run.php`, `tests/unit/translations.test.php`). Pages in
 a real browser: the committed browser check (DEV.md, "The browser check";
 `.claude/skills/check-in-browser`), on throwaway servers and a throwaway
-database, signed in through the stand-in IAM.
+database, signed in through the family's stand-in IAM.

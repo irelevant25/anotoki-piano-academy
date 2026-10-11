@@ -1,6 +1,6 @@
 import { EnvironmentProviders, inject } from '@angular/core';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { provideAnotokiTranslations } from '@anotoki/lib/translations';
-import { AuthService } from '../auth/auth.service';
 import { KEPT_ENGLISH, KEPT_LIBRARY_ENGLISH } from './kept-english';
 
 /** Where this device's language, the last bundle and the admin panel's drafts are kept: `piano-academy:language`, `:language-cache`, `:localization-drafts` - the names they always had. */
@@ -24,16 +24,18 @@ export const TRANSLATIONS_ROUTES = { translations: '/admin/translations', langua
  * - While no bundle is in memory - the app not set up, the backend out of
  *   reach, a database without its words yet - the shell reads the English
  *   kept in code (kept-english.ts): this app's own keys, and the library's
- *   words it says its own way (the theme switch's "Theme: light").
- * - The account (the IAM's 015, AuthService.preferences): its language - the
+ *   words it says its own way (the theme switch's "Theme: light", the
+ *   sign-in failure's three sentences).
+ * - The account (the IAM's 015, AnotokiAuth.preferences): its language - the
  *   token's `locale` - decides while it keeps the person's choices, and a
- *   choice made in the bar is saved to it (the SDK's savePreferences()); a
+ *   choice made in the bar is saved to it (AnotokiAuth.savePreferences()); a
  *   language the IAM does not offer stays this site's own for the visit,
- *   silently (the SDK's invalid_request), any other refusal - access_denied
+ *   silently (the IAM's invalid_request), any other refusal - access_denied
  *   too - is said under the chooser. Whose the admin panel's drafts are: the
  *   signed-in person's id.
  * - Nothing is asked of the server while its sign-in settings could not be
- *   read (not set up, out of reach): the cached words, or the kept English.
+ *   read (not set up, out of reach: AnotokiAuth's `unavailable`): the cached
+ *   words, or the kept English.
  * - The admin pages: the strings for the staff (EDITOR or ADMIN), the
  *   languages for ADMIN alone - what the server checks again on each route
  *   group; English, as the whole admin panel is.
@@ -43,19 +45,20 @@ export const TRANSLATIONS_ROUTES = { translations: '/admin/translations', langua
  */
 export function provideSiteTranslations(): EnvironmentProviders {
   return provideAnotokiTranslations(() => {
-    const auth = inject(AuthService);
+    const auth = inject(AnotokiAuth);
     return {
       storagePrefix: TRANSLATIONS_STORAGE_PREFIX,
       fallbackEnglish: KEPT_ENGLISH,
       libraryWords: { en: KEPT_LIBRARY_ENGLISH },
       account: {
-        // The token's locale - only somebody signed in has one (not a user the SDK left behind).
-        language: () => (auth.signedIn() ? (auth.user()?.locale ?? null) : null),
+        // The token's locale - only somebody signed in, whose the page is, has one.
+        language: () => auth.locale(),
         decides: () => auth.preferences() !== null,
         save: (code) => auth.savePreferences({ language: code }),
-        userKey: () => auth.userKey(),
+        userKey: () => auth.subject(),
       },
-      canAsk: () => auth.settingsRead(),
+      // The sign-in settings were read: the backend answers, and is set up.
+      canAsk: () => auth.state() !== 'starting' && auth.state() !== 'unavailable',
       admin: {
         allows: { strings: () => auth.isStaff(), languages: () => auth.isAdmin() },
         routes: TRANSLATIONS_ROUTES,

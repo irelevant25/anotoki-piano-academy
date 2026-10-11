@@ -1,16 +1,16 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Component, DestroyRef, Provider, WritableSignal, inject } from '@angular/core';
+import { Component, DestroyRef, Provider, inject } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ROUTES, Router, provideRouter } from '@angular/router';
+import { SignInFailureComponent, type AnotokiUser } from '@anotoki/lib/auth';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { AnotokiThemeMode, ThemeService } from '@anotoki/lib/shell';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AppComponent } from './app.component';
 import { ApiService, VISITOR_OWNER } from './core/api/api.service';
-import { type AnotokiUser } from './core/auth/anotoki-auth';
-import { AuthService } from './core/auth/auth.service';
+import { SIGN_IN_FAILED_ROUTE, provideSiteAuth } from './core/auth/site-auth';
 import { VisitorKey } from './core/auth/visitor-key';
 import { ChangelogEntry, ChangelogService } from './core/changelog/changelog.service';
 import { provideFamilyKit } from './core/family-kit';
@@ -18,9 +18,11 @@ import { KEPT_ENGLISH } from './core/i18n/kept-english';
 import { provideSiteTranslations } from './core/i18n/site-translations';
 import { VISITOR_WORDS } from './core/i18n/visitor-words';
 import { MidiService } from './core/midi/midi.service';
+import { provideSiteAdmin } from './core/site-admin';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
 import { SITE_STATUS_URL, provideSiteMigrations } from './core/state/site-migrations';
+import { TestAuth, provideTestAuth } from './core/testing/test-auth';
 import { provideTestKit } from './core/testing/test-kit';
 
 /**
@@ -45,7 +47,8 @@ interface Shell {
   fixture: ComponentFixture<AppComponent>;
   host: HTMLElement;
   boot: BootService;
-  auth: AuthService;
+  /** The family's AnotokiAuth as the spec drives it (core/testing/test-auth.ts): its state, who, the IAM's switch, a failure. */
+  auth: TestAuth;
   store: ProgressStore;
   midi: MidiService;
   theme: ThemeService;
@@ -72,10 +75,34 @@ class CountedPageComponent {
   }
 }
 
-/** The shell, made with the providers given: the real translation service with no bundle unless they say otherwise - wired as the app wires it (core/i18n/site-translations.ts: the kept English). */
-function shell(providers: Provider[] = []): Shell {
+/**
+ * The shell, made with the providers given: the real translation service with no bundle unless they say otherwise -
+ * wired as the app wires it (core/i18n/site-translations.ts: the kept English) - the family's sign-in configured as
+ * the app configures it (core/auth/site-auth.ts: the failure's screen on its route, its words from this app's), its
+ * state the spec's (nobody known yet: the sign-in settings not read, nothing asked for), and the admin panel's and
+ * the feedback form's configuration (core/site-admin.ts).
+ */
+async function shell(providers: Provider[] = []): Promise<Shell> {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([]), provideSiteTranslations(), provideSiteMigrations(), provideFamilyKit(), ...providers] });
+  const auth = new TestAuth();
+  auth.now.set('starting');
+  TestBed.configureTestingModule({
+    // The shell itself, so its @defer block's component (the feedback dialog) is resolved by compileComponents() below.
+    imports: [AppComponent],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([{ path: SIGN_IN_FAILED_ROUTE.slice(1), component: SignInFailureComponent }]),
+      provideSiteTranslations(),
+      provideSiteMigrations(),
+      provideSiteAuth(),
+      ...provideTestAuth(auth),
+      provideFamilyKit(),
+      provideSiteAdmin(),
+      ...providers,
+    ],
+  });
+  await TestBed.compileComponents();
   // As the app's initializer leaves it: the site asked, and ready.
   const site = TestBed.inject(SiteStatus);
   site.markReady();
@@ -84,7 +111,7 @@ function shell(providers: Provider[] = []): Shell {
     fixture,
     host: fixture.nativeElement,
     boot: TestBed.inject(BootService),
-    auth: TestBed.inject(AuthService),
+    auth,
     store: TestBed.inject(ProgressStore),
     midi: TestBed.inject(MidiService),
     theme: TestBed.inject(ThemeService),
@@ -108,21 +135,15 @@ function statusPage(s: Shell): { title: string | undefined; text: string | undef
   };
 }
 
-/** The SDK holds a session for `user`, or none. */
-function session(auth: AuthService, user: AnotokiUser | null): void {
-  (auth as unknown as { authenticated: { set(value: boolean): void } }).authenticated.set(user !== null);
-  auth.user.set(user);
-}
-
-/** Whether the IAM requires a sign-in, as /api/auth/config said (AuthService.loginRequired). */
-function required(auth: AuthService, value: boolean): void {
-  (auth as unknown as { _loginRequired: WritableSignal<boolean> })._loginRequired.set(value);
+/** Somebody signed in - `user` - or nobody: signed out where the IAM requires a sign-in. */
+function session(auth: TestAuth, user: AnotokiUser | null): void {
+  if (user) auth.signInAs(user);
+  else auth.signedOut();
 }
 
 /** Practising without signing in (the IAM does not require it): the app runs on a visitor's progress. */
 function visiting(s: Shell): void {
-  session(s.auth, null);
-  required(s.auth, false);
+  s.auth.visiting();
   s.api.setDataOwner(VISITOR_OWNER);
   s.store.loaded.set(true);
   s.boot.status.set('ready');
@@ -199,23 +220,8 @@ const STATES: Record<string, (s: Shell) => void> = {
     s.site.report('update_pending');
   },
   'the progress could not be loaded': (s) => s.boot.status.set('load-error'),
-  'nobody signed in, on the way to the IAM (no card)': (s) => {
+  'nobody signed in, on the way to the IAM': (s) => {
     session(s.auth, null);
-    s.boot.status.set('sign-in');
-  },
-  'the sign-in card after a sign-in the IAM turned away': (s) => {
-    session(s.auth, null);
-    s.auth.signInFailure.set({ code: 'access_denied', message: 'This account cannot use Piano Academy' });
-    s.boot.status.set('sign-in');
-  },
-  'the sign-in card after a sign-in that failed': (s) => {
-    session(s.auth, null);
-    s.auth.signInFailure.set({ code: 'state_mismatch', message: 'That sign-in did not start here' });
-    s.boot.status.set('sign-in');
-  },
-  'the sign-in card after a sign-in that could not start': (s) => {
-    session(s.auth, null);
-    s.auth.signInFailure.set({ code: 'storage_unavailable', message: 'This browser will not let the site remember the sign-in in progress' });
     s.boot.status.set('sign-in');
   },
   'running, signed in, a piano connected, the list of changes there': (s) => {
@@ -251,7 +257,7 @@ const STATES: Record<string, (s: Shell) => void> = {
   },
   'running, signed out in the middle of practising, and a sign-in that could not start': (s) => {
     session(s.auth, null);
-    s.auth.signInFailure.set({ code: 'storage_unavailable', message: 'This browser will not let the site remember the sign-in in progress' });
+    s.auth.failed('storage_unavailable');
     s.store.loaded.set(true);
     s.boot.status.set('ready');
   },
@@ -279,11 +285,11 @@ const STATES: Record<string, (s: Shell) => void> = {
   },
   'running as a visitor, and the IAM began to require a sign-in meanwhile': (s) => {
     visiting(s);
-    required(s.auth, true);
+    s.auth.noteSignInRequired();
   },
   'running as a visitor, after a sign-in the IAM turned away': (s) => {
     visiting(s);
-    s.auth.signInFailure.set({ code: 'access_denied', message: 'This account cannot use Piano Academy' });
+    s.auth.failed('access_denied');
   },
   'running, signed in, this browser’s progress moved into the account - which kept its own for some': (s) => {
     session(s.auth, PERSON);
@@ -315,10 +321,14 @@ const BAR = {
   theme: 'anotoki-theme-toggle [role="radio"]',
 } as const;
 
-/** How the top bar is looked at: on a phone's screen (the menu button), with a menu opened, the piano's box, or the sign-out question. */
+/**
+ * How the shell is looked at: on a phone's screen (the menu button), with a menu opened, the piano's box, the
+ * sign-out question, the feedback form - or at another address than the start page (the failure's screen).
+ */
 interface Look {
   phone?: boolean;
-  open?: 'account' | 'phone' | 'piano' | 'sign-out';
+  open?: 'account' | 'phone' | 'piano' | 'sign-out' | 'feedback';
+  at?: string;
 }
 
 /** The screen as wide as a phone, or not: what the top bar asks matchMedia (jsdom has none). */
@@ -336,10 +346,18 @@ async function settledAll(s: Shell): Promise<void> {
 
 async function drawn(state: (s: Shell) => void, providers: Provider[] = [], look: Look = {}): Promise<Shell> {
   screen(look.phone ?? false);
-  const s = shell(providers);
+  const s = await shell(providers);
   state(s);
   await s.fixture.whenStable();
-  if (look.open === 'piano') {
+  if (look.at) {
+    await TestBed.inject(Router).navigateByUrl(look.at);
+    await settledAll(s);
+  }
+  if (look.open === 'feedback') {
+    (s.host.querySelector('#feedback-open') as HTMLButtonElement).click();
+    // Its code is loaded as it opens (a @defer): the dialog and the family's form a moment later.
+    await settledAll(s);
+  } else if (look.open === 'piano') {
     (s.host.querySelector('#midi-button') as HTMLButtonElement).click();
     await s.fixture.whenStable();
   } else if (look.open) {
@@ -390,6 +408,28 @@ const OPENED: [string, (s: Shell) => void, Look][] = [
     s.store.progressFailed.set(true);
     s.boot.status.set('ready');
   }, { open: 'sign-out' }],
+  ['the feedback form, nobody signed in', () => undefined, { open: 'feedback' }],
+  ['the feedback form of a learner', (s) => {
+    session(s.auth, { ...PERSON, email: 'mia@example.test' });
+    s.store.loaded.set(true);
+    s.boot.status.set('ready');
+  }, { open: 'feedback' }],
+  // The failure's screens - the family's, under the bar, where the guards send a sign-in that did not work.
+  ['the failure\'s screen after a sign-in the IAM turned away', (s) => {
+    session(s.auth, null);
+    s.auth.failed('access_denied');
+    s.boot.status.set('sign-in');
+  }, { at: SIGN_IN_FAILED_ROUTE }],
+  ['the failure\'s screen after a sign-in that failed', (s) => {
+    session(s.auth, null);
+    s.auth.failed('invalid_grant');
+    s.boot.status.set('sign-in');
+  }, { at: SIGN_IN_FAILED_ROUTE }],
+  ['the failure\'s screen after a sign-in that could not start', (s) => {
+    session(s.auth, null);
+    s.auth.failed('storage_unavailable');
+    s.boot.status.set('sign-in');
+  }, { at: SIGN_IN_FAILED_ROUTE }],
 ];
 
 describe('the shell with no bundle', () => {
@@ -451,17 +491,30 @@ describe('the shell with no bundle', () => {
     expect(loadError.host.querySelector('#load-error h2')?.textContent).toBe('Could not load your progress');
     expect(loadError.host.querySelector('#boot-retry')?.textContent).toBe('Try again');
 
-    const onTheWay = await drawn(STATES['nobody signed in, on the way to the IAM (no card)']);
-    expect(onTheWay.host.querySelector('.sign-in-card')).toBeNull();
+    const onTheWay = await drawn(STATES['nobody signed in, on the way to the IAM']);
+    expect(onTheWay.host.querySelector('anotoki-sign-in-failure')).toBeNull();
     expect(onTheWay.host.querySelector('.loading')?.textContent).toBe('Loading…');
 
-    const storage = await drawn(STATES['the sign-in card after a sign-in that could not start']);
-    expect(storage.host.querySelector('.sign-in-card [role="alert"]')?.textContent).toBe('This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.');
-
-    const signIn = await drawn(STATES['the sign-in card after a sign-in that failed']);
-    expect(signIn.host.querySelector('.sign-in-card h2')?.textContent).toBe('Sign in');
-    expect(signIn.host.querySelector('#sign-in-start')?.textContent).toBe('Sign in');
-    expect(signIn.host.querySelector('.sign-in-card [role="alert"]')?.textContent).toBe('Signing in did not work. Please try again. (state_mismatch)');
+    // The family's screen of a sign-in that did not work, under the bar: its words this app's where it had its own
+    // (kept-english.ts's KEPT_LIBRARY_ENGLISH, the database's with a bundle), the library's for the rest.
+    const failure = (s: Shell) => ({
+      title: text(s, '.anotoki-sign-in-failure__title'),
+      message: text(s, '.anotoki-sign-in-failure__message'),
+      buttons: Array.from(s.host.querySelectorAll('.anotoki-sign-in-failure__actions button')).map((button) => button.textContent?.trim()),
+    });
+    const [denied, failed, storage] = ['turned away', 'failed', 'could not start'].map((what) => OPENED.find(([name]) => name.endsWith(what))!);
+    expect(failure(await drawn(denied[1], [], denied[2]))).toEqual({
+      title: 'Signing in did not work',
+      message: 'Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.',
+      buttons: ['Try again', 'Back'],
+    });
+    expect(failure(await drawn(failed[1], [], failed[2])).message).toBe('Signing in did not work. Please try again. (invalid_grant)');
+    const cannot = await drawn(storage[1], [], storage[2]);
+    expect(failure(cannot).message).toBe('This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.');
+    expect(cannot.host.querySelector('.anotoki-sign-in-failure__message')?.getAttribute('role')).toBe('alert');
+    // Under the bar, in the view's place: the bar has no sections yet - nothing to practise on.
+    expect(cannot.host.querySelector('#view-root anotoki-sign-in-failure')).not.toBeNull();
+    expect(cannot.host.querySelector(BAR.nav)).toBeNull();
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there']);
     expect(Array.from(running.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
@@ -498,11 +551,11 @@ describe('the shell with no bundle', () => {
     expect(signedOut.host.querySelector(BAR.signIn)?.textContent?.trim()).toBe('Sign in');
     expect(signedOut.host.querySelector('#signed-out-why')).toBeNull();
 
-    // The banner's (or the bar's) Sign in could not even start: the banner says why, as the sign-in card would - the page stays.
+    // The banner's (or the bar's) Sign in could not even start: the banner says why, in the failure's screen's words - the page stays.
     const cannotStart = await drawn(STATES['running, signed out in the middle of practising, and a sign-in that could not start']);
     expect(cannotStart.host.querySelector('#signed-out-why')?.textContent).toBe('This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.');
     expect(cannotStart.host.querySelector('#signed-out-sign-in')?.textContent).toBe('Sign in');
-    expect(cannotStart.host.querySelector('app-sign-in-card')).toBeNull();
+    expect(cannotStart.host.querySelector('anotoki-sign-in-failure')).toBeNull();
 
     // A phone: "Piano" beside the mark, the menu button - and in its menu the sections, then the person's items.
     const phone = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { phone: true, open: 'phone' });
@@ -563,18 +616,18 @@ describe('the shell with no bundle', () => {
     expect(now.host.querySelector('#visitor-notice')).toBeNull();
     expect(now.host.querySelector('#signed-out-banner')).toBeNull();
 
-    // A sign-in the IAM turned away (MEMBER taken away, say): said in the sign-in card's words, never swallowed - and closable.
+    // A sign-in the IAM turned away (MEMBER taken away, say): said in the failure's screen's words, never swallowed - and closable.
     const denied = await drawn(STATES['running as a visitor, after a sign-in the IAM turned away']);
     expect(text(denied, '#visitor-sign-in-why span')).toBe('Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.');
     expect(denied.host.querySelector('#visitor-sign-in-why')?.getAttribute('role')).toBe('alert');
     expect(denied.host.querySelector('#signed-out-banner')).toBeNull();
-    expect(denied.host.querySelector('app-sign-in-card')).toBeNull();
+    expect(denied.host.querySelector('anotoki-sign-in-failure')).toBeNull();
     expect(denied.host.querySelector('#visitor-notice')).not.toBeNull();
     (denied.host.querySelector('#visitor-sign-in-why-close') as HTMLButtonElement).click();
     await denied.fixture.whenStable();
     expect(denied.host.querySelector('#visitor-sign-in-why')).toBeNull();
     // Another failure is said again.
-    denied.auth.signInFailure.set({ code: 'storage_unavailable', message: '' });
+    denied.auth.failed('storage_unavailable');
     await denied.fixture.whenStable();
     expect(text(denied, '#visitor-sign-in-why span')).toBe('This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.');
 
@@ -615,7 +668,7 @@ describe('the shell with no bundle', () => {
 
   it('words what stands in for a name, and a problem with the piano, itself - the services hold no sentence', async () => {
     const nameless = await drawn(STATES['running, signed in with a token that names nobody, a save that did not get through, no MIDI device']);
-    expect(nameless.auth.displayName()).toBeNull();
+    expect(nameless.auth.displayName()).toBe('');
     expect(nameless.host.querySelector(BAR.personName)?.textContent).toBe('Signed in');
     expect(nameless.host.querySelector('#save-status')?.textContent).toBe('Not saved yet');
     expect(nameless.host.querySelector('#save-status')?.getAttribute('title')).toBe('Some of your progress is not on the server yet. The app keeps trying.');
@@ -660,16 +713,45 @@ describe('the shell with no bundle', () => {
 
     const admin = await drawn((s) => {
       STATES['running, signed in, a piano connected, the list of changes there'](s);
-      s.auth.user.set({ ...PERSON, roles: ['ADMIN'] });
+      s.auth.signInAs({ ...PERSON, roles: ['ADMIN'] });
     }, [], open);
     expect(adminLink(admin)?.textContent?.trim()).toBe('Admin panel');
     expect(role(admin)?.textContent).toBe('Administrator');
 
     const member = await drawn((s) => {
       STATES['running, signed in, a piano connected, the list of changes there'](s);
-      s.auth.user.set({ ...PERSON, roles: ['MEMBER'] });
+      s.auth.signInAs({ ...PERSON, roles: ['MEMBER'] });
     }, [], open);
     expect(adminLink(member)).toBeNull();
+  });
+
+  it('opens the family\'s feedback form from the footer - for everybody, in the library\'s words - and closes it again', async () => {
+    // Nobody signed in, nothing loaded yet: the footer has it all the same.
+    const nobody = await drawn(() => undefined);
+    expect(text(nobody, '#feedback-open')).toBe('Send feedback');
+    // Its code is not loaded until it is opened.
+    expect(nobody.host.querySelector('app-feedback-dialog, anotoki-feedback-form')).toBeNull();
+
+    const opened = await drawn(() => undefined, [], { open: 'feedback' });
+    // In the family's dialog, its heading the form's title (the form draws none of its own).
+    expect(text(opened, 'anotoki-dialog .anotoki-dialog__title')).toBe('Send feedback');
+    expect(opened.host.querySelector('anotoki-dialog anotoki-feedback-form')).not.toBeNull();
+    expect(opened.host.querySelector('anotoki-feedback-form .anotoki-feedback-form__title')).toBeNull();
+    // The places of this app it can be about, in the page's words; nobody signed in: no "without my name".
+    expect(opened.host.querySelector('anotoki-feedback-form [data-section]')).not.toBeNull();
+    expect(opened.host.querySelector('anotoki-feedback-form [data-anonymous]')).toBeNull();
+    // Cancel closes it.
+    (opened.host.querySelector('anotoki-feedback-form [data-cancel]') as HTMLButtonElement).click();
+    await settledAll(opened);
+    expect(opened.host.querySelector('anotoki-dialog')).toBeNull();
+    // And it opens again, afresh.
+    (opened.host.querySelector('#feedback-open') as HTMLButtonElement).click();
+    await settledAll(opened);
+    expect(opened.host.querySelector('anotoki-dialog anotoki-feedback-form')).not.toBeNull();
+
+    // A learner: "send it without my name" is offered.
+    const learner = await drawn(OPENED.find(([name]) => name === 'the feedback form of a learner')![1], [], { open: 'feedback' });
+    expect(learner.host.querySelector('anotoki-feedback-form [data-anonymous]')).not.toBeNull();
   });
 
   /** The stub page under every address - and the Migrations page's - for the gate's cases. */
@@ -762,12 +844,10 @@ describe('the shell with no bundle', () => {
     // The address bar, as the router leaves it in a browser.
     history.replaceState(null, '', '/admin/migrations');
     try {
-      const login = vi.fn(async (_options: { returnTo: string; uiLocales?: string }) => undefined);
-      (signedOut.auth as unknown as { client: unknown }).client = { login };
+      // The family's sign-in (BootService.signIn()): it comes back to the page it started on - the address bar's.
       (signedOut.host.querySelector('anotoki-site-status button') as HTMLButtonElement).click();
       await settled(signedOut);
-      expect(login).toHaveBeenCalledTimes(1);
-      expect(login).toHaveBeenCalledWith({ returnTo: '/admin/migrations' });
+      expect(signedOut.auth.signIn).toHaveBeenCalledTimes(1);
 
       // Back from the IAM (its callback puts the address back before the router reads it): the ADMIN is on the Migrations page.
       const back = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
@@ -796,7 +876,7 @@ describe('the shell with no bundle', () => {
     // An EDITOR: the status page, whatever the address.
     const editor = await drawn((s) => {
       STATES['an update waits, a learner signed in'](s);
-      s.auth.user.set({ ...PERSON, roles: ['MEMBER', 'EDITOR'] });
+      s.auth.signInAs({ ...PERSON, roles: ['MEMBER', 'EDITOR'] });
     }, [anyPage]);
     await go(editor, '/admin/migrations');
     expect(editor.host.querySelector('#stub-page')).toBeNull();

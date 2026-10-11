@@ -26,7 +26,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                        read). ?dryRun=true: what it would do, nothing written.
  *                        Into an account with progress only with ?replace=true
  *                        (409 has_progress otherwise). 422 not_an_export /
- *                        invalid_export, 413 too_large over EXPORT_LIMIT.
+ *                        invalid_export, 413 too_large over EXPORT_LIMIT. An
+ *                        import is written into the audit log (progress.imported:
+ *                        the person, the counts, whether it replaced progress).
  *
  * The two PUTs name the generation of the progress they were made to (the
  * Progress-Generation header, from GET /api/state): 428 generation_required
@@ -164,5 +166,12 @@ $app->post('/api/me/import', function (Request $request, Response $response): Re
         }
     }
 
-    return respondJson($response, transferImport($userId, $data, $replace) + ['leftOut' => $data['leftOut']]);
+    $imported = transferImport($userId, $data, $replace);
+    // A person's progress replaced by a file is theirs to do - and worth being able to tell afterwards
+    // (api/admin_tools.php's audit log): what came in, and whether it took the place of what was there.
+    audit($request, 'progress.imported', 'user', $userId, [
+        'notes' => $imported['notes'], 'steps' => $imported['steps'], 'sessions' => $imported['sessions'], 'replaced' => $imported['replaced'],
+    ]);
+
+    return respondJson($response, $imported + ['leftOut' => $data['leftOut']]);
 })->add(requireUser());

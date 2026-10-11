@@ -20,11 +20,15 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * log); the browser keeps it and sends it back in the X-Visitor-Key request
  * header. The row keeps only its SHA-256, and a request is that visitor when
  * the hash of the key it sends is a row's - the key has 256 bits, so a plain
- * lookup is safe. requireOwner() (meddleware/auth.php) and the move at
- * sign-in (routes/visitor.php, with a token) are its only readers.
+ * lookup is safe. The anotoki family's library reads it (its Identify, with
+ * visitorFound() - only for a request with no Bearer header while no sign-in
+ * is required, meddleware/auth.php), and only the progress routes take a
+ * visitor for anybody (requireOwner()); the move at sign-in
+ * (routes/visitor.php, with a token) reads it itself.
  *
- *   visitorFind()     the visitor of a key, seen now (written at most once an
- *                     hour); unknown or malformed: 401 visitor_unknown
+ *   visitorFound()    the visitor of a key, seen now (written at most once an
+ *                     hour); unknown or malformed: null - the library answers
+ *                     401 visitor_unknown
  *   visitorMake()     a new visitor, inside the transaction of the save that
  *                     makes it, after the limits: a refused or failed save
  *                     makes nobody and counts nothing
@@ -162,11 +166,16 @@ function visitorUnknown(): ApiError
     return new ApiError(401, 'visitor_unknown', 'This browser\'s progress without signing in has ended: it was not used for ' . VISITOR_KEEP_DAYS . ' days, or it was moved into an account at a sign-in.');
 }
 
-/** The visitor of this key, seen now (last_seen_at written at most once an hour) - or 401 visitor_unknown. */
-function visitorFind(string $key): SiteUser
+/**
+ * The visitor of this key, seen now (last_seen_at written at most once an
+ * hour) - or null for a key nobody has, or one that is no key: the library's
+ * Identify then answers 401 visitor_unknown. 005 pending: 503
+ * visitors_unavailable.
+ */
+function visitorFound(string $key): ?SiteUser
 {
     if (preg_match(VISITOR_KEY_PATTERN, $key) !== 1) {
-        throw visitorUnknown();
+        return null;
     }
     visitorsMustBeReady();
 
@@ -175,7 +184,7 @@ function visitorFind(string $key): SiteUser
         [visitorHash($key)]
     );
     if ($row === null) {
-        throw visitorUnknown();
+        return null;
     }
     if ($row['stale'] === true || $row['stale'] === 't') {
         dbExec("UPDATE users SET last_seen_at = now() WHERE id = ? AND id < 0 AND last_seen_at < now() - interval '1 hour'", [(int) $row['id']]);

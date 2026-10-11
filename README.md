@@ -104,7 +104,14 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   the browser in the admin panel (`/admin`, in English; **Admin panel** in
   your menu, and the bar there has its sections): an account with the role EDITOR of Piano Academy
   rewords them, an ADMIN also adds and deletes languages, sees everybody's
-  progress counts (**People**) and applies database updates (**Migrations**).
+  progress counts (**People**), reads the **Error log**, the **Audit log**
+  and the **Feedback**, keeps the **Backups** and applies database updates
+  (**Migrations**).
+- **Send feedback**, at the foot of every page - signed in or not: a
+  problem or an idea, and which part of the app it is about. It is kept for
+  the app's administrators (the bar counts the new ones) and mails nobody.
+- **If signing in does not work**, a page of its own says why, with **Try
+  again** and a way back to where you were.
 
 ### Data and privacy
 
@@ -122,7 +129,22 @@ question - never mixed with it. If your progress is replaced or deleted
 somewhere else while a page is open, that page loads it again and says so; it
 never saves the old progress back. An administrator of the app sees how much
 progress everybody has and can delete a person's data. An operator can do the same from a shell
-(`php tools/progress.php` in `backend/`).
+(`php tools/progress.php` in `backend/`). When somebody deletes their anotoki
+account, the app forgets their name too (it asks the IAM at most hourly,
+while the site is in use), and the address and browser their feedback gave;
+their progress stays, nobody's.
+
+Feedback keeps what you write, its kind and the part of the app you chose,
+the page's address without its query, the language, your browser's name
+and - only if there is one - an address to answer you at: the one you type,
+or signed in with the box left empty your account's (none when you tick
+**Send it without my name**). Spam goes after 30 days, a resolved message a
+year after. The server keeps backups of the database on its own disk, for
+the app's administrators: one a day (the last 14), one before every update
+(the last 5) and any made by hand, which stays until the owner deletes it -
+no backup goes for its age, so a deleted account's data stays in the
+backups made before until they go. Its error log keeps what went wrong -
+never a query, a header, a body or an address - for 30 days.
 
 ## Browser support
 
@@ -144,12 +166,27 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
-- English and Slovak (informal), 267 keys of the app's own words in the
-  database (migrations 002 to 009) and the anotoki library's 54 (`anotoki.*`:
+- English and Slovak (informal), 262 keys of the app's own words in the
+  database (migrations 002 to 011) and the anotoki library's 94 (`anotoki.*`:
   the words of the bar, its menus, the language chooser, the theme switch,
-  the dialogs and the status page), a language chooser, and the
+  the dialogs, the status page, the sign-in's failure page and the feedback
+  form), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
+- **Signing in, People and the admin tools through the anotoki family's
+  library (2026-10-11, later).** `anotoki-lib` 0.4.1, both halves. Signing
+  in is the family's (the same tokens in the browser, so nobody is signed
+  out by the move); a sign-in that does not work has a page of its own,
+  saying why, with Try again and a way back. The People page is the
+  family's, and forgets the name and address of anybody who deleted their
+  anotoki account (migration 010 notes when). The admin panel has the
+  family's Error log, Audit log, Feedback (from "Send feedback" at the foot
+  of every page; it mails nobody, the bar counts the new ones) and Backups
+  (one a day, one before every update, and by hand) - for the site's ADMIN
+  alone. Migration 011 moves the sign-in's three failure sentences under the
+  library's keys. 010 and 011 go with 005 to 009 at the hand-over, the
+  library's own files around them in the same Apply. In What's new's 0.4.0:
+  Send feedback, and the sign-in failure's page.
 - **The words through the anotoki family's library (2026-10-11).** Every
   anotoki site now keeps its words the same way, through the family's
   library (`anotoki-lib` 0.3.0, both halves): the words' tables stay as they
@@ -165,7 +202,7 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   language chooser, the theme switch - now three choices: light, dark, or as
   the device is set -, the questions ("Are you sure?") and the font
   (Manrope) are the anotoki family's, from its library's UI kit
-  (`@anotoki/lib` 0.2.0, 0.3.0 since 2026-10-11); Piano Academy keeps its
+  (`@anotoki/lib` 0.2.0, then 0.3.0 and 0.4.1 on 2026-10-11); Piano Academy keeps its
   own colours, its pages, the keyboard and the notation. The family's words
   say what the owner wrote in the database where the app has them.
   Migration 008 takes the old round theme button's words away; it goes with
@@ -192,7 +229,8 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   Academy follows them for somebody signed in: the theme everywhere (the
   admin panel too), dates and times in the order and on the clock chosen.
   The bar's theme button and language button save a signed-in person's
-  choice to the account (the IAM's browser SDK 1.2.0), and the account's
+  choice to the account (then the IAM's browser SDK 1.2.0, the family's
+  library since 0.4.1), and the account's
   language comes before what this browser remembered (the family's order);
   when the account would not take a choice, a note under the button says so
   (migration 006: two sentences, applied at the hand-over with 005). Without

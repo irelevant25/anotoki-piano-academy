@@ -117,13 +117,17 @@ test('the days the notice promises are the days the sweep keeps a visitor - here
     assert_match('/export const VISITOR_KEEP_DAYS = ' . VISITOR_KEEP_DAYS . ';/', $words);
 });
 
-test('a visitor\'s row is made only inside the transaction of a save - and never by usersSeen()', function (): void {
+test('a visitor\'s row is made only inside the transaction of a save - never by the people module, or the command line\'s import', function (): void {
     test_db();
     assert_throws(static fn() => visitorMake(request_from('198.51.100.7')), '/inside the transaction/');
-    assert_throws(static fn() => usersSeen(-3, null), '/is no IAM user id/');
-    assert_throws(static fn() => usersSeen(0, 'x'), '/is no IAM user id/');
+    assert_throws(static fn() => usersEnsure(-3), '/is no IAM user id/');
+    assert_throws(static fn() => usersEnsure(0), '/is no IAM user id/');
+    // The library records a person from a token alone, and a token's subject is an IAM id: 1 or more.
+    foreach (['-3', '0', '', 'x'] as $sub) {
+        assert_same(null, \Anotoki\Lib\Auth\Person::fromClaims(['sub' => $sub]), "sub '$sub' is nobody the people module would record");
+    }
     assert_false((new SiteUser(5, 'p', []))->visitor, 'somebody a token says is no visitor');
-    assert_false(peopleDelete(-1), 'a visitor is nobody on the People page');
+    assert_same(null, peopleDelete(-1), 'a visitor is nobody on the People page');
 });
 
 test('the work after the answer: each piece on its own, a failure logged and never thrown', function (): void {

@@ -68,10 +68,7 @@ function catalogue_seeded(): bool
 function token_of(int $user): string
 {
     if ($user === ROLELESS) {
-        $claims = anotoki_iam_test_claims(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT], $user);
-        unset($claims['roles']);
-
-        return anotoki_iam_test_sign($claims, test_keys()['private_pem'], test_keys()['kid']);
+        return test_token($user, [], ['roles' => null]);
     }
 
     return test_token($user, match ($user) {
@@ -178,7 +175,7 @@ function cli(string ...$arguments): array
 /** What a server logged that it should not have: why a token was refused is meant to be there. */
 function problems_of(array $app): array
 {
-    return array_values(array_filter(server_problems($app), static fn(string $line): bool => !str_contains($line, '[auth] token refused')));
+    return array_values(array_filter(server_problems($app), static fn(string $line): bool => !str_contains($line, '[anotoki auth] token refused')));
 }
 
 /** Somebody else at the same moment: a second connection to this file's database, for a transaction left open. */
@@ -302,7 +299,7 @@ test('the bundle: a language\'s strings with English underneath, the same for ev
     assert_same([200, $slovak['raw']], [$withToken['status'], $withToken['raw']]);
     assert_same(0, (int) dbValue('SELECT count(*) FROM users WHERE id = 555'), 'nobody was recorded as having been here');
     $badToken = call($GLOBALS['hosted']['base'], 'GET', '/api/translations/sk', null, bearer('not.a.token'));
-    assert_same([200, $slovak['raw']], [$badToken['status'], $badToken['raw']], 'the sign-in card reads in its language whatever token the browser still holds');
+    assert_same([200, $slovak['raw']], [$badToken['status'], $badToken['raw']], 'the words read in their language whatever token the browser still holds');
     $oldToken = call($GLOBALS['hosted']['base'], 'GET', '/api/translations/sk', null, bearer(test_token(ADMIN_A, [ROLE_ADMIN], ['exp' => time() - 3600])));
     assert_same([200, $slovak['raw']], [$oldToken['status'], $oldToken['raw']], 'a sign-in that ran out still reads in its language');
 
@@ -351,7 +348,7 @@ test('a code that is not one is 404, and the database never hears of it', functi
         assert_same(404, as_user(ADMIN_A, 'PUT', "/api/admin/translations/$code/import", ['test.bye' => 'x'])['status'], $code);
         assert_same(404, as_user(ADMIN_A, 'PUT', "/api/admin/translations/$code/import", 'not even JSON', ['Content-Type: text/plain'])['status'], "$code, whatever the body");
     }
-    assert_same(['error' => 'There is no such language', 'code' => 'not_found'], as_user(ADMIN_A, 'GET', '/api/admin/translations/xx/export')['body'], 'nor a code the site has no language for - in this app\'s error shape');
+    assert_same(['error' => 'There is no such language.', 'code' => 'not_found'], as_user(ADMIN_A, 'GET', '/api/admin/translations/xx/export')['body'], 'nor a code the site has no language for - in this app\'s error shape');
     assert_same([], problems_of($GLOBALS['hosted']), 'bytes that are not text reached no query (that would be a [db] error and a 503)');
 });
 
@@ -821,10 +818,10 @@ test('a language out as a file and back in: its own strings only; unknown keys r
     assert_match('/no\.such.*nor\.this/', $unknown['body']['error']);
     $numeric = as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import', '{"test.bye": "Tschüss", "12": "x"}', ['Content-Type: application/json']);
     assert_same([422, 'unknown_key', ['12']], [$numeric['status'], $numeric['body']['code'] ?? null, $numeric['body']['keys'] ?? null], 'a key that looks like a number, named as it was sent');
-    // An object of the keys "0", "1"... is refused too: the library reads it as the list PHP makes of it - no flat
-    // object of keys (it names no key then).
+    // An object of the keys "0", "1"... is refused too, as any key the site does not have (anotoki-lib 0.4.0: it was
+    // invalid_value) - named.
     $listLike = as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import', '{"0": "Ahoj", "1": "Svet"}', ['Content-Type: application/json']);
-    assert_same([422, 'invalid_value'], [$listLike['status'], $listLike['body']['code'] ?? null], '{"0": ...}');
+    assert_same([422, 'unknown_key', ['0', '1']], [$listLike['status'], $listLike['body']['code'] ?? null, $listLike['body']['keys'] ?? null], '{"0": ...}');
 
     $refusals = [
         'unknown_placeholder' => ['de', ['test.bye' => 'Tschüss', 'test.hello' => 'Hallo, {dich}!']],
@@ -836,7 +833,11 @@ test('a language out as a file and back in: its own strings only; unknown keys r
         $refused = as_user(EDITOR_A, 'PUT', "/api/admin/translations/$language/import", $body);
         assert_same([422, $code], [$refused['status'], $refused['body']['code'] ?? null], test_show($refused['body']));
     }
-    foreach (['a list' => ['Hallo', 'Tschüss'], 'the empty list' => [], 'a text' => '"Hallo"', 'a number' => '5'] as $what => $body) {
+    // A list's items are numbered - keys no site has (anotoki-lib 0.4.0), named as such; the empty list, a text and a
+    // number are no flat object at all.
+    $list = as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import', ['Hallo', 'Tschüss']);
+    assert_same([422, 'unknown_key', ['0', '1']], [$list['status'], $list['body']['code'] ?? null, $list['body']['keys'] ?? null], 'a list');
+    foreach (['the empty list' => [], 'a text' => '"Hallo"', 'a number' => '5'] as $what => $body) {
         $refused = as_user(EDITOR_A, 'PUT', '/api/admin/translations/de/import', $body, is_string($body) ? ['Content-Type: application/json'] : []);
         assert_same([422, 'invalid_value'], [$refused['status'], $refused['body']['code'] ?? null], $what);
     }
@@ -952,7 +953,7 @@ test('the command line: --export and --import on the same strings, by nobody; --
         $pdo = null;
         [$code, $out] = cli('--status');
         assert_same(1, $code, $out);
-        assert_match('~needs an update first \(003_site_strings\.sql, .*, anotoki_translations/001_languages_and_strings\.sql, anotoki_translations/002_library_words\.sql\): php migration\.php~', $out);
+        assert_match('~needs an update first \(003_site_strings\.sql, .*, anotoki_translations/001_languages_and_strings\.sql, .*, anotoki_people/001_people\.sql\): php migration\.php~', $out);
     } finally {
         putenv("PIANO_TEST_CONFIG=$config");
     }
@@ -1081,8 +1082,9 @@ test('a database with only 001 applied: the words say they are not there yet, ev
     $behind = test_empty_db('only_001');
     $pdo = dbConnect(machineDatabaseSettings(), $behind);
     assert_same(every_migration(), databaseMigrator($pdo)->applicable());
-    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
-    $pending = array_map('migrationLabel', array_slice(every_migration(), 1));
+    $first = test_migrate($pdo, '001_init.sql')['applied'];
+    assert_same([...admin_migrations(), ['set' => MIGRATIONS_SET, 'name' => '001_init.sql']], $first, 'the library\'s admin tools\' set, then 001');
+    $pending = array_map('migrationLabel', array_values(array_filter(every_migration(), static fn (array $file): bool => !in_array($file, $first, true))));
     assert_true(in_array('002_languages_and_translations.sql', $pending, true));
 
     $app = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
@@ -1114,5 +1116,6 @@ test('a database with only 001 applied: the words say they are not there yet, ev
 
 test('the servers said nothing they should not have', function (): void {
     assert_same([], problems_of($GLOBALS['hosted']));
-    assert_true((bool) preg_match('/\[auth\] token refused: expired/', (string) file_get_contents($GLOBALS['hosted']['log'])), 'why a token was refused is in the log, and only there');
+    // An expired token is an everyday thing: the family's library writes no line for it - and never the token.
+    assert_false((bool) preg_match('/token refused: expired|eyJ[A-Za-z0-9_-]{10,}/', (string) file_get_contents($GLOBALS['hosted']['log'])), 'no line for an expired token, never a token');
 });

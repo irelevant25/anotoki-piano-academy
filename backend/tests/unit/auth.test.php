@@ -3,12 +3,24 @@
 // The rules of api/auth.php that an HTTP test from this computer cannot
 // reach: what counts as this computer (setup.php's no-token mode, and nothing
 // else), the sign-in settings the browser reads, a person's roles, which
-// Authorization header is a sign-in, where the IAM's keys are cached - and
-// that no test asks an IAM that is not on this computer.
+// Authorization header is a sign-in (the library's Identify, as this app puts
+// it in front of its routes), where the IAM's keys are cached - that the
+// IAM's SDK is gone (the library holds its rules) - and that no test asks an
+// IAM that is not on this computer.
 
 declare(strict_types=1);
 
 require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database and settings
+require_once TEST_BACKEND . '/api/meddleware/auth.php';
+
+use Anotoki\Lib\Auth\Http\AuthRoutes;
+use Anotoki\Lib\Auth\Http\Identify;
+use Anotoki\Lib\Auth\Person;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Psr7\Factory\ResponseFactory;
+use Slim\Psr7\Factory\ServerRequestFactory;
 
 /** $fn with these sign-in settings in force, then the file's own again. */
 function with_auth(array $auth, callable $fn): mixed
@@ -23,6 +35,38 @@ function with_auth(array $auth, callable $fn): mixed
         file_put_contents($file, '<?php return ' . var_export(test_offline_auth($before), true) . ";\n");
         localSettings(true);
     }
+}
+
+/**
+ * A request through this app's identify() (meddleware/auth.php): what the
+ * route behind it saw - [caller, the person's sub] - or the refusal [status, code].
+ */
+function identified(ServerRequestInterface $request): array
+{
+    $handler = new class implements RequestHandlerInterface {
+        public ?array $seen = null;
+
+        public function handle(ServerRequestInterface $request): ResponseInterface
+        {
+            // The attributes as they are: none at all on a path Identify passed by.
+            $this->seen = [$request->getAttribute(Identify::CALLER), Identify::person($request)?->sub];
+
+            return (new ResponseFactory())->createResponse(204);
+        }
+    };
+    $response = identify(new ResponseFactory())->process($request, $handler);
+    if ($handler->seen !== null) {
+        return $handler->seen;
+    }
+
+    return [$response->getStatusCode(), json_decode((string) $response->getBody(), true)['code'] ?? null];
+}
+
+function api_request(string $path, string $authorization = ''): ServerRequestInterface
+{
+    $request = (new ServerRequestFactory())->createServerRequest('GET', $path);
+
+    return $authorization === '' ? $request : $request->withHeader('Authorization', $authorization);
 }
 
 test('this computer: 127.x.x.x, ::1 and the IPv4-mapped 127 - nothing else', function (): void {
@@ -58,77 +102,96 @@ test('this computer asking (the setup without its token): only the built-in serv
     assert_false(defined('OWNER_ROLE'), 'and so is OWNER_ROLE');
 });
 
+test('the IAM\'s SDK is gone - its rules are the family\'s library\'s - and so is this app\'s own reading of tokens', function (): void {
+    assert_false(is_file(PIANO_BACKEND . '/api/anotoki_iam.php'), 'api/anotoki_iam.php is gone');
+    foreach (['anotoki_iam_verify_access_token', 'anotoki_iam_login_required', 'anotoki_iam_roles', 'anotoki_iam_test_keypair'] as $sdk) {
+        assert_false(function_exists($sdk), "$sdk() is gone");
+    }
+    foreach (['requestUser', 'usersSeen', 'signedInUser', 'authIamConfig', 'authPublicConfig'] as $gone) {
+        assert_false(function_exists($gone), "$gone() is the library's now");
+    }
+    assert_false(is_file(PIANO_BACKEND . '/tests/tools/fake-iam.php'), 'the stand-in IAM is the family\'s one (vendor/anotoki/lib/php/testing)');
+});
+
 test('the browser\'s sign-in settings: the IAM, whatever an old file says about a mode - and the IAM\'s switch', function (): void {
+    $config = static fn (): array => AuthRoutes::configBody(signInRule(), iamClient());
     assert_same(
-        ['issuer' => 'https://iam.example.test', 'clientId' => 'piano-academy', 'loginRequired' => true],
-        with_auth(test_auth_iam(['issuer' => 'https://iam.example.test/']), 'authPublicConfig'),
+        ['issuer' => 'https://iam.example.test', 'client_id' => 'piano-academy', 'login_required' => true, 'sign_in_available' => true],
+        with_auth(test_auth_iam(['issuer' => 'https://iam.example.test/']), $config),
         'no trailing slash'
     );
     foreach (['none', 'iam', 'off', ''] as $mode) {
         assert_same(
-            ['issuer' => TEST_ISSUER, 'clientId' => 'piano-academy', 'loginRequired' => true],
-            with_auth(['mode' => $mode, 'local_user_id' => 1] + test_auth_iam(), 'authPublicConfig'),
+            ['issuer' => TEST_ISSUER, 'client_id' => 'piano-academy', 'login_required' => true, 'sign_in_available' => true],
+            with_auth(['mode' => $mode, 'local_user_id' => 1] + test_auth_iam(), $config),
             "mode = '$mode' is passed over"
         );
     }
     $off = test_auth_iam();
     test_login_required($off, false);
     assert_same(false, with_auth($off, 'authLoginRequired'), 'the IAM switched sign-in off');
-    // What reaches the SDK: the tests' seams and the two times, nothing else of the file's.
+    // What reaches the library: the tests' seams and the two times, nothing else of the file's.
     $keys = static function (array $config): array {
         $keys = array_keys($config);
         sort($keys);
 
         return $keys;
     };
-    $config = with_auth(test_auth_iam(['application_ttl' => 1, 'application_timeout' => 3, 'mode' => 'none']), 'authIamConfig');
-    assert_same(['application_file', 'application_timeout', 'application_ttl', 'cache_dir', 'client_id', 'issuer', 'jwks_file'], $keys($config));
-    assert_same([1, 3], [$config['application_ttl'], $config['application_timeout']]);
-    $plain = with_auth(['issuer' => 'http://127.0.0.1:9', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache', 'application_ttl' => '1', 'jwks_file' => ''], 'authIamConfig');
-    assert_same(['cache_dir', 'client_id', 'issuer'], $keys($plain), 'a time that is no number, an empty file name: left to the SDK\'s defaults');
+    $settings = with_auth(test_auth_iam(['application_ttl' => 1, 'application_timeout' => 3, 'mode' => 'none']), 'authIamSettings');
+    assert_same(['anonymized_file', 'application_file', 'application_timeout', 'application_ttl', 'cache_dir', 'client_id', 'issuer', 'jwks_file'], $keys($settings));
+    assert_same([1, 3], [$settings['application_ttl'], $settings['application_timeout']]);
+    $plain = with_auth(['issuer' => 'http://127.0.0.1:9', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache', 'application_ttl' => '1', 'jwks_file' => ''], 'authIamSettings');
+    assert_same(['cache_dir', 'client_id', 'issuer'], $keys($plain), 'a time that is no number, an empty file name: left to the library\'s defaults');
+    assert_same('http://127.0.0.1:9', with_auth(['issuer' => 'http://127.0.0.1:9', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], static fn (): string => iamClient()->issuer), 'the client follows the settings');
 });
 
-test('only the Bearer scheme is a sign-in: another scheme is nobody, "Bearer" without a token a 401', function (): void {
-    $request = static fn(string $header) => (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/state')->withHeader('Authorization', $header);
+test('only the Bearer scheme is a sign-in: another scheme is nobody, "Bearer" without a good token a 401 - and the public routes read none', function (): void {
+    // The tests' own key set: a token is checked against a file, never an IAM on the network.
+    with_auth(test_auth_iam(), static function (): void {
+        bearer_rules();
+    });
+});
+
+function bearer_rules(): void
+{
     foreach (['Basic YWRtaW46YWRtaW4=', 'Digest username="a"', 'Bearerx', 'Token abc'] as $header) {
-        assert_same(null, requestUser($request($header)), "$header: no sign-in, nobody - never a 401 of its own");
+        assert_same(['nobody', null], identified(api_request('/api/state', $header)), "$header: no sign-in, nobody - never a 401 of its own");
     }
-    assert_same(null, requestUser((new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/state')), 'no header');
-    foreach (['Bearer', 'Bearer ', 'bearer   ', ' Bearer'] as $header) {
-        try {
-            requestUser($request($header));
-            fail("'$header' should be refused");
-        } catch (ApiError $e) {
-            assert_same([401, 'sign_in_required'], [$e->status, $e->errorCode], "'$header'");
-        }
+    assert_same(['nobody', null], identified(api_request('/api/state')), 'no header');
+    foreach (['Bearer', 'Bearer ', 'bearer   ', ' Bearer', 'Bearer not.a.token'] as $header) {
+        assert_same([401, 'invalid_token'], identified(api_request('/api/state', $header)), "'$header': refused, never nobody");
     }
-    try {
-        requestUser($request('Bearer not.a.token'));
-        fail('a token that does not check out should be refused');
-    } catch (ApiError $e) {
-        assert_same([401, 'invalid_token'], [$e->status, $e->errorCode], 'never nobody');
+    assert_same(['person', 7], identified(api_request('/api/state', 'Bearer ' . test_token(7))), 'a good token: that person');
+    assert_same(['person', 7], identified(api_request('/api/state', 'bearer ' . test_token(7))), 'the scheme in any case');
+    // The sign-in settings, the words, the health check and where the site stands read no token at all: a token
+    // that does not check out there must not make the pages say "not available".
+    foreach (['/api/site-status', '/api/auth/config', '/api/health', '/api/translations/sk'] as $path) {
+        assert_same([null, null], identified(api_request($path, 'Bearer not.a.token')), "$path: no token read");
     }
-});
+    assert_same([401, 'invalid_token'], identified(api_request('/api/admin/translations', 'Bearer not.a.token')), 'the admin panel\'s words are no public path');
+}
 
-test('no test asks an IAM that is not on this computer whether sign-in is required', function (): void {
-    // Settings a test hands to the app: the IAM's answer as a file, or an IAM on this computer.
+test('no test asks an IAM that is not on this computer whether sign-in is required, or which accounts it deleted', function (): void {
+    // Settings a test hands to the app: the IAM's answers as files, or an IAM on this computer.
     foreach (['https://iam.anotoki.eu', TEST_ISSUER, 'http://localhost.evil.example:4300', 'http://10.0.0.1:4300', ''] as $issuer) {
         assert_throws(static fn() => test_offline_auth(['issuer' => $issuer, 'client_id' => TEST_CLIENT, 'cache_dir' => 'storage/cache']), '/would ask the IAM/');
         assert_throws(static fn() => test_write_config(test_temp_dir('refused'), [], ['issuer' => $issuer, 'client_id' => TEST_CLIENT]), '/would ask the IAM/');
+        assert_throws(static fn() => test_offline_auth(['issuer' => $issuer, 'application_file' => test_application_file()]), '/which accounts it deleted/');
     }
     foreach (['http://127.0.0.1:8597', 'http://localhost:4300', 'http://[::1]:8100'] as $issuer) {
         assert_same($issuer, test_offline_auth(['issuer' => $issuer])['issuer'], "$issuer: the stand-in, on this computer");
     }
-    assert_true(is_string(test_offline_auth(['issuer' => 'https://iam.anotoki.eu', 'application_file' => test_application_file()])['application_file']), 'the answer as a file');
+    assert_true(is_string(test_offline_auth(['issuer' => 'https://iam.anotoki.eu', 'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file()])['application_file']), 'the answers as files');
     foreach ([test_auth_settings(), test_auth_iam(), test_auth_iam(['issuer' => 'https://iam.example.test'])] as $auth) {
-        assert_true(is_file($auth['application_file']), 'the tests\' own settings name the answer as a file');
+        assert_true(is_file($auth['application_file']) && is_file($auth['anonymized_file']), 'the tests\' own settings name the answers as files');
     }
-    assert_true(is_file((require $GLOBALS['TEST_CONFIG_DIR'] . '/auth.local.php')['application_file'] ?? ''), 'and so does the settings file this process loaded');
+    $loaded = require $GLOBALS['TEST_CONFIG_DIR'] . '/auth.local.php';
+    assert_true(is_file($loaded['application_file'] ?? '') && is_file($loaded['anonymized_file'] ?? ''), 'and so does the settings file this process loaded');
 
     // Every write of an auth.local.php under tests/ - straight into one, or
     // into a variable naming one - puts its settings through
-    // test_offline_auth(), or writes test_auth_settings() (the answer as a
-    // file, above) - but in two files: config.test.php also writes settings
+    // test_offline_auth(), or writes test_auth_settings() (the answers as
+    // files, above) - but in two files: config.test.php also writes settings
     // with no IAM at all (no setting: never served, never asked anything), and
     // testenv.php is the browser check's tool, not a test (its IAM is the
     // stand-in on this computer unless told otherwise).
@@ -161,17 +224,17 @@ test('roles: the token\'s, this application\'s; the staff are EDITOR and ADMIN; 
     assert_false($learner->has(...ROLES_STAFF), 'a learner has neither');
     assert_false($member->has(...ROLES_STAFF), 'MEMBER - every account holds it - is a learner: none of them');
     assert_false($admin->has(), 'no role asked for: none had');
-    // The SDK reads the claim: a list of names, in any case; anything else is no role.
-    assert_same(['ADMIN', 'EDITOR'], anotoki_iam_roles(['roles' => ['admin', 'EDITOR', 'Admin', '', 5]]));
+    // The library reads the claim: a list of names, in any case; anything else is no role.
+    assert_same(['ADMIN', 'EDITOR'], Person::roles(['admin', 'EDITOR', 'Admin', '', 5]));
     foreach (['a text' => 'ADMIN', 'null' => null, 'a map' => ['ADMIN' => true]] as $what => $claim) {
-        assert_false((new SiteUser(5, null, anotoki_iam_roles(['roles' => $claim])))->has(ROLE_ADMIN), $what);
+        assert_false((new SiteUser(5, null, Person::roles($claim)))->has(ROLE_ADMIN), $what);
     }
 });
 
 test('the IAM\'s key cache: a relative cache_dir is relative to backend/', function (): void {
-    assert_same(PIANO_BACKEND . '/storage/cache', with_auth(test_auth_iam(['cache_dir' => 'storage/cache']), static fn(): string => authIamConfig()['cache_dir']));
+    assert_same(PIANO_BACKEND . '/storage/cache', with_auth(test_auth_iam(['cache_dir' => 'storage/cache']), static fn(): string => authIamSettings()['cache_dir']));
     $absolute = test_temp_dir('cache');
-    assert_same($absolute, with_auth(test_auth_iam(['cache_dir' => $absolute]), static fn(): string => authIamConfig()['cache_dir']));
+    assert_same($absolute, with_auth(test_auth_iam(['cache_dir' => $absolute]), static fn(): string => authIamSettings()['cache_dir']));
 });
 
 test('textClip keeps whole characters', function (): void {

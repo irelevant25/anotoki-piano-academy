@@ -1,10 +1,8 @@
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { AuthCallbackComponent, SignInFailureComponent, adminGuard, personOrVisitorGuard, staffGuard } from '@anotoki/lib/auth';
 import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
-import { adminSignInGuard, signInGuard } from './core/auth/sign-in.guard';
 import { BootService } from './core/state/boot.service';
-import { adminGuard } from './pages/admin/admin.guard';
-import { AuthCallbackPageComponent } from './pages/auth-callback/auth-callback-page.component';
 import { HomePageComponent } from './pages/home/home-page.component';
 
 /**
@@ -18,14 +16,20 @@ function withNotation<T>(load: () => Promise<T>): () => Promise<T> {
 }
 
 /**
- * Every page is for somebody signed in (signInGuard, adminSignInGuard): anybody
- * else is sent to the IAM and comes back to the page asked for - the learner's
- * pages ask it page by page (canActivateChild), the admin panel once as it is
- * entered. While the IAM does not require a sign-in, the learner's pages are a
- * visitor's too; the admin panel never is. The card "could not load" is drawn without a sign-in; so is the
- * sign-in card after a sign-in that came back without one. While the site is not ready (an update
- * waits, it is not set up, its database is out of reach) nobody is sent anywhere: the family's status
- * page stands in every page's place (<anotoki-site-gate>), with a Sign in of its own.
+ * Every page is for somebody signed in - the anotoki family's guards
+ * (@anotoki/lib/auth): anybody else is sent to the IAM and comes back to the
+ * page asked for - the learner's pages ask it page by page
+ * (personOrVisitorGuard, canActivateChild), the admin panel once as it is
+ * entered (staffGuard: EDITOR or ADMIN; adminGuard on the pages for ADMIN
+ * alone - anybody else signed in is sent to the start page). While the IAM
+ * does not require a sign-in, the learner's pages are a visitor's too; the
+ * admin panel never is. A sign-in that came back without one, could not
+ * start, or cannot be set up goes to the family's screen that says why
+ * (/sign-in-failed, in this app's frame: Try again, Back) instead of round to
+ * the IAM again. The card "could not load" is drawn without a sign-in. While
+ * the site is not ready (an update waits, it is not set up, its database is
+ * out of reach) nobody is sent anywhere: the family's status page stands in
+ * every page's place (<anotoki-site-gate>), with a Sign in of its own.
  *
  * A title is a translation key (`title.*`): PianoTitleStrategy words it in the
  * language on the page and puts the app's name after it. The admin panel's
@@ -34,15 +38,19 @@ function withNotation<T>(load: () => Promise<T>): () => Promise<T> {
  * the app's name).
  */
 export const routes: Routes = [
-  // The IAM's redirect URI; see AuthService.init() for where the sign-in is finished. Never guarded.
-  { path: 'auth/callback', component: AuthCallbackPageComponent, title: 'title.signingIn' },
+  // The IAM's redirect URI (core/auth/site-auth.ts): AnotokiAuth.init() finishes the sign-in before the router
+  // starts, so the page is seen only when opened by hand ("Signing you in…", then the start page). Never guarded.
+  { path: 'auth/callback', component: AuthCallbackComponent, title: 'title.signingIn' },
+  // Why a sign-in did not work - the family's screen, under this app's bar (the guards send the browser here).
+  { path: 'sign-in-failed', component: SignInFailureComponent, title: 'title.signingIn' },
   // The admin panel (English): the app's words for the staff (EDITOR or ADMIN) - Translations; the
-  // languages, the people and the migrations for ADMIN alone (adminGuard). The guards and the layout
-  // only hide what the server refuses anyway; leaving a page with something not saved asks. While
-  // an update waits, the Migrations page is the one an ADMIN can use, and /admin opens it.
+  // languages, the people, the migrations and the admin tools for ADMIN alone (adminGuard). The
+  // guards and the layout only hide what the server refuses anyway; leaving a page with something
+  // not saved asks. While an update waits, the Migrations page is the one an ADMIN can use, and
+  // /admin opens it. The family's pages are entry points of their own, never in the first load.
   {
     path: 'admin',
-    canActivate: [adminSignInGuard],
+    canActivate: [staffGuard],
     loadComponent: () => import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: () => (inject(BootService).onlyMigrations() ? 'migrations' : 'translations') },
@@ -65,7 +73,8 @@ export const routes: Routes = [
         path: 'people',
         title: 'People',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/admin/people/people.component').then((m) => m.PeopleComponent),
+        // The anotoki family's People page (@anotoki/lib/people/page; core/site-admin.ts says what is this app's).
+        loadComponent: () => import('@anotoki/lib/people/page').then((m) => m.PeoplePageComponent),
       },
       {
         path: 'migrations',
@@ -74,6 +83,32 @@ export const routes: Routes = [
         // The anotoki family's page, in an entry point of its own (@anotoki/lib/migrations/page - never in the
         // first load): Pending, Applied with each file's SQL, "Apply pending".
         loadComponent: () => import('@anotoki/lib/migrations/page').then((m) => m.MigrationsPageComponent),
+      },
+      // The anotoki family's admin tools (@anotoki/lib/admin/*, core/site-admin.ts): what failed, who did what,
+      // what visitors wrote, and the database's backups.
+      {
+        path: 'errors',
+        title: 'Error log',
+        canActivate: [adminGuard],
+        loadComponent: () => import('@anotoki/lib/admin/errors').then((m) => m.ErrorLogPageComponent),
+      },
+      {
+        path: 'audit',
+        title: 'Audit log',
+        canActivate: [adminGuard],
+        loadComponent: () => import('@anotoki/lib/admin/audit').then((m) => m.AuditLogPageComponent),
+      },
+      {
+        path: 'feedback',
+        title: 'Feedback',
+        canActivate: [adminGuard],
+        loadComponent: () => import('@anotoki/lib/admin/feedback').then((m) => m.FeedbackPageComponent),
+      },
+      {
+        path: 'backups',
+        title: 'Backups',
+        canActivate: [adminGuard],
+        loadComponent: () => import('@anotoki/lib/admin/backups').then((m) => m.BackupsPageComponent),
       },
       // The Migrations page's address before it was the family's (the Database page).
       { path: 'database', pathMatch: 'full', redirectTo: 'migrations' },
@@ -86,7 +121,7 @@ export const routes: Routes = [
   // The learner's pages.
   {
     path: '',
-    canActivateChild: [signInGuard],
+    canActivateChild: [personOrVisitorGuard],
     children: [
       { path: '', component: HomePageComponent, title: 'title.learn' },
       {

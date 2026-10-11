@@ -26,6 +26,9 @@ const shots = join(WORK, 'shots');
 const BAR_SOURCE = readFileSync(join(repo, 'frontend/src/app/layouts/top-bar/top-bar.component.ts'), 'utf8');
 const PHONE_BAR_MAX = Number(/export const PHONE_BAR_MAX = (\d+);/.exec(BAR_SOURCE)[1]);
 const NAME_BAR_MIN = PHONE_BAR_MAX + Number(/export const NAME_BAR_MIN = PHONE_BAR_MAX \+ (\d+);/.exec(BAR_SOURCE)[1]);
+/** The admin panel's own fold (its row is not the learner's), and where its person's name shows. */
+const ADMIN_PHONE_BAR_MAX = Number(/export const ADMIN_PHONE_BAR_MAX = (\d+);/.exec(BAR_SOURCE)[1]);
+const ADMIN_NAME_BAR_MIN = ADMIN_PHONE_BAR_MAX + (NAME_BAR_MIN - PHONE_BAR_MAX);
 const VERSION = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0].version;
 
 const failures = [];
@@ -78,7 +81,10 @@ async function waitFor(test, ms) {
   for (const end = Date.now() + ms; Date.now() < end && !test(); ) await new Promise((done) => setTimeout(done, 100));
 }
 
-/** Who the stand-in IAM signs in next (and whether it turns the sign-in away). */
+/**
+ * Who the stand-in IAM (the anotoki family's, vendor/anotoki/lib/php/testing/stand-in-iam.php) signs in next - with
+ * the account's preferences as `user.preferences` - and whether it turns the sign-in away.
+ */
 async function iamAs(user, more = {}) {
   await fetch(`${IAM}/_test/state`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user, deny: false, ...more }) });
 }
@@ -90,6 +96,12 @@ const ADA = { id: 1, username: 'ada', roles: ['MEMBER', 'ADMIN'] };
 
 /** The admin panel's Migrations page: the anotoki family's (@anotoki/lib/migrations/page). */
 const MIGRATIONS = 'anotoki-migrations-page';
+
+/** An ADMIN's sections in the admin panel (layouts/top-bar's ADMIN_LINKS): the family's admin tools among them. */
+const ADMIN_SECTIONS = 'Translations|Languages|People|Feedback|Error log|Audit log|Backups|Migrations';
+
+/** The family's screen of a sign-in that did not work (<anotoki-sign-in-failure>, on /sign-in-failed under the bar). */
+const FAILURE = 'anotoki-sign-in-failure';
 
 /**
  * Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in layouts/top-bar) draws what the tours read: the
@@ -228,6 +240,29 @@ async function checkBar(page, label, width) {
 }
 
 /**
+ * The admin panel's bar at one width: folded up to ADMIN_PHONE_BAR_MAX, one row above it (the brand, the
+ * sections, the theme switch, the person - no language, no piano), the brand short at every width.
+ */
+async function checkAdminBar(page, label, width) {
+  const phone = width <= ADMIN_PHONE_BAR_MAX;
+  const row = await barRow(page);
+  const bar = await page.evaluate(() => {
+    const box = document.querySelector('.anotoki-top-bar__topbar').getBoundingClientRect();
+    return { top: box.top, bottom: box.bottom, scroll: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth };
+  });
+  const order = row.map((thing) => thing.what);
+  const expected = phone ? ['anotoki-brand', 'anotoki-theme-toggle', 'menu-button'] : ['anotoki-brand', 'nav', 'anotoki-theme-toggle', 'person-button'];
+  check(JSON.stringify(order) === JSON.stringify(expected), `${label}: the admin panel's row (${phone ? 'folded' : 'whole'})`, order);
+  check(row.every((thing) => thing.left >= 0 && thing.right <= width), `${label}: everything inside the screen`, row);
+  check(row.every((thing) => thing.top >= bar.top - 1 && thing.bottom <= bar.bottom + 1), `${label}: one row, inside the bar's height`, row);
+  check(row.every((thing, i) => i === 0 || row[i - 1].right <= thing.left + 1), `${label}: nothing on top of anything`, row);
+  check(bar.scroll <= bar.screen, `${label}: no sideways scroll`, bar);
+  const brand = await page.evaluate(() => [...document.querySelectorAll('.anotoki-brand__wordmark > span')].filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
+  check(JSON.stringify(brand) === JSON.stringify(['Piano', 'admin panel']), `${label}: the brand short at every width - "Piano", "admin panel" under it`, brand);
+  return row;
+}
+
+/**
  * WCAG 2.5.3 (label in name): each control of the bar that shows words has an accessible name holding
  * them - a voice user says what they see ("click SK"). The words shown: the text nodes the screen
  * draws, but for what is hidden from everybody (aria-hidden: the avatar's initial, the icons); spaces
@@ -303,20 +338,24 @@ async function playUntil(page, staff, end) {
 /* ------------------------------------------------------------------ --measure */
 
 if (MEASURE) {
+  // A two-digit count beside the admin panel's "Feedback": twelve new messages, on the check's own throwaway database.
+  onTheDatabase("INSERT INTO anotoki_feedback (kind, message) SELECT 'idea', 'A message to measure the bar by, ' || n FROM generate_series(1, 12) AS n");
   const results = [];
   for (const language of ['en', 'sk']) {
     for (const [who, user] of [['a learner', MIA], ['an ADMIN', ADA]]) {
       for (const area of ['/stats', '/admin/translations']) {
         if (area.startsWith('/admin') && user === MIA) continue;
-        // As wide as a desktop bar gets with the initial alone (the name shows from NAME_BAR_MIN): nothing is squeezed.
-        const context = await newContext({ width: NAME_BAR_MIN - 1 });
+        const admin = area.startsWith('/admin');
+        // As wide as a desktop bar gets with the initial alone (the name shows from the area's NAME_BAR_MIN): nothing is squeezed.
+        const context = await newContext({ width: (admin ? ADMIN_NAME_BAR_MIN : NAME_BAR_MIN) - 1 });
         const page = await signedIn(context, user, `/stats?lang=${language}`);
         await makeUnsaved(page);
         await page.waitForSelector('#save-status', { timeout: 10000 }).catch(() => undefined);
-        if (area !== '/stats') {
+        if (admin) {
           await page.click(BAR.person);
           await page.click(`${BAR.menu} a[href="/admin"]`);
           await page.waitForSelector(`${BAR.nav} a[href="/admin/translations"]`);
+          await page.waitForSelector(`${BAR.nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`, { timeout: 10000 }).catch(() => undefined);
         }
         const need = await page.evaluate(() => {
           const inner = document.querySelector('.anotoki-top-bar__row');
@@ -337,17 +376,19 @@ if (MEASURE) {
             rowMax: Math.floor(parseFloat(getComputedStyle(inner).maxWidth)),
           };
         });
-        results.push({ language, who, area, ...need, withDevice: need.row + need.deviceRoom });
+        const badge = admin ? await page.evaluate((nav) => document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? '', BAR.nav) : '';
+        results.push({ language, who, area, badge, ...need, withDevice: need.row + need.deviceRoom });
         await context.close();
       }
     }
   }
   console.table(results);
-  const widest = Math.max(...results.map((result) => result.withDevice));
+  const widest = (admin) => Math.max(...results.filter((result) => result.area.startsWith('/admin') === admin).map((result) => result.withDevice));
   const rowMax = Math.min(...results.map((result) => result.rowMax));
-  console.log(`The widest row: ${widest} px (with a device name at its widest). PHONE_BAR_MAX now: ${PHONE_BAR_MAX}. The row's own limit: ${rowMax} px.`);
+  console.log(`The learner's widest row: ${widest(false)} px (with a device name at its widest) - PHONE_BAR_MAX now: ${PHONE_BAR_MAX}.`);
+  console.log(`The admin panel's widest row: ${widest(true)} px (a two-digit count beside Feedback) - ADMIN_PHONE_BAR_MAX now: ${ADMIN_PHONE_BAR_MAX}. The row's own limit: ${rowMax} px.`);
   await browser.close();
-  process.exit(widest <= PHONE_BAR_MAX && widest <= rowMax ? 0 : 1);
+  process.exit(widest(false) <= PHONE_BAR_MAX && widest(true) <= ADMIN_PHONE_BAR_MAX && Math.max(widest(false), widest(true)) <= rowMax ? 0 : 1);
 }
 
 /* ------------------------------------------------------------------ the tours */
@@ -596,8 +637,11 @@ try {
     check(new URL(page.url()).pathname === '/admin/translations', 'into the admin panel, on Translations');
     check((await sections(page)).join('|') === 'Translations', 'an EDITOR\'s section: Translations alone');
     check((await page.getAttribute('html', 'lang')) === 'en', '<html lang="en"> in the admin panel');
-    check((await page.$$eval('.anotoki-brand__wordmark > span', (all) => all.map((span) => span.textContent.trim()))).join('|') === 'anotoki|Piano Academy|·|admin panel', 'the brand: the family\'s "anotoki Piano Academy · admin panel"');
-    check((await page.getAttribute('.anotoki-brand__brand', 'aria-label')) === 'anotoki Piano Academy · admin panel', 'the brand link\'s name holds it');
+    // The admin panel's brand is short at every width (eight sections for an ADMIN leave the whole wordmark no room):
+    // "Piano" with "admin panel" under it - the whole "anotoki Piano Academy · admin panel" in the link's name.
+    const brandShown = await page.$$eval('.anotoki-brand__wordmark > span', (all) => all.filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
+    check(brandShown.join('|') === 'Piano|admin panel', 'the brand short: "Piano", "admin panel" under it', brandShown);
+    check((await page.getAttribute('.anotoki-brand__brand', 'aria-label')) === 'anotoki Piano Academy · admin panel', 'the brand link\'s name: the family\'s "anotoki Piano Academy · admin panel"');
     check((await page.title()) === 'Translations · Admin panel · Piano Academy', 'the title names the admin panel', await page.title());
     check(!(await page.$('anotoki-language-switcher')) && !(await page.$('app-midi-panel')), 'no language chooser, no piano');
     check((await page.getAttribute(BAR.person, 'aria-label')) === 'Your menu: ed', 'the bar\'s words in English');
@@ -609,21 +653,19 @@ try {
     await page.waitForTimeout(250);
     await page.screenshot({ path: join(shots, 'admin-editor.png'), clip: { x: 0, y: 0, width: DESKTOP, height: 400 } });
     await page.keyboard.press('Escape');
+    // The pages for ADMIN alone (the family's adminGuard): an EDITOR who opens one is sent to the start page.
     await page.goto(`${APP}/admin/people`);
-    await page.waitForURL('**/admin/translations', { timeout: 10000 }).catch(() => undefined);
-    check(new URL(page.url()).pathname === '/admin/translations', 'an EDITOR on /admin/people lands on Translations', page.url());
+    await page.waitForFunction(() => location.pathname === '/', null, { timeout: 10000 }).catch(() => undefined);
+    check(new URL(page.url()).pathname === '/', 'an EDITOR on /admin/people lands on the start page', page.url());
     check(await page.evaluate(async () => (await fetch('/api/admin/people')).status === 401), 'the API itself answers no token with 401');
-    await page.waitForSelector(BAR.person);
-    await page.click(BAR.person);
-    await page.click(`${BAR.menu} a[href="/"]`);
     await page.waitForSelector(`${BAR.nav} a[href="/stats"]`);
     check((await page.getAttribute('html', 'lang')) === 'sk', 'back: Slovak again');
     await context.close();
 
     const adminContext = await newContext();
     const admin = await signedIn(adminContext, ADA, '/admin/people');
-    await admin.waitForSelector('#people-table');
-    check((await sections(admin)).join('|') === 'Translations|Languages|People|Migrations', 'an ADMIN\'s sections');
+    await admin.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
+    check((await sections(admin)).join('|') === ADMIN_SECTIONS, 'an ADMIN\'s sections: the family\'s admin tools among them', await sections(admin));
     check((await admin.$$eval(`${BAR.nav} a[aria-current="page"]`, (all) => all.map((a) => a.textContent.trim()))).join() === 'People', 'People is the page');
     await admin.screenshot({ path: join(shots, 'admin-people.png'), fullPage: true });
     // Migrations: the anotoki family's page (@anotoki/lib/migrations/page), in the admin panel's frame.
@@ -633,18 +675,30 @@ try {
     check(await admin.isDisabled(`${MIGRATIONS} [data-apply]`), 'Apply pending is off with nothing pending');
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
     const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.anotoki-migrations-page__when')?.textContent.trim() ?? '']));
-    // Two sets: the app's own, then the library's words (anotoki_translations) - each file named with its set.
+    // Four sets: the library's admin tools' first, the app's own, then the library's words' and people's - the
+    // library's files named with their set, the app's one set's by their names alone (as the engine records them).
+    const names = applied.map(([name]) => name);
     check(
-      applied.length >= 11 &&
-        JSON.stringify(applied.slice(-3).map(([name]) => name)) === JSON.stringify(['piano_academy/009_strings_through_the_library.sql', 'anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql']) &&
+      applied.length >= 18 &&
+        JSON.stringify(names.slice(0, 3)) === JSON.stringify(['anotoki_admin/001_audit_log.sql', 'anotoki_admin/002_feedback.sql', '001_init.sql']) &&
+        JSON.stringify(names.slice(-7)) ===
+          JSON.stringify([
+            '010_people.sql',
+            '011_sign_in_failure_words.sql',
+            'anotoki_translations/001_languages_and_strings.sql',
+            'anotoki_translations/002_library_words.sql',
+            'anotoki_translations/003_sign_in_words.sql',
+            'anotoki_translations/004_feedback_words.sql',
+            'anotoki_people/001_people.sql',
+          ]) &&
         applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)),
-      'Applied: every file with when (the admin panel\'s stamp), 009 then the library\'s two last',
-      applied,
+      'Applied: every file with when (the admin panel\'s stamp), the library\'s admin tools first, its words\' and people\'s last',
+      names,
     );
     check((await admin.title()) === 'Migrations · Admin panel · Piano Academy', 'its title', await admin.title());
     // Each applied file's SQL, read from the server, in the family's dialog: the focus on Close, Escape closes it.
     const sql = `${MIGRATIONS} anotoki-dialog[data-sql] dialog[open]`;
-    await admin.click(`${MIGRATIONS} [data-applied] li:nth-last-child(3) button`);
+    await admin.locator(`${MIGRATIONS} [data-applied] li`, { hasText: '009_strings_through_the_library.sql' }).locator('button').click();
     await admin.waitForSelector(`${sql} pre.anotoki-migrations-page__sql`, { timeout: 10000 });
     check((await admin.textContent(`${sql} pre.anotoki-migrations-page__sql`)).includes("'anotoki.topbar.signIn'"), 'View: 009\'s SQL from the server', (await admin.textContent(sql)).slice(0, 200));
     check((await admin.evaluate(() => document.activeElement?.hasAttribute('data-close'))) === true, 'the focus on Close');
@@ -667,11 +721,179 @@ try {
     await admin.screenshot({ path: join(shots, 'admin-migrations-360.png'), fullPage: true });
     await adminContext.close();
 
+    // A learner (no role here) is sent to the start page by the family's staffGuard: the admin panel is not theirs.
     const learnerContext = await newContext();
     const learner = await signedIn(learnerContext, MIA, '/admin/people');
-    await learner.waitForSelector('#admin-no-role');
-    check(!(await learner.$(BAR.nav)), 'a learner in the admin panel: no sections, and the card says whose it is');
+    await learner.waitForSelector(`${BAR.nav} a[href="/stats"]`, { timeout: 20000 });
+    check(new URL(learner.url()).pathname === '/' && !(await learner.$(`${BAR.nav} a[href="/admin/translations"]`)), 'a learner on the admin panel\'s address: the start page, none of its sections', learner.url());
     await learnerContext.close();
+  }
+
+  step(`A sign-in that did not work: the family's screen under the bar (/sign-in-failed) - why, in this app's words, Try again; light and dark, ${DESKTOP} and 390`);
+  {
+    const NO = { id: 9, username: 'no', roles: [] };
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [DESKTOP, 390]) {
+        const label = `${scheme}, ${width}`;
+        await iamAs(NO, { deny: true });
+        const context = await newContext({ width, scheme });
+        const page = await context.newPage();
+        await page.goto(`${APP}/stats`);
+        await page.waitForSelector(`${FAILURE} [role="alert"]`, { timeout: 20000 });
+        check(new URL(page.url()).pathname === '/sign-in-failed', `${label}: the guard sent the browser to /sign-in-failed`, page.url());
+        const said = await page.evaluate((screen) => ({
+          title: document.querySelector(`${screen} h1`)?.textContent.trim(),
+          message: document.querySelector(`${screen} [role="alert"]`)?.textContent.trim(),
+          buttons: [...document.querySelectorAll(`${screen} button`)].map((button) => button.textContent.trim()),
+        }), FAILURE);
+        check(
+          said.title === 'Signing in did not work' &&
+            said.message === 'Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.' &&
+            JSON.stringify(said.buttons) === JSON.stringify(['Try again', 'Back']),
+          `${label}: "Signing in did not work", why in this app's words (011's copy), Try again and Back`,
+          said,
+        );
+        check(!!(await page.$('app-top-bar anotoki-top-bar')) && !!(await page.$(`#view-root ${FAILURE}`)), `${label}: in this app's frame, under its bar`);
+        check(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${label}: no sideways scroll`);
+        check((await page.evaluate(() => document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? '')).includes('noindex'), `${label}: noindex while it shows`);
+        await page.waitForTimeout(250);
+        await page.screenshot({ path: join(shots, `sign-in-failed-${scheme}-${width}.png`), fullPage: true });
+        if (scheme === 'light' && width === DESKTOP) {
+          // Try again, now that the IAM lets the account in: signed in, back on the page the sign-in started from.
+          await iamAs(MIA);
+          await page.click(`${FAILURE} [data-retry]`);
+          await page.waitForSelector('#own-progress', { timeout: 20000 });
+          check(new URL(page.url()).pathname === '/stats' && (await page.textContent(BAR.name)) === 'mia', 'Try again: signed in, back on /stats', page.url());
+        }
+        await context.close();
+      }
+    }
+    await iamAs(MIA);
+  }
+
+  step(`The feedback form (the family's, from the footer's "Send feedback"): light and dark, ${DESKTOP} and 390 - sent, kept, no mail`);
+  {
+    const before = Number(fromTheDatabase('SELECT count(*) AS n FROM anotoki_feedback')[0].n);
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [DESKTOP, 390]) {
+        const label = `${scheme}, ${width}`;
+        const context = await newContext({ width, scheme });
+        const page = await signedIn(context, MIA, '/stats');
+        check((await page.textContent('#feedback-open'))?.trim() === 'Send feedback', `${label}: "Send feedback" at the foot of the page`);
+        await page.click('#feedback-open');
+        await page.waitForSelector('anotoki-dialog dialog[open] anotoki-feedback-form [data-send]', { timeout: 20000 });
+        await page.waitForTimeout(300);
+        check((await page.textContent('anotoki-dialog dialog[open] .anotoki-dialog__title'))?.trim() === 'Send feedback', `${label}: in the family's dialog, its heading the form's title`);
+        const box = await page.$eval('anotoki-dialog dialog[open]', (dialog) => {
+          const rect = dialog.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, screen: document.documentElement.clientWidth };
+        });
+        check(box.left >= 0 && box.right <= box.screen, `${label}: the dialog inside the screen`, box);
+        check(!!(await page.$('anotoki-feedback-form [data-anonymous]')) && !!(await page.$('anotoki-feedback-form [data-section]')), `${label}: a learner's form - this app's places, "without my name"`);
+        check((await keysOnPage(page)).length === 0, `${label}: no key in it`, await keysOnPage(page));
+        await page.screenshot({ path: join(shots, `feedback-form-${scheme}-${width}.png`) });
+        if (scheme === 'light') {
+          await page.fill('anotoki-feedback-form [data-message] textarea', `The Note Trainer at ${width} px is lovely.`);
+          const sent = page.waitForResponse((response) => response.url().endsWith('/api/feedback') && response.request().method() === 'POST', { timeout: 10000 });
+          await page.click('anotoki-feedback-form [data-send]');
+          check((await sent).status() === 201, `${label}: sent - the server kept it (201)`);
+          await page.waitForSelector('anotoki-feedback-form [data-thanks]', { timeout: 10000 });
+          await page.waitForTimeout(250);
+          await page.screenshot({ path: join(shots, `feedback-thanks-${width}.png`) });
+        }
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('anotoki-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
+        check(!(await page.$('anotoki-dialog dialog[open]')), `${label}: Escape closes it`);
+        await context.close();
+      }
+    }
+    const kept = fromTheDatabase(`SELECT user_id, page, kind, message FROM anotoki_feedback ORDER BY id OFFSET ${before}`);
+    check(kept.length === 2 && kept.every((row) => Number(row.user_id) === 7 && row.page === '/stats' && row.kind === 'bug'), 'the server kept both, by mia, from /stats - and nothing of where they came from', kept);
+  }
+
+  step(`The family's admin pages (ADMIN, English): People, Feedback (how many are new, in the bar), Error log, Audit log, Backups - light and dark, ${DESKTOP} and 390`);
+  {
+    // Something for the error log: a 404, its query never kept.
+    await fetch(`${APP}/api/no-such-thing?token=secret-in-the-query`);
+    const PAGES = [
+      ['people', '[data-people] [data-person]'],
+      ['feedback', '[data-messages] [data-message]'],
+      ['errors', '[data-groups] [data-fingerprint], [data-groups] tr'],
+      ['audit', '[data-entries] [data-entry]'],
+      ['backups', '[data-backups] [data-backup]'],
+    ];
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [DESKTOP, 390]) {
+        const label = `${scheme}, ${width}`;
+        const context = await newContext({ width, scheme });
+        const page = await signedIn(context, ADA, '/admin/people');
+        for (const [name, ready] of PAGES) {
+          await page.goto(`${APP}/admin/${name}`);
+          await page.waitForSelector(ready, { timeout: 20000 });
+          await page.waitForTimeout(300);
+          check((await page.getAttribute('html', 'lang')) === 'en', `${label} ${name}: in English`);
+          check(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${label} ${name}: no sideways scroll`);
+          check((await keysOnPage(page)).length === 0, `${label} ${name}: no key on the page`, await keysOnPage(page));
+          await page.screenshot({ path: join(shots, `admin-${name}-${scheme}-${width}.png`), fullPage: true });
+        }
+        await context.close();
+      }
+    }
+
+    // Once, on a desktop: what each page holds of this app's.
+    const context = await newContext();
+    const page = await signedIn(context, ADA, '/admin/feedback');
+    const unread = Number(fromTheDatabase("SELECT count(*) AS n FROM anotoki_feedback WHERE status = 'new'")[0].n);
+    const badge = () => page.evaluate((nav) => document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? null, BAR.nav);
+    await page.waitForSelector('[data-messages] [data-message]', { timeout: 20000 });
+    await page.waitForTimeout(300);
+    check(unread > 0 && (await badge()) === String(unread), 'the bar: "Feedback" with how many messages are new (no mail is sent)', [unread, await badge()]);
+    // The admin panel's own fold: folded up to ADMIN_PHONE_BAR_MAX, one row from a pixel more, the brand short at every width.
+    for (const width of [ADMIN_PHONE_BAR_MAX, ADMIN_PHONE_BAR_MAX + 1, DESKTOP]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.waitForTimeout(150);
+      const row = await checkAdminBar(page, `the admin panel's bar at ${width}`, width);
+      console.log(`       admin ${width}: ${row.map((thing) => `${thing.what} ${thing.left}-${thing.right}`).join(', ')}`);
+      await page.screenshot({ path: join(shots, `admin-bar-${width}.png`), clip: { x: 0, y: 0, width, height: 120 } });
+    }
+    await page.setViewportSize({ width: DESKTOP, height: 900 });
+    await page.waitForTimeout(150);
+    await page.click('[data-messages] [data-message]');
+    await page.waitForSelector('[data-viewer]', { timeout: 10000 });
+    check((await page.textContent('[data-viewer]'))?.includes('lovely'), 'a message opened: its words, as text', (await page.textContent('[data-viewer]'))?.slice(0, 200));
+    await page.screenshot({ path: join(shots, `admin-feedback-message-${DESKTOP}.png`) });
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(([nav, expected]) => (document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? '0') === expected, [BAR.nav, String(unread - 1)], { timeout: 5000 }).catch(() => undefined);
+    check(((await badge()) ?? '0') === String(unread - 1), 'opened: read - the bar\'s number one less', await badge());
+
+    await page.goto(`${APP}/admin/errors`);
+    await page.waitForSelector('[data-groups]', { timeout: 20000 });
+    const errors = await page.textContent('[data-groups]');
+    check(errors.includes('/api/no-such-thing') && !errors.includes('secret-in-the-query'), 'the error log: the 404 by its path - never its query', errors.slice(0, 300));
+
+    await page.goto(`${APP}/admin/people`);
+    await page.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
+    check(!!(await page.$('[data-person="1"] [data-you]')), 'People: the reader\'s own row says so');
+    check(!!(await page.$('[data-sync]')) && !!(await page.$('[data-visitors]')), 'People: where the scrub of the IAM\'s deleted accounts stands, and the visitors\' line');
+
+    await page.goto(`${APP}/admin/backups`);
+    await page.waitForSelector('[data-backups] [data-backup]', { timeout: 20000 });
+    check(!!(await page.$('[data-backups] [data-backup*="-daily-"]')), 'Backups: the daily one, made after the day\'s first answer');
+    const manual = () => page.$$('[data-backups] [data-backup*="-manual-"]');
+    const already = (await manual()).length;
+    await page.click('[data-create]');
+    await page.waitForSelector('[data-guarded-confirm], [data-backups] [data-backup*="-manual-"]', { timeout: 10000 }).catch(() => undefined);
+    if (await page.$('[data-guarded-confirm]')) await page.click('[data-guarded-confirm]');
+    await page.waitForTimeout(1500);
+    await page.waitForFunction((count) => document.querySelectorAll('[data-backups] [data-backup*="-manual-"]').length > count, already, { timeout: 20000 }).catch(() => undefined);
+    check((await manual()).length === already + 1, 'Back up now (a sign-in of the last ten minutes): a backup made, in the list');
+    await page.screenshot({ path: join(shots, `admin-backups-made-${DESKTOP}.png`), fullPage: true });
+
+    await page.goto(`${APP}/admin/audit`);
+    await page.waitForSelector('[data-entries] [data-entry]', { timeout: 20000 });
+    const audit = await page.textContent('[data-entries]');
+    check(audit.includes('backup.created') && audit.includes('ada'), 'the audit log: the backup, made by ada - named as this app knows her', audit.slice(0, 300));
+    await context.close();
   }
 
   step(`The words' pages (the family's, @anotoki/lib/translations/admin) and a Slovak page: light and dark, ${DESKTOP} and 390`);
@@ -753,7 +975,7 @@ try {
     await page.screenshot({ path: join(shots, 'sk-390-menu.png') });
     await context.close();
 
-    // A sign-in turned away, in Slovak: the card, no loop.
+    // A sign-in turned away, in Slovak: the family's screen that says why, no loop.
     await iamAs({ id: 9, username: 'no', roles: [] }, { deny: true });
     const denied = await newContext();
     const d = await denied.newPage();
@@ -762,16 +984,18 @@ try {
       if (frame === d.mainFrame() && frame.url().includes('/auth/callback')) trips++;
     });
     await d.goto(`${APP}/songs?lang=sk`);
-    await d.waitForSelector('.sign-in-card [role="alert"]', { timeout: 20000 });
+    await d.waitForSelector(`${FAILURE} [role="alert"]`, { timeout: 20000 });
     await d.waitForTimeout(800);
     check(trips === 1, 'a refused sign-in: one trip to the IAM, no loop', trips);
-    check((await keysOnPage(d)).length === 0, 'the sign-in card in Slovak: no key');
-    check((await d.getAttribute('html', 'lang')) === 'sk', 'and in Slovak');
+    check(new URL(d.url()).pathname === '/sign-in-failed', 'on the failure\'s screen (/sign-in-failed), under the bar', d.url());
+    check((await keysOnPage(d)).length === 0, 'the screen in Slovak: no key');
+    check((await d.getAttribute(`${FAILURE} section`, 'lang')) === 'sk' && (await d.textContent(`${FAILURE} [role="alert"]`))?.trim().startsWith('Prihlásenie'), 'and in Slovak - this app\'s own sentence (011\'s copy under the library\'s key)', await d.textContent(`${FAILURE} [role="alert"]`));
     await d.screenshot({ path: join(shots, 'sk-sign-in-refused.png') });
     // Narrow: nobody signed in and the app not running - the bar has no menu button, whose menu would be empty.
     await d.setViewportSize({ width: 390, height: 800 });
     await d.waitForTimeout(150);
-    check(!(await d.$(BAR.phoneButton)), 'the card at 390: no menu button with an empty menu');
+    check(!(await d.$(BAR.phoneButton)), 'the screen at 390: no menu button with an empty menu');
+    check(await d.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'the screen at 390: no sideways scroll');
     await d.screenshot({ path: join(shots, 'sk-sign-in-refused-390.png') });
     await denied.close();
     await iamAs(MIA);
@@ -915,17 +1139,22 @@ try {
         const [gone] = visitorIds();
         onTheDatabase(`DELETE FROM sessions WHERE user_id = ${gone}; DELETE FROM path_progress WHERE user_id = ${gone}; DELETE FROM progress WHERE user_id = ${gone}; DELETE FROM users WHERE id = ${gone}`);
         await page.waitForTimeout(1000);
+        // The note's save goes with the key nobody has now: 401 visitor_unknown - the family's interceptor forgets the key
+        // and sends the save once more as nobody's, with the old generation: refused (409), nobody's progress loaded, and
+        // said once, not twice.
+        const answers = [];
+        const heard = (response) => {
+          if (response.url().endsWith('/api/progress') && response.request().method() === 'PUT') answers.push(response.status());
+        };
+        page.on('response', heard);
         await playShown(page);
         await page.waitForSelector('#visitor-lost', { timeout: 10000 });
+        await page.waitForTimeout(800);
+        page.off('response', heard);
+        check(answers[0] === 401 && answers.includes(409) && !answers.includes(204), 'the save with the lost key: 401, then once more as nobody\'s with the old generation - refused (409), nothing saved', answers);
         check((await page.evaluate(() => localStorage.getItem('piano-academy:visitor'))) === null, 'a key the server no longer knows is forgotten');
         check(!!(await page.$('#visitor-lost')) && (await keysOnPage(page)).length === 0, 'and the page says the progress kept here has ended - in Slovak, no key');
-        // The next note goes as nobody's with the old generation: refused, and nobody's progress loaded - said once, not twice.
-        await page.waitForTimeout(1000);
-        const refused = page.waitForResponse((response) => response.url().endsWith('/api/progress') && response.request().method() === 'PUT', { timeout: 10000 });
-        await playShown(page);
-        check((await refused).status() === 409, 'the next save (as nobody, the old generation) is refused', (await refused).status());
-        await page.waitForTimeout(800);
-        check(!!(await page.$('#visitor-lost')) && !(await page.$('#progress-changed')), 'no "changed elsewhere" over it - the lost note says it');
+        check(!(await page.$('#progress-changed')), 'no "changed elsewhere" over it - the lost note says it');
         await page.screenshot({ path: join(shots, 'visitor-sk-360-lost.png'), fullPage: true });
         // And the note after that makes a new visitor (kept in the database for the "behind" tour: 005 runs again over it).
         await page.waitForTimeout(1000);
@@ -975,10 +1204,10 @@ try {
     // People (ADMIN): the visitors counted in a line of their own, never listed.
     const adminContext = await newContext();
     const admin = await signedIn(adminContext, ADA, '/admin/people');
-    await admin.waitForSelector('#people-visitors');
-    const line = (await admin.textContent('#people-visitors'))?.replace(/\s+/g, ' ').trim();
+    await admin.waitForSelector('[data-visitors]', { timeout: 20000 });
+    const line = (await admin.textContent('[data-visitors]'))?.replace(/\s+/g, ' ').trim();
     const count = visitorIds().length;
-    check(line?.startsWith(`${count} visitor${count === 1 ? '' : 's'} - people practising without signing in`) && !(await admin.$('#people-table tr[data-person^="-"]')), 'People counts the visitors in a line under the list, and lists none', line);
+    check(line?.startsWith(`${count} visitor${count === 1 ? '' : 's'} practising without signing in, with `) && !(await admin.$('[data-people] [data-person^="-"]')), 'People (the family\'s page) counts the visitors in a line of this app\'s, and lists none', line);
     await admin.screenshot({ path: join(shots, 'admin-people-visitors.png'), fullPage: true });
     await adminContext.close();
 
@@ -1015,7 +1244,7 @@ try {
     const choose = (page, mode) => page.click(`${BAR.theme}[data-value="${mode}"]`);
 
     // The account chose dark, its dates day first with dots, and the 12-hour clock; this browser had light.
-    await iamAs(MIA, { preferences: { theme: 'dark', date_format: 'dmy_dot', time_format: '12' }, preferences_refuse: false });
+    await iamAs({ ...MIA, preferences: { theme: 'dark', date_format: 'dmy_dot', time_format: '12' } }, { answers: {} });
     const context = await newContext({ scheme: 'light' });
     const page = await context.newPage();
     await page.goto(`${APP}/api/health`);
@@ -1037,25 +1266,25 @@ try {
 
     // The bar's switch: automatic, saved to the account - and another tab of the site follows the next choice at once.
     await choose(page, 'auto');
-    check(await until(async () => (await iamState()).preferences?.theme === 'auto'), 'the switch saved "automatic" to the account', (await iamState()).preferences);
+    check(await until(async () => (await iamState()).user?.preferences?.theme === 'auto'), 'the switch saved "automatic" to the account', (await iamState()).user?.preferences);
     check((await theme(page)) === 'light' && (await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === null, 'automatic: the system’s light, nothing kept for the first paint', await theme(page));
     const other = await context.newPage();
     await other.goto(`${APP}/`);
     await other.waitForSelector(BAR.signedIn, { timeout: 20000 });
     await choose(page, 'light');
-    check(await until(async () => (await iamState()).preferences?.theme === 'light'), 'light saved to the account');
+    check(await until(async () => (await iamState()).user?.preferences?.theme === 'light'), 'light saved to the account');
     await until(async () => (await shown(other)) === 'Theme: light');
-    check((await shown(other)) === 'Theme: light', 'the other tab shows it too (the SDK tells every tab)', await shown(other));
+    check((await shown(other)) === 'Theme: light', 'the other tab shows it too (the family\'s client tells every tab)', await shown(other));
     await other.close();
 
     // The account would not take it: the account's theme back, and a note under the switch - on a phone too.
-    await iamSet({ preferences_refuse: true });
+    await iamSet({ answers: { '/api/oidc/preferences': { status: 403, body: JSON.stringify({ error: 'access_denied', error_description: 'The account may not change this now.' }) } } });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(150);
     await choose(page, 'dark');
     await page.waitForSelector(BAR.themeNote, { timeout: 5000 }).catch(() => undefined);
     check((await page.textContent(BAR.themeNote))?.trim() === 'The theme could not be saved to your anotoki account.', 'refused: said under the switch, promising nothing', await page.textContent(BAR.themeNote).catch(() => null));
-    check((await shown(page)) === 'Theme: light' && (await theme(page)) === 'light' && (await iamState()).preferences?.theme === 'light', 'refused: the account’s light on the screen again', [await shown(page), await theme(page)]);
+    check((await shown(page)) === 'Theme: light' && (await theme(page)) === 'light' && (await iamState()).user?.preferences?.theme === 'light', 'refused: the account’s light on the screen again', [await shown(page), await theme(page)]);
     await page.waitForTimeout(150);
     const note = await page.evaluate((selector) => {
       const element = document.querySelector(selector);
@@ -1069,7 +1298,7 @@ try {
     await page.locator('#view-root h2').nth(1).click();
     await page.waitForSelector(BAR.themeNote, { state: 'detached', timeout: 3000 }).catch(() => undefined);
     check(!(await page.$(BAR.themeNote)), 'a click elsewhere: the note goes');
-    await iamSet({ preferences_refuse: false });
+    await iamSet({ answers: {} });
 
     // The language chosen in the bar is the account's too - another tab of the site follows it, over this browser's
     // remembered choice; the dates keep the account's order and clock, in Slovak's words.
@@ -1091,7 +1320,7 @@ try {
     await context.close();
 
     // The account's language before what a browser remembered: this one chose Slovak, the account says English.
-    await iamAs(MIA, { preferences: { theme: 'auto', date_format: null, time_format: null } });
+    await iamAs({ ...MIA, preferences: { theme: 'auto', date_format: null, time_format: null } });
     const readerContext = await newContext();
     const reader = await readerContext.newPage();
     await reader.goto(`${APP}/api/health`);
@@ -1104,14 +1333,13 @@ try {
     await readerContext.close();
 
     // The admin panel follows the same account: one theme everywhere, its stamps in the account's order and clock.
-    await iamAs(ADA, { preferences: { theme: 'dark', date_format: 'mdy_slash', time_format: '24' } });
     const adminContext = await newContext({ scheme: 'light' });
-    const admin = await signedIn(adminContext, ADA, '/admin/people');
-    await admin.waitForSelector('#people-table');
+    const admin = await signedIn(adminContext, { ...ADA, preferences: { theme: 'dark', date_format: 'mdy_slash', time_format: '24' } }, '/admin/people');
+    await admin.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
     await until(async () => (await theme(admin)) === 'dark');
     check((await theme(admin)) === 'dark', 'the admin panel: the account’s dark too', await theme(admin));
-    const seen = await admin.$$eval('#people-table tbody tr[data-person] td:nth-child(3)', (cells) => cells.map((cell) => cell.textContent.trim()));
-    check(seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'People: first seen in the account’s order, on its 24-hour clock', seen);
+    const seen = await admin.$$eval('[data-people] [data-person] .anotoki-people-page__time', (cells) => cells.map((cell) => cell.textContent.trim()).filter((text) => text !== ''));
+    check(seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'People (the family\'s page): first and last seen in the account’s order, on its 24-hour clock', seen);
     await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
     const ran = await admin.$$eval(`${MIGRATIONS} [data-applied] .anotoki-migrations-page__when`, (all) => all.map((when) => when.textContent.trim()));
@@ -1119,12 +1347,12 @@ try {
     await admin.screenshot({ path: join(shots, 'account-admin-migrations-dark.png'), fullPage: true });
     await adminContext.close();
     // An IAM that keeps no preferences again, for what follows.
-    await iamAs(MIA, { preferences: null });
+    await iamAs(MIA);
   }
 
   step('A database behind the code: everybody else reads that the site is being updated, an ADMIN signs in from that page and applies it on the Migrations page - one Apply failing with what PostgreSQL said - and the pages come back');
   {
-    // 005 - the newest with a schema part (006, 007 and 008 are words only, and stay applied) - taken off the record: the
+    // 005 - a schema part of its own (006 to 011 and the library's files stay applied) - taken off the record: the
     // code is ahead of the database, and the site's gate (anotoki/lib's SiteGate) answers 503 update_pending but on its
     // open paths. 005 runs again cleanly - every statement steps aside for what is there, and its gates hold with
     // visitors in the database; tests/unit/migrations.test.php runs 004 and 005 again too.
@@ -1155,7 +1383,7 @@ try {
     check(JSON.stringify(shown.controls) === JSON.stringify(['Sign in']) && shown.links.length === 0, 'nothing to press but a quiet Sign in: no setup page, no Migrations, no error', shown);
     check(!learnerSeen.navigations.some((url) => url.startsWith(IAM)), 'nobody is sent to the IAM while the site is being updated', learnerSeen.navigations);
     check(learnerSeen.answers.every((answer) => answer.startsWith('200 ') || answer.startsWith('304 ')), 'and nothing the page asked failed (where the site stands, the sign-in\'s settings, the words)', learnerSeen.answers);
-    check(!(await learner.$('app-load-error, app-sign-in-card, #signed-out-banner')) && !(await learner.$(BAR.nav)), 'no error card, no banner, no sections in the bar');
+    check(!(await learner.$(`app-load-error, ${FAILURE}, #signed-out-banner`)) && !(await learner.$(BAR.nav)), 'no error card, no failure\'s screen, no banner, no sections in the bar');
     await learner.screenshot({ path: join(shots, `behind-signed-out-${DESKTOP}.png`), fullPage: true });
 
     // Signing in works meanwhile: to the IAM and back to the page it started from - still being updated, now with nothing to press.
@@ -1221,8 +1449,8 @@ try {
     await page.click(`${MIGRATIONS} [data-confirm-apply]`);
     await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="danger"]`, { timeout: 20000 });
     const result = `${MIGRATIONS} [data-result]`;
-    // The family's page names a file with its set where a site has two (this app's, the library's words).
-    check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Stopped at piano_academy/005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
+    // The family's page names the site's one set's files by their names alone, the library's sets' with the set.
+    check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Stopped at 005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
     check((await page.textContent(`${result} .anotoki-migrations-page__result-text`)).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.', 'nothing applied, rolled back whole', await page.textContent(result));
     const said = (await page.textContent(`${result} pre.anotoki-migrations-page__error`)) ?? '';
     check(said.includes('users.visitor_key_hash is not a char(64) that may be null') && /^statement \d+ of \d+: SQLSTATE\[P0001\]/.test(said), 'what PostgreSQL said, word for word, on the page', said);
@@ -1250,9 +1478,9 @@ try {
     await page.click(`${MIGRATIONS} [data-confirm-apply]`);
     await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="success"]`, { timeout: 20000 });
     check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
-    check((await page.textContent(`${result} .anotoki-migrations-page__result-text`))?.trim() === 'Applied: piano_academy/005_visitors.sql.', 'Applied: 005', await page.textContent(result));
+    check((await page.textContent(`${result} .anotoki-migrations-page__result-text`))?.trim() === 'Applied: 005_visitors.sql.', 'Applied: 005', await page.textContent(result));
     await page.waitForSelector(`${BAR.nav} a[href="/admin/people"]`, { timeout: 20000 });
-    check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Translations|Languages|People|Migrations', 'the app started where it stands: every section, the result still on the page');
+    check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === ADMIN_SECTIONS, 'the app started where it stands: every section, the result still on the page');
     check((await page.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'nothing pending now');
     await page.screenshot({ path: join(shots, `migrations-applied-${DESKTOP}.png`), fullPage: true });
     await page.click(BAR.person);

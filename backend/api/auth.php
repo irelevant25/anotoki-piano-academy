@@ -2,60 +2,59 @@
 
 declare(strict_types=1);
 
-use Psr\Http\Message\ServerRequestInterface as Request;
+use Anotoki\Lib\Auth\AccessTokens;
+use Anotoki\Lib\Auth\IamClient;
+use Anotoki\Lib\Auth\SignInRule;
+use Anotoki\Lib\Support\Refusal;
+use Psr\Http\Message\ResponseInterface as Response;
 
 /**
- * Who a request comes from: the access token of the anotoki IAM, checked here
- * with the vendored SDK (api/anotoki_iam.php, v1.1.0) - RS256, typ at+jwt,
- * the IAM's published keys, iss, aud, exp. Its `sub` is the user id, its
- * `roles` this application's roles for them:
+ * Who a request comes from: the access token of the anotoki IAM, checked by
+ * the anotoki family's library (anotoki/lib's Anotoki\Lib\Auth, since
+ * 0.4.1: the IAM's PHP SDK moved into the library, one implementation for
+ * every anotoki site) - RS256 and typ at+jwt pinned, the IAM's published
+ * keys (kept an hour in cache_dir), iss, aud, the times with a minute's
+ * leeway. Its `sub` is the user id, its `roles` this application's roles
+ * for them:
  *
  *   MEMBER   every anotoki account holds it, in every application: an
  *            ordinary learner - no check here needs it or refuses it
  *   EDITOR   rewords the app's words (the Translations page, a language's
  *            strings as a file and back)
  *   ADMIN    all of that, and adds, changes and deletes languages, applies a
- *            database update, and sees and deletes people's data
+ *            database update, sees and deletes people's data, and reads the
+ *            admin tools (the error log, the audit log, feedback, backups)
  *
  * Anybody else signed in learns, with their own progress. The IAM decides who
  * may sign in here (the roles of this application that may sign in - MEMBER
  * among them; taking a person's MEMBER away refuses their next sign-in and
  * refresh, while the access token they hold verifies until it runs out, a few
- * minutes). Roles are granted in the IAM's admin panel, and taking one away
- * reaches this app within one token's lifetime. There is no login of the
- * app's own and no configured owner - a person is only ever who a verified
- * token says.
+ * minutes). There is no login of the app's own and no configured owner - a
+ * person is only ever who a verified token says.
  *
- * Only the Bearer scheme is a sign-in: a request whose Authorization header
- * is `Bearer ...` (with or without a token after it) is that person or a 401,
- * never anything else. Any other scheme - `Basic ...`, which a host behind a
- * password file sends with every request - says nothing about who is using
- * the app, and counts as no header at all.
- *
- * Whether the app requires sign-in is the IAM's switch for this application
- * (authLoginRequired(): the SDK's reader, kept for a minute in cache_dir,
- * true - required - whenever nothing better is known), relayed to the browser
- * by GET /api/auth/config.
- *
- * Who a request is, in this order - for every route that reads a person's
- * progress or saves it (requireOwner() in meddleware/auth.php - with the
- * move at sign-in, POST /api/visitor/move, the only reader of a visitor key):
+ * Who a request is, in this order - once, for every route but the public
+ * ones (the library's Identify, meddleware/auth.php):
  *
  *   1. An Authorization header of the Bearer scheme (with or without a token
- *      after it): that person, or 401 - a token that does not verify never
- *      falls back to anything, and the visitor key is not even read.
- *   2. Else, when the IAM says sign-in is required: 401 sign_in_required. A
- *      visitor key sent along is never looked up, counted or swept early.
+ *      after it): that person, or 401 invalid_token - a token that does not
+ *      verify never falls back to anything, and the visitor key is not even
+ *      read. Only Bearer is a sign-in: `Basic ...` (a host behind a password
+ *      file) is nobody.
+ *   2. Else, when the IAM says sign-in is required (signInRule()): nobody, and
+ *      a visitor key sent along is never looked up, counted or swept early.
  *   3. Else an X-Visitor-Key: that visitor (api/visitors.php) - a users row
  *      of this app's own with a negative id, no name and no role; a key
- *      nobody has, or one whose row went while the request was on its way
- *      (swept, or moved into an account at sign-in): 401 visitor_unknown.
+ *      nobody has: 401 visitor_unknown.
  *   4. Else nobody: GET /api/state answers the empty state, and a first save
  *      makes a visitor (in the save's own transaction, within the limits).
  *
- * A visitor never passes requireUser() or requireRole() (signedInUser()
- * refuses one): never the admin panel, the own progress file, or anybody
- * else's data.
+ * A visitor never passes a person's check (RequirePerson, RequireRole): never
+ * the admin panel, the own progress file, or anybody else's data.
+ *
+ * Whether the app requires sign-in is the IAM's switch for this application
+ * (signInRule(): the library's SignInRule - kept for a minute in cache_dir,
+ * one request asking at a time, true - required - whenever nothing better is
+ * known), relayed to the browser by GET /api/auth/config.
  */
 
 const ROLE_ADMIN = 'ADMIN';
@@ -64,7 +63,11 @@ const ROLE_EDITOR = 'EDITOR';
 /** The roles that may use the admin panel: reword the app's words. */
 const ROLES_STAFF = [ROLE_ADMIN, ROLE_EDITOR];
 
-/** Who a request comes from, once the token is checked. */
+/**
+ * Whose data a request reads or saves, once the library has said who it is
+ * (meddleware/auth.php's siteOwner()): a person - the token's user id, name
+ * and roles - or a visitor of this app's own (api/visitors.php).
+ */
 final class SiteUser
 {
     /**
@@ -93,8 +96,15 @@ function settingsPath(string $path): string
     return preg_match('~^([A-Za-z]:)?[\\\\/]~', $path) ? $path : PIANO_BACKEND . '/' . $path;
 }
 
-/** The SDK's settings, from ours. */
-function authIamConfig(): array
+/**
+ * The IAM's settings as the library takes them: auth.local.php's keys (the
+ * IAM SDK's, which the library reads as they are), cache_dir under backend/.
+ * The tests' and the browser check's own seams too: the IAM's key set, its
+ * answer about this app and its deleted accounts as files (jwks_file,
+ * application_file, anonymized_file), and how long the answer about the app
+ * is kept and waited for (application_ttl, application_timeout).
+ */
+function authIamSettings(): array
 {
     $auth = authSettings();
     $config = [
@@ -102,16 +112,11 @@ function authIamConfig(): array
         'client_id' => (string) $auth['client_id'],
         'cache_dir' => settingsPath((string) $auth['cache_dir']),
     ];
-    // The tests' own key set, instead of downloading the IAM's; and the IAM's
-    // answer about this application as a file, instead of asking it.
-    foreach (['jwks_file', 'application_file'] as $key) {
+    foreach (['jwks_file', 'application_file', 'anonymized_file'] as $key) {
         if (is_string($auth[$key] ?? null) && $auth[$key] !== '') {
             $config[$key] = $auth[$key];
         }
     }
-    // How long that answer is kept (60 s) and waited for (2 s): the SDK's
-    // defaults unless a setting says otherwise (a browser check that switches
-    // sign-in mid-run keeps it for a second).
     foreach (['application_ttl', 'application_timeout'] as $key) {
         if (is_int($auth[$key] ?? null) && $auth[$key] > 0) {
             $config[$key] = $auth[$key];
@@ -122,40 +127,61 @@ function authIamConfig(): array
 }
 
 /**
- * Whether this app requires sign-in: the IAM's switch for it, read by the
- * SDK (anotoki_iam_login_required()) - asked at most once a minute (single
- * flight: while one request asks, the others use the last answer), kept in
- * cache_dir, and true whenever nothing better is known: an IAM out of reach
- * with no answer ever read, an unknown or switched-off application (404), an
- * answer that is not about this application. Only a request without a token
- * asks; a signed-in one never waits on it.
+ * This app at the IAM: the library's IamClient. A site that is not set up has
+ * none to name (the gate answers every request before anything asks it):
+ * then an empty one, which refuses every token and requires a sign-in.
  */
-function authLoginRequired(): bool
+function iamClient(): IamClient
 {
-    $required = anotoki_iam_login_required(authIamConfig(), $reason);
-    // Once per failed ask: the SDK then waits a minute before the next one.
-    if ($reason === 'stale' || $reason === 'never_read') {
-        error_log('[auth] the IAM did not say whether sign-in is required (' . $reason . '): '
-            . ($required ? 'required' : 'not required, as last read'));
+    static $iam = null, $for = null;
+
+    // Made again when the settings change (setup.php writes them; the tests switch them).
+    $settings = settingsProblem() === null ? authIamSettings() : [];
+    if ($iam === null || $for !== $settings) {
+        [$iam, $for] = [IamClient::fromArray($settings), $settings];
     }
 
-    return $required;
+    return $iam;
+}
+
+/** Whether the app requires a sign-in now: the IAM's switch (the library's SignInRule, failing closed). */
+function signInRule(): SignInRule
+{
+    static $rule = null, $for = null;
+
+    if ($rule === null || $for !== iamClient()) {
+        [$rule, $for] = [new SignInRule(iamClient()), iamClient()];
+    }
+
+    return $rule;
+}
+
+/** The checks of the IAM's access tokens (the library's AccessTokens). */
+function accessTokens(): AccessTokens
+{
+    static $tokens = null, $for = null;
+
+    if ($tokens === null || $for !== iamClient()) {
+        [$tokens, $for] = [new AccessTokens(iamClient()), iamClient()];
+    }
+
+    return $tokens;
+}
+
+/** Whether this app requires sign-in (signInRule()). */
+function authLoginRequired(): bool
+{
+    return signInRule()->required();
 }
 
 /**
- * What the browser needs to sign in: GET /api/auth/config - the IAM, this
- * app's client id there, and whether the app requires sign-in (relayed, so
- * the browser never asks the IAM for it).
+ * A refusal of the library's (who a request is, the admin tools, People) in
+ * the app's one error shape - {error, code, ...what it is about} - as the
+ * error handler writes every other one (api/index.php).
  */
-function authPublicConfig(): array
+function authRefused(Response $response, Refusal $refusal): Response
 {
-    $auth = authSettings();
-
-    return [
-        'issuer' => rtrim((string) $auth['issuer'], '/'),
-        'clientId' => (string) $auth['client_id'],
-        'loginRequired' => authLoginRequired(),
-    ];
+    return respondError($response, $refusal->status, $refusal->code, $refusal->message, [], $refusal->extra);
 }
 
 /** 127.0.0.1 and the like, ::1, and the IPv4-mapped form of 127.x. */
@@ -215,80 +241,17 @@ function isThisComputer(string $sapi, string $remoteAddr, string $host, bool $fo
 }
 
 /**
- * The person a request comes from, after recording the visit in users - or
- * null when it sends no Bearer header at all. A Bearer header that is there
- * must hold a token that checks out: ApiError 401 otherwise, whatever the
- * route - it never counts as nobody, and never as somebody without a role.
- * Another scheme (`Basic ...`, from a host behind a password file) is no
- * sign-in and counts as no header. Why a token was refused goes to the
- * server log, never to the client: to somebody holding a token that did not
- * work, the answer is the same.
+ * Makes the users row of a person no token of theirs brought here yet - the
+ * command line bringing an export into an account (tools/progress.php): an
+ * empty row; one there already is left as it is. (A request's person is
+ * recorded by the library's people module before the route runs:
+ * api/people.php's recordPerson().)
  */
-function requestUser(Request $request): ?SiteUser
-{
-    $header = $request->getHeaderLine('Authorization');
-    // Apache under CGI/FastCGI may hand the header over only as
-    // REDIRECT_HTTP_AUTHORIZATION: the SDK reads that too.
-    $header = $header !== '' ? $header : (string) anotoki_iam_authorization_header();
-    if (!anotoki_iam_sent_bearer($header)) {
-        return null;
-    }
-
-    $token = anotoki_iam_bearer_token($header);
-    if ($token === null) {
-        // "Bearer" with nothing after it: somebody meant to sign in, and did not.
-        throw new ApiError(401, 'sign_in_required', 'Please sign in.', ['WWW-Authenticate' => 'Bearer realm="piano-academy"']);
-    }
-
-    if (!function_exists('openssl_verify')) {
-        throw new RuntimeException('Signing in needs PHP\'s openssl extension, and this PHP has none.');
-    }
-
-    $claims = anotoki_iam_verify_access_token($token, authIamConfig(), $reason);
-    if ($claims === null) {
-        error_log('[auth] token refused: ' . $reason);
-        throw new ApiError(401, 'invalid_token', 'Your sign-in has run out. Please sign in again.', [
-            'WWW-Authenticate' => 'Bearer realm="piano-academy", error="invalid_token"',
-        ]);
-    }
-
-    $id = (int) anotoki_iam_user_id($claims);
-    $name = $claims['preferred_username'] ?? null;
-    $name = is_string($name) && trim($name) !== '' ? textClip(trim($name), 200) : null;
-    usersSeen($id, $name);
-
-    return new SiteUser($id, $name, anotoki_iam_roles($claims));
-}
-
-/**
- * Keeps the users row of a request's person: made on the first visit, the
- * username refreshed from the token when it changes, last_seen_at at most
- * every five minutes (not on every key press's save). A null username - a
- * token without one, or the command line bringing in an export - leaves the
- * stored one alone.
- */
-function usersSeen(int $id, ?string $username): void
+function usersEnsure(int $id): void
 {
     if ($id < 1) {
         // An IAM user id is 1 or more; a negative id is a visitor's, written only by api/visitors.php.
-        throw new LogicException("usersSeen() is for a person, and $id is no IAM user id.");
+        throw new LogicException("usersEnsure() is for a person, and $id is no IAM user id.");
     }
-    if ($username === null) {
-        dbExec(
-            "INSERT INTO users (id) VALUES (?)
-             ON CONFLICT (id) DO UPDATE SET last_seen_at = now()
-             WHERE users.last_seen_at < now() - interval '5 minutes'",
-            [$id]
-        );
-
-        return;
-    }
-
-    dbExec(
-        "INSERT INTO users (id, preferred_username) VALUES (?, ?)
-         ON CONFLICT (id) DO UPDATE SET preferred_username = EXCLUDED.preferred_username, last_seen_at = now()
-         WHERE users.preferred_username IS DISTINCT FROM EXCLUDED.preferred_username
-            OR users.last_seen_at < now() - interval '5 minutes'",
-        [$id, $username]
-    );
+    dbExec('INSERT INTO users (id) VALUES (?) ON CONFLICT (id) DO NOTHING', [$id]);
 }

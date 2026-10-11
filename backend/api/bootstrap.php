@@ -51,7 +51,6 @@ set_error_handler(static function (int $level, string $message, string $file, in
 
 require_once PIANO_BACKEND . '/vendor/autoload.php';
 require_once PIANO_BACKEND . '/config/config.php';
-require_once __DIR__ . '/anotoki_iam.php';
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/migrations.php';
@@ -63,3 +62,4 @@ require_once __DIR__ . '/client_address.php';
 require_once __DIR__ . '/after_response.php';
 require_once __DIR__ . '/visitors.php';
 require_once __DIR__ . '/translations.php';
+require_once __DIR__ . '/admin_tools.php';

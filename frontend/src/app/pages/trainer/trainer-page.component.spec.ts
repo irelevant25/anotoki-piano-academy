@@ -2,11 +2,11 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import type { MockInstance } from 'vitest';
 import { ApiService, GENERATION_HEADER } from '../../core/api/api.service';
-import { AuthService } from '../../core/auth/auth.service';
 import { MidiService, PianoMidi } from '../../core/midi/midi.service';
 import { NoteState, ProgressMap } from '../../core/music/music.types';
 import { SrsService } from '../../core/music/srs.service';
@@ -151,7 +151,7 @@ describe('Note Trainer: a round keeps no copy of the progress', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }),
-        { provide: AuthService, useValue: { userKey: () => '5' } },
+        { provide: AnotokiAuth, useValue: { subject: () => '5' } },
         { provide: MidiService, useValue: { piano } },
       ],
     });

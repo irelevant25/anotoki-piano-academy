@@ -72,14 +72,26 @@ const VISITORS_STATEMENTS = [
 const TRANSLATION_TABLES = ['languages', 'translation_keys', 'translations'];
 
 /**
- * The migration that took the kit's words under the library's keys (the
- * family's library, anotoki-lib 0.3.0): it copies what the database has, so it
- * is not in 003's form - no strings of its own to write - and is held to what
- * it does in tests/unit/migrations.test.php. Its two tables of its own are
- * TEMPORARY, gone when its transaction ends.
+ * The migrations that took this app's words under the library's keys: 009 the
+ * kit's (the family's library, anotoki-lib 0.3.0), 011 the sign-in card's
+ * failure words (0.4.1). Each copies what the database has, so it is not in
+ * 003's form - no strings of its own to write - and is held to what it does in
+ * tests/unit/migrations.test.php. Their tables of their own are TEMPORARY,
+ * gone when their transaction ends: file => those tables.
  */
 const LIBRARY_WORDS_MIGRATION = '009_strings_through_the_library.sql';
-const LIBRARY_WORDS_TEMPORARY_TABLES = ['kit_keys', 'kit_words'];
+const SIGN_IN_WORDS_MIGRATION = '011_sign_in_failure_words.sql';
+const COPYING_MIGRATIONS = [
+    LIBRARY_WORDS_MIGRATION => ['kit_keys', 'kit_words'],
+    SIGN_IN_WORDS_MIGRATION => ['sign_in_keys', 'sign_in_words'],
+];
+
+/** The sign-in card's failure words 011 took under the library's keys: this app's key => the library's. */
+const SIGN_IN_FAILURE_WORDS = [
+    'signIn.notCompleted' => 'anotoki.signIn.notCompleted',
+    'signIn.storageUnavailable' => 'anotoki.signIn.storageUnavailable',
+    'signIn.failed' => 'anotoki.signIn.failed',
+];
 
 /** The forms of a plural family, as Intl.PluralRules names the ones English and Slovak have (the library's scan has the same). */
 const PLURAL_FORMS = ['one', 'few', 'other'];
@@ -94,8 +106,8 @@ function migration_sql(string $file): string
  * The migrations that write strings in 003's form: a key, its English and its
  * Slovak. Until the first of them is there the database has no keys, and the
  * checks against the frontend have nothing to hold it to; from then on every
- * one of them bites. (009 inserts keys too - the library's, copied from what
- * the database has: not in 003's form.)
+ * one of them bites. (009 and 011 insert keys too - the library's, copied
+ * from what the database has: not in 003's form.)
  *
  * @return string[]
  */
@@ -103,7 +115,7 @@ function string_migrations(): array
 {
     return array_values(array_filter(
         migrationFiles(),
-        static fn(string $file): bool => $file !== LIBRARY_WORDS_MIGRATION && (bool) preg_match('/INSERT\s+INTO\s+translation_keys\b/i', migration_sql($file))
+        static fn(string $file): bool => !isset(COPYING_MIGRATIONS[$file]) && (bool) preg_match('/INSERT\s+INTO\s+translation_keys\b/i', migration_sql($file))
     ));
 }
 
@@ -116,7 +128,7 @@ function catalogue_seeded(): bool
 /**
  * The migrations of the translation work: the one that makes the tables,
  * every one that writes strings - 003 joins by itself when the file appears -
- * and the one that took the kit's words under the library's keys.
+ * and the two that took this app's words under the library's keys.
  *
  * @return string[]
  */
@@ -125,7 +137,7 @@ function translation_migrations(): array
     return array_values(array_unique(array_merge(
         array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, '002_'))),
         string_migrations(),
-        array_values(array_filter(migrationFiles(), static fn(string $file): bool => $file === LIBRARY_WORDS_MIGRATION))
+        array_values(array_filter(migrationFiles(), static fn(string $file): bool => isset(COPYING_MIGRATIONS[$file])))
     )));
 }
 
@@ -306,8 +318,9 @@ test('the library\'s set of the words comes after this app\'s own, and the libra
     assert_same([], translations()->keysWithout('en'), 'every key reads in English, the library\'s too');
     $library = array_values(array_filter(database_keys(), static fn(string $key): bool => str_starts_with($key, 'anotoki.')));
     assert_same(in_order(\Anotoki\Lib\Translations\LibraryWords::keys()), $library, 'the library\'s keys, and no other key of the namespace');
-    // Only 009 - the kit's words, copied from what this database had - writes a key of the library's namespace.
-    foreach (array_diff(migrationFiles(), [LIBRARY_WORDS_MIGRATION]) as $file) {
+    // Only 009 and 011 - the kit's words and the sign-in card's failure words, copied from what this database had -
+    // write a key of the library's namespace.
+    foreach (array_diff(migrationFiles(), array_keys(COPYING_MIGRATIONS)) as $file) {
         assert_no_match('/\banotoki\.[a-z]/', sql_code(migration_sql($file)) . implode(' ', migration_keys($file)['keys']), "$file writes into the library's namespace");
     }
 });
@@ -430,12 +443,17 @@ test('the English the shell keeps for when it has no strings is the database\'s 
     }
     assert_same([], $different, 'the kept English is the seeded English, letter for letter');
 
-    // The library's words this app says its own way (009 copied this app's strings under them): the kit has its own
-    // English for them while there is no bundle, so this app gives its own (the translations module's libraryWords).
+    // The library's words this app says its own way (009 and 011 copied this app's strings under them): the kit and
+    // the sign-in module have their own English for them while there is no bundle, so this app gives its own (the
+    // translations module's libraryWords).
     $library = translationKeptEnglish('KEPT_LIBRARY_ENGLISH');
-    assert_same(['anotoki.theme.auto', 'anotoki.theme.dark', 'anotoki.theme.light'], in_order(array_keys($library)), 'the theme switch\'s three choices - "Theme: light"');
+    assert_same(
+        in_order(['anotoki.theme.auto', 'anotoki.theme.dark', 'anotoki.theme.light', ...array_values(SIGN_IN_FAILURE_WORDS)]),
+        in_order(array_keys($library)),
+        'the theme switch\'s three choices - "Theme: light" - and the sign-in failure\'s three sentences'
+    );
     foreach ($library as $key => $text) {
-        assert_same($english[$key] ?? null, $text, "$key: the database's English as 009 left it");
+        assert_same($english[$key] ?? null, $text, "$key: the database's English as 009 and 011 left it");
         assert_true($text !== \Anotoki\Lib\Translations\LibraryWords::english($key), "$key: worded otherwise than the library's own - else nothing to keep");
     }
 });
@@ -445,7 +463,7 @@ test('the English the shell keeps for when it has no strings is the database\'s 
 test('the migrations of this work make and fill only their own three tables - by what they say', function (): void {
     $files = translation_migrations();
     assert_true(in_array('002_languages_and_translations.sql', $files, true), 'the migration that makes the tables');
-    assert_true(in_array(LIBRARY_WORDS_MIGRATION, $files, true), 'and the one that took the kit\'s words under the library\'s keys');
+    assert_same(array_keys(COPYING_MIGRATIONS), array_values(array_intersect($files, array_keys(COPYING_MIGRATIONS))), 'and the two that took this app\'s words under the library\'s keys');
     if (catalogue_seeded()) {
         // WAITS FOR 003: it is among the files from the moment it writes a key.
         assert_true(count($files) >= 3, 'and the one that writes the strings');
@@ -465,23 +483,25 @@ test('the migrations of this work make and fill only their own three tables - by
                 assert_same(1, $passed, "$file: one statement of its visitors this test passes over, $statement");
             }
         }
-        // 009's tables of its own: TEMPORARY, gone with its transaction - and nothing else of its is a table of
-        // its own. Every other table it names is one of the three.
+        // 009's and 011's tables of their own: TEMPORARY, gone with their transaction - and nothing else of theirs is
+        // a table of their own. Every other table they name is one of the three.
         preg_match_all('/\bCREATE\s+(TEMP(?:ORARY)?\s+)?TABLE\s+("?\w+"?)/i', $code, $made, PREG_SET_ORDER);
         $temporary = [];
         foreach ($made as $table) {
             if (trim($table[1]) !== '') {
-                assert_same(LIBRARY_WORDS_MIGRATION, $file, "$file makes a temporary table");
+                assert_true(isset(COPYING_MIGRATIONS[$file]), "$file makes a temporary table");
                 assert_match('/\bCREATE\s+TEMPORARY\s+TABLE\s+' . preg_quote(trim($table[2], '"'), '/') . '\s+ON\s+COMMIT\s+DROP\b/i', $code, "$file: {$table[2]} goes with the transaction");
                 $temporary[] = strtolower(trim($table[2], '"'));
             }
         }
-        if ($file === LIBRARY_WORDS_MIGRATION) {
-            assert_same(LIBRARY_WORDS_TEMPORARY_TABLES, $temporary, 'its two tables of its own');
+        if (isset(COPYING_MIGRATIONS[$file])) {
+            assert_same(COPYING_MIGRATIONS[$file], $temporary, "$file: its two tables of its own");
         }
 
-        // Every table a statement names is one of the three - but for the one reference to users (id).
-        preg_match_all('/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|ALTER\s+TABLE(?:\s+IF\s+EXISTS)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|CREATE\s+(?:UNIQUE\s+)?INDEX\s+\w+\s+ON)\s+("?\w+"?)/i', (string) preg_replace('/\bON\s+(?:UPDATE|DELETE)\s+(?:CASCADE|SET\s+NULL|SET\s+DEFAULT|RESTRICT|NO\s+ACTION)\b/i', ' ', $code), $written);
+        // Every table a statement names is one of the three - but for the one reference to users (id). (What a
+        // foreign key does when its row changes is no statement; an INSERT's ON CONFLICT ... DO UPDATE writes the
+        // table it inserts into.)
+        preg_match_all('/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|ALTER\s+TABLE(?:\s+IF\s+EXISTS)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|CREATE\s+(?:UNIQUE\s+)?INDEX\s+\w+\s+ON)\s+("?\w+"?)/i', (string) preg_replace(['/\bON\s+(?:UPDATE|DELETE)\s+(?:CASCADE|SET\s+NULL|SET\s+DEFAULT|RESTRICT|NO\s+ACTION)\b/i', '/\bDO\s+UPDATE\s+SET\b/i'], ' ', $code), $written);
         $tables = array_values(array_unique(array_map(static fn(string $name): string => strtolower(trim($name, '"')), $written[1])));
         assert_same([], array_values(array_diff($tables, TRANSLATION_TABLES)), "$file writes to a table that is not one of the three");
         assert_same([], array_values(array_intersect($tables, PROGRESS_TABLES)), "$file writes to a table of 001");
@@ -492,7 +512,7 @@ test('the migrations of this work make and fill only their own three tables - by
             assert_true(in_array($to, ['translation_keys (name)', 'languages (code)', 'users (id)'], true), "$file refers to $to");
         }
         foreach (PROGRESS_TABLES as $table) {
-            if ($file === LIBRARY_WORDS_MIGRATION) {
+            if (isset(COPYING_MIGRATIONS[$file])) {
                 assert_no_match('/\b' . $table . '\b/i', $code, "$file names $table");
             }
         }
@@ -521,8 +541,10 @@ test('the migrations of this work make and fill only their own three tables - by
 test('the migrations of this work leave everybody\'s progress exactly as it was - by what they do', function (): void {
     $name = test_empty_db('own_tables');
     $pdo = dbConnect(machineDatabaseSettings(), $name);
-    assert_same('001_init.sql', names_of(databaseMigrator($pdo)->applicable())[0] ?? null);
-    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
+    // The library's admin tools' set runs first (its tables name nothing of this app's), then 001.
+    $first = [...admin_migrations(), ['set' => MIGRATIONS_SET, 'name' => '001_init.sql']];
+    assert_same($first, array_slice(databaseMigrator($pdo)->applicable(), 0, count($first)));
+    assert_same($first, test_migrate($pdo, '001_init.sql')['applied']);
 
     // Two people's progress, as the app keeps it.
     $pdo->exec("INSERT INTO users (id, preferred_username) VALUES (1, 'owner'), (7, NULL)");
@@ -535,20 +557,23 @@ test('the migrations of this work leave everybody\'s progress exactly as it was 
 
     $held = translation_migrations();
     $applied = [];
-    // One file at a time, each looked at before and after - the library's set of the words, after them, too.
+    // One file at a time, each looked at before and after - the library's sets of the words and the people, after
+    // them, too: every file up to this one in the order they run is ready, none after it.
+    $order = array_map('migrationLabel', every_migration());
     foreach (databaseMigrator($pdo)->applicable() as $file) {
         $was = progress_tables_as_they_are($pdo);
-        $result = $file['set'] === MIGRATIONS_SET ? test_migrate($pdo, $file['name']) : databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => $set->name !== $file['set'] || strnatcmp($name, $file['name']) <= 0])->apply();
+        $upTo = array_search(migrationLabel($file), $order, true);
+        $result = databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => array_search(migrationLabel(['set' => $set->name, 'name' => $name]), $order, true) <= $upTo])->apply();
         assert_same([[$file], null], [$result['applied'], $result['failed']], migrationLabel($file) . ' applied');
-        $applied[] = $file['name'];
+        $applied[] = $file;
         if (in_array($file['name'], $held, true) || $file['set'] !== MIGRATIONS_SET) {
             // 005 makes visitors (VISITORS_STATEMENTS): everything else of 001 as it was.
             $now = progress_tables_as_they_are($pdo);
             assert_same(str_starts_with($file['name'], '005_') ? without_visitors($was) : $was, str_starts_with($file['name'], '005_') ? without_visitors($now) : $now, migrationLabel($file) . ' changed a table of 001, or a row in one');
         }
     }
-    assert_same([], array_values(array_diff($held, $applied)), 'each of them was applied');
-    assert_same(names_of(every_migration()), ['001_init.sql', ...$applied], 'every one, the library\'s last');
+    assert_same([], array_values(array_diff($held, names_of(array_values(array_filter($applied, static fn (array $file): bool => $file['set'] === MIGRATIONS_SET))))), 'each of them was applied');
+    assert_same(every_migration(), [...$first, ...$applied], 'every one, set by set');
     foreach (TRANSLATION_TABLES as $table) {
         assert_true((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "the table $table");
     }
@@ -584,14 +609,17 @@ test('a database that is not UTF8 is refused by 002 with a sentence, before anyt
     $pdo = dbConnect($server, $name);
     assert_same('LATIN1', (string) $pdo->query('SHOW server_encoding')->fetchColumn());
     $result = databaseMigrator($pdo)->apply();
-    assert_same(['001_init.sql'], names_of($result['applied']), 'the tables of 001 hold no text of the app\'s own');
+    // (The library's admin tools' set runs first, before anything of this app's can say a word: its tables are made,
+    // and stay empty - the site opens only once every file is applied.)
+    $first = [...admin_migrations(), ['set' => MIGRATIONS_SET, 'name' => '001_init.sql']];
+    assert_same($first, $result['applied'], 'the tables of 001 hold no text of the app\'s own');
     assert_same('002_languages_and_translations.sql', $result['failed']['name'] ?? null);
     assert_match('/This database keeps its text as LATIN1, and the app\'s words need UTF8\./', (string) $result['error'], 'it says what is wrong, in words');
     assert_match('/statement 1 of /', (string) $result['error'], 'the very first statement');
     foreach (TRANSLATION_TABLES as $table) {
         assert_false((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "nothing was made: $table");
     }
-    assert_same(['001_init.sql'], names_of(databaseMigrator($pdo)->status()['applied']), 'and 002 is still to do, once the database is made again');
+    assert_same($first, array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], databaseMigrator($pdo)->status()['applied']), 'and 002 is still to do, once the database is made again');
     $pdo = null;
 });
 
@@ -620,26 +648,25 @@ test('a string migration\'s gate checks exactly the keys the migration writes, a
             assert_same(in_order($found['keys']), in_order($keys), "$file: the keys with a string in \"$code\" are not the keys it inserts");
         }
     }
-    assert_false(in_array(LIBRARY_WORDS_MIGRATION, string_migrations(), true), '009 copies what the database has: tests/unit/migrations.test.php holds it');
+    assert_same([], array_values(array_intersect(array_keys(COPYING_MIGRATIONS), string_migrations())), '009 and 011 copy what the database has: tests/unit/migrations.test.php holds them');
 });
 
 /* ------------------------------------------------- the scan, as this app has it */
 
-test('the scan as this app sets it up: this app\'s sources and dynamic keys - never a spec, the specs\' helpers, the vendored SDK, the kept English, or the library\'s own keys', function (): void {
+test('the scan as this app sets it up: this app\'s sources and dynamic keys - never a spec, the specs\' helpers, the kept English, or the library\'s own keys', function (): void {
     $root = sources([
         'pages/home/home.component.html' => "<h1>{{ 'home.title' | translate }}</h1>\n<span>{{ 'home.due' | translatePlural: n }}</span>\n<em>{{ 'home.missing' | translate }}</em>\n",
         'pages/home/home.component.ts' => "const label = word('path.hint.' + midi);\nconst kit = 'anotoki.topbar.signIn';\n",
         'pages/home/home.component.spec.ts' => "expect(text).toBe('home.onlyInASpec');\n",
         'core/testing/example.ts' => "export const example = 'home.onlyInTesting';\n",
-        'core/auth/anotoki-auth.d.ts' => "export const sdk = 'home.inTheSdk';\n",
         'core/i18n/kept-english.ts' => "export const KEPT_ENGLISH: Readonly<Record<string, string>> = {\n  'home.title': 'Learn',\n  'home.onlyKept': 'Kept, and asked for by no page',\n};\n",
         'core/i18n/dynamic-keys.ts' => "export const DYNAMIC_KEYS: Record<string, readonly string[]> = {\n  'path.hint.': ['60'],\n};\n",
     ]);
-    $database = ['home.title', 'home.due.one', 'home.due.few', 'home.due.other', 'home.onlyInASpec', 'home.onlyInTesting', 'home.inTheSdk', 'home.onlyKept', 'path.hint.60', 'anotoki.topbar.signIn', 'anotoki.ui.close'];
+    $database = ['home.title', 'home.due.one', 'home.due.few', 'home.due.other', 'home.onlyInASpec', 'home.onlyInTesting', 'home.onlyKept', 'path.hint.60', 'anotoki.topbar.signIn', 'anotoki.ui.close'];
     $scan = translationKeyScanner($root)->scan($database);
     assert_same([], $scan['problems']);
     assert_same(['home.missing' => ['pages/home/home.component.html:3']], $scan['missing'], 'asked for, and not there');
-    assert_same(['home.inTheSdk', 'home.onlyInASpec', 'home.onlyInTesting', 'home.onlyKept'], $scan['unused'], 'the specs, their helpers, the vendored SDK and the kept English do not count - and the library\'s keys are never unused');
+    assert_same(['home.onlyInASpec', 'home.onlyInTesting', 'home.onlyKept'], $scan['unused'], 'the specs, their helpers and the kept English do not count - and the library\'s keys are never unused');
     assert_same(['core/i18n/dynamic-keys.ts'], $scan['used']['path.hint.60']);
     assert_false(isset($scan['used']['anotoki.topbar.signIn']), 'the library\'s namespace is never looked for');
 
@@ -648,7 +675,7 @@ test('the scan as this app sets it up: this app\'s sources and dynamic keys - ne
     assert_true(in_array('app.routes.ts', $files, true) && in_array('app.component.html', $files, true), 'the sources are where the scan looks');
     foreach ($files as $file) {
         assert_match('/\.(ts|html)$/', $file);
-        assert_no_match('~\.spec\.ts$|^core/testing/|^core/auth/anotoki-auth\.|^core/i18n/kept-english\.ts$~', $file);
+        assert_no_match('~\.spec\.ts$|^core/testing/|^core/i18n/kept-english\.ts$~', $file);
     }
     assert_true(in_array(TRANSLATION_DYNAMIC_KEYS_FILE, $files, true), 'the dynamic keys are read - for what they declare');
 });

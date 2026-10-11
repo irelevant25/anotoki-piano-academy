@@ -3,13 +3,13 @@
 //   node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure]
 //
 // It builds the frontend (unless --no-build), makes a throwaway database (piano_test_browser_<port>, a copy of the
-// tests' template - backend/tests/tools/testenv.php), starts the stand-in IAM (backend/tests/tools/fake-iam.php)
-// on 8597 and the app on 8590 (SITE_PORT / IAM_PORT for others; router.php: the built app and the API on one origin, as on the hosting, with
+// tests' template - backend/tests/tools/testenv.php), starts the anotoki family's stand-in IAM
+// (backend/vendor/anotoki/lib/php/testing/stand-in-iam.php, its key made by the library's TestIam) on 8597 and the app on 8590 (SITE_PORT / IAM_PORT for others; router.php: the built app and the API on one origin, as on the hosting, with
 // PIANO_TEST_CONFIG pointing at the throwaway settings), drives headless Edge (or Chrome: BROWSER=chrome)
 // through playwright-core (flow.mjs), and then stops all of it and drops the database - also when the check
 // fails. --keep leaves the work folder (settings, logs, screenshots, the downloaded file) behind to look at;
 // the screenshots are there while it runs. --measure only prints what the top bar's row needs, in English and
-// in Slovak (how PHONE_BAR_MAX in layouts/top-bar was chosen).
+// in Slovak (how PHONE_BAR_MAX and ADMIN_PHONE_BAR_MAX in layouts/top-bar were chosen).
 //
 // PHP: the `php` on the PATH, or PHP=<the 8.2+ binary>. playwright-core is installed once into <temp>/pw (never
 // into the repository): `npx -y npm@11 install --prefix "<temp>/pw" playwright-core` - this script does it when
@@ -115,11 +115,12 @@ try {
   started = true;
   run(php, ['tests/tools/testdb.php', 'template'], { cwd: backend });
   run(php, ['tests/tools/testenv.php', config, `--db=${DATABASE}`, `--issuer=http://127.0.0.1:${IAM}`, '--application-ttl=1'], { cwd: backend });
-  const iamDir = join(work, 'fake-iam');
+  // The stand-in's key (key.json, as the library's TestIam writes it) in a folder of its own, where it keeps its state too.
+  const iamDir = join(work, 'stand-in-iam');
   mkdirSync(iamDir, { recursive: true });
-  run(php, ['-r', 'require "api/anotoki_iam.php"; file_put_contents($argv[1] . "/key.json", json_encode(anotoki_iam_test_keypair("browser-check")));', iamDir], { cwd: backend });
+  run(php, ['-r', 'require "vendor/autoload.php"; \\Anotoki\\Lib\\Auth\\Testing\\TestIam::create($argv[1], $argv[2], "piano-academy", "browser-check");', iamDir, `http://127.0.0.1:${IAM}`], { cwd: backend });
 
-  start(php, ['-S', `127.0.0.1:${IAM}`, 'tests/tools/fake-iam.php'], { name: 'fake-iam', cwd: backend, env: { ...process.env, FAKE_IAM_DIR: iamDir, FAKE_IAM_ISSUER: `http://127.0.0.1:${IAM}` } });
+  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/php/testing/stand-in-iam.php'], { name: 'stand-in-iam', cwd: backend, env: { ...process.env, STAND_IN_DIR: iamDir, STAND_IN_ISSUER: `http://127.0.0.1:${IAM}` } });
   start(php, ['-S', `127.0.0.1:${SITE}`, 'router.php'], { name: 'site', cwd: backend, env: { ...process.env, PIANO_TEST_CONFIG: config } });
   await waitForUrl(`http://127.0.0.1:${IAM}/.well-known/openid-configuration`, 'The stand-in IAM');
   await waitForUrl(`http://127.0.0.1:${SITE}/api/health`, 'The app');

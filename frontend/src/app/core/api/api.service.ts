@@ -1,35 +1,37 @@
-import { HttpClient, HttpContext, HttpContextToken, HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
+import { AnotokiAuth, CARRIES_VISITOR_KEY, Caller, ISSUED_AS, VISITOR_KEY_HEADER } from '@anotoki/lib/auth';
 import { firstValueFrom, map } from 'rxjs';
-import { AuthService } from '../auth/auth.service';
-import { VISITOR_KEY_HEADER, VisitorKey } from '../auth/visitor-key';
+import { VisitorKey } from '../auth/visitor-key';
 import { visitorRefusalKey } from '../i18n/visitor-words';
 import { AppState, PathProgress, ProgressMap, Session, SessionInput } from '../music/music.types';
 import { writeStorage } from '../util/storage';
 
 // The backend's API. Every call goes through here, for the owner of the data
 // the page loaded (setDataOwner()), and says as it is ISSUED whom it is for -
-// a person's or a visitor's (ISSUED_AS, an HttpContext token the auth
-// interceptor reads) - from that owner, never from whether a token happens to
-// be there when it leaves:
+// a person's or a visitor's (ISSUED_AS, the anotoki family's HttpContext token
+// its interceptor reads: @anotoki/lib/auth) - from that owner, never from
+// whether a token happens to be there when it leaves:
 //  - A person's page (the owner is their IAM user id): the person's access
-//    token (auth.interceptor.ts). Signed out meanwhile (the IAM session ended,
+//    token (the family's anotokiAuthInterceptor). Signed out meanwhile (the IAM session ended,
 //    a sign-out in another tab), nothing is sent: 401 sign_in_required here,
 //    whatever the IAM's switch says - a person's data never goes out as a
 //    visitor's, and never makes one. Signed in as somebody else: 409, wrongUser.
 //  - A visitor's page (the owner is VISITOR_OWNER: nobody signed in, and the
 //    IAM said no sign-in is required): the visitor key, if this browser holds
 //    one (core/auth/visitor-key.ts) - only the state and the three saves; the
-//    own file and the admin panel are a person's (refused here, 401, not
-//    sent). Nobody's state is generation 0, and the first save of somebody
+//    own file and the move are a person's (refused here, 401, not sent).
+//    Nobody's state is generation 0, and the first save of somebody
 //    without a key makes the visitor (backend/api/visitors.php): its answer
 //    brings the key and the visitor's first generation. A progress PUT, a path
 //    PUT and a round's POST at the end of a round would make three visitors,
 //    so the first save without a key is the one "maker" and the others wait
 //    for it, then go with the key and the generation it brought (a maker that
-//    failed: the next one makes). A sign-in required meanwhile (the API said
-//    so - AuthService.requireSignInNow()): nothing more is sent, the key is
-//    kept for the next sign-in's move (moveVisitor()).
+//    failed: the next one makes) - here, not in the interceptor: a waiting
+//    save writes its generation header only once the maker is back. A
+//    sign-in required meanwhile (the API said so - AnotokiAuth.noteSignInRequired()):
+//    nothing more is sent, the key is kept for the next sign-in's move
+//    (moveVisitor()).
 //
 // Saves are fire-and-forget during play, so a failed one must not be lost:
 //  - A finished session goes into an outbox (localStorage, one per user)
@@ -56,15 +58,6 @@ const OUTBOX_PREFIX = 'piano-learning:unsaved-sessions:';
 /** The header a save of a whole document names its generation in (the backend's GENERATION_HEADER). */
 export const GENERATION_HEADER = 'Progress-Generation';
 
-/** Whom a request is for, decided as it is issued: a signed-in person, or a visitor. */
-export type Caller = 'person' | 'visitor';
-
-/** Set on every request this service issues (the auth interceptor reads it; null: one it did not issue). */
-export const ISSUED_AS = new HttpContextToken<Caller | null>(() => null);
-
-/** The move after a sign-in: the one person's request that carries the visitor key (it sets the header itself). */
-export const CARRIES_VISITOR_KEY = new HttpContextToken<boolean>(() => false);
-
 /** The data owner of a visitor's page - never an IAM user id (those are numbers). */
 export const VISITOR_OWNER = 'visitor';
 
@@ -90,13 +83,10 @@ export interface VisitorMove {
   generation: number | null;
 }
 
-/** The own file, the admin panel: a person's calls. */
-const AS_PERSON: Call = { asPerson: true };
-
 /** How a call is issued: its headers (a function: worked out only when it is sent), a person's only, the move's key. */
 interface Call {
   headers?: Record<string, string> | (() => Record<string, string>);
-  /** The own file, the admin panel, the move: never a visitor's (refused here, 401, nothing sent). */
+  /** The own file, the move: never a visitor's (refused here, 401, nothing sent). */
   asPerson?: boolean;
   /** The move: a person's request with the visitor key the call set itself. */
   carriesKey?: boolean;
@@ -178,26 +168,6 @@ export interface ProgressFile {
   text: string;
 }
 
-/** One person on the People page (ADMIN): who, when, and how much the app keeps of them. */
-export interface Person extends ProgressCounts {
-  id: number;
-  /** Their IAM username as the tokens last named it; null when none ever did (a CLI import). */
-  username: string | null;
-  firstSeen: string;
-  lastSeen: string;
-}
-
-/**
- * GET /api/admin/people (ADMIN): the people who signed in, and the visitors -
- * people practising without signing in, while the IAM does not require it -
- * only counted, with their rounds: never listed, never deleted by hand (they
- * go 30 days after their last visit).
- */
-export interface PeopleList {
-  people: Person[];
-  visitors: { count: number; sessions: number };
-}
-
 /** An answer's body as `details`: a plain object - not a list, not a text, not the browser's own error for "no answer". */
 function bodyDetails(body: unknown): Record<string, unknown> | null {
   if (typeof body === 'string') {
@@ -258,10 +228,10 @@ function fileName(disposition: string | null): string | null {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
-  private readonly auth = inject(AuthService);
+  private readonly auth = inject(AnotokiAuth);
   private readonly visitorKey = inject(VisitorKey);
 
-  /** userKey() when the page loaded its state - or VISITOR_OWNER on a visitor's page. */
+  /** The IAM user id signed in when the page loaded its state (AnotokiAuth.subject()) - or VISITOR_OWNER on a visitor's page. */
   private readonly _owner = signal<string | null>(null);
   /**
    * The generation of the progress the page loaded (GET /api/state); every
@@ -285,7 +255,7 @@ export class ApiService {
   /** How many finished sessions are not on the server yet. */
   readonly unsavedSessions = signal(0);
   /**
-   * Whose data this page loaded: userKey() then, VISITOR_OWNER on a visitor's
+   * Whose data this page loaded: the IAM user id then, VISITOR_OWNER on a visitor's
    * page, or null (nothing loaded). Every later call must be for the same.
    */
   readonly dataOwner = this._owner.asReadonly();
@@ -307,7 +277,7 @@ export class ApiService {
     });
   }
 
-  /** Whose data this page loaded (a person's userKey(), or VISITOR_OWNER); every later call must be for the same. */
+  /** Whose data this page loaded (a person's IAM user id, or VISITOR_OWNER); every later call must be for the same. */
   setDataOwner(key: string | null): void {
     this._owner.set(key);
     this.unsavedSessions.set(key === null ? 0 : this.loadOutbox().length);
@@ -323,7 +293,7 @@ export class ApiService {
    */
   private gate(asPerson = false): Caller {
     const owner = this._owner();
-    const current = this.auth.userKey();
+    const current = this.auth.subject();
     if (owner === VISITOR_OWNER) {
       if (current !== null) throw new ApiError('Signed in as somebody else', 409, null, true);
       if (asPerson || this.auth.loginRequired()) throw notSignedIn();
@@ -517,20 +487,8 @@ export class ApiService {
     return this.request<ImportResult>('POST', replace ? '/api/me/import?replace=true' : '/api/me/import', text, { headers: { 'Content-Type': 'application/json' }, asPerson: true });
   }
 
-  // --- the admin panel: ADMIN alone ---
-
-  /** Everybody who signed in, the most recently seen first - and how many visitors there are, with their rounds. */
-  async people(): Promise<PeopleList> {
-    const list = await this.request<Partial<PeopleList>>('GET', '/api/admin/people', undefined, AS_PERSON);
-    return { people: list.people ?? [], visitors: list.visitors ?? { count: 0, sessions: 0 } };
-  }
-
-  /** Everything the app keeps of one person goes. ApiError 404 `not_found`. */
-  async deletePerson(id: number): Promise<void> {
-    await this.request('DELETE', `/api/admin/people/${encodeURIComponent(String(id))}`, undefined, AS_PERSON);
-  }
-
-  // (The Migrations page's calls are the family's page's own: @anotoki/lib/migrations, through the interceptors.)
+  // (The admin panel's calls are the family's pages' own - the People page, the Migrations page, the admin tools:
+  // @anotoki/lib, through the interceptors.)
 
   // --- the session outbox ---
 

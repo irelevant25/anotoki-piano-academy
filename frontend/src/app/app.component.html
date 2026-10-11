@@ -83,15 +83,8 @@
                 <!-- One outlet for both: the Migrations page an ADMIN applies from while an update waits stays as the app starts. -->
                 <router-outlet />
             } @else {
+                <!-- Nobody signed in ('sign-in'): the family's guard is on its way to the IAM - or, after a sign-in that came back without one, to the screen that says why (/sign-in-failed, drawn above). -->
                 @switch (boot.status()) {
-                    @case ('sign-in') {
-                        <!-- Nobody signed in: the sign-in guard is on its way to the IAM - the card only after a sign-in that came back without one, or could not start. -->
-                        @if (signInFailed()) {
-                            <app-sign-in-card />
-                        } @else {
-                            <p class="loading">{{ 'common.loading' | translate }}</p>
-                        }
-                    }
                     @case ('load-error') {
                         <app-load-error />
                     }
@@ -105,12 +98,21 @@
 </main>
 
 <footer class="app-footer">
+    <!-- The family's feedback form, for everybody (core/site-admin.ts): its words are the library's (anotoki.feedback.*). -->
+    <button type="button" class="footer-link" id="feedback-open" (click)="feedbackOpen.set(true)">{{ 'anotoki.feedback.title' | translate }}</button>
     @if (changelog.version(); as version) {
         <button type="button" class="version" id="app-version" [title]="'footer.whatsNew' | translate" (click)="openChangelog()">Piano Academy v{{ version }}</button>
     }
 </footer>
 
 <app-changelog-dialog />
+
+<!-- The feedback form's dialog: its code (and the family's form) loaded only once it is opened. -->
+@if (feedbackOpen()) {
+    @defer (on immediate) {
+        <app-feedback-dialog (closed)="feedbackOpen.set(false)" />
+    }
+}
 
 <!-- The family's "Are you sure?" (@anotoki/lib/ui/dialog's ConfirmService): signing out with progress not saved, bringing back a progress file over the one there, the admin panel's questions. -->
 <anotoki-confirm-host />

@@ -102,9 +102,15 @@ test('an export into an account: every note and step, the sessions with their id
     assert_same(0, (int) dbValue('SELECT count(*) FROM imports'), 'the imports table is written by nothing any more');
 });
 
+/** Somebody who signed in (the library's people module recorded them from a token), with or without a name. */
+function signed_in(int $id, ?string $name = null): void
+{
+    people()->recorder()->seen(db(), \Anotoki\Lib\Auth\Person::fromClaims(['sub' => (string) $id, 'preferred_username' => $name]));
+}
+
 test('never into an account with progress: nothing changes', function (): void {
     wipe();
-    usersSeen(3, null);
+    signed_in(3);
     storeSaveProgress(3, (object) ['64' => (object) ['midi' => 64]]);
     $before = storeStateJson(3);
     assert_throws(static function (): void {
@@ -152,11 +158,11 @@ test('export and import: the same progress in another account', function (): voi
 
 test('an import that replaces: the file\'s progress alone, the old gone - and each import a new generation, never one handed out before', function (): void {
     wipe();
-    usersSeen(4, 'learner');
+    signed_in(4, 'learner');
     storeSaveProgress(4, (object) ['64' => (object) ['midi' => 64]]);
     storeSavePath(4, (object) ['steps' => (object) ['rh-9/x' => (object) ['attempts' => 1]]]);
     storeAddSession(4, ['mode' => 'trainer', 'attempts' => 1, 'correct' => 1, 'accuracy' => 100]);
-    usersSeen(5, 'bystander');
+    signed_in(5, 'bystander');
     storeSaveProgress(5, (object) ['67' => (object) ['midi' => 67]]);
     $bystander = storeStateJson(5, true);
     $before = (int) dbValue('SELECT progress_generation FROM users WHERE id = 4');
@@ -218,14 +224,14 @@ test('a move: every row goes to the new IAM user id', function (): void {
     wipe();
     transferImport(1, transferReadFile(export_file(export_document())));
     $before = state(1);
-    usersSeen(42, 'signed-in-once'); // signed in once, did nothing
+    signed_in(42, 'signed-in-once'); // signed in once, did nothing
     $result = transferReassign(1, 42);
     assert_same(['moved' => true, 'notes' => 2, 'sessions' => 4], $result);
     assert_json_same($before, state(42));
     assert_same('{"progress":{},"sessions":[],"path":{"steps": {}}}', storeStateJson(1), 'nothing left under the old id');
     assert_same(['moved' => false], transferReassign(1, 43), 'nobody to move');
 
-    usersSeen(50, null);
+    signed_in(50);
     storeSaveProgress(50, (object) ['60' => (object) ['midi' => 60]]);
     assert_throws(static function (): void {
         transferReassign(42, 50);

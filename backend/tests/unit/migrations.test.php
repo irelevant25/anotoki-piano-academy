@@ -19,7 +19,13 @@
 // and nothing else. And the library's set of the words after the app's own
 // (anotoki_translations), and 009: on a database as its owner left it, every
 // string the kit said goes under the library's key - every language, the
-// owner's wording, who and when - and nothing is lost, again and again.
+// owner's wording, who and when - and nothing is lost, again and again. And
+// anotoki-lib 0.4.1's sets in their order (its admin tools' first, its words'
+// and people's after the app's), 010 (users.anonymized_at, for the people's
+// scrub: one column, nothing else, no row changed) and 011 (the sign-in
+// card's failure words under the library's keys, the card's own gone) - on
+// databases shaped as the owner's are, before this update and after the
+// last, again and again, a refusal rolled back whole.
 
 declare(strict_types=1);
 
@@ -34,6 +40,29 @@ const PREFERENCES_MIGRATION = '006_account_preferences.sql';
 const CARD_WORDS_MIGRATION = '007_site_status_words.sql';
 const THEME_SWITCH_MIGRATION = '008_family_theme_switch_words.sql';
 const LIBRARY_WORDS_MIGRATION = '009_strings_through_the_library.sql';
+const PEOPLE_MIGRATION = '010_people.sql';
+const SIGN_IN_WORDS_MIGRATION = '011_sign_in_failure_words.sql';
+
+/** The sign-in card's failure words 011 takes under the library's keys: this app's key => the library's. */
+const SIGN_IN_WORDS = [
+    'signIn.notCompleted' => 'anotoki.signIn.notCompleted',
+    'signIn.storageUnavailable' => 'anotoki.signIn.storageUnavailable',
+    'signIn.failed' => 'anotoki.signIn.failed',
+];
+
+/** The card's own words, which 011 takes away with it. */
+const SIGN_IN_CARD_KEYS = ['signIn.title', 'signIn.text'];
+
+/**
+ * The files a full update applies from $migration on (an app's file): it and the app's after it, then the library's
+ * sets of the words and the people - as a Migrator lists them (the library's admin tools' set ran first).
+ */
+function files_from(string $migration): array
+{
+    return array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] === MIGRATIONS_SET
+        ? strnatcmp($file['name'], $migration) >= 0
+        : $file['set'] !== \Anotoki\Lib\Admin\Schema::SET));
+}
 
 /** The words of the card 007 takes away. */
 const CARD_KEYS = ['boot.notSetUp.after', 'boot.notSetUp.open', 'boot.notSetUp.text', 'boot.notSetUp.title'];
@@ -121,6 +150,24 @@ function tables_of_001(PDO $pdo): array
     return $state;
 }
 
+/**
+ * tables_of_001() without what 010 added to them - users.anonymized_at, empty for everybody here - to hold what the
+ * files before it made across an update that ran 010 too (010's own test holds the column).
+ */
+function without_anonymized_at(array $tables): array
+{
+    $tables['columns'] = array_values(array_filter($tables['columns'], static fn (array $column): bool => [$column['table_name'], $column['column_name']] !== ['users', 'anonymized_at']));
+    $tables['rows of users'] = array_map(static function (array $row): array {
+        $values = json_decode($row['row'], true);
+        assert_same(null, $values['anonymized_at'] ?? null, "nobody anonymized: {$values['id']}");
+        unset($values['anonymized_at']);
+
+        return ['row' => json_encode($values, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)];
+    }, $tables['rows of users']);
+
+    return $tables;
+}
+
 /** A database with every migration before 004, and two people's progress in it. */
 function database_before_004(string $suffix): PDO
 {
@@ -133,7 +180,9 @@ function database_before(string $migration, string $suffix): PDO
     $pdo = server_pdo(test_empty_db($suffix));
     $made = test_migrate_before($pdo, $migration);
     $expected = array_values(array_filter(migrationFiles(), static fn(string $file): bool => strnatcmp($file, $migration) < 0));
-    assert_same([$expected, null], [names_of($made['applied']), $made['failed']], "every migration before $migration");
+    $own = array_values(array_filter($made['applied'], static fn (array $file): bool => $file['set'] === MIGRATIONS_SET));
+    assert_same([$expected, null], [names_of($own), $made['failed']], "every migration before $migration");
+    assert_same(admin_migrations(), array_slice($made['applied'], 0, count(admin_migrations())), 'the library\'s admin tools\' set first');
     $pdo->exec("INSERT INTO users (id, preferred_username) VALUES (1, 'owner'), (7, NULL)");
     $pdo->exec("INSERT INTO progress (user_id, notes) VALUES (1, '{\"60\": {\"midi\": 60}}'), (7, '{}')");
     $pdo->exec("INSERT INTO path_progress (user_id, data) VALUES (1, '{\"steps\": {\"rh-1/meet\": {\"attempts\": 1}}}')");
@@ -161,23 +210,26 @@ test('an empty database gets every migration, recorded once, under the app\'s on
     $migrator = databaseMigrator($pdo);
     assert_same(migrationFiles(), $migrator->files(migrationSet()), 'the folder as the engine lists it');
     assert_same(['001_init.sql', '002_languages_and_translations.sql'], array_slice(migrationFiles(), 0, 2), 'in their order');
-    assert_same([MIGRATIONS_SET, 'anotoki_translations'], array_map(static fn (\Anotoki\Lib\Migrations\MigrationSet $set): string => $set->name, migrationSets()), 'the app\'s own set, then the library\'s of the words');
-    assert_same(['001_languages_and_strings.sql', '002_library_words.sql'], library_migration_files(), 'the library\'s, as vendor/ has them');
-    assert_same(every_migration(), $migrator->applicable(), 'all of them waiting, the library\'s after the app\'s...');
+    assert_same(['anotoki_admin', MIGRATIONS_SET, 'anotoki_translations', 'anotoki_people'], array_map(static fn (\Anotoki\Lib\Migrations\MigrationSet $set): string => $set->name, migrationSets()), 'the library\'s admin tools\' set first, the app\'s own, then the library\'s words\' and people\'s');
+    assert_same(['001_languages_and_strings.sql', '002_library_words.sql', '003_sign_in_words.sql', '004_feedback_words.sql'], library_migration_files(), 'the library\'s words, as vendor/ has them');
+    assert_same(['001_audit_log.sql', '002_feedback.sql'], library_migration_files(\Anotoki\Lib\Admin\Schema::migrationSet()), 'its admin tools\'');
+    assert_same(['001_people.sql'], library_migration_files(\Anotoki\Lib\People\Schema::migrationSet()), 'its people\'s');
+    assert_same(every_migration(), $migrator->applicable(), 'all of them waiting, in the order of the sets...');
     assert_false((bool) $pdo->query("SELECT to_regclass('migrations') IS NOT NULL")->fetchColumn(), '...and nothing written to find out');
 
     $result = $migrator->apply();
     assert_same(['applied' => every_migration(), 'failed' => null, 'error' => null, 'busy' => false, 'note' => null], $result);
-    assert_same([MIGRATIONS_SET, 'anotoki_translations'], array_values(array_unique(array_column($result['applied'], 'set'))), 'the app\'s set, then the library\'s');
+    assert_same(['anotoki_admin', MIGRATIONS_SET, 'anotoki_translations', 'anotoki_people'], array_values(array_unique(array_column($result['applied'], 'set'))), 'set by set, in their order');
     assert_same([], $migrator->applicable());
     assert_same([], databaseMigrator($pdo)->apply()['applied'], 'a second run applies nothing');
-    foreach (['users', 'progress', 'path_progress', 'sessions', 'imports', 'languages', 'translation_keys', 'translations'] as $table) {
+    foreach (['users', 'progress', 'path_progress', 'sessions', 'imports', 'languages', 'translation_keys', 'translations', 'anotoki_audit_log', 'anotoki_feedback', 'anotoki_people_sync', 'anotoki_people_anonymized'] as $table) {
         assert_true((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "the table $table");
     }
     // The record in the shape it always had: one row a file, in the order they ran - the library's named with its set.
     assert_same(['id', 'filename', 'applied_at'], $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'migrations' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN));
     assert_same(array_map('migrationLabel', every_migration()), $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
-    assert_same(['anotoki_translations/001_languages_and_strings.sql', 'anotoki_translations/002_library_words.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -2));
+    assert_same(['anotoki_admin/001_audit_log.sql', 'anotoki_admin/002_feedback.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 0, 2));
+    assert_same(['anotoki_translations/004_feedback_words.sql', 'anotoki_people/001_people.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -2));
     assert_same(0, advisory_locks($pdo), 'the lock was let go');
 
     // Somebody else updating (setup.php's Save, php migration.php, an Apply): busy, and nothing done.
@@ -258,9 +310,10 @@ test('a database from before the family\'s engine: its record is read as it is, 
     $pdo->exec("INSERT INTO users (id) VALUES (1)");
     $pdo->exec("INSERT INTO progress (user_id, notes) VALUES (1, '{\"60\": {\"midi\": 60}}')");
 
-    // Such a database has 001 and nothing after it: what came later is still to do (the library's set of the words
-    // too), 001 is not.
-    $later = names_of(array_slice(every_migration(), 1));
+    // Such a database has 001 and nothing after it: what came later is still to do (the library's sets too - its admin
+    // tools' first), 001 is not.
+    $first = ['set' => MIGRATIONS_SET, 'name' => '001_init.sql'];
+    $later = names_of(array_values(array_filter(every_migration(), static fn (array $file): bool => $file !== $first)));
     assert_true(legacyMigrationsTable($pdo));
     $status = databaseMigrator($pdo)->status();
     assert_same([['set' => MIGRATIONS_SET, 'name' => '001_init.sql', 'applied_at' => '2026-09-28T07:20:22Z']], $status['applied'], 'read without changing anything: 001 is known as applied, and when');
@@ -270,7 +323,7 @@ test('a database from before the family\'s engine: its record is read as it is, 
     $result = databaseMigrator($pdo)->apply();
     assert_same([$later, null], [names_of($result['applied']), $result['failed']], '001 is not run a second time');
     assert_false(legacyMigrationsTable($pdo), 'the column is filename now');
-    assert_same(array_map('migrationLabel', every_migration()), $pdo->query('SELECT filename FROM migrations ORDER BY applied_at, filename')->fetchAll(PDO::FETCH_COLUMN), 'the library\'s in the same table, named with their set');
+    assert_same(array_map('migrationLabel', [$first, ...array_values(array_filter(every_migration(), static fn (array $file): bool => $file !== $first))]), $pdo->query('SELECT filename FROM migrations ORDER BY applied_at, filename')->fetchAll(PDO::FETCH_COLUMN), 'the library\'s in the same table, named with their set');
     assert_same('2026-09-28 07:20:22+00', (string) $pdo->query("SELECT applied_at FROM migrations WHERE filename = '001_init.sql'")->fetchColumn(), 'when it ran, kept');
     assert_same([], databaseMigrator($pdo)->applicable());
     assert_same('{"60": {"midi": 60}}', (string) $pdo->query('SELECT notes::text FROM progress WHERE user_id = 1')->fetchColumn(), 'the progress untouched');
@@ -290,16 +343,17 @@ test('a SQL file splits into statements, never inside a string, a comment or a $
 
 test('a migration that fails is rolled back whole and named with what PostgreSQL said - and it and every file after it wait', function (): void {
     $pdo = server_pdo(test_empty_db('fails'));
-    assert_same(['001_init.sql'], names_of(test_migrate($pdo, '001_init.sql')['applied']));
+    $first = [...admin_migrations(), ['set' => MIGRATIONS_SET, 'name' => '001_init.sql']];
+    assert_same($first, test_migrate($pdo, '001_init.sql')['applied']);
     // A table 002 makes, there already in another shape: 002 stops at its first insert.
     $pdo->exec('CREATE TABLE languages (code TEXT PRIMARY KEY)');
     $result = databaseMigrator($pdo)->apply();
     assert_same([[], ['set' => MIGRATIONS_SET, 'name' => '002_languages_and_translations.sql']], [$result['applied'], $result['failed']]);
     assert_match('/^statement \d+ of \d+: SQLSTATE\[42703\]: .*column "name" of relation "languages" does not exist/', (string) $result['error'], 'what PostgreSQL said');
     assert_true(str_contains((string) $result['error'], "\n\n  INSERT INTO languages (code, name, native_name, sort_order) VALUES"), 'and the statement\'s first lines');
-    assert_same(['001_init.sql'], $pdo->query('SELECT filename FROM migrations')->fetchAll(PDO::FETCH_COLUMN), 'nothing of it recorded');
+    assert_same(array_map('migrationLabel', $first), $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 'nothing of it recorded');
     assert_false((bool) $pdo->query("SELECT to_regclass('translation_keys') IS NOT NULL")->fetchColumn(), 'nor made');
-    assert_same(array_slice(every_migration(), 1), databaseMigrator($pdo)->applicable(), 'still to do - the library\'s set after it too');
+    assert_same(array_values(array_filter(every_migration(), static fn (array $file): bool => !in_array($file, $first, true))), databaseMigrator($pdo)->applicable(), 'still to do - the library\'s sets after it too');
     assert_same(0, advisory_locks($pdo), 'the lock was let go');
     $pdo = null;
 });
@@ -437,7 +491,7 @@ test('004 and 005 run again over a database that has visitors already: both gate
     assert_same(-2, insert_visitor($pdo), 'the sequence goes on where it was');
 
     // 005 alone again, as the tour takes it off the record - over a database with every migration, the library's too.
-    assert_same(array_slice(every_migration(), array_search(LIBRARY_WORDS_MIGRATION, migrationFiles(), true)), databaseMigrator($pdo)->apply()['applied'], 'the rest, 009 and the library\'s set');
+    assert_same(files_from(LIBRARY_WORDS_MIGRATION), databaseMigrator($pdo)->apply()['applied'], 'the rest, 009 and after, and the library\'s sets');
     $before = tables_of_001($pdo);
     $pdo->exec("DELETE FROM migrations WHERE filename = '" . VISITORS_MIGRATION . "'");
     assert_same([VISITORS_MIGRATION], names_of(databaseMigrator($pdo)->apply()['applied']));
@@ -597,7 +651,7 @@ test('009 on a database as its owner left it: every string the kit said goes und
     assert_same([], array_values(array_filter(array_keys($before), static fn (string $key): bool => str_starts_with($key, 'anotoki.'))), 'no library key yet');
 
     $result = test_migrate($pdo);
-    assert_same([array_slice(every_migration(), count(migrationFiles()) - 1), null], [$result['applied'], $result['failed']], '009, then the library\'s two files' . (string) $result['error']);
+    assert_same([files_from(LIBRARY_WORDS_MIGRATION), null], [$result['applied'], $result['failed']], '009 and after, then the library\'s files' . (string) $result['error']);
     $after = strings_of($pdo);
 
     // Under the library's key: every string of this app's key as it was - the owner's wording, the language left
@@ -620,15 +674,16 @@ test('009 on a database as its owner left it: every string the kit said goes und
     assert_same(['Prihlásiť', '2026-10-09 08:30:00+00', 1], $after['signIn.button']['sk']);
     assert_match('/anotoki\.topbar\.signIn/', (string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'signIn.button'")->fetchColumn(), 'and told of the bar\'s own Sign in');
 
-    // Every other string of this app's as it was - the owner's own wording of one too.
-    $others = static fn (array $strings): array => array_diff_key($strings, array_flip($moved), array_flip(array_filter(array_keys($strings), static fn (string $key): bool => str_starts_with($key, 'anotoki.'))));
+    // Every other string of this app's as it was - the owner's own wording of one too. (011, which ran after it, took the
+    // sign-in card's words: its own test below.)
+    $others = static fn (array $strings): array => array_diff_key($strings, array_flip($moved), array_flip([...array_keys(SIGN_IN_WORDS), ...SIGN_IN_CARD_KEYS]), array_flip(array_filter(array_keys($strings), static fn (string $key): bool => str_starts_with($key, 'anotoki.'))));
     assert_same($others($before), $others($after), 'no other string of this app\'s changed');
     assert_same(['Moje cvičenie', '2026-10-09 08:30:00+00', 1], $after['nav.learn']['sk']);
 
     // The library's other keys, with its own words in English and Slovak - by nobody - and the library's descriptions on all of them.
     $library = LibraryWords::all();
     assert_same(array_keys($library), array_values(array_filter(array_keys($library), static fn (string $key): bool => isset($after[$key]['en']))), 'every library key, with its English');
-    foreach (array_diff(array_keys($library), KIT_WORDS) as $key) {
+    foreach (array_diff(array_keys($library), KIT_WORDS, SIGN_IN_WORDS) as $key) {
         assert_same($library[$key]['en'], $after[$key]['en'][0] ?? null, "$key: the library's English");
         assert_same($library[$key]['sk'], $after[$key]['sk'][0] ?? null, "$key: the library's Slovak");
         assert_same([null, null], [$after[$key]['en'][2], $after[$key]['sk'][2]], "$key: by nobody");
@@ -641,7 +696,7 @@ test('009 on a database as its owner left it: every string the kit said goes und
 
     // Nothing else: the languages, and nobody's progress.
     assert_same($languagesBefore, $pdo->query('SELECT * FROM languages ORDER BY code')->fetchAll(PDO::FETCH_ASSOC), 'the languages as they were');
-    assert_same($tablesBefore, tables_of_001($pdo), 'nobody\'s progress touched');
+    assert_same(without_anonymized_at($tablesBefore), without_anonymized_at(tables_of_001($pdo)), 'nobody\'s progress touched (010 ran after it)');
     $pdo = null;
 });
 
@@ -673,5 +728,211 @@ test('009 runs again and holds, leaving the owner\'s later wording be - and refu
     assert_same($before, strings_of($pdo), 'every string as it was, the kit\'s keys too');
     assert_same($description, $pdo->query("SELECT description FROM translation_keys WHERE name = 'signIn.button'")->fetchColumn(), 'the description rolled back with it');
     assert_same([false, false], [(bool) $pdo->query("SELECT to_regclass('pg_temp.kit_keys') IS NOT NULL")->fetchColumn(), (bool) $pdo->query("SELECT to_regclass('pg_temp.kit_words') IS NOT NULL")->fetchColumn()], 'its own tables gone with it');
+    $pdo = null;
+});
+
+/* ------------------------------------------------------- anotoki-lib 0.4.1: 010 and 011 */
+
+/**
+ * A database as an installed one stood before this update - the sets anotoki-lib 0.3 had (the app's own and the
+ * library's words; no admin tools', no people's), the app's files up to and with $through and the library's words up
+ * to and with $wordsThrough - with two people, their progress and (from 005 on) a visitor.
+ */
+function database_as_installed(string $suffix, string $through, ?string $wordsThrough): PDO
+{
+    $pdo = server_pdo(test_empty_db($suffix));
+    $made = test_migrate_as_installed($pdo, $through, $wordsThrough);
+    assert_same(null, $made['failed'], (string) $made['error']);
+    assert_false((bool) $pdo->query("SELECT to_regclass('anotoki_audit_log') IS NOT NULL")->fetchColumn(), 'none of the library\'s admin tools\' tables yet');
+    $pdo->exec("INSERT INTO users (id, preferred_username) VALUES (1, 'owner'), (7, NULL)");
+    $pdo->exec("INSERT INTO progress (user_id, notes) VALUES (1, '{\"60\": {\"midi\": 60}}'), (7, '{}')");
+    $pdo->exec("INSERT INTO path_progress (user_id, data) VALUES (1, '{\"steps\": {\"rh-1/meet\": {\"attempts\": 1}}}')");
+    $pdo->exec("INSERT INTO sessions (user_id, id, request_key, data) VALUES (1, 'a', 'key-1', '{\"mode\": \"lesson\"}'), (7, 'b', NULL, '{\"mode\": \"trainer\"}')");
+    if ((bool) $pdo->query("SELECT to_regclass('visitor_ids') IS NOT NULL")->fetchColumn()) {
+        $visitor = insert_visitor($pdo);
+        $pdo->exec("INSERT INTO sessions (user_id, id, data) VALUES ($visitor, 'v', '{\"mode\": \"trainer\"}')");
+    }
+
+    return $pdo;
+}
+
+/** The library's files of these sets, in the order they run. */
+function library_files_of(string ...$sets): array
+{
+    return array_values(array_filter(every_migration(), static fn (array $file): bool => in_array($file['set'], $sets, true)));
+}
+
+test('010 says it is finished and how the owner applies it, and adds users.anonymized_at - one column, nothing else, no row changed - on a database as the owner\'s is', function (): void {
+    $sql = migration_text(PEOPLE_MIGRATION);
+    assert_match('/-- Finished \(2026-10-11\)\. The owner applies it with 005 to 009 and 011 at\s+-- the hand-over \(after a pg_dump/', $sql, 'the header says it is finished, and to dump first');
+    assert_match('/Once applied it\s+-- never changes: the next change is 011\./', $sql, 'and that it is then frozen');
+    $statements = Splitter::split($sql);
+    assert_same(2, count($statements), 'the column and the gate - nothing else');
+    assert_same('ALTER TABLE users ADD COLUMN IF NOT EXISTS anonymized_at timestamptz', $statements[0]);
+    assert_match('/^DO \$\$.*RAISE EXCEPTION/s', $statements[1], 'it ends with its gate');
+
+    // As the owner's database is after the last hand-over: the app's files up to 009, the library's words up to 002.
+    $pdo = database_as_installed('installed_010', LIBRARY_WORDS_MIGRATION, '002_library_words.sql');
+    $before = tables_of_001($pdo);
+    $result = databaseMigrator($pdo)->apply();
+    assert_same(
+        [[...library_files_of('anotoki_admin'), ['set' => MIGRATIONS_SET, 'name' => PEOPLE_MIGRATION], ['set' => MIGRATIONS_SET, 'name' => SIGN_IN_WORDS_MIGRATION],
+            ['set' => 'anotoki_translations', 'name' => '003_sign_in_words.sql'], ['set' => 'anotoki_translations', 'name' => '004_feedback_words.sql'], ...library_files_of('anotoki_people')], null],
+        [$result['applied'], $result['failed']],
+        'the library\'s admin tools\' set, 010, 011, the library\'s two new words and its people - in that order' . (string) $result['error']
+    );
+    $after = tables_of_001($pdo);
+    $added = array_values(array_filter($after['columns'], static fn (array $column): bool => !in_array($column, $before['columns'], true)));
+    assert_same([['table_name' => 'users', 'column_name' => 'anonymized_at', 'data_type' => 'timestamp with time zone', 'is_nullable' => 'YES', 'column_default' => null]], $added, 'one column, that may be empty');
+    assert_same($before['columns'], array_values(array_filter($after['columns'], static fn (array $column): bool => $column['column_name'] !== 'anonymized_at')), 'every other column as it was');
+    foreach (['constraints', 'indexes', 'rows of progress', 'rows of path_progress', 'rows of sessions', 'rows of imports'] as $part) {
+        assert_same($before[$part], $after[$part], $part);
+    }
+    assert_same(
+        array_map(static fn (array $row): array => json_decode($row['row'], true), $before['rows of users']),
+        array_map(static fn (array $row): array => array_diff_key(json_decode($row['row'], true), ['anonymized_at' => 0]), $after['rows of users']),
+        'every users row as it was - visitors too'
+    );
+    assert_same(0, (int) $pdo->query('SELECT count(*) FROM users WHERE anonymized_at IS NOT NULL')->fetchColumn(), 'nobody anonymized by it');
+    // The library's own tables, made by its sets: where the scrub stands (one row), the ids it scrubbed, the audit log, feedback.
+    assert_same([1, 0, 0, 0], [
+        (int) $pdo->query('SELECT count(*) FROM anotoki_people_sync')->fetchColumn(),
+        (int) $pdo->query('SELECT count(*) FROM anotoki_people_anonymized')->fetchColumn(),
+        (int) $pdo->query('SELECT count(*) FROM anotoki_audit_log')->fetchColumn(),
+        (int) $pdo->query('SELECT count(*) FROM anotoki_feedback')->fetchColumn(),
+    ]);
+
+    // Taken off the record and applied again over somebody the IAM deleted: the gate holds, nothing changes.
+    $pdo->exec("UPDATE users SET preferred_username = 'deleted-7', anonymized_at = '2026-11-06 10:00:00+00' WHERE id = 7");
+    $state = tables_of_001($pdo);
+    $pdo->exec("DELETE FROM migrations WHERE filename = '" . PEOPLE_MIGRATION . "'");
+    assert_same([PEOPLE_MIGRATION], names_of(databaseMigrator($pdo)->apply()['applied']));
+    assert_same($state, tables_of_001($pdo), 'again: nothing changed');
+
+    // A visitor's row that says the IAM deleted it - the IAM knows no visitor: the gate refuses, and it is not recorded.
+    $pdo->exec("DELETE FROM migrations WHERE filename = '" . PEOPLE_MIGRATION . "'");
+    $pdo->exec('UPDATE users SET anonymized_at = now() WHERE id < 0');
+    $refused = databaseMigrator($pdo)->apply();
+    assert_same(PEOPLE_MIGRATION, $refused['failed']['name'] ?? null);
+    assert_match('/a visitor\'s row says the IAM deleted it/', (string) $refused['error']);
+    assert_same([], $pdo->query("SELECT filename FROM migrations WHERE filename = '" . PEOPLE_MIGRATION . "'")->fetchAll(), 'not recorded as applied');
+    $pdo = null;
+});
+
+test('011 says it is finished and how the owner applies it, and is words only: two tables of its own, the keys, the strings, the delete, a description, its gate', function (): void {
+    // What it may write is held by tests/unit/translations.test.php too (only the three tables of the words, nobody's progress).
+    $sql = migration_text(SIGN_IN_WORDS_MIGRATION);
+    assert_match('/-- Finished \(2026-10-11\)\. The owner applies it with 005 to 010 at the\s+-- hand-over \(after a pg_dump/', $sql, 'the header says it is finished, and to dump first');
+    assert_match('/Once applied it never changes: the next change is 012\./', $sql, 'and that it is then frozen');
+    $statements = Splitter::split($sql);
+    assert_same(7, count($statements), 'the two tables of its own, the keys, the strings, the delete, the description and the gate - nothing else');
+    assert_match('/^CREATE TEMPORARY TABLE sign_in_keys ON COMMIT DROP AS/', $statements[0]);
+    assert_match('/^CREATE TEMPORARY TABLE sign_in_words ON COMMIT DROP AS/', $statements[1]);
+    assert_match('/^INSERT INTO translation_keys \(name, description\)\s+SELECT library_key/', $statements[2]);
+    assert_match('/^INSERT INTO translations \(key_name, language_code, value, updated_at, updated_by\)\s+SELECT library_key, language_code, value, updated_at, updated_by\s+FROM sign_in_words\s+ON CONFLICT \(key_name, language_code\) DO UPDATE\s+SET value = EXCLUDED\.value, updated_at = EXCLUDED\.updated_at, updated_by = EXCLUDED\.updated_by\s+WHERE translations\.updated_by IS NULL$/', $statements[3], 'every string as it is - over a migration\'s, never over a person\'s');
+    assert_same("DELETE FROM translation_keys WHERE name IN ('signIn.notCompleted', 'signIn.storageUnavailable', 'signIn.failed', 'signIn.title', 'signIn.text')", $statements[4]);
+    assert_match("/^UPDATE translation_keys SET description = '[^\\n]*'\\s+WHERE name = 'signIn\\.button'$/", $statements[5]);
+    assert_match('/^DO \$\$.*RAISE EXCEPTION/s', $statements[6], 'it ends with its gate');
+
+    preg_match_all("/^\\s*\\('([^']+)', '(anotoki\\.[^']+)'\\)/m", $statements[0], $rows, PREG_SET_ORDER);
+    assert_same(SIGN_IN_WORDS, array_combine(array_column($rows, 1), array_column($rows, 2)), 'the card\'s three failure words, each under its library key');
+    assert_same([], array_values(array_diff(SIGN_IN_WORDS, LibraryWords::keys())), 'every one a key of the library\'s');
+});
+
+test('011 on a database as the owner\'s is: the failure words under the library\'s keys - every language, the owner\'s wording, who and when - the card\'s own gone, and the library\'s 003 leaves them be', function (): void {
+    $pdo = database_as_installed('installed_011', LIBRARY_WORDS_MIGRATION, '002_library_words.sql');
+    // Reworded on the Translations page, by the two people, days ago - and a language of the owner's own.
+    $reword = $pdo->prepare("UPDATE translations SET value = ?, updated_by = ?, updated_at = TIMESTAMPTZ '2026-10-09 08:30:00+00' WHERE key_name = ? AND language_code = ?");
+    $reword->execute(['Not signed in: maybe this account has no Piano Academy.', 1, 'signIn.notCompleted', 'en']);
+    $reword->execute(['Prihlásenie zlyhalo ({code}).', 7, 'signIn.failed', 'sk']);
+    $reword->execute(['Prihlásiť', 1, 'signIn.button', 'sk']);
+    $pdo->exec("INSERT INTO languages (code, name, native_name, enabled, sort_order) VALUES ('de', 'German', 'Deutsch', TRUE, 3)");
+    $pdo->exec("INSERT INTO translations (key_name, language_code, value, updated_by, updated_at) VALUES ('signIn.storageUnavailable', 'de', 'Dieser Browser speichert nichts.', 7, TIMESTAMPTZ '2026-10-10 18:00:00+00')");
+    $before = strings_of($pdo);
+    $tablesBefore = tables_of_001($pdo);
+    $description = static fn (string $key): mixed => $pdo->query('SELECT description FROM translation_keys WHERE name = ' . $pdo->quote($key))->fetchColumn();
+    assert_same(['Not signed in: maybe this account has no Piano Academy.', '2026-10-09 08:30:00+00', 1], $before['signIn.notCompleted']['en'], 'the owner\'s wording, there before');
+    assert_false(isset($before['anotoki.signIn.notCompleted']), 'no library key of the sign-in page\'s yet');
+
+    $result = databaseMigrator($pdo)->apply();
+    assert_same(null, $result['failed'], (string) $result['error']);
+    $after = strings_of($pdo);
+
+    // Under the library's key: every string of this app's as it was - the owner's wording, their own language too - with
+    // who saved it and when; and the library's own file after it left them be (a string only for a key that has none).
+    foreach (SIGN_IN_WORDS as $own => $library) {
+        assert_same($before[$own], $after[$library] ?? null, "$own -> $library");
+    }
+    assert_same(['Dieser Browser speichert nichts.', '2026-10-10 18:00:00+00', 7], $after['anotoki.signIn.storageUnavailable']['de']);
+    // The card's words and the three that moved are gone, every string of them; Sign in stays with its own.
+    $keys = $pdo->query('SELECT name FROM translation_keys')->fetchAll(PDO::FETCH_COLUMN);
+    assert_same([], array_values(array_intersect([...array_keys(SIGN_IN_WORDS), ...SIGN_IN_CARD_KEYS], $keys)), 'the five keys gone');
+    assert_same($before['signIn.button'], $after['signIn.button'], 'signIn.button keeps its strings, the owner\'s wording too');
+    assert_true(str_contains((string) $description('signIn.button'), 'anotoki.signIn.*') && !str_contains((string) $description('signIn.button'), 'sign-in card'), 'and is told of the library\'s screen');
+    // The library's descriptions on its keys, and its own words where this app had none to give (the screen's others).
+    foreach ([...array_values(SIGN_IN_WORDS), 'anotoki.signIn.failedTitle', 'anotoki.signIn.retry'] as $library) {
+        assert_same(LibraryWords::all()[$library]['description'], $description($library), "$library: the library's description");
+    }
+    assert_true(isset($after['anotoki.signIn.retry']['en']), 'the screen\'s other words: there');
+    assert_same([LibraryWords::all()['anotoki.signIn.retry']['en'], null], [$after['anotoki.signIn.retry']['en'][0], $after['anotoki.signIn.retry']['en'][2]], 'the screen\'s other words: the library\'s, by nobody');
+
+    // Every other string of this app's as it was; nobody's progress touched.
+    $others = static fn (array $strings): array => array_diff_key($strings, array_flip([...array_keys(SIGN_IN_WORDS), ...SIGN_IN_CARD_KEYS]), array_flip(array_filter(array_keys($strings), static fn (string $key): bool => str_starts_with($key, 'anotoki.'))));
+    assert_same($others($before), $others($after), 'no other string of this app\'s changed');
+    assert_same(without_anonymized_at($tablesBefore), without_anonymized_at(tables_of_001($pdo)), 'nobody\'s progress touched (010 ran with it)');
+
+    // Taken off the record and applied again: its gate holds over its own work, and nothing changes.
+    $strings = strings_of($pdo);
+    $pdo->exec("DELETE FROM migrations WHERE filename = '" . SIGN_IN_WORDS_MIGRATION . "'");
+    assert_same([SIGN_IN_WORDS_MIGRATION], names_of(databaseMigrator($pdo)->apply()['applied']));
+    assert_same($strings, strings_of($pdo), 'again: nothing changed');
+    $pdo = null;
+});
+
+test('011 on the owner\'s database of today (004 its last) and after the library\'s 003: this app\'s wording either way - never over a person\'s', function (): void {
+    // Today's: 005 to 009 and every library file wait, and run in the sets' order - 011 before the library's 003.
+    $pdo = database_as_installed('today_011', FAMILY_MIGRATION, null);
+    $pdo->exec("UPDATE translations SET value = 'Signing in stopped: the account was turned away, or you went back.', updated_by = 1, updated_at = TIMESTAMPTZ '2026-10-09 08:30:00+00' WHERE key_name = 'signIn.notCompleted' AND language_code = 'en'");
+    $before = strings_of($pdo);
+    $result = databaseMigrator($pdo)->apply();
+    assert_same(null, $result['failed'], (string) $result['error']);
+    assert_same(array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] !== MIGRATIONS_SET || strnatcmp($file['name'], FAMILY_MIGRATION) > 0)), $result['applied'], 'everything that waited, set by set');
+    $after = strings_of($pdo);
+    foreach (SIGN_IN_WORDS as $own => $library) {
+        assert_same($before[$own], $after[$library] ?? null, "$own -> $library");
+    }
+    $pdo = null;
+
+    // A database that took the library's 003 before 011 (its strings of the sign-in page written by nobody), and a
+    // person's own rewording of one of them since: this app's strings take the place of the migration's, never of the person's.
+    $pdo = database_as_installed('after_003_011', PEOPLE_MIGRATION, '003_sign_in_words.sql');
+    $pdo->exec("UPDATE translations SET value = 'Signing in failed, code {code}.', updated_by = 7, updated_at = TIMESTAMPTZ '2026-10-10 12:00:00+00' WHERE key_name = 'anotoki.signIn.failed' AND language_code = 'en'");
+    $before = strings_of($pdo);
+    assert_same([LibraryWords::all()['anotoki.signIn.notCompleted']['en'], null], [$before['anotoki.signIn.notCompleted']['en'][0], $before['anotoki.signIn.notCompleted']['en'][2]], 'the library\'s, by nobody');
+    $result = databaseMigrator($pdo)->apply();
+    assert_same(null, $result['failed'], (string) $result['error']);
+    $after = strings_of($pdo);
+    assert_same($before['signIn.notCompleted']['en'], $after['anotoki.signIn.notCompleted']['en'], 'this app\'s wording in the migration\'s place');
+    assert_same($before['signIn.storageUnavailable']['sk'], $after['anotoki.signIn.storageUnavailable']['sk']);
+    assert_same(['Signing in failed, code {code}.', '2026-10-10 12:00:00+00', 7], $after['anotoki.signIn.failed']['en'], 'the person\'s own wording stays');
+    assert_same($before['signIn.failed']['sk'], $after['anotoki.signIn.failed']['sk'], 'and this app\'s where the person wrote nothing');
+    $pdo = null;
+});
+
+test('011 refuses, rolling back whole, when a word of the card would stay - nothing of it is left', function (): void {
+    $pdo = database_as_installed('refused_011', LIBRARY_WORDS_MIGRATION, '002_library_words.sql');
+    // A key of the card that will not go (only something outside the migrations could hold it): the gate refuses.
+    $pdo->exec("CREATE FUNCTION keep_card() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN IF OLD.name = 'signIn.title' THEN RETURN NULL; END IF; RETURN OLD; END \$\$");
+    $pdo->exec('CREATE TRIGGER keep_card BEFORE DELETE ON translation_keys FOR EACH ROW EXECUTE FUNCTION keep_card()');
+    $before = strings_of($pdo);
+    $description = $pdo->query("SELECT description FROM translation_keys WHERE name = 'signIn.button'")->fetchColumn();
+    $refused = databaseMigrator($pdo)->apply();
+    assert_same(SIGN_IN_WORDS_MIGRATION, $refused['failed']['name'] ?? null);
+    assert_match('/a key or a string of the sign-in card is still there/', (string) $refused['error']);
+    assert_same([], $pdo->query("SELECT filename FROM migrations WHERE filename = '" . SIGN_IN_WORDS_MIGRATION . "' OR filename LIKE 'anotoki_people/%'")->fetchAll(), 'not recorded as applied - and the library\'s files wait behind it');
+    assert_same($before, strings_of($pdo), 'every string as it was: no copy, no delete');
+    assert_same($description, $pdo->query("SELECT description FROM translation_keys WHERE name = 'signIn.button'")->fetchColumn(), 'the description rolled back with it');
+    assert_same(0, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name LIKE 'anotoki.signIn.%'")->fetchColumn(), 'no library key left made');
+    assert_same([false, false], [(bool) $pdo->query("SELECT to_regclass('pg_temp.sign_in_keys') IS NOT NULL")->fetchColumn(), (bool) $pdo->query("SELECT to_regclass('pg_temp.sign_in_words') IS NOT NULL")->fetchColumn()], 'its own tables gone with it');
     $pdo = null;
 });

@@ -38,14 +38,9 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'boot.loadError.title': 'Could not load your progress',
   'boot.loadError.text': 'The app did not start, so your saved progress stays safe. Check that the server is still running, then try again.',
   'boot.loadError.tryAgain': 'Try again',
-  // The sign-in card (boot/sign-in-card); its button is also the signed-out banner's and the visitor's notes'.
-  'signIn.title': 'Sign in',
-  'signIn.text': 'Sign in with your anotoki account. Your progress is saved to it.',
+  // Sign in: the signed-out banner's button and the visitor's notes' (a sign-in that did not work is said on the
+  // family's own screen, in the library's words - KEPT_LIBRARY_ENGLISH below).
   'signIn.button': 'Sign in',
-  // A sign-in that came back without one, or could not start (the sign-in card; error-text.ts).
-  'signIn.notCompleted': 'Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.',
-  'signIn.failed': 'Signing in did not work. Please try again. ({code})',
-  'signIn.storageUnavailable': 'This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.',
   // Who is signed in and what waits, in the top bar (layouts/top-bar), and the signed-out banner (app.component).
   'account.notSaved': 'Not saved yet',
   'account.notSavedHint': 'Some of your progress is not on the server yet. The app keeps trying.',
@@ -107,14 +102,20 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
  * memory (the translations module's `libraryWords`, core/i18n/site-translations.ts):
  * the top bar's theme switch names its three choices with this app's words -
  * "Theme: light", what the round button said before the family's switch took
- * its place - where the library's own are "Light". The database has them under
- * the library's keys (migration 009 copied this app's strings there, the
- * owner's wording too); with a bundle in memory its strings are read, these
- * never. Written as KEPT_ENGLISH is, and held by the same test to the
- * database's English.
+ * its place - where the library's own are "Light"; and a sign-in that did not
+ * work is said in the sentences the app's sign-in card said before the
+ * family's screen took its place (the screen, the signed-out banner and a
+ * visitor's note read them). The database has them under the library's keys
+ * (migrations 009 and 011 copied this app's strings there, the owner's
+ * wording too); with a bundle in memory its strings are read, these never.
+ * Written as KEPT_ENGLISH is, and held by the same test to the database's
+ * English.
  */
 export const KEPT_LIBRARY_ENGLISH: Readonly<Record<string, string>> = {
   'anotoki.theme.auto': 'Theme: automatic',
   'anotoki.theme.light': 'Theme: light',
   'anotoki.theme.dark': 'Theme: dark',
+  'anotoki.signIn.notCompleted': 'Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.',
+  'anotoki.signIn.failed': 'Signing in did not work. Please try again. ({code})',
+  'anotoki.signIn.storageUnavailable': 'This browser did not let the app remember the sign-in in progress. Allow this site to store data, then try again.',
 };

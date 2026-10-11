@@ -1,8 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { ApiService, GENERATION_HEADER, VISITOR_OWNER } from '../api/api.service';
-import { AuthService } from '../auth/auth.service';
 import { VisitorKey } from '../auth/visitor-key';
 import { VISITOR_WORDS } from '../i18n/visitor-words';
 import { NoteState } from '../music/music.types';
@@ -27,7 +27,7 @@ describe('ProgressStore', () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     localStorage.clear();
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: { userKey: () => '5' } }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AnotokiAuth, useValue: { subject: () => '5' } }] });
     const api = TestBed.inject(ApiService);
     api.setDataOwner('5');
     store = TestBed.inject(ProgressStore);
@@ -297,7 +297,7 @@ describe('ProgressStore on a visitor’s page: a refusal sending again cannot fi
     vi.useFakeTimers();
     localStorage.clear();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: { userKey: () => null, signedIn: () => false, loginRequired: () => false } }],
+      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AnotokiAuth, useValue: { subject: () => null, signedIn: () => false, loginRequired: () => false } }],
     });
     api = TestBed.inject(ApiService);
     api.setDataOwner(VISITOR_OWNER);

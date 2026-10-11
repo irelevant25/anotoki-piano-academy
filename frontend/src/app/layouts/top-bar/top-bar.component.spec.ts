@@ -1,18 +1,19 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, TitleStrategy, provideRouter } from '@angular/router';
+import { FeedbackUnread } from '@anotoki/lib/admin';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
-import { AuthService } from '../../core/auth/auth.service';
 import { provideFamilyKit } from '../../core/family-kit';
 import { BootService, BootStatus } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
 import { provideSiteMigrations } from '../../core/state/site-migrations';
 import { provideTestKit } from '../../core/testing/test-kit';
 import { PianoTitleStrategy } from '../../core/title.strategy';
-import { PHONE_BAR_MAX, TopBarComponent } from './top-bar.component';
+import { ADMIN_PHONE_BAR_MAX, ADMIN_SHORT_BRAND_MAX, PHONE_BAR_MAX, TopBarComponent } from './top-bar.component';
 
 const ENGLISH: Record<string, string> = {
   'brand.area': 'Piano Academy',
@@ -138,6 +139,8 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
   const onlyMigrations = signal(false);
   const unsaved = signal(false);
   const loaded = signal(true);
+  /** How many feedback messages are new (the family's FeedbackUnread; null until the server said, and for anybody but an ADMIN). */
+  const unread = signal<number | null>(null);
   /** What settling answers: would signing out now lose progress? */
   let settled: (wouldLose: boolean) => void = () => undefined;
   const boot = {
@@ -157,8 +160,11 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     asked.length = 0;
     vi.stubGlobal('matchMedia', (media: string) => {
       asked.push(media);
-      // The bar's widths; anything else (the theme's prefers-color-scheme) is a list that never changes.
-      return media.includes('max-width') ? screen : { matches: false, media, addEventListener: () => undefined, removeEventListener: () => undefined };
+      const still = (matches: boolean) => ({ matches, media, addEventListener: () => undefined, removeEventListener: () => undefined });
+      // No screen is wider than the admin panel's "short brand" width; the bar's other widths turn with the spec's screen;
+      // anything else (the theme's prefers-color-scheme) is a list that never changes.
+      if (media === `(max-width: ${ADMIN_SHORT_BRAND_MAX}px)`) return still(true);
+      return media.includes('max-width') ? screen : still(false);
     });
     const slovak = options.language === 'sk';
     TestBed.configureTestingModule({
@@ -177,10 +183,11 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
         { provide: TitleStrategy, useClass: PianoTitleStrategy },
         ...(slovak ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH)),
         {
-          provide: AuthService,
+          provide: AnotokiAuth,
           useValue: {
             signedIn: computed(() => person() !== null),
-            displayName: computed(() => person()?.name ?? null),
+            // The family's: the name, else the address - '' when the token names nobody.
+            displayName: computed(() => person()?.name ?? ''),
             user: computed(() => (person() ? { email: person()?.email ?? null } : null)),
             isAdmin: computed(() => person()?.roles.includes('ADMIN') ?? false),
             isStaff: computed(() => (person()?.roles ?? []).some((role) => role === 'ADMIN' || role === 'EDITOR')),
@@ -193,6 +200,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
         },
         { provide: BootService, useValue: boot },
         { provide: ProgressStore, useValue: { unsaved, loaded } },
+        { provide: FeedbackUnread, useValue: { count: unread, refresh: async () => undefined } },
         // Where the site stands (the family's SiteStatus): ready, unless a case says otherwise.
         provideSiteMigrations(),
         // The family's kit with this app's words, theme and languages - as app.config.ts has it.
@@ -213,6 +221,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     status.set('ready');
     unsaved.set(false);
     loaded.set(true);
+    unread.set(null);
     boot.signIn.mockClear();
     boot.settleBeforeSignOut.mockClear();
     boot.signOut.mockClear();
@@ -586,12 +595,18 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       await router.navigateByUrl('/admin/people');
       await fixture.whenStable();
       expect(TestBed.inject(TranslationService).effectiveLanguage()).toBe('en');
-      expect(texts('nav a')).toEqual(['Translations', 'Languages', 'People', 'Migrations']);
+      expect(texts('nav a')).toEqual(['Translations', 'Languages', 'People', 'Feedback', 'Error log', 'Audit log', 'Backups', 'Migrations']);
       expect(texts('nav a[aria-current="page"]')).toEqual(['People']);
       expect($('.anotoki-brand__brand')?.getAttribute('href')).toBe('/admin');
-      // The family's admin wordmark: "anotoki Piano Academy · admin panel".
+      // The family's admin wordmark, short at every width (eight sections leave the whole one no room): "Piano" with
+      // "admin panel" under it - "anotoki Piano Academy · admin panel" in the link's name.
       expect($('.anotoki-brand__brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy · admin panel');
-      expect(texts('.anotoki-brand__wordmark > span')).toEqual(['anotoki', 'Piano Academy', '·', 'admin panel']);
+      expect(texts('.anotoki-brand__area')).toEqual(['Piano']);
+      expect(texts('.anotoki-brand__panel')).toEqual(['admin panel']);
+      expect($('.anotoki-brand__name')).toBeNull();
+      // Its own fold: the admin panel's row is not the learner's.
+      expect(asked).toContain(`(max-width: ${ADMIN_PHONE_BAR_MAX}px)`);
+      expect(asked).toContain(`(max-width: ${ADMIN_SHORT_BRAND_MAX}px)`);
       expect($('anotoki-language-switcher')).toBeNull();
       expect($('app-midi-panel')).toBeNull();
       expect($('.anotoki-top-bar__person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
@@ -599,6 +614,40 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Back to Piano Academy', 'Sign out']);
       expect($('anotoki-menu a[href="/"]')?.textContent?.trim()).toBe('Back to Piano Academy');
       expect($('.anotoki-top-bar__menu-role')?.textContent).toBe('Administrator');
+    });
+
+    it('the admin panel\'s sections by role: an EDITOR has Translations alone, an ADMIN every tool - "Feedback" with how many messages are new', async () => {
+      person.set({ name: 'mia', roles: ['EDITOR'] });
+      await bar({ at: '/admin/translations' });
+      expect(texts('nav a')).toEqual(['Translations']);
+
+      person.set({ name: 'mia', roles: ['ADMIN'] });
+      await fixture.whenStable();
+      expect(texts('nav a')).toEqual(['Translations', 'Languages', 'People', 'Feedback', 'Error log', 'Audit log', 'Backups', 'Migrations']);
+      expect(Array.from(host.querySelectorAll('nav a')).map((link) => link.getAttribute('href'))).toEqual([
+        '/admin/translations',
+        '/admin/languages',
+        '/admin/people',
+        '/admin/feedback',
+        '/admin/errors',
+        '/admin/audit',
+        '/admin/backups',
+        '/admin/migrations',
+      ]);
+      // Nothing new (or not known yet): no number.
+      expect($('nav .anotoki-top-bar__badge')).toBeNull();
+      unread.set(0);
+      await fixture.whenStable();
+      expect($('nav .anotoki-top-bar__badge')).toBeNull();
+      // Three new messages: the number beside "Feedback" - no mail is sent, so this is how an ADMIN hears of one.
+      unread.set(3);
+      await fixture.whenStable();
+      expect(texts('nav .anotoki-top-bar__badge')).toEqual(['3']);
+      expect($('nav a[href="/admin/feedback"] .anotoki-top-bar__badge')).not.toBeNull();
+      // Never on the learner's sections.
+      await router.navigateByUrl('/');
+      await fixture.whenStable();
+      expect($('nav .anotoki-top-bar__badge')).toBeNull();
     });
 
     it('the admin panel on a phone: Piano\'s own short form beside the mark, "admin panel" under it, both in the brand link\'s name', async () => {

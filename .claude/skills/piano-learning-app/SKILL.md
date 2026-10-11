@@ -130,6 +130,25 @@ piece comes from its own entry point, the kit's class names are its own
 (`anotoki-top-bar__person-button`...), and `styles.scss`'s plain-value
 shadows are gone. No line in What's new.
 
+**2026-10-11, later: signing in, the people and the admin tools through the
+family's library - `anotoki-lib` 0.4.1** (both halves; `docs/decisions.md`).
+Signing in is the library's auth module - `Anotoki\Lib\Auth` on the server
+(`api/auth.php`, `api/meddleware/auth.php`), `@anotoki/lib/auth` in the
+browser (`core/auth/site-auth.ts`): the vendored SDKs, `AuthService`, this
+app's interceptor and guards, the sign-in card, `error-text.ts` and the
+stand-in `tests/tools/fake-iam.php` are gone (the family's stand-in is
+`vendor/anotoki/lib/php/testing/stand-in-iam.php`). A sign-in that did not
+work goes to the family's screen, `/sign-in-failed`, under the bar. No sign-in
+by the IAM's hint (`hint: false`). The People page is the library's
+(`api/people.php`; `@anotoki/lib/people/page`), with the scrub of the accounts
+the IAM deleted (migration 010: `users.anonymized_at`). The admin tools - the
+error log, the audit log, feedback (the visitors' form from the footer, the
+bar's count of new ones; no mail), backups - are the library's, for the
+site's ADMIN alone (`api/admin_tools.php`, `core/site-admin.ts`). Migration
+011 moves the sign-in card's three failure sentences under the library's
+keys and deletes the card's five. 010 and 011 go with 005 to 009 at the
+hand-over. What's new 0.4.0: Send feedback, and the sign-in failure's page.
+
 **Keep this file current.** After any change, update this skill, the root
 `CLAUDE.md`, `.claude/agents/piano-dev.md`, README "Current state", DEV.md and
 the in-app changelog where they are affected - the owner wants the knowledge
@@ -197,38 +216,42 @@ backend/                        PHP 8.2+, Slim 4, anotoki/lib (vendor/ committed
                                  error, note}; a failure 200 and logged "[db] the migration ... failed"; 409 {code:
                                  busy, message}).
   api/meddleware/                security.php (nosniff, DENY, CSP none, no-store; NO CORS on purpose),
-                                 auth.php (requireUser, requireRole -> 403 forbidden in the staff's or ADMIN's words;
-                                 both put 'user' (SiteUser) and 'userId' on the request; signedInUser - refuses a
-                                 visitor SiteUser, so they mean "a verified token" however stacked - currentUser;
-                                 requireOwner($nobody = refuse | empty | make): Bearer -> the person or 401, else
-                                 sign-in required -> 401 sign_in_required (the key not read), else X-Visitor-Key ->
-                                 the visitor, else nobody as $nobody says; with the move (routes/visitor.php) the
-                                 only reader of the key; queues the sweep).
+                                 auth.php (the anotoki family's checks, anotoki/lib's Anotoki\Lib\Auth\Http, as this
+                                 app stacks them: identify() - the library's Identify once, in front of every route but
+                                 publicPaths() (site-status, auth/config, health, the words): a Bearer header -> the
+                                 person or 401 invalid_token; sign-in required -> nobody (the key not read); an
+                                 X-Visitor-Key -> the visitor (visitorFound()) or 401 visitor_unknown; else nobody;
+                                 refusals in this app's {error, code} (authRefused()). requireUser() = RequirePerson
+                                 + recordPerson() + SiteOwner; requireRole(...) = RequireRole (403 forbidden in the
+                                 staff's or ADMIN's words) + recordPerson() + SiteOwner; adminByToken() = the ADMIN
+                                 check alone, nobody recorded (the Migrations routes, the admin tools);
+                                 requireOwner($nobody = refuse | empty | make) = RequireCaller + recordPerson() +
+                                 SiteOwner(sweep): the person, else the visitor, else nobody as $nobody says (the
+                                 attributes nobody / visitorToMake); SiteOwner puts 'user' (SiteUser) and 'userId' on
+                                 the request; currentUser; queues the sweep).
   api/helpers.php                ApiError(status, errorCode, message, headers, extra); respondJson/respondJsonText/
                                  respondError ({error, code} + extra fields); jsonBody(request, limit) (JSON only: 415
                                  otherwise, 413 over the limit - 256 kB by default - null when empty, decoded to
                                  stdClass so {} stays {}); isoNow(), textClip() and the text* helpers.
   api/auth.php                   ROLE_ADMIN, ROLE_EDITOR, ROLES_STAFF; final class SiteUser {id, name, roles, visitor
-                                 (false but for api/visitors.php's); has(...)}; its header: the four kinds of request;
-                                 authIamConfig() (+ the tests' jwks_file / application_file, application_ttl /
-                                 _timeout), authLoginRequired() (the SDK's anotoki_iam_login_required(): the IAM's
-                                 "Sign-in required", kept a minute in cache_dir, single flight, true when unknown;
-                                 a failed ask logged "[auth] the IAM did not say ..."), authPublicConfig()
-                                 ({issuer, clientId, loginRequired}), isLoopback(),
-                                 isLocalHostName(), wasForwarded(), isThisComputer(sapi, remote, host, forwarded)
-                                 (setup.php's no-token mode only); requestUser() -> ?SiteUser (no Bearer header -
-                                 none, or another scheme such as Basic: null; "Bearer" with no token: 401
-                                 sign_in_required; one that does not verify: 401 invalid_token, the reason
-                                 only in the log "[auth] token refused: ..."; roles = anotoki_iam_roles(claims),
-                                 this client's), usersSeen() (a person's id only: LogicException below 1).
+                                 (false but for api/visitors.php's); has(...)}; the IAM through the anotoki family's
+                                 library: authIamSettings() (+ the tests' jwks_file / application_file /
+                                 anonymized_file, application_ttl / _timeout), iamClient() (IamClient::fromArray),
+                                 signInRule() (SignInRule: the IAM's "Sign-in required", kept a minute in cache_dir,
+                                 one asking at a time, true when unknown), accessTokens() (RS256, typ at+jwt, this
+                                 client; why a token failed only in the log "[anotoki auth] token refused: ...", an
+                                 expired one never), authLoginRequired(), authRefused() (a library Refusal in this
+                                 app's {error, code}), usersEnsure() (the CLI's import: a person's id only,
+                                 LogicException below 1), isLoopback(), isLocalHostName(), wasForwarded(),
+                                 isThisComputer(sapi, remote, host, forwarded) (setup.php's no-token mode only).
   api/visitors.php               visitors (sign-in not required; 005): VISITOR_HEADER X-Visitor-Key, the key (32 random
                                  bytes, base64url, 43; only its SHA-256 in users.visitor_key_hash), VISITOR_KEEP_DAYS 30,
                                  VISITOR_DEFAULTS (max_visitors 500, new_per_hour_per_address 10, new_per_hour 60,
                                  max_sessions 1000, document_max_bytes 131072, move_lock_timeout_ms 5000;
                                  visitorLimit() reads
                                  config/visitors.local.php); visitorsReady() (the column there) / visitorsMustBeReady()
-                                 (503 visitors_unavailable); visitorFind() (401 visitor_unknown; last_seen_at at most
-                                 hourly); visitorMake() (inside the save's transaction, an advisory xact lock, the
+                                 (503 visitors_unavailable); visitorFound() (null for a key nobody has - the library's
+                                 Identify answers 401 visitor_unknown; last_seen_at at most hourly); visitorMake() (inside the save's transaction, an advisory xact lock, the
                                  limits -> 429 too_many_visitors, visitor_starts pruned and counted); visitorWriter(),
                                  visitorBodyLimit(), visitorDocumentOwner() (maker: generation 0 -> made; else the
                                  users row FOR UPDATE, 409, a visitor gone -> 401 visitor_unknown),
@@ -254,9 +277,10 @@ backend/                        PHP 8.2+, Slim 4, anotoki/lib (vendor/ committed
                                  MIGRATIONS_SET 'piano_academy', DATABASE_UPDATE_LOCK (the advisory lock setup.php's
                                  Save, php migration.php, POST /api/admin/migrations/apply and the tests' builders all
                                  take - busy otherwise), migrationsDir(), migrationSet(), migrationFiles() (the folder as
-                                 Migrator::files() lists it - a test holds them equal), migrationSets() (this app's
-                                 set, then the library's anotoki_translations - Schema::migrationSet(); recorded in the
-                                 same table as anotoki_translations/<file>), migrationLabel() (a file named with its set
+                                 Migrator::files() lists it - a test holds them equal), migrationSets() (the library's
+                                 anotoki_admin first, this app's set, then the library's anotoki_translations and
+                                 anotoki_people - each Schema::migrationSet(); recorded in the same table as
+                                 <set>/<file>), migrationLabel() (a file named with its set
                                  when it is the library's: the tools, /api/health), databaseMigrator(?pdo, options)
                                  (the Migrator: the sets, the lock, prepare = adoptLegacyMigrationsTable - the first
                                  runner's migrations(name) renamed to filename; status() / applicable() read only,
@@ -278,7 +302,9 @@ backend/                        PHP 8.2+, Slim 4, anotoki/lib (vendor/ committed
                                  (SESSION_FIELDS whitelist + bounds, SESSION_MODES), storeAddSession (Idempotency-Key
                                  -> stored once). The generation: GENERATION_HEADER, storeGenerationFrom() (428),
                                  storeLockGeneration() (the users row FOR UPDATE), storeRequireGeneration() (409),
-                                 storeNewGeneration() (nextval of the sequence), storeProgressChanged() (the 409);
+                                 storeNewGeneration() (nextval of the sequence), storeProgressChanged() (the 409),
+                                 storeRenewGenerationsAfterRestore() (after a restore: the sequence 10^12 on, every
+                                 users row a new number - no page of before saves over what was restored);
                                  storeGenerationFrom($h, $allowZero) - 0 for a visitor's or a maker's save;
                                  storeAddSession(..., $beforeAdding) (a visitor's cap, in its transaction);
                                  STORE_PERSON_TABLES (what a delete or the sweep empties before users).
@@ -290,15 +316,33 @@ backend/                        PHP 8.2+, Slim 4, anotoki/lib (vendor/ committed
                                  transferImport($id, $data, $replace) (one transaction: the users row FOR UPDATE,
                                  409 has_progress unless replacing, the old rows out, sessions 500 to a statement,
                                  a new generation), transferReassign (UPDATE users SET id; FKs cascade).
-  api/people.php                 ADMIN's: peopleList() (people only, id > 0; counts, the most recently seen first - the
-                                 only read across people), peopleVisitors() ({count, sessions}), peopleDelete() (false
-                                 below 1; the users row FOR UPDATE, then STORE_PERSON_TABLES - sessions, path,
-                                 progress, imports -, users; translations.updated_by goes null).
+  api/people.php                 the people through the anotoki family's library (anotoki/lib's Anotoki\Lib\People):
+                                 people() (PeopleTable users: preferred_username, created_at, last_seen_at; the hook
+                                 peopleForgetCopies() - a scrubbed person's feedback address and browser, through
+                                 feedback()->forgetPeople()), recordPerson() (the library's RecordPerson: the users row
+                                 on a person's request, never a visitor's, never one the IAM deleted), peopleColumns()
+                                 (Notes, Steps, Rounds - counts, 0 for none), peopleDelete() (null below 1 or for
+                                 nobody; storeLockGeneration(), then STORE_PERSON_TABLES and users, and the person's
+                                 feedback address and browser - peopleForgetCopies(); the counts by label),
+                                 peopleVisitors() ({count, sessions}), peopleNames() / peopleIdsNamed() (the admin
+                                 tools' names), peopleActor(). The scrub of the IAM's deleted accounts: PeopleUpkeep
+                                 after an answer, at most hourly (api/index.php); peopleScrubAfterRestore() at once
+                                 after a restore (unfinished: thrown - after_restore_error - and the upkeep's stamp
+                                 gone after the answer, so the next request tries again).
   api/db.php                     dbConnect(settings, name, persistent), db() (persistent under cli-server),
                                  dbQuery/All/One/Value/Exec, dbTx, dbExists, dbServer, ensureDatabase() (made when
                                  it may be: setup's Save, php migration.php, the tests).
-  api/anotoki_iam.php            the IAM's PHP SDK, v1.1.0, copied byte for byte from ../anotoki-iam/sdk/php/: the
-                                 token verifier and the sign-in switch's reader (anotoki_iam_login_required()).
+  api/admin_tools.php            the anotoki family's admin tools (anotoki/lib), the site's ADMIN alone: adminContext()
+                                 (who acts and is ADMIN - the token -, the proof: a sign-in of the last ten minutes,
+                                 the address a limit counts), errorLog() (storage/logs: 5xx, 404, 405, 413, 415, 429,
+                                 PHP warnings; never a query, a header, a body, a token or an address), auditLog() /
+                                 audit() (anotoki_audit_log; a pending file while its table waits), feedback()
+                                 (anotoki_feedback; FEEDBACK_SECTIONS; no mail), feedbackSender() (the token's id and
+                                 address), backups() (storage/backups: daily after the day's first answer, before an
+                                 update, before a restore, by hand; COPY on backupsConnection(); not encrypted; its
+                                 afterRestore: storeRenewGenerationsAfterRestore() and peopleScrubAfterRestore(), what
+                                 could not be done thrown - after_restore_error), databaseUpdater()
+                                 (databaseMigrator() with the backup before the update).
   config/config.php              the loader. visitorSettings(): the optional config/visitors.local.php
                                  (client_address.trusted_proxies / client_ip_header, visitors.* limits; never
                                  written by setup, never "not set up"; unreadable -> the defaults, logged).
@@ -360,9 +404,19 @@ backend/                        PHP 8.2+, Slim 4, anotoki/lib (vendor/ committed
                                  signIn.button stay), signIn.button's description, and the gate (each string under
                                  the library key exactly as it was). Pinned by tests/unit/migrations ("the next
                                  change is 010"), with an installed-shaped database and an owner's rewording.
-                                 After this set the library's anotoki_translations (vendor/anotoki/lib/php/
-                                 migrations/translations/): 001 proves the three tables' shape (makes nothing here),
-                                 002 the library's 54 words (a string only where a key has none; descriptions its own).
+                                 010_people.sql (written 2026-10-11, whole and final; with 005-009 and 011):
+                                 users.anonymized_at timestamptz - nothing else, no row changed - and a gate (the
+                                 column, nullable; no visitor's row with a time in it).
+                                 011_sign_in_failure_words.sql (2026-10-11, whole and final): words only - the sign-in
+                                 card's three failure sentences under the library's anotoki.signIn.* (every
+                                 language, who and when; over a migration's string, never a person's), the card's
+                                 five keys deleted, signIn.button's description, the gate. Pinned by
+                                 tests/unit/migrations ("the next change is 012").
+                                 Before this set the library's anotoki_admin (vendor/anotoki/lib/php/migrations/
+                                 admin/: 001 the audit log, 002 feedback); after it anotoki_translations
+                                 (migrations/translations/: 001 proves the three tables' shape, 002 the library's
+                                 words, 003 the sign-in page's, 004 the feedback form's - a string only where a key
+                                 has none) and anotoki_people (migrations/people/001: where the scrub stands).
   setup.php                      the web setup (see "Setup and settings"). Parseable by PHP 7.4.
   router.php                     PHP's built-in server: /api -> api/index.php, /setup.php, else the built
                                  frontend (PIANO_FRONTEND_DIST or ../frontend/dist/piano-academy/browser) with the SPA
@@ -374,7 +428,7 @@ backend/                        PHP 8.2+, Slim 4, anotoki/lib (vendor/ committed
                                  database; exit 1 on a gap) / --export CODE [FILE] / --import CODE FILE (checked as a
                                  save, all or nothing). Refuses while a migration is pending; --help without settings.
   tools/translation_keys.php     the library's KeyScanner set up for this app: translationKeyScanner() (frontend/src/app;
-                                 never core/testing/, the vendored SDK or kept-english.ts; dynamic-keys.ts for keys
+                                 never core/testing/ or kept-english.ts; dynamic-keys.ts for keys
                                  built at run time; anotoki.* always passed by), translationKeptEnglish() (KEPT_ENGLISH,
                                  KEPT_LIBRARY_ENGLISH read as text) - used by the CLI and tests/unit/translations.test.php.
   tools/build.php                the upload: runs the frontend build, then dist/ = app + .htaccess + setup.php + api/
@@ -386,30 +440,40 @@ backend/                        PHP 8.2+, Slim 4, anotoki/lib (vendor/ committed
                                  names_of(), library_migration_files(), every_migration()), unit/*, api/*;
                                  tools/testdb.php (template [--fresh] -
                                  built with the app's Migrator -, create, drop,
-                                 sweep), testenv.php (always the IAM: --issuer, --jwks), fake-iam.php (the stand-in
-                                 IAM; also the account's preferences: the claim while its state has some, POST
-                                 /api/oidc/preferences with the preflight, the token verified, 400 / 401 / 503).
-  storage/                       gitignored: cache/ (the IAM's keys); backups/ when you dump into it.
+                                 sweep), testenv.php (always the IAM: --issuer, --jwks). The stand-in IAM is the
+                                 family's (vendor/anotoki/lib/php/testing/stand-in-iam.php; stand_in_iam() starts
+                                 it; the tests' key and tokens: the library's TestIam - test_keys(), test_token(),
+                                 test_other_iam()); test_migrate_as_installed() builds a database as an installed one
+                                 stood before 0.4 (the app's files, then the library's words); test_anonymized_file() /
+                                 test_anonymized() - the IAM's deleted accounts as a file.
+  storage/                       gitignored: cache/ (the IAM's keys and answers, the limits' counts), logs/ (the
+                                 error log, a day a file), backups/ (the library's *.anotoki-backup; older files of
+                                 anybody's are left alone).
 
 frontend/                        Angular 21, standalone + zoneless + signals, OnPush, three files per component
   src/app/app.config.ts          zoneless, router (component input binding, scroll to top), HttpClient (fetch +
-                                 siteStatusInterceptor - the family's, outermost - + authInterceptor),
+                                 siteStatusInterceptor - the family's, outermost - + anotokiAuthInterceptor),
                                  provideSiteMigrations() (core/state/site-migrations.ts), provideSiteTranslations()
                                  (core/i18n/site-translations.ts: the family's words wired to this app),
-                                 provideFamilyKit() (core/family-kit.ts: the family's kit and frame wired to this
-                                 app), PianoTitleStrategy,
+                                 provideSiteAuth() (core/auth/site-auth.ts: the family's sign-in), provideFamilyKit()
+                                 (core/family-kit.ts: the family's kit and frame wired to this app),
+                                 provideSiteAdmin() (core/site-admin.ts: People, the admin tools, the feedback form),
+                                 PianoTitleStrategy,
                                  provideAppInitializer: ThemeService (the family's), changelog load, SiteStatus.check() (GET
                                  /api/site-status, first), BootService.start() (sign-in settings, then the language and
                                  its strings, then - unless the site is not ready: `waiting` - the person's state).
-  src/app/app.routes.ts          auth/callback (never guarded); admin (canActivate adminSignInGuard, lazy
-                                 layouts/admin-layout): translations (staff), languages, people, migrations
-                                 (adminGuard; translations and languages the family's TranslationsPageComponent and
+  src/app/app.routes.ts          auth/callback (the family's AuthCallbackComponent) and sign-in-failed (its
+                                 SignInFailureComponent) - never guarded; admin (canActivate the family's staffGuard,
+                                 lazy layouts/admin-layout): translations (staff), languages, people, migrations,
+                                 errors, audit, feedback, backups (the family's adminGuard: anybody else signed in ->
+                                 the start page; translations and languages the family's TranslationsPageComponent and
                                  LanguagesPageComponent, lazy from @anotoki/lib/translations/admin, canDeactivate
-                                 anotokiUnsavedChangesGuard; the family's MigrationsPageComponent, lazy from
-                                 @anotoki/lib/migrations/page),
+                                 anotokiUnsavedChangesGuard; people the family's PeoplePageComponent from
+                                 @anotoki/lib/people/page; the admin tools' pages from @anotoki/lib/admin/errors,
+                                 /audit, /feedback, /backups; MigrationsPageComponent from @anotoki/lib/migrations/page),
                                  database -> migrations, '' -> translations (migrations while
                                  BootService.onlyMigrations); /translations and /languages redirect to /admin/...; the
-                                 learner's pages under '' with canActivateChild signInGuard: '' home,
+                                 learner's pages under '' with canActivateChild the family's personOrVisitorGuard: '' home,
                                  lesson/:unitId/:stepId, trainer, sheet, songs, songs/:songId, stats, ** -> ''.
                                  Every learner page but home is lazy (stats too, since 2026-10-11: the first load's
                                  500 kB budget); pages with notation wait for VexFlow's fonts (withNotation). Titles are
@@ -417,8 +481,9 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
   src/app/app.component.*        the frame: <app-top-bar>, the signed-out banner (a person's only), the "progress changed elsewhere"
                                  note (store.changedElsewhere); a visitor's notes (status ready, BootService.visiting,
                                  nobody signed in; core/i18n/visitor-words.ts): #visitor-sign-in-now (sign-in required
-                                 meanwhile: AuthService.loginRequired, with Sign in), #visitor-sign-in-why (a refused
-                                 or unstartable sign-in in the card's words, closable), #visitor-refused
+                                 meanwhile: AnotokiAuth.loginRequired, with Sign in), #visitor-sign-in-why (a refused
+                                 or unstartable sign-in in the family's words - failureText(), anotoki.signIn.* -,
+                                 closable), #visitor-refused
                                  (ApiService.visitorRefusal: full / busy, with Sign in), #visitor-lost (VisitorKey.lost,
                                  closable), and #visitor-notice ({days} 30, Sign in) on '/' and '/stats' only, while no
                                  sign-in is required; after a sign-in #visitor-moved (+ #visitor-kept) and
@@ -427,10 +492,12 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  <anotoki-site-gate> (the family's: the status page in the view's place while the site
                                  is not ready - an ADMIN still has /admin/migrations) whose marked template
                                  (<ng-template anotokiSitePages>, SitePagesDirective - 0.2.0) - made only while the
-                                 gate shows it - holds the boot card or <router-outlet> (pageShown: status ready, or an
-                                 ADMIN on /admin/migrations - one outlet, kept as the app starts after an Apply; status
-                                 sign-in: "Loading…" while the guard goes to the IAM, the sign-in card only after
-                                 signInFailure; waiting: "Loading…"), the footer (the version -> What's new),
+                                 gate shows it - holds the boot card or <router-outlet> (pageShown: status ready, the
+                                 sign-in's own pages - /auth/callback, /sign-in-failed -, or an ADMIN on
+                                 /admin/migrations - one outlet, kept as the app starts after an Apply; status sign-in:
+                                 "Loading…" while the guard goes to the IAM or to the failure's screen; waiting:
+                                 "Loading…"), the footer (#feedback-open "Send feedback" - anotoki.feedback.title -
+                                 opening ui/feedback-dialog in a @defer, and the version -> What's new),
                                  <app-changelog-dialog>, and <anotoki-confirm-host> (the family's questions:
                                  ConfirmService.ask() from anywhere - the sign-out question, the progress file's
                                  replace, the admin pages').
@@ -456,51 +523,46 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  sections, then the person's items). NAME_BAR_MIN (+201, nameMin): the name beside the
                                  initial. The menus' keys are the family's (arrows/Home/End, Escape and outside
                                  click, Tab and Shift+Tab -> the focus on the button; a crossing of the fold closes
-                                 them). Under /admin: ADMIN_LINKS (English; Languages, People, Migrations for
-                                 ADMIN; Migrations alone while an update waits), ADMIN_BRAND - the family's wordmark
-                                 "anotoki Piano Academy · admin panel" ("Piano" with "admin panel" under it on a
-                                 phone) -, [languages] false, no piano.
+                                 them). Under /admin: ADMIN_LINKS (English; Languages, People, Feedback - with the
+                                 family's FeedbackUnread count as its badge -, Error log, Audit log, Backups,
+                                 Migrations for ADMIN; Migrations alone while an update waits), ADMIN_BRAND - the family's wordmark
+                                 "anotoki Piano Academy · admin panel", short at every width there ("Piano" with
+                                 "admin panel" under it: shortBrandMax ADMIN_SHORT_BRAND_MAX) -, its own fold
+                                 ADMIN_PHONE_BAR_MAX 1280 (measured: 1258 px with eight sections and a two-digit
+                                 count), [languages] false, no piano.
   core/title.strategy.ts         a route title matching title.<word> goes through t(); "<title> · Piano Academy"; after
                                  every navigation TranslationService.noteAddress(url) (the English area, a ?lang=, a
                                  bundle asked again) and the admin panel's mark (isAdminArea).
-  core/auth/                     anotoki-auth.mjs + .d.ts (the IAM's browser SDK v1.2.0, copied unchanged from
-                                 ../anotoki-iam/sdk/js/), auth.service.ts (init: /api/auth/config {issuer, clientId,
-                                 loginRequired} then createAuth + init(); signals user/signedIn/roles/isStaff/isAdmin/
-                                 signInFailure; settingsRead (the sign-in settings were read: what the words may be
-                                 asked for on - canAsk); preferences (the account's {theme, date_format, time_format} while
-                                 signed in - null for nobody, a visitor, an IAM before its 015);
-                                 savePreferences(changes) (the SDK's: user() and every tab follow; rejects with the
-                                 IAM's code); loginRequired (true unless the settings said exactly false;
-                                 requireSignInNow() - the API refused a visitor for it - sets it for the page load);
-                                 userKey() (sub or null); displayName (the person's name or null - the bar words the
-                                 rest); signIn(returnTo?, uiLocales?) -> Promise<boolean> (false + signInFailure when
-                                 it cannot start, e.g. storage_unavailable)), sign-in.guard.ts (signInGuard - learner
-                                 pages - and adminSignInGuard - /admin -, the survey's: signed out -> the IAM and back
-                                 to the address asked for, after BootService.beforeSignIn() (a visitor's saves on
-                                 their way first); signInGuard lets a visitor through (status ready,
-                                 BootService.visiting, no sign-in required), adminSignInGuard never; through after a
-                                 signInFailure; through, nobody sent to the IAM, while the site is not ready
-                                 (SiteStatus.blocked(): the status page stands in, with its own Sign in, and the
-                                 address stays); nothing while the boot status is otherwise loading / not-set-up /
-                                 load-error),
-                                 visitor-key.ts (VisitorKey: the key in localStorage piano-academy:visitor, 43
+  core/auth/                     site-auth.ts (provideSiteAuth(): the anotoki family's sign-in, @anotoki/lib/auth,
+                                 wired to this app - config /api/auth/config ({issuer, client_id, login_required,
+                                 sign_in_available}), visitors VisitorKey, api.visitorPrefixes VISITOR_PREFIXES (the
+                                 progress routes alone), language signInLanguage() (the IAM's pages in a language
+                                 that came with a bundle), translate libraryWord() (anotoki.signIn.*: 011's copy of
+                                 this app's sentences, KEPT_LIBRARY_ENGLISH while no bundle), beforeSignIn
+                                 BootService.beforeSignIn(), redirectPath CALLBACK_PATH /auth/callback, failureRoute
+                                 SIGN_IN_FAILED_ROUTE /sign-in-failed, hint false). AnotokiAuth (the library's: state
+                                 starting | signed-in | visitor | signed-out | unavailable, user, signedIn, sub,
+                                 roles, isAdmin, isStaff, displayName ('' for none), loginRequired (failing closed;
+                                 noteSignInRequired() after a visitor's 401 sign_in_required), signInFailure {code,
+                                 returnTo}, preferences, locale; signIn({returnTo, prompt}), signOut(), token(),
+                                 subject(), savePreferences(), accountUrl()), anotokiAuthInterceptor (a person's
+                                 request with the token or not sent - a local 401 -, one retry after a 401; a
+                                 visitor's with the key on the visitor prefixes, the answer's key remembered, a
+                                 visitor_unknown key forgotten and tried once more; ISSUED_AS / CARRIES_VISITOR_KEY
+                                 the library's context tokens), the guards (personOrVisitorGuard, staffGuard,
+                                 adminGuard: through while the site is not ready; a failure -> /sign-in-failed),
+                                 AuthCallbackComponent, SignInFailureComponent. visitor-key.ts (VisitorKey, the
+                                 library's VisitorKeyStore: the key in localStorage piano-academy:visitor, 43
                                  base64url; current() read at send time, a storage event; remember() - the first key
                                  stays; forget(key, lost) - compare-and-delete; lost; active; memory when storage
-                                 refuses; injects AuthService only), auth.interceptor.ts (who by ISSUED_AS - an
-                                 unmarked request: signedIn() ? person : visitor. A person's: the token - none: NOT
-                                 sent, a local 401 sign_in_required -, one retry with a fresh token after a 401,
-                                 never the key but with CARRIES_VISITOR_KEY (the move). A visitor's, no sign-in
-                                 required: the key held now, never a token; the answer's X-Visitor-Key remembered
-                                 when none was sent; 401 visitor_unknown forgets the key sent; 401 sign_in_required
-                                 -> requireSignInNow(), the key KEPT. A visitor's while required: bare.
-                                 /api/auth/config and /api/translations/ go untouched).
+                                 refuses; injects AnotokiAuth only).
   core/i18n/                     site-translations.ts (provideSiteTranslations(): the family's TranslationService
                                  (@anotoki/lib/translations) wired to this app - storagePrefix 'piano-academy' (the
                                  keys it always had: :language, :language-cache, :localization-drafts),
                                  fallbackEnglish KEPT_ENGLISH, libraryWords {en: KEPT_LIBRARY_ENGLISH}, account
-                                 {language: the token's locale while signed in, decides: preferences() !== null,
-                                 save: savePreferences({language}), userKey}, canAsk: AuthService.settingsRead()
-                                 (nothing asked while the sign-in settings could not be read), admin {allows:
+                                 {language: AnotokiAuth.locale(), decides: preferences() !== null,
+                                 save: savePreferences({language}), userKey: subject()}, canAsk: the sign-in not
+                                 starting or unavailable (nothing asked while its settings could not be read), admin {allows:
                                  strings isStaff, languages isAdmin; routes; siteName}). The service: the language
                                  (the family's order: ?lang= of this tab, a choice of this visit, the account's
                                  locale while it decides, this device's choice, the browser's, English; a change of
@@ -520,18 +582,19 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  orders and two clocks, the IAM's; `utc` for the server's numbers),
                                  kept-english.ts (KEPT_ENGLISH: the shell's English for when there is no bundle at
                                  all; KEPT_LIBRARY_ENGLISH: the library's words this app says its own way - the theme
-                                 switch's "Theme: light" -, read while no bundle is in memory; both held to the
+                                 switch's "Theme: light", the sign-in failure's three sentences -, read while no
+                                 bundle is in memory; both held to the
                                  database's English by tests/unit/translations), visitor-words.ts (VISITOR_KEEP_DAYS 30 - the backend's, a test holds them equal;
                                  VISITOR_WORDS, the keys of 005; visitorRefusalKey(status, code): visitor.full for
                                  422 visitor_limit / 413 too_large, visitor.busy for 429 too_many_visitors - read
                                  by ApiService.visitorRefusal and the store; the shell and Stats draw the words),
                                  dynamic-keys.ts (prefix -> every tail, for keys put together at run time:
                                  path.phase., path.step., path.hint., path.unit.), path-words.ts (phaseTitle,
-                                 phaseDescription, stepTitle, stepShort, unitTitle, hintKey), error-text.ts
-                                 (signInFailureKey/Params: the
-                                 sign-in card words a failure from its code - access_denied, storage_unavailable,
-                                 else signIn.failed with the code).
-  core/testing/                  provideTestDialog() (jsdom has no showModal()) and provideTestKit() (that, and
+                                 phaseDescription, stepTitle, stepShort, unitTitle, hintKey).
+  core/testing/                  test-auth.ts (TestAuth: the family's AnotokiAuth's signals set by a spec - signInAs(),
+                                 signedOut(), visiting(), unavailable(), failed(code) -, its calls recorded;
+                                 provideTestAuth(); provideTestAuthInterceptor() - the library's interceptor's config
+                                 as this app's, a browser at this origin), provideTestDialog() (jsdom has no showModal()) and provideTestKit() (that, and
                                  checkVisibility() and the popover API the family's components ask for),
                                  drawTestQuestions() (an <anotoki-confirm-host> beside a page made on its own: the
                                  family's question read and answered - .anotoki-dialog__title,
@@ -542,11 +605,12 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  account.
   core/api/api.service.ts        every call; setDataOwner()/dataOwner (a readonly signal: a person's id, VISITOR_OWNER
                                  'visitor', or null; calls refuse any other user than the page loaded); gate(asPerson)
-                                 -> the Caller, decided as the call is ISSUED and carried in ISSUED_AS (an
-                                 HttpContextToken; CARRIES_VISITOR_KEY for the move): a person's page signed out ->
-                                 401 sign_in_required whatever the switch (never a visitor's), somebody else -> 409
-                                 wrongUser; a visitor's page with somebody signed in -> 409 wrongUser, a sign-in
-                                 required or a person's call (the own file, /api/admin/, the move: AS_PERSON) -> 401,
+                                 -> the Caller, decided as the call is ISSUED and carried in ISSUED_AS (the
+                                 library's HttpContextToken; CARRIES_VISITOR_KEY for the move): a person's page
+                                 signed out (AnotokiAuth.subject()) -> 401 sign_in_required whatever the switch
+                                 (never a visitor's), somebody else -> 409 wrongUser; a visitor's page with somebody
+                                 signed in -> 409 wrongUser, a sign-in required or a person's call (the own file, the
+                                 move: asPerson) -> 401,
                                  nothing sent. request(method, url, body, {headers | () => headers, asPerson,
                                  carriesKey}) - headers worked out when sent. A visitor's PUT progress / PUT path /
                                  POST sessions without a key: ONE maker at a time (visitorSave(); the others wait,
@@ -560,9 +624,8 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  generation (0 only on a visitor's page), saveProgress/savePath send it
                                  (GENERATION_HEADER; none -> not sent, 409 progress_changed locally: never a 428);
                                  isProgressChanged(); the own file: exportMyProgress() (text + the server's file
-                                 name), previewImport(text) (?dryRun=true), importMyProgress(text, replace), EXPORT_LIMIT;
-                                 the admin panel's People calls under /api/admin/ (people, deletePerson - the words'
-                                 and the Migrations page's are the family's pages' own); the session outbox (localStorage
+                                 name), previewImport(text) (?dryRun=true), importMyProgress(text, replace), EXPORT_LIMIT
+                                 (the admin panel's calls are the family's pages' own); the session outbox (localStorage
                                  piano-learning:unsaved-sessions:<user>, Idempotency-Key, kept on any failure but
                                  400/413/415/422, unsavedSessions signal, outboxKept()).
   core/state/progress-store.service.ts  the state signal; updateNote(midi, change) (one answer into the progress
@@ -581,20 +644,23 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  an ADMIN's Apply - goes on from there and asks for the strings again) | sign-in
                                  | load-error | ready; onlyMigrations (update-pending + ADMIN: the bar's Migrations
                                  alone, /admin opens it); never runs on empty state; sends nobody to the IAM itself (the
-                                 guard does); reloads when another user signs in in another tab (a visitor's tab
-                                 too); beforeunload with a failed save; signIn() (after beforeSignIn(): a visitor's
-                                 saves settle first), settleBeforeSignOut(), signOut(). Nobody signed in and no
+                                 guards do); AnotokiAuth.init() first (never rejects: unavailable -> not-set-up,
+                                 waiting or load-error), another user signing in in another tab reloads the page (the
+                                 family's module does it); beforeunload with a failed save; signIn() (AnotokiAuth's,
+                                 which asks beforeSignIn() first: a visitor's saves settle), settleBeforeSignOut(),
+                                 signOut(). Nobody signed in and no
                                  sign-in required: a visitor (setDataOwner(VISITOR_OWNER); visiting; a 401
                                  visitor_unknown -> the state again as nobody; 401 sign_in_required -> sign-in, the
                                  key kept). Signed in: with a key held the move FIRST (moveVisitor(): one at a time;
                                  answered -> the key forgotten, visitorMoved {kept} when something came; 422 ->
                                  forgotten; 503 visitor_move_retry with Retry-After <= MOVE_RETRY_MAX_MS 5 s waited
                                  out once; else the key kept and visitorNotMoved), then adoptOutbox(VISITOR_OWNER)
-                                 on every signed-in start, then the person's state. The sign-in listener moves a
-                                 key held when a sign-in comes back mid-session (and loads the progress again).
+                                 on every signed-in start, then the person's state. An effect on AnotokiAuth.user()
+                                 (not its first look, the start's) moves a key held when a sign-in comes back
+                                 mid-session (and loads the progress again).
   core/state/site-migrations.ts  provideSiteMigrations(): @anotoki/lib/migrations' config - statusUrl /api/site-status,
                                  apiBase /api/admin/migrations, migrationsRoute /admin/migrations; isAdmin /
-                                 isSignedIn from AuthService; signIn -> BootService.signIn() (lazily: BootService reads
+                                 isSignedIn from AnotokiAuth; signIn -> BootService.signIn() (lazily: BootService reads
                                  SiteStatus - a circle otherwise); language -> TranslationService.effectiveLanguage()
                                  (English on an admin address, as the panel is); words -> siteStatusWords(i18n) (a getter,
                                  in that same language:
@@ -617,7 +683,7 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  null -> the kit's built-in words, never a key) -, icons {piano: PIANO_ICON} (rect from
                                  @anotoki/lib/ui/icon). provideAnotokiShell: theme
                                  {storageKey THEME_KEY 'piano-academy:theme' - the same as index.html's
-                                 data-storage-key -, account = AuthService.preferences()?.theme ?? null, save =
+                                 data-storage-key -, account = AnotokiAuth.preferences()?.theme ?? null, save =
                                  savePreferences({theme}), themeColor THEME_COLOR (light #f4f5f8, dark #14161c)};
                                  languages = TranslationService.forShell() (current, offered - code + native_name -,
                                  choose = setLanguage(), notSaved / clearNotSaved). The family's ThemeService: light / dark
@@ -627,6 +693,13 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  once and saves (one at a time, the latest last); refused: the account's back and
                                  refused() (the switch's note, anotoki.theme.notSaved); signed out or no preferences: the
                                  device's, nothing saved.
+  core/site-admin.ts             provideSiteAdmin(): the family's People page (provideAnotokiPeople: isAdmin, me, this
+                                 app's lead, "Delete their progress" with this app's question - deleteQuestion() -,
+                                 one's own -> this tab loads its (empty) progress, the visitors' line, formatDate the
+                                 admin stamp), admin tools (provideAnotokiAdmin: isAdmin, signInAgain -> signIn({prompt:
+                                 'login'}), siteName) and the feedback form (provideAnotokiFeedback: language
+                                 effectiveLanguage(), translate libraryWord(), FEEDBACK_SECTIONS - the server's values,
+                                 the bar's words -, signedIn, email); ADMIN_TOOL_ROUTES.
   core/changelog/                public/changelog.json (newest first; each version MAJOR.MINOR.PATCH, the newest
                                  package.json's - changelog.service.spec.ts reads both files and holds it). Nothing
                                  remembers which What's new somebody saw: it opens only from the footer's version.
@@ -636,13 +709,16 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  #midi-box: the status sentence, the device list, Connect, Rescan; the focus to the
                                  list, Escape, a click outside or the focus leaving close it onto the button, kept
                                  inside the screen by the popover), piano-keyboard (+ KeyboardModel), notation,
-                                 changelog-dialog (What's new: a native <dialog>, until the family has a changelog).
+                                 changelog-dialog (What's new: a native <dialog>, until the family has a changelog),
+                                 feedback-dialog (the family's <anotoki-feedback-form> in the family's <anotoki-dialog>,
+                                 its heading anotoki.feedback.title; drawn by the shell in a @defer, so neither is in
+                                 the first load).
                                  The bar's pieces (brand, icon, spinner, theme switch, language chooser, the
                                  popover's positioning) and the questions are the family's (@anotoki/lib) - none
                                  of them is copied here.
-  boot/                          sign-in-card (drawn only after a failed sign-in; words it from its code),
-                                 load-error. (Not set up / being updated / not available: the family's
-                                 <anotoki-site-status>, in its own en/sk words.)
+  boot/                          load-error. (Not set up / being updated / not available: the family's
+                                 <anotoki-site-status>, in its own en/sk words; a sign-in that did not work: the
+                                 family's <anotoki-sign-in-failure> on /sign-in-failed.)
   layouts/admin-layout/          /admin's frame, English: the outlet (its sections are the top bar's links there) -
                                  or "signed out" / "not signed in" / "this part is for the people who keep Piano
                                  Academy's words".
@@ -651,13 +727,11 @@ frontend/                        Angular 21, standalone + zoneless + signals, On
                                  "Your progress file" - Download; Bring back a file: size checked, refused while a
                                  save waits, the dry run's counts, a second press, over progress a question, then the
                                  progress loaded again; ownProgressProblem() words each code - only for somebody
-                                 signed in; in its place #own-progress-visitor: ownProgress.visitor + Sign in),
-                                 auth-callback.
-  pages/admin/                   the admin panel's own page, English literals: people (ADMIN: counts, delete after a
-                                 question; oneself -> this tab loads again; #people-visitors: how many visitors, their
-                                 rounds - api.people() answers {people, visitors}); admin.guard.ts (adminGuard: not
-                                 ADMIN -> /admin/translations), admin-error.ts (the server's sentence - shown only
-                                 here), _admin.scss. The rest are the family's: translations and languages
+                                 signed in; in its place #own-progress-visitor: ownProgress.visitor + Sign in).
+  (the admin panel's pages)      all the family's, English: people (<anotoki-people-page>, @anotoki/lib/people/page:
+                                 the counts, the scrub's line, a search, pages of 50, delete after this app's
+                                 question; [data-people], [data-person], [data-visitors]); the admin tools
+                                 (@anotoki/lib/admin/errors, /audit, /feedback, /backups); translations and languages
                                  (<anotoki-translations-page> - the grid: search, missing only, a cell per key and
                                  language, plural samples, export / import a language's file, drafts kept for the tab -
                                  and <anotoki-languages-page> - add, rename, order, offer, delete), lazy from
@@ -789,30 +863,35 @@ A new phase, step type, hint or worded unit title also needs its tails in
   while the IAM says sign-in is not required (below). Cross-site writes cannot
   happen: bodies must be `application/json` (a preflight nobody answers - no
   CORS anywhere).
-- **The token**: the SDK does code flow + PKCE; tokens in localStorage
-  (`anotoki-auth:piano-academy`), shared by all tabs, refresh serialised across
-  tabs. Redirect URI `<origin>/auth/callback` (a route), post-logout `<origin>/`;
-  the IAM registers `http://localhost:4500` for development; the live site's
-  client in the IAM needs `https://piano.anotoki.eu` the same way. `AuthService.init()` runs in the app
-  initializer, before the router's first navigation, so the SDK's
-  `history.replaceState(returnTo)` is what the router reads. The backend
+- **The token**: the family's auth module (`@anotoki/lib/auth`, its client
+  the IAM's SDK ported) does code flow + PKCE; tokens in localStorage
+  (`anotoki-auth:piano-academy` - the SDK's keys: nobody was signed out by the
+  move), shared by all tabs, refresh serialised across tabs. Redirect URI
+  `<origin>/auth/callback` (a route), post-logout `<origin>/`; the IAM
+  registers `http://localhost:4500` for development; the live site's client in
+  the IAM needs `https://piano.anotoki.eu` the same way. `AnotokiAuth.init()`
+  runs in the app initializer (`BootService.start()`), before the router's
+  first navigation, so the address the sign-in started from is what the
+  router reads. The backend (`Anotoki\Lib\Auth`)
   verifies every access token (RS256, typ at+jwt, kid in the JWKS cached in
   cache_dir for an hour, iss, aud piano-academy, exp/nbf/iat 60 s leeway, sub =
   user id). Who may sign in is the IAM's ("Roles that may sign in", IAM
   010; MEMBER among them). A token that is sent and does not verify is 401
   on every route that reads one - never "nobody", never a person without a
-  role. Only Bearer is a sign-in: `Basic ...` counts as no header.
+  role - a Bearer header with no token too (`invalid_token`). Only Bearer is
+  a sign-in: `Basic ...` counts as no header.
 - **The switch** ("Sign-in required", the IAM's per application):
-  `authLoginRequired()` wraps the SDK's `anotoki_iam_login_required()` (kept
-  a minute in `cache_dir` - this app's own folder -, single flight, 2 s
-  timeout, 404 = required, out of reach = the last answer or required);
-  relayed as `loginRequired` by `/api/auth/config`. No test asks a
-  real IAM: `application_file` (`test_application_file()`,
-  `test_login_required()`) or the stand-in; `test_offline_auth()` refuses
-  anything else.
+  `signInRule()` - the library's `SignInRule` (kept a minute in `cache_dir` -
+  this app's own folder -, one asking at a time, 2 s timeout, 404 =
+  required, out of reach = the last answer or required); relayed as
+  `login_required` by `/api/auth/config` (the library's `AuthRoutes`). No test
+  asks a real IAM: `application_file` / `anonymized_file`
+  (`test_application_file()`, `test_login_required()`,
+  `test_anonymized_file()`) or the family's stand-in; `test_offline_auth()`
+  refuses anything else.
 - **Visitors** (the switch off; `api/visitors.php`, 005, the build analyzer's
-  pattern): who a request is, in this order (`requireOwner()`, which with
-  the move is the only reader of the key): a Bearer header - that person or 401, the key not read;
+  pattern): who a request is, in this order (the library's `Identify`; only
+  `requireOwner()` takes a visitor for anybody): a Bearer header - that person or 401, the key not read;
   sign-in required - 401 `sign_in_required`, the key not looked up, counted or
   swept early; `X-Visitor-Key` - that visitor (401 `visitor_unknown` for a key
   nobody has, or a row that went during the request); nobody - the empty
@@ -832,11 +911,12 @@ A new phase, step type, hint or worded unit title also needs its tails in
   steps and every round come; a merged document over `BODY_LIMIT` is not
   made (the person's stays); a new generation when notes or path changed;
   then the visitor goes; again: `{found: false}`; a row held too long: 503
-  `visitor_move_retry`. **In the browser** (stage D): `AuthService.loginRequired`;
-  who a request is decided as `ApiService` issues it (`ISSUED_AS`, from the
-  page's data owner), never from a token's being there as it leaves - a
-  person's request with no token is never sent; the key (`VisitorKey`) only
-  on a visitor's request while no sign-in is required, KEPT while one is
+  `visitor_move_retry`. **In the browser**: `AnotokiAuth.loginRequired`;
+  who a request is decided as `ApiService` issues it (the library's
+  `ISSUED_AS`, from the page's data owner), never from a token's being there
+  as it leaves - a person's request with no token is never sent (the family's
+  interceptor); the key (`VisitorKey`) only on a visitor's request to the
+  progress routes while no sign-in is required, KEPT while one is
   (only `visitor_unknown` forgets it); one maker at a round's end; the move
   before the person's state (`BootService`); the visitor's outbox taken on at
   every signed-in start; a visitor's 413 / 429 not sent for ever. **The
@@ -844,7 +924,8 @@ A new phase, step type, hint or worded unit title also needs its tails in
   on Learn and Stats only (the practice screens stay clear) the notice -
   kept for this browser 30 days after the last visit, signing in keeps it -
   with Sign in; on any page sign-in required meanwhile (with Sign in), a
-  refused sign-in in the card's words (a visitor gets no signed-out banner),
+  refused sign-in in the failure screen's words (a visitor gets no signed-out
+  banner, and stays on the page),
   a save refused (`visitor.full` / `visitor.busy`, with Sign in) and the
   progress ended (`visitor.lost`, closable); after a sign-in `visitor.moved`
   (+ `visitor.kept` when the account kept its own for some of it) or
@@ -853,8 +934,10 @@ A new phase, step type, hint or worded unit title also needs its tails in
   signed out.
 - **Roles** (the token's `roles` for this client id): none - learns, with their
   own progress; **EDITOR** - also the staff routes (rewording the words);
-  **ADMIN** - also the languages, the people (counts, delete) and the database. `requireRole()` on the
-  route GROUP (`api/routes/admin.php`), 403 `forbidden`. **MEMBER** -
+  **ADMIN** - also the languages, the people (counts, delete - its question
+  alone, audited), the database and the admin tools (error log, audit log,
+  feedback, backups; EDITORs see none). `requireRole()` / `adminByToken()` on
+  the route GROUP (`api/routes/admin.php`), 403 `forbidden`. **MEMBER** -
   every account holds it - is an ordinary learner: no check needs it or
   refuses it. Taking it away in the IAM refuses the next sign-in and refresh;
   the token held verifies until it runs out. The frontend's `isStaff` / `isAdmin` (the admin panel's
@@ -875,8 +958,8 @@ A new phase, step type, hint or worded unit title also needs its tails in
   chooser (the family's, `forShell()`'s `choose` -> `setLanguage()`) is
   saved to the account too (`account.save` in `core/i18n/site-translations.ts`),
   and still remembered on this device.
-- **The account's theme, dates and clock** (the IAM's 015, SDK 1.2.0):
-  `AuthService.preferences` while signed in (null for nobody, a visitor, an
+- **The account's theme, dates and clock** (the IAM's 015):
+  `AnotokiAuth.preferences` while signed in (null for nobody, a visitor, an
   IAM that sends none - then the app's own settings, nothing saved). The
   theme is the account's everywhere, the admin panel too (the family's
   `ThemeService`); dates follow its order and clock (`localDate`); the bar's
@@ -884,25 +967,30 @@ A new phase, step type, hint or worded unit title also needs its tails in
   themselves (`anotoki.theme.notSaved`,
   `anotoki.language.notSaved` - a language the IAM does not offer is silent; the
   words promise no retry: after `access_denied` it would not help).
-- **Every page signs in first** (`signInGuard`, `adminSignInGuard`): anybody
-  signed out is sent to the IAM and back to the page asked for - but a
-  visitor (the app runs for one, no sign-in required) goes through to the
-  learner pages, never to `/admin`; the sign-in card is drawn only after a
-  sign-in that came back without one or could not start.
+- **Every page signs in first** (the family's `personOrVisitorGuard`,
+  `staffGuard`, `adminGuard`): anybody signed out is sent to the IAM and back
+  to the page asked for - but a visitor (no sign-in required) goes through to
+  the learner pages, never to `/admin`; a sign-in that came back without one,
+  could not start or cannot be set up goes to the family's screen
+  (`/sign-in-failed`: why, Try again, Back) - never round to the IAM. No
+  sign-in by the IAM's hint (`hint: false`).
 - **The top bar's menu** (the family's, Piano's items): the username (or
   `account.signedIn`), e-mail, role, "Your anotoki account" (new tab), "Admin
   panel" (staff, while the site is ready), "Sign out" (settles first - the
   family's "Saving…" -; asks `signOut.*` through the family's
   `ConfirmService` when progress would be lost); signed out mid-session: "Sign
   in", and the banner "You are signed out, so your progress is not saved.";
-  "Not saved yet" while anything waits (all of them keys). The sign-in card words a failure from its code
-  (`core/i18n/error-text.ts`): `access_denied` is `signIn.notCompleted`,
-  `storage_unavailable` `signIn.storageUnavailable`, anything else
-  `signIn.failed` with the code; the IAM's and the SDK's own English sentences
-  are never shown.
+  "Not saved yet" while anything waits (all of them keys). A sign-in that did
+  not work is worded from its code alone (the library's `failureText()`, its
+  words `anotoki.signIn.*`): `access_denied` is `notCompleted`,
+  `storage_unavailable` `storageUnavailable`, `state_mismatch` `expired`,
+  anything else `failed` with the code - this app's three sentences there
+  since 011; the IAM's own English sentences are never shown. The footer's
+  "Send feedback" opens the family's form (no mail; the admin bar counts the
+  new ones).
 - **Hosting** (Apache + PHP + PostgreSQL, FTP only): `php tools/build.php` ->
   upload `dist/` into the web root -> `/setup.php` with the token. Web MIDI and
-  the SDK's Web Crypto need HTTPS there. A later migration: an administrator's
+  the sign-in's Web Crypto need HTTPS there. A later migration: an administrator's
   Apply on the admin panel's Migrations page (signing in works meanwhile), or
   delete `storage/installed.lock` and run `/setup.php` again (idempotent) at
   once - until then every visitor reads "The site is being updated". The
@@ -956,7 +1044,7 @@ DO NOTHING`), then the string (as 009 did).
   address, a stored session or anything typed.
 - **State holds keys, never sentences**: a step's `Feedback` is
   `{key, params, kind}`, the player's callback is `feedback(key, params?, kind?)`,
-  `MidiService` keeps a problem kind, `AuthService.displayName` a name or null.
+  `MidiService` keeps a problem kind, `AnotokiAuth.displayName` a name or ''.
   The page words them, and words them again when the language changes in the
   middle of a step. Nothing worded is awaited in a MIDI handler.
 - **Not translated**: note names (the English letters C D E F G A B - B in
@@ -1112,21 +1200,21 @@ en dash and „ “ quotes, never a hyphen as a dash or a straight quote.
 - **`getopt()` stops at the first non-option argument** - `tests/tools/testenv.php` parses its arguments by hand.
 - **Stop the whole process tree** of any server (`taskkill /T`), or the next start finds the port taken.
 - **PHP's built-in server answers one request at a time** (no PHP_CLI_SERVER_WORKERS on Windows): a test of two requests at once needs two servers on the same database (`tests/api/me.test.php`).
-- **`INSERT ... ON CONFLICT DO UPDATE ... WHERE` locks the conflicting row even when the WHERE is false**: `usersSeen()` on every request waits while an import or a delete holds that person's users row - harmless, and it is why a test that holds the row itself proves nothing about the import's own `FOR UPDATE` (me.test.php holds a lock on `sessions` instead, inside the import's transaction).
+- **`INSERT ... ON CONFLICT DO UPDATE ... WHERE` locks the conflicting row even when the WHERE is false**: the library's `PeopleRecorder` (`recordPerson()`) on every person's request waits while an import or a delete holds that person's users row - harmless, and it is why a test that holds the row itself proves nothing about the import's own `FOR UPDATE` (me.test.php holds a lock on `sessions` instead, inside the import's transaction).
 - **PostgreSQL 18 lists a NOT NULL as a constraint** (`<table>_<column>_not_null` in pg_constraint); older servers do not - a test comparing constraints across a migration that adds a NOT NULL column passes over that one.
-- **Apache under CGI/FastCGI drops `Authorization`**: both `CGIPassAuth On` and `SetEnvIf Authorization` in the upload's `.htaccess`; when the PSR-7 header is empty, `requestUserId()` falls back to the SDK's `anotoki_iam_authorization_header()` (which also reads `REDIRECT_HTTP_AUTHORIZATION`).
-- **Another person signing in in another tab** would have let this tab save as them: `ApiService` refuses calls whose `userKey()` differs from the page's owner, and `BootService` reloads the page.
+- **Apache under CGI/FastCGI drops `Authorization`**: both `CGIPassAuth On` and `SetEnvIf Authorization` in the upload's `.htaccess`; when the PSR-7 header is empty, the library's `Bearer::header()` reads `REDIRECT_HTTP_AUTHORIZATION` too.
+- **Another person signing in in another tab** would have let this tab save as them: `ApiService` refuses calls whose `AnotokiAuth.subject()` differs from the page's owner, and the family's auth module reloads the page.
 - **Zoneless change detection is scheduled**: after a click, wait for the DOM (`waitForFunction`), don't read it synchronously.
 - **A zoneless OnPush `<dialog>` opens before its words are drawn**: Piano's old confirm dialog set its question and called `showModal()` at once, and opened empty (or with the last question) - its `ask()` called `ChangeDetectorRef.detectChanges()` first. The family's `ConfirmService` takes care of it now; a dialog of Piano's own (What's new) draws its words before `showModal()`.
 - **jsdom lacks what the family's components ask a browser for**: `showModal()`, `checkVisibility()` (a box's autofocus, a dialog's Tab) and the popover API (a menu or a box in the top layer). A spec of a page that draws the family's bar, a menu, the piano's box or a question calls `provideTestKit()` (`core/testing/test-kit.ts`; `provideTestDialog()` alone is only the dialog) in `beforeAll`.
 - **Headless Chromium asks `beforeunload` only after a real press** (`Input.dispatchMouseEvent`); values set by script alone give no question.
-- **A component's styles have a budget** (`angular.json`: a warning over 6 kB, an error over 12 kB); the admin pages `@use` the shared `pages/admin/_admin.scss` and keep only their own rules in their files.
-- **The server's sentence is shown only on the admin pages** (`admin-error.ts`); a learner's page words what happened from its own keys (`ownProgressProblem()` for the own file).
+- **A component's styles have a budget** (`angular.json`: a warning over 6 kB, an error over 12 kB); every admin page is the family's now, with its own styles.
+- **The server's sentence is shown only on the admin pages** (the family's); a learner's page words what happened from its own keys (`ownProgressProblem()` for the own file).
 - **The family's question is drawn once, in the app's root** (`<anotoki-confirm-host>` in `app.component.html`; `ConfirmService.ask()` from anywhere): a page made on its own in a spec has none - `drawTestQuestions()` (`core/testing/test-kit.ts`) draws one beside it in the same TestBed and reads and answers it. Escape is a keydown on its `<dialog>` (jsdom has no cancel event of its own).
 - **The family's question draws its words only while asked** - the shell spec reads every kept-English string from the DOM, so it opens what holds them (`OPENED` in `app.component.spec.ts`: the menus, the piano's box, the sign-out question) before it reads.
-- **Person or visitor is decided when a request is ISSUED, never when it is sent** (`ISSUED_AS`): the build analyzer's interceptor sent a request as a visitor whenever no token came back, so a person whose refresh failed had their round stored in the visitor's row - or, with no key, MADE a visitor out of it (the server cannot tell). A person's request with no token fails locally (401 `sign_in_required`), and `gate()` refuses a person's page whose person signed out before anything (401, never "somebody else", whatever the switch). `auth.interceptor.spec.ts` holds it (mutation-checked).
-- **A visitor's key is kept while a sign-in is required**: a 401 `sign_in_required` to a visitor only calls `AuthService.requireSignInNow()`; forgetting the key there would lose exactly what the next sign-in should move.
-- **A visitor whose key the server no longer knows gets a 409 next, not a "changed elsewhere"**: the 401 `visitor_unknown` forgets the key (`VisitorKey.lost`), and the next save goes as nobody's with the visitor's old generation - 409 `progress_changed`. `ProgressStore` loads nobody's progress then but leaves `changedElsewhere` unset on a visitor's page while `lost` is true ("replaced by a file or an administrator" would be wrong; `visitor.lost` says it). `progress-store.service.spec.ts` pins it.
+- **Person or visitor is decided when a request is ISSUED, never when it is sent** (`ISSUED_AS`): the build analyzer's interceptor sent a request as a visitor whenever no token came back, so a person whose refresh failed had their round stored in the visitor's row - or, with no key, MADE a visitor out of it (the server cannot tell). A person's request with no token fails locally (401 `sign_in_required`), and `gate()` refuses a person's page whose person signed out before anything (401, never "somebody else", whatever the switch). `api.service.visitor.spec.ts` holds it, with the family's interceptor.
+- **A visitor's key is kept while a sign-in is required**: a 401 `sign_in_required` to a visitor only calls `AnotokiAuth.noteSignInRequired()` (the family's interceptor); forgetting the key there would lose exactly what the next sign-in should move.
+- **A visitor whose key the server no longer knows gets a 409, not a "changed elsewhere"**: the 401 `visitor_unknown` forgets the key (`VisitorKey.lost`), and the family's interceptor sends that save once more without it - as nobody's, with the visitor's old generation: 409 `progress_changed` (the next note then makes a new visitor, and `lost` ends with its key). `ProgressStore` loads nobody's progress then but leaves `changedElsewhere` unset on a visitor's page while `lost` is true ("replaced by a file or an administrator" would be wrong; `visitor.lost` says it). `progress-store.service.spec.ts` pins it.
 - **Three saves at a round's end would make three visitors**: `ApiService.visitorSave()` lets one "maker" (no key) out at a time; the others wait and work their headers out after the wait (the `headers` function), so they carry the key and the generation the maker's answer brought.
 - **Extra awaits in `ApiService` break specs that count microtasks** (`progress-store.service.spec.ts`'s `settle()` is five `Promise.resolve()`s): `request()` is not `async` - it returns `send()`'s promise, and `send()` maps the answer inside the observable - so a person's call takes as many ticks as before.
 - **A save without a generation is never sent**: `ApiService` throws a local 409 `progress_changed` instead, and the store loads the progress again - so the server's 428 can only mean another client, or a header dropped on the way: kept as a failed save ("Not saved yet"), never "changed elsewhere".
@@ -1137,14 +1225,14 @@ en dash and „ “ quotes, never a hyphen as a dash or a straight quote.
 - **jsdom has no `matchMedia`**: the bar is then a desktop's; a spec of the phone's bar stubs it (`vi.stubGlobal('matchMedia', ...)`) and answers only the bar's `max-width` query - the family's `ThemeService` asks `prefers-color-scheme` and listens too.
 - **The theme service is the family's** (`@anotoki/lib/shell`, its rules tested in the library): `core/family-kit.spec.ts` holds Piano's wiring - the account's theme from the first moment, this app's storage key and colours, a refusal put back and said in this app's words. A spec that signs somebody in makes the service before the account arrives, as the app does at its start: made lazily after the account was set, a theme service's first run comes after the person's choice and its refusal - and puts the account's theme back by itself, so a missing revert would pass (found by a mutation check on Piano's old service).
 - **A "nothing happens" check must wait as long as the thing would take**: the spec "once somebody chose here, the token no longer decides" checked one microtask after the token changed - before a switch on its way could have landed - so a regression that followed the token anyway passed (found by a mutation check); it waits with `settled()` and counts the requests now.
-- **A preferences save is an auth change too**: the SDK's `savePreferences()` writes the session and fires `onChange` like a refresh, in every tab - `BootService`'s listener sees the same person (no reload), `TranslationService`'s sees a changed `locale` but a choice stored here (nothing to adopt). A fake `AuthService` in a spec of anything that draws the theme switch needs `preferences`.
-- **The stand-in IAM sends no `preferences` unless its state has some**: every tour and test before 2026-10-06 runs as against an IAM before its 015 (the app's own settings); the preferences tour sets them and puts `null` back at its end.
+- **A preferences save is an auth change too**: `AnotokiAuth.savePreferences()` writes the session like a refresh, in every tab - `BootService`'s effect sees the same person (no move, no reload), `TranslationService` sees a changed `locale` but a choice stored here (nothing to adopt). `TestAuth`'s person in a spec of anything that draws the theme switch needs `preferences`.
+- **The stand-in IAM sends no `preferences` unless its `user` has some**: every tour and test before 2026-10-06 runs as against an IAM before its 015 (the app's own settings); the preferences tour sets them and signs mia in again without them at its end.
 - **The bar's fold is measured, not guessed**: a row that does not fit squeezes the person's button first (its container has `min-width: 0`), so a measure taken on a crowded row reads too little - `--measure` measures at NAME_BAR_MIN - 1, where nothing is squeezed.
 - **Another session's browser check may hold 8590 / 8597**: never stop it; `SITE_PORT` / `IAM_PORT` for others (the database is named after the port).
 - **The MIDI notice** words the problem's kind in the page's language and adds the browser's own reason after a colon, as it is, `lang="en"` - in Slovak too.
-- **The IAM's switch is kept a minute and remembered for the request**: a test that flips the stand-in's `login_required` sees the old answer until the kept file (`<cache_dir>/anotoki-iam-application-*.json`) is older than `application_ttl` - move its times back (`api/auth`'s `switch_age()`), delete it, or give `application_ttl` 1 (`testenv.php --application-ttl=1`); in-process, the SDK remembers the answer in a static (`anotoki_iam_login_required_reset()`), while `application_file` is read on every call. A test whose settings name neither a file nor an IAM on this computer is refused by `test_offline_auth()` - it would ask the live IAM (the hosted site's settings, written by setup.php, get `application_file` added in `api/hosting`).
-- **Only Bearer is a sign-in**: `requestUser()` uses the SDK's `anotoki_iam_sent_bearer()`; `Basic ...` (a host behind a password file) is nobody, never a 401 of its own - and a Bearer header that does not verify never falls back to the visitor key (`requireOwner()` asks `requestUser()` first; `tests/api/visitors.test.php` holds it).
-- **The visitor key is read in `requireOwner()` and in the move (`routes/visitor.php`, behind `requireUser()`) and nowhere else**, and a visitor is made only inside the transaction of a save whose body already checked out (`visitorMake()` refuses to run outside one): a refused or failed save makes nobody and counts nothing. `signedInUser()` refuses a visitor `SiteUser`, so `requireUser()` / `requireRole()` stacked inside `requireOwner()` still mean a verified token.
+- **The IAM's switch is kept a minute and remembered for the request**: a test that flips the stand-in's `login_required` sees the old answer until the kept file (`<cache_dir>/anotoki-iam-application-*.json`) is older than `application_ttl` - move its times back (`api/auth`'s `switch_age()`), delete it, or give `application_ttl` 1 (`testenv.php --application-ttl=1`); the library's `SignInRule` holds its answer for the rest of a request (`Identify` resets it at the start of each), while `application_file` is read on every call. A test whose settings name neither a file nor an IAM on this computer is refused by `test_offline_auth()` - it would ask the live IAM (the hosted site's settings, written by setup.php, get `application_file` added in `api/hosting`).
+- **Only Bearer is a sign-in** (the library's `Identify`): `Basic ...` (a host behind a password file) is nobody, never a 401 of its own; a bare `Bearer` is `invalid_token` - and a Bearer header that does not verify never falls back to the visitor key (`tests/api/visitors.test.php` holds it).
+- **The library's `Identify` reads the visitor key (every route but the public ones, only while no sign-in is required), and the move reads it beside a token (`routes/visitor.php`, behind `requireUser()`) - but only `requireOwner()` takes a visitor for anybody**, and a visitor is made only inside the transaction of a save whose body already checked out (`visitorMake()` refuses to run outside one): a refused or failed save makes nobody and counts nothing. `requireUser()` / `requireRole()` are the library's `RequirePerson` / `RequireRole`, which refuse a visitor: they mean a verified token.
 - **A maker's save names generation 0** (what nobody's state says); a visitor's or a person's later save to 0 is 409 `progress_changed` (a second tab) - a person's 0 stays a 428 as before.
 - **Work after the answer runs after a 204's client has gone**: a 204 has no body, so curl (and the browser) has the whole answer before the after-response sweep is done - a test that looks for the sweep's effect after a 204 polls (`eventually()` in `tests/api/visitors.test.php`); after a 200 under `php -S` (no Content-Length, the connection closes at the end) it has run.
 - **A table of a person's data must be in `STORE_PERSON_TABLES`** (`api/store.php`): the sweep and `peopleDelete()` empty those before the users row, and the foreign keys do not cascade - one left out makes every sweep batch that meets such a visitor fail (logged, never failing a request).
@@ -1156,7 +1244,7 @@ en dash and „ “ quotes, never a hyphen as a dash or a straight quote.
 - **Piano's element rules must not reach the family's components**: a bare `button {}` would give the bar's buttons Piano's padding and border. `styles.scss`'s `$piano-own` keeps Piano's `button` / `select` rules off the family's hosts (`anotoki-top-bar`, `anotoki-menu`, `anotoki-popover`, `anotoki-dialog`, `anotoki-site-status`, `anotoki-migrations-page`, `.anotoki-button`...) but for `app-midi-panel` inside them - a new family component in a page goes into that list.
 - **Nothing may stand in front of `GET /api/site-status`** - no token, key or role check, no middleware of a route group, no gate of the app's own, nothing that needs the IAM or the settings to be right: the pages ask it before anybody can be signed in, and the family's frontend reads any 401 or 500 there as "unavailable" ("The site is not available right now" instead of the right page). `tests/api/site.test.php` asks it as everybody (`askers()`) in every state; a settings file PHP cannot run is "not set up" (`localSettings()`), not a 500.
 - **The status page reloads by itself once the site is back** (visitors' and learners' views ask `/api/site-status` every 30 s): a progress save still failing at that moment makes the browser ask "Leave site?" (`BootService`'s beforeunload) - the store retries every 15 s, so it is usually through first.
-- **A migration must never change what `usersSeen()` writes** (the users table's `id`, `preferred_username`, `last_seen_at`): the Migrations page's own routes go through the role check, which keeps the caller's users row on every call - also while the database is behind - so such a migration would make the page that applies it fail with `503 database_unavailable` before it runs.
+- **The Migrations page's and the admin tools' routes record nobody** (`adminByToken()`: the token's ADMIN alone): they answer while the database is behind, and a check that wrote the caller's users row there would fail with `503 database_unavailable` on a users table a pending migration changes - before the Apply runs. A migration still never renames what the library's `PeopleRecorder` writes (`users.id`, `preferred_username`, `created_at`, `last_seen_at` - `people()`'s `PeopleTable`) without changing `people()` with it.
 - **`String.replace` with a string treats `$$` as `$`**: an edit script that writes Playwright's `$$eval` through it gets `$eval` - use split/join.
 - **A spec's stand-in for `<app-notation>`** must provide `NotationComponent` by `useExisting`, or the page's `viewChild(NotationComponent)` finds nothing (`steps.spec.ts`, `trainer-page.component.spec.ts`).
 
@@ -1177,7 +1265,7 @@ en dash and „ “ quotes, never a hyphen as a dash or a straight quote.
   - `unit/config` - not set up without/with bad files, a file PHP cannot run no setting (named with its line - never with PHP's message, which may quote the password), an old file with mode / local_user_id still a setting, no committed stand-in, the test folder only for piano_test_, owner-only writes.
   - `unit/migrations` - through the family's engine as the app sets it up: an empty database gets every migration (nothing written to find out, the record's shape kept, the folder listed as the engine lists it, the app's lock - busy, then applied); `php migration.php` builds a database from nothing (`--status` / `--dry-run` only read); the older `migrations(name)` table is read and renamed in place (the `prepare` hook); a failing file rolled back whole and named ("statement N of M"), it and the files after it waiting; the family's splitter; 004 adds the sequence and users.progress_generation (a number of its own for every row) and nothing else of 001, says it is unfinished, and its gate refuses a column of another shape; 005 adds exactly the visitors' schema (no row changes; what users_kind_check lets in), 004 and 005 run again over a database with visitors, and 005's gate refuses 001's check under another name; 006's header (finished, words only: four statements, the gate last; the next change is 007); 007 (finished, the next change is 008; one DELETE and its gate: exactly the card's four keys and their strings go, nothing else - not a table of 001 -, again and again, the gate refusing a key that stays); 008; 009 (finished, the next change is 010, words only - its two temporary tables, the copies, the delete, a description, the gate; on a database as its owner left it - built through 008, an owner's rewording and somebody's string in place - every string the kit said goes under the library's key with its words, writer and time, the kept keys keep theirs, and the library's own 002 after it leaves them be; again over a later rewording, which stays; a string it could not move refused, rolled back whole).
   - `api/site` - the site's gate on the real server, state by state: not set up and never installed (every path but `/api/site-status` 503 `not_set_up` with the setup page, JSON, no-store, inside the security headers), not set up once installed (`storage/installed.lock`: never the setup page), an update waiting (503 `update_pending` + Retry-After 60 for every kind of route and every caller - a person, an ADMIN, a visitor's key, nobody -, paths that only look open held too, nothing written; the open paths answer: the sign-in settings, the words - with ETag -, the health check, the Migrations page's routes by the token's role; Apply makes it ready), the database out of reach (`unavailable`: nothing held, the routes' own 503 `database_unavailable`), a settings file PHP cannot run (not set up, no 500, the log names the file and line), ready. In every one `GET /api/site-status` answers 200 `{state, installed}` to anybody (`askers()`: nobody while the IAM requires a sign-in, a visitor's key, a token that does not verify, one that ran out, a Basic header) - also with the IAM's switch off and with the IAM out of reach: the pages read it before anybody can be signed in, and a 401 or a 500 there would have them say "not available right now".
-  - `unit/visitors` - the counted address (trusted proxies, right to left, an IPv6 /64, X-Forwarded-For never on its own), visitors.local.php and its limits (an unreadable file: the defaults), the key, the 30 days equal in the frontend, visitorMake() only inside a transaction, usersSeen() a person's only, the work after the answer.
+  - `unit/visitors` - the counted address (trusted proxies, right to left, an IPv6 /64, X-Forwarded-For never on its own), visitors.local.php and its limits (an unreadable file: the defaults), the key, the 30 days equal in the frontend, visitorMake() only inside a transaction, usersEnsure() a person's only, the work after the answer.
   - `api/visitors` - two servers (one with small limits) with sign-in off: nobody's state, the first save of each kind makes a visitor (the key once, only its hash stored, nowhere in a log), a failed first save makes nobody and counts nothing, the visitor's own documents and generation (0 is a second tab's 409), unknown and malformed keys, a Bearer header never falling back to the key, isolation, no own file or admin panel, sign-in required again (the key not looked up), seen at most hourly, the limits (per address, /64, X-Forwarded-For, in all, at once, rounds, document size), a whole progress fits, the sweep (30 days, every child table, batches, SKIP LOCKED, the marker, at once after a new visitor, a failing sweep never failing the request), a database without 005 (every round held at the gate, nobody made; `visitorsMustBeReady()` still 503 `visitors_unavailable` under it - a process of its own), requireUser()/requireRole() refusing a visitor however stacked. Mutation-checked.
   - `api/visitor_move` - the move at sign-in: the person's note byte for byte, the visitor's others, a step both have merged (a pass never lost: best max, attempts added, the earlier pass, the newer last try; fields only the visitor has), every round with its id / key / time, the visitor gone and its key 401 `visitor_unknown`, a new generation (an old tab 409); again `found: false`; an empty account; rounds alone keep the generation; a colliding round dropped and the person's retry of a moved one stored once; merged notes / path over BODY_LIMIT not made; no token 401, no or a malformed key 422; the switch on; another person untouched; a row held past `move_lock_timeout_ms` 503 `visitor_move_retry`; the person's row gone 401. Mutation-checked.
   - `unit/transfer` - an export into an account (the file's userId not read), refusals (not_an_export / invalid_export, versions), export/import round trip, replacing (never a mix, nobody else touched, a new generation each time), a move, `tools/progress.php` (--user required, --replace, --move, no --owner).
@@ -1189,7 +1277,7 @@ en dash and „ “ quotes, never a hyphen as a dash or a straight quote.
   - `api/hosting` - `tools/build.php` (exact contents - the family's library in, the old engine and gates out -, refusals), the host setup (token, tests, install, lock, self-delete, re-upload refused; installed: the status `ready`/`installed`, and with the settings gone `not_set_up` without the setup page), a re-run for an update (nothing saved shown, an owner or file sent along ignored), the front controller.
   - `unit/translations` - the seeded languages and keys, English and Slovak for every key, placeholders, plural families, the migrations of this work touching only their three tables and nobody's progress, 002 refusing a non-UTF8 database, every seeded string - this app's and the library's - passing the library's checks of a save, a string migration's gate (009's own tables admitted), the library's set after this app's own and its keys `anotoki.*`, the kept English (and `KEPT_LIBRARY_ENGLISH`) equal to the database's, the key scan as this app sets the library's up (used and unused keys, families, dynamic keys, never a spec's helper, the vendored SDK, the kept English or `anotoki.*`).
   - `api/translations` - the library's routes on this app: the bundle (ETag/304, unknown codes, no token looked at), the IAM's wire format both ways (snake_case answers; a camelCase body is no language), the staff's routes and ADMIN's role by role (an editor rewords, imports and exports, and is refused the languages; a learner, no roles, nobody refused), languages (added, renamed, reordered, switched off; deleted - 200 `{strings}`, never en or sk), saves checked whole, export/import (unknown keys refused), the CLI, concurrent deletes and saves, `updated_by` following a person, before any string (`translations_unavailable`), only 001 applied (the words not there yet - no table asked for -, the admin routes the gate's, nobody looked up).
-- **Frontend** (`cd frontend && npm test`, Vitest + jsdom): theory, srs, path (incl. songs vs pools), songs, the API outbox (HttpTestingController), the store's save chain and retries, boot states, the sign-in card (failure worded from its code), stats, the sequence player (wait and tempo, keys handed to `feedback`); and with the words: the family's `TranslationService` as this app wires it (`site-translations.ts`, in the start's, the title's and the kit's specs), the pipes, `path-words`, the title strategy, the interceptor, the language chooser, the shell with no bundle (no text of a key's shape), `MidiService`, the home, lesson, steps and trainer pages (a language switch mid-step re-words the feedback), the admin pages (People; Translations, Languages and Migrations are the family's, tested in the library - their routes, lazy, and the guard for unsaved changes as wired here), the admin layout per role, the routes and guards (`signInGuard`: redirect and the way back, the failure escape, the boot states, nobody sent to the IAM while the site is not ready - the address kept; `adminGuard`; the split, the routes loading the family's pages); while the site is not ready (2026-10-07, `app.component.spec`, `boot.service.spec`, `top-bar.component.spec`): a visitor and a signed-in learner read "The site is being updated" in their language (Slovak too) with no error, no code, no setup or Migrations link, a Sign in only for nobody, and no note of the shell's; an ADMIN reads "A database update is waiting" and its "Open Migrations" reaches the page; a signed-out ADMIN's Sign in goes to the IAM with this address and comes back to the Migrations page; the page stays as the app starts after an Apply; no page made behind the status page (the gate's marked template) - an update that comes in the middle of practising takes the page away (fails on content given as it is), a waiting start makes none, nor when the status page finds the site back (0.2.0's `checkForReload()`: the gate stays shut until the reload), nor while a waiting start resumes after an Apply (mutation-checked: `pageShown` true while waiting); the setup page only while never installed (installed, or the database out of reach: "not available right now"); the start waits (sign-in and strings, no move, no state - also for an update that came after the site was asked) and resumes after an Apply, the strings asked again; the bar's sections gone while it waits, Migrations alone for an ADMIN in /admin; the generation on every save and no save without one (`api.service.me.spec.ts`), a 409 settled by loading again and the other tabs' marker (`progress-store`), a reload in the middle of a round sends none of the old notes (`progress-store`, `trainer-page` with the real store) and an answer during a reload waits for it, a 428 kept as a failed save, the own progress file's flow and every code (`own-progress`), the top bar (`top-bar`, the family's bar told Piano's: the row in the family's order, the sections lit, the menus' keys - Tab and Shift+Tab from the first, a middle and the last item onto the menu button -, the phone's menu, "Not saved yet" - the pill, the phone's dot named for a screen reader, the menus' first line -, the person's menu and the way into the admin panel only while the site is ready, the admin panel in English with the family's wordmark - "Piano" and "admin panel" on a phone -, the sign-out question - settled first, asked only when something would be lost, the no first -, no empty phone menu before the app runs, every control's name holding its words), the theme switch (`app.component.spec`: its choices named in Piano's words, the one in force kept for the next first paint), the signed-out banner saying why a sign-in could not start (`app.component`), the piano's widget (`midi-panel`: its box the family's popover - a named group, Escape, a click outside and the focus leaving close it), the family's kit wired to Piano (`core/family-kit.spec.ts`: its words the database's strings of the library's keys - the owner's wording -, English in the admin panel, the kit's own where the database has none - never a key -, this app's English for the theme switch with no bundle; the language chooser on Piano's languages; the theme switch on the family's `ThemeService` with Piano's key and colours), the admin panel in English (the library's `effectiveLanguage`). Visitors (stage D): `visitor-key.spec` (the first key stays, compare-and-delete, the storage event, memory when storage refuses, `active`), `auth.interceptor.spec` (decided as issued, both ways; a person's request with no token never sent - through `ApiService` too, the round kept in the outbox; the key only on a visitor's; remembered from a maker's answer; `visitor_unknown` forgets, `sign_in_required` keeps it and calls `requireSignInNow()`; the move carries both), `api.service.visitor.spec` (generation 0 only on a visitor's page; one maker for a progress PUT, a path PUT and a round at once; a failed maker; 429 and its Retry-After; 413 / 422 `visitorRefusal`; a person's calls refused on a visitor's page; `moveVisitor`; `adoptOutbox`), `auth.service.spec` (`loginRequired` only on an explicit false), `sign-in.guard.spec` (a visitor through to the learner pages, never `/admin`, saves settled first), `boot.service.spec` (a visitor with no key / a key / a key gone / sign-in required meanwhile; the move before the state - found, not found, 503 waited out once, kept on failure, 422 forgotten, mid-session; the visitor's outbox at a signed-in start), `progress-store.spec` (a visitor's 413 held back, a 429 after its Retry-After; the 409 after `lost` says no "changed elsewhere"). Stage E: `app.component.spec` (every visitor note and the moved / kept / not-moved notes in the kept English - the no-bundle sweep and "nothing kept is a leftover" cover them; the notice on `/` and `/stats` only; no signed-out banner for a visitor; a refused sign-in worded and closable; a person whose sign-in ended gets none of the visitor's notes), `stats-page.component.spec` (the progress file for somebody signed in, the sign-in line for a visitor), `people.component.spec` (the visitors line), `top-bar.component.spec` (Sign in offered to a visitor, in the row and the phone's menu). Mutation-checked: the null-token request sent, no single flight, the gate falling to a visitor, the key forgotten on `sign_in_required`, the 413 retried, no outbox adoption, the move after the state, a visitor let into `/admin`, the signed-out banner shown to a visitor, "changed elsewhere" after `lost`. The account's preferences (2026-10-06; the theme's own rules - one save at a time, the latest last, no flick, a refusal put back - are the family's `ThemeService`'s since 2026-10-08, tested in the library): `family-kit.spec` (the device's theme for nobody - nothing saved; the account's from the first moment; a choice saved; a refusal puts the account's back and says so under the switch in Piano's words, gone at a click elsewhere), `pipes.spec` (each order for a day, a moment's halves, the 12- and 24-hour clocks in English and Slovak, nobody signed in or nothing chosen as before, the stamp - the server's numbers kept across a DST gap - and the patterns), the language's own rules (the save to the account, the family's order, a refusal, an account change followed) are the library's `TranslationService`'s since 0.3.0, tested there; `family-kit.spec`'s chooser (saved once the page switched, not when the strings could not be had, a re-pick the account lacks saved, the note in the page's language, silence for a language the IAM lacks, back to the page's language chosen while another is on its way), `auth.service.spec` (`preferences` only while signed in, `savePreferences` handed to the SDK), `stats-page` and `people` specs (their times in the account's order and clock; the family's Migrations page takes the same `localDateText(..., 'stamp')`). Mutation-checked: the account adopted while a save is out, no revert, no note, no queue (the theme - on Piano's own service then - and the language), a save without an account, `invalid_request` said, the re-pick not saved, a save before the switch, the server's clock moved to the reader's zone, a moment's one chosen half ignored, a session that ended still choosing, the note kept after a click elsewhere; and the language order: the device before the account, an account change not taking the place of this page's choice, followed while a save is out, followed over `?lang=`, followed over a stored choice without preferences, a switch not saved. What's new (`changelog.service.spec`, 2026-10-07): the shipped `public/changelog.json` read as a file - every version MAJOR.MINOR.PATCH, newest first, the newest `package.json`'s version (mutation-checked: a "0.4" fails both); the footer's version the newest entry's, none when the list does not come. A spec gives its strings with the library's `provideTestTranslations()` (`@anotoki/lib/translations/testing`; `provideSiteTranslations()` beside it for this app's storage keys and account), jsdom what the family's components need with `provideTestKit()`, and reads the family's question with `drawTestQuestions()`.
+- **Frontend** (`cd frontend && npm test`, Vitest + jsdom): theory, srs, path (incl. songs vs pools), songs, the API outbox (HttpTestingController), the store's save chain and retries, boot states, stats, the sequence player (wait and tempo, keys handed to `feedback`); and with the words: the family's `TranslationService` as this app wires it (`site-translations.ts`, in the start's, the title's and the kit's specs), the pipes, `path-words`, the title strategy, the language chooser, the shell with no bundle (no text of a key's shape), `MidiService`, the home, lesson, steps and trainer pages (a language switch mid-step re-words the feedback), the admin pages (all the family's, tested in the library - their routes, lazy, behind `adminGuard`, and the guard for unsaved changes as wired here; People, the admin tools and the feedback form as wired in `core/site-admin.spec.ts`), the admin layout per role (the feedback's count asked for an ADMIN), the routes and the family's guards as wired (`app.routes.spec.ts`; `core/auth/site-auth.spec.ts`: the settings, the visitors' paths, the failure's route, no hint; the split, the routes loading the family's pages); while the site is not ready (2026-10-07, `app.component.spec`, `boot.service.spec`, `top-bar.component.spec`): a visitor and a signed-in learner read "The site is being updated" in their language (Slovak too) with no error, no code, no setup or Migrations link, a Sign in only for nobody, and no note of the shell's; an ADMIN reads "A database update is waiting" and its "Open Migrations" reaches the page; a signed-out ADMIN's Sign in goes to the IAM with this address and comes back to the Migrations page; the page stays as the app starts after an Apply; no page made behind the status page (the gate's marked template) - an update that comes in the middle of practising takes the page away (fails on content given as it is), a waiting start makes none, nor when the status page finds the site back (0.2.0's `checkForReload()`: the gate stays shut until the reload), nor while a waiting start resumes after an Apply (mutation-checked: `pageShown` true while waiting); the setup page only while never installed (installed, or the database out of reach: "not available right now"); the start waits (sign-in and strings, no move, no state - also for an update that came after the site was asked) and resumes after an Apply, the strings asked again; the bar's sections gone while it waits, Migrations alone for an ADMIN in /admin; the generation on every save and no save without one (`api.service.me.spec.ts`), a 409 settled by loading again and the other tabs' marker (`progress-store`), a reload in the middle of a round sends none of the old notes (`progress-store`, `trainer-page` with the real store) and an answer during a reload waits for it, a 428 kept as a failed save, the own progress file's flow and every code (`own-progress`), the top bar (`top-bar`, the family's bar told Piano's: the row in the family's order, the sections lit, the menus' keys - Tab and Shift+Tab from the first, a middle and the last item onto the menu button -, the phone's menu, "Not saved yet" - the pill, the phone's dot named for a screen reader, the menus' first line -, the person's menu and the way into the admin panel only while the site is ready, the admin panel in English with the family's wordmark - "Piano" and "admin panel" on a phone -, the sign-out question - settled first, asked only when something would be lost, the no first -, no empty phone menu before the app runs, every control's name holding its words), the theme switch (`app.component.spec`: its choices named in Piano's words, the one in force kept for the next first paint), the signed-out banner and the family's failure screen saying why a sign-in did not work, in this app's words (`app.component`), the footer's feedback form (`app.component`), the piano's widget (`midi-panel`: its box the family's popover - a named group, Escape, a click outside and the focus leaving close it), the family's kit wired to Piano (`core/family-kit.spec.ts`: its words the database's strings of the library's keys - the owner's wording -, English in the admin panel, the kit's own where the database has none - never a key -, this app's English for the theme switch with no bundle; the language chooser on Piano's languages; the theme switch on the family's `ThemeService` with Piano's key and colours), the admin panel in English (the library's `effectiveLanguage`). Visitors (stage D): `visitor-key.spec` (the first key stays, compare-and-delete, the storage event, memory when storage refuses, `active`), `api.service.visitor.spec` with the family's interceptor (decided as issued, both ways; a person's request with no token never sent - the round kept in the outbox; the key only on a visitor's; remembered from a maker's answer; `visitor_unknown` forgets, `sign_in_required` keeps it and calls `noteSignInRequired()`; the move carries both; generation 0 only on a visitor's page; one maker for a progress PUT, a path PUT and a round at once; a failed maker; 429 and its Retry-After; 413 / 422 `visitorRefusal`; a person's calls refused on a visitor's page; `moveVisitor`; `adoptOutbox`) - `loginRequired` and the guards are the library's, tested there -, `boot.service.spec` (a visitor with no key / a key / a key gone / sign-in required meanwhile; the move before the state - found, not found, 503 waited out once, kept on failure, 422 forgotten, mid-session; the visitor's outbox at a signed-in start), `progress-store.spec` (a visitor's 413 held back, a 429 after its Retry-After; the 409 after `lost` says no "changed elsewhere"). Stage E: `app.component.spec` (every visitor note and the moved / kept / not-moved notes in the kept English - the no-bundle sweep and "nothing kept is a leftover" cover them; the notice on `/` and `/stats` only; no signed-out banner for a visitor; a refused sign-in worded and closable; a person whose sign-in ended gets none of the visitor's notes), `stats-page.component.spec` (the progress file for somebody signed in, the sign-in line for a visitor), `site-admin.spec` (the People page's visitors line), `top-bar.component.spec` (Sign in offered to a visitor, in the row and the phone's menu). Mutation-checked: the null-token request sent, no single flight, the gate falling to a visitor, the key forgotten on `sign_in_required`, the 413 retried, no outbox adoption, the move after the state, a visitor let into `/admin`, the signed-out banner shown to a visitor, "changed elsewhere" after `lost`. The account's preferences (2026-10-06; the theme's own rules - one save at a time, the latest last, no flick, a refusal put back - are the family's `ThemeService`'s since 2026-10-08, tested in the library): `family-kit.spec` (the device's theme for nobody - nothing saved; the account's from the first moment; a choice saved; a refusal puts the account's back and says so under the switch in Piano's words, gone at a click elsewhere), `pipes.spec` (each order for a day, a moment's halves, the 12- and 24-hour clocks in English and Slovak, nobody signed in or nothing chosen as before, the stamp - the server's numbers kept across a DST gap - and the patterns), the language's own rules (the save to the account, the family's order, a refusal, an account change followed) are the library's `TranslationService`'s since 0.3.0, tested there; `family-kit.spec`'s chooser (saved once the page switched, not when the strings could not be had, a re-pick the account lacks saved, the note in the page's language, silence for a language the IAM lacks, back to the page's language chosen while another is on its way), the `stats-page` spec (its times in the account's order and clock; the family's People and Migrations pages take the same `localDateText(..., 'stamp')`). Mutation-checked: the account adopted while a save is out, no revert, no note, no queue (the theme - on Piano's own service then - and the language), a save without an account, `invalid_request` said, the re-pick not saved, a save before the switch, the server's clock moved to the reader's zone, a moment's one chosen half ignored, a session that ended still choosing, the note kept after a click elsewhere; and the language order: the device before the account, an account change not taking the place of this page's choice, followed while a save is out, followed over `?lang=`, followed over a stored choice without preferences, a switch not saved. What's new (`changelog.service.spec`, 2026-10-07): the shipped `public/changelog.json` read as a file - every version MAJOR.MINOR.PATCH, newest first, the newest `package.json`'s version (mutation-checked: a "0.4" fails both); the footer's version the newest entry's, none when the list does not come. A spec gives its strings with the library's `provideTestTranslations()` (`@anotoki/lib/translations/testing`; `provideSiteTranslations()` beside it for this app's storage keys and account), jsdom what the family's components need with `provideTestKit()`, and reads the family's question with `drawTestQuestions()`.
 - **Browser**: the committed check, skill `check-in-browser` (`node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure]`, `PHP=` the 8.2+ binary): `playwright-core` in `<temp>/pw` (never in `frontend/`) + headless Edge, the stand-in IAM on 8597 and the built app on 8590 (`SITE_PORT` / `IAM_PORT` when another check holds them), `piano_test_browser_<port>`; everything stopped and dropped at the end. It checks a deep link signed out -> the IAM -> back (no call for a learner's data before the IAM); the family's bar at 360 / 390 / 1280 / PHONE_BAR_MAX / +1 / 1440 / NAME_BAR_MIN, light and dark, English and Slovak, by bounding boxes; every bar control's name holding the words it shows; the menus on top of the page, their contents, keys and real Tab / Shift+Tab presses (the focus on the menu button); the piano's box; "Not saved yet" (a save made to fail); the own progress file and three stale tabs (Stats; the Note Trainer mid-round in the same browser and in another - a note played after the import, a 409 in the other, and the imported notes still on the server); the EDITOR / ADMIN split and the admin panel in English; every learner page in Slovak with no key-shaped text, and a refused sign-in (no menu button at 390); and, with the stand-in's `login_required` false (the app keeps its answer one second there: `testenv.php --application-ttl=1`), a visitor: Learn without the IAM and its notice, a lesson's meet and drill whose first save is held at the network so the drill's notes, path and round meet it - exactly one save without a key and ONE visitor row -, the progress after a reload, Stats' sign-in line, another browser empty, `/admin` to the IAM, then a sign-in as a person who has note 60: moved and kept said, her C byte for byte, the visitor's steps and round hers, the key and the visitor gone; in Slovak at 360 / 390 the notice wrapping, the phone's menu, a visitor deleted under the page (`visitor.lost`, the next 409 without "changed elsewhere", a new visitor after); sign-in required again mid-visit (`visitor.signInNow`, the key and the visitor kept, a new browser sent to the IAM, the sign-in moving it); and the account's preferences, with the stand-in's `preferences` set (the real SDK 1.2.0 against the stand-in's endpoint): the account's dark over this browser's light at sign-in (kept for the first paint), Stats' rounds and What's new in the account's order and clock, the theme switch saving to the account, another tab following, a refusal at 390 (the account's theme back, the note inside the screen and on top, gone at a click elsewhere), Slovak chosen in the bar becoming the account's language and another tab following it, a fresh browser that remembered Slovak reading the account's English, and an ADMIN's admin panel in the account's dark with People's and Migrations' times in its order and clock; a database behind the code (005 off the record): the family's status page for a visitor and a learner ("The site is being updated", no error, nothing asked that fails, nobody sent to the IAM; in Slovak at 390), Sign in from it coming back to the address, the ADMIN's "A database update is waiting" -> the family's Migrations page (a failed Apply with what PostgreSQL said, then "Up to date" and the app resumed in place), and the learner's page coming back by itself; and not set up (the setup page only while never installed - "not available right now" once `installed.lock` is there -, Try again once set up). Look at its screenshots (`--keep`), then delete the kept folder: its settings hold the database password.
   - At the rebuild (before the IAM was the only way in): every view (a lesson's meet/drill/read/in time, a trainer round, sheet practice, songs, stats, changelog, light/dark/390 px, no overflow, no console errors) and against the stand-in IAM (sign-in, saves, IAM outage -> "Not saved yet" + outbox, beforeunload, signed out mid-session, another user in another tab, sign-out, access denied/cancelled); the setup page locally and as a host (via `--host-resolver-rules`).
   - With the translation work (a flow of about 540 checks, kept in that work's scratchpad, not committed): English, then Slovak through the chooser and `?lang=`, `<html lang>`, no text of a key's shape and nothing left in English, a lesson's steps with their feedback in Slovak and re-worded on a language switch mid-step, practice pages, Stats with a stored English label; the owner pages (a string changed and seen after a reload, a plural family, export and import, a language added, hidden and deleted, leaving with unsaved cells asks); the stand-in IAM (the sign-in card in Slovak before signing in, `ui_locales` in the authorize request, a token's `locale` with nothing stored, ADMIN sees the owner link, a MEMBER does not and gets 403 `owner_only`, a refused sign-in worded from its code); every boot state (not set up, a pending migration, load error, sign in, ready) with and without a bundle; 390 px and 1100 px, light and dark: no sideways scroll, the chooser's menu inside the screen, the nav in at most three rows.
@@ -1218,16 +1306,17 @@ PIANO_TEST_CONFIG=storage/manual php -S 127.0.0.1:8590 router.php
 # afterwards: php tests/tools/testdb.php drop piano_test_manual
 ```
 
-The stand-in IAM: make a key
-(`php -r "require 'api/anotoki_iam.php'; echo json_encode(anotoki_iam_test_keypair('k'));" > <dir>/key.json`),
-run `FAKE_IAM_DIR=<dir> FAKE_IAM_ISSUER=http://127.0.0.1:8597 php -S 127.0.0.1:8597 tests/tools/fake-iam.php`
-(`testenv.php --issuer=` for another address). `POST /_test/state`
-sets who signs in (`user`: `{id, username, roles, locale?}` - `roles` `["MEMBER", "ADMIN"]`,
+The stand-in IAM (the family's): make a key
+(`php -r 'require "vendor/autoload.php"; \Anotoki\Lib\Auth\Testing\TestIam::create($argv[1], $argv[2], "piano-academy", "manual");' <dir> http://127.0.0.1:8597`),
+run `STAND_IN_DIR=<dir> STAND_IN_ISSUER=http://127.0.0.1:8597 php -S 127.0.0.1:8597 vendor/anotoki/lib/php/testing/stand-in-iam.php`
+(`testenv.php --issuer=` for another address; the browser check's `run.mjs` does both). `POST /_test/state`
+sets who signs in (`user`: `{id, username, roles, locale?, preferences?}` - `roles` `["MEMBER", "ADMIN"]`,
 `["MEMBER", "EDITOR"]` or `["MEMBER"]` for a learner, `locale` is the token's claim, `en` by default), the
 token lifetime (`ttl`), what it says about the app at `GET /api/public/applications/{id}`
 (`login_required`, default true; `application_missing` - a 404) and failures (`down` - every
 endpoint but the key set 503, `refuse`, `deny` + `deny_description` - which the app never
-shows: it words `access_denied` itself). Its `log` lists the requests it got. The app keeps
+shows: it words `access_denied` itself), the accounts it deleted (`anonymized: [{sub,
+anonymized_at}]`) and any answer at all for a path (`answers`). Its `log` lists the requests it got. The app keeps
 its answer a minute (`testenv.php --application-ttl=1` for a check that switches mid-run,
 or delete `<folder>/cache/anotoki-iam-application-*.json`).
 
@@ -1244,16 +1333,16 @@ pill instead of crashing, which is what to check.
 - No logic copied out of `core/music/`; no persisted unit/step id renamed.
 - Components are three files; colours from tokens; works at 390 px, light and dark.
 - Every new query on a person's data is scoped to the request's user id; nothing takes a user id from a body or URL. The site's strings are the exception: public to read, the staff's to write; People (ADMIN) the one read across people.
-- The visitor key is read only by `requireOwner()` and the move (`routes/visitor.php`); a new per-person route that a visitor may use takes `requireOwner()`, any other `requireUser()` / `requireRole()` (which refuse a visitor); a new table of a person's data goes into `STORE_PERSON_TABLES`; a new migration's descriptions pass 004's and 005's gates when they run again.
+- A visitor is taken for anybody only by `requireOwner()` (and the move reads the key beside a token, `routes/visitor.php`); a new per-person route that a visitor may use takes `requireOwner()`, any other `requireUser()` / `requireRole()` (which refuse a visitor); a new table of a person's data goes into `STORE_PERSON_TABLES`; a new migration's descriptions pass 004's and 005's gates when they run again.
 - A save of a whole document checks the generation inside its transaction (`storeRequireGeneration()`); anything that replaces or deletes a person's progress takes their users row first (`storeLockGeneration()`) and starts a new generation (`storeNewGeneration()`) - or deletes the users row.
-- Every admin route is inside a group of `api/routes/admin.php` that has `requireRole()` (staff or ADMIN); a present-but-bad token is a 401 everywhere; nothing reads a setting to decide who somebody is.
-- A new learner route is under the `''` route with `canActivateChild: [signInGuard]` (a visitor's too); a new admin page under `admin` (`adminSignInGuard`, and `adminGuard` when it is ADMIN's); the admin pages stay English.
-- A new API call goes through `ApiService.request()` and is a person's (`asPerson` / `AS_PERSON`) unless it is one of a visitor's four (state, progress, path, sessions - the backend's `requireOwner()` routes); nothing decides person or visitor from whether a token is there as a request leaves.
+- Every admin route is inside a group of `api/routes/admin.php` that has `requireRole()` (staff or ADMIN) or `adminByToken()` (ADMIN, recording nobody); a present-but-bad token is a 401 everywhere; nothing reads a setting to decide who somebody is. The admin tools are ADMIN's alone, never EDITOR's.
+- A new learner route is under the `''` route with `canActivateChild: [personOrVisitorGuard]` (a visitor's too); a new admin page under `admin` (`staffGuard`, and the family's `adminGuard` when it is ADMIN's); the admin pages stay English.
+- A new API call goes through `ApiService.request()` and is a person's (`asPerson`) unless it is one of a visitor's four (state, progress, path, sessions - the backend's `requireOwner()` routes); nothing decides person or visitor from whether a token is there as a request leaves.
 - A learner never sees the server's sentence: a failed call is worded from its code, by a key.
 - A new session field or mode is in `SESSION_FIELDS` / `SESSION_MODES` and `SessionInput`.
 - A schema change is a new migration; `setup.php` still parses under PHP 7.4.
 - Anything "per day" uses local dates.
-- A date or time a page writes goes through the `localDate` pipe (the account's order and clock for somebody signed in); a control that changes the theme or the language saves a signed-in person's choice through `AuthService.savePreferences()` - only while `preferences` is not null, one save at a time, the latest last, a refusal said by a key.
+- A date or time a page writes goes through the `localDate` pipe (the account's order and clock for somebody signed in); a control that changes the theme or the language saves a signed-in person's choice through `AnotokiAuth.savePreferences()` - only while `preferences` is not null, one save at a time, the latest last, a refusal said by a key.
 - UI text short and plain; a learner-visible change has a changelog line (a new release: an entry on top, its version MAJOR.MINOR.PATCH, `package.json`'s the same).
 - A learner-facing word is a key with English and informal Slovak ("ty") in a migration; state holds keys, never sentences.
 - Nothing worded is awaited in a MIDI handler.

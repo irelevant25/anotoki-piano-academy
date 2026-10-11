@@ -16,7 +16,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database and settings
 
-// requireOwner(), signedInUser() and the other middleware, for the in-process checks at the end.
+// requireOwner(), requireUser(), requireRole() and identify() - the library's, as this app stacks them - for the
+// in-process checks at the end.
 require_once TEST_BACKEND . '/api/meddleware/auth.php';
 
 use Psr\Http\Message\ResponseInterface;
@@ -305,9 +306,10 @@ test('a Bearer header is that person or a 401 - never the visitor, whose key is 
     $before = visitor_as_it_is($visitor['id']);
     $bad = [
         'expired' => [bearer(test_token(MEMBER, [], ['exp' => time() - 3600])), 'invalid_token'],
-        'signed by somebody else' => [bearer(test_token(MEMBER, [], [], ['keys' => anotoki_iam_test_keypair('other')])), 'invalid_token'],
+        'signed by somebody else' => [bearer(test_token(MEMBER, [], [], ['iam' => test_other_iam('other')])), 'invalid_token'],
         'garbage' => [['Authorization: Bearer x'], 'invalid_token'],
-        'Bearer with nothing after it' => [['Authorization: Bearer '], 'sign_in_required'],
+        // The library's rule: a Bearer header claims a sign-in, and one with no token is refused as a token is.
+        'Bearer with nothing after it' => [['Authorization: Bearer '], 'invalid_token'],
     ];
     foreach ($bad as $what => [$headers, $code]) {
         foreach ([['GET', '/api/state', null], ['PUT', '/api/progress', ['61' => note(61)]], ['POST', '/api/sessions', round_of()]] as [$method, $url, $body]) {
@@ -626,49 +628,62 @@ function who_handler(): RequestHandlerInterface
 }
 
 /** A middleware as a handler: $middleware in front of $next. */
-function in_front(callable $middleware, RequestHandlerInterface $next): RequestHandlerInterface
+function in_front(\Psr\Http\Server\MiddlewareInterface $middleware, RequestHandlerInterface $next): RequestHandlerInterface
 {
     return new class ($middleware, $next) implements RequestHandlerInterface {
-        public function __construct(private $middleware, private RequestHandlerInterface $next)
+        public function __construct(private \Psr\Http\Server\MiddlewareInterface $middleware, private RequestHandlerInterface $next)
         {
         }
 
         public function handle(ServerRequestInterface $request): ResponseInterface
         {
-            return ($this->middleware)($request, $this->next);
+            return $this->middleware->process($request, $this->next);
         }
     };
 }
 
-function refused_code(callable $fn): ?string
+/** What a stack answered: "status code" for a refusal, null when it let the request through (200). */
+function refused_code(RequestHandlerInterface $stack, ServerRequestInterface $request): ?string
 {
-    try {
-        $fn();
-    } catch (ApiError $e) {
-        return $e->status . ' ' . $e->errorCode;
+    $response = $stack->handle($request);
+    if ($response->getStatusCode() === 200) {
+        return null;
     }
 
-    return null;
+    return $response->getStatusCode() . ' ' . (json_decode((string) $response->getBody(), true)['code'] ?? '?');
 }
 
-test('requireUser() and requireRole() refuse a visitor that requireOwner() put on the request: they mean a verified token', function (): void {
+test('requireUser() and requireRole() refuse a visitor that requireOwner() let through: they mean a verified token, however stacked', function (): void {
     fresh();
     $visitor = new_visitor();
-    // This process's own settings: sign-in not required, as the servers'.
-    test_login_required(authSettings(), false);
-    $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/me/export')
-        ->withHeader(VISITOR_HEADER, $visitor['key']);
+    // This process's own settings: sign-in not required, as the servers' - with the tests' key set.
+    $file = $GLOBALS['TEST_CONFIG_DIR'] . '/auth.local.php';
+    $own = require $file;
+    $settings = test_auth_iam(['application_file' => $own['application_file']]);
+    file_put_contents($file, '<?php return ' . var_export(test_offline_auth($settings), true) . ";\n");
+    localSettings(true);
+    test_login_required($settings, false);
+    try {
+        $identify = identify(new \Slim\Psr7\Factory\ResponseFactory());
+        $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/me/export')
+            ->withHeader(VISITOR_HEADER, $visitor['key']);
 
-    $owned = json_decode((string) in_front(requireOwner('refuse'), who_handler())->handle($request)->getBody(), true);
-    assert_same(['id' => $visitor['id'], 'visitor' => true], $owned, 'requireOwner(): the visitor');
+        $owned = json_decode((string) in_front($identify, in_front(requireOwner('refuse'), who_handler()))->handle($request)->getBody(), true);
+        assert_same(['id' => $visitor['id'], 'visitor' => true], $owned, 'requireOwner(): the visitor');
 
-    foreach (['requireUser()' => requireUser(), 'requireRole(ADMIN)' => requireRole(ROLE_ADMIN), 'requireRole(staff)' => requireRole(...ROLES_STAFF)] as $what => $check) {
-        assert_same('401 sign_in_required', refused_code(static fn() => in_front(requireOwner('refuse'), in_front($check, who_handler()))->handle($request)), "requireOwner() outside $what");
+        foreach (['requireUser()' => requireUser(), 'requireRole(ADMIN)' => requireRole(ROLE_ADMIN), 'requireRole(staff)' => requireRole(...ROLES_STAFF), 'adminByToken()' => adminByToken()] as $what => $check) {
+            assert_same('401 sign_in_required', refused_code(in_front($identify, in_front(requireOwner('refuse'), in_front($check, who_handler()))), $request), "requireOwner() outside $what");
+            assert_same('401 sign_in_required', refused_code(in_front($identify, in_front($check, who_handler())), $request), "$what alone");
+        }
+        // A person passes - their own id, never the visitor's whose key came along.
+        $person = $request->withHeader('Authorization', 'Bearer ' . test_token(MEMBER));
+        assert_same(['id' => MEMBER, 'visitor' => false], json_decode((string) in_front($identify, in_front(requireUser(), who_handler()))->handle($person)->getBody(), true), 'a person passes');
+        test_login_required($settings, true);
+        assert_same('401 sign_in_required', refused_code(in_front($identify, in_front(requireOwner('refuse'), who_handler())), $request), 'sign-in required: the key is not read');
+    } finally {
+        file_put_contents($file, '<?php return ' . var_export(test_offline_auth($own), true) . ";\n");
+        localSettings(true);
     }
-    assert_same('401 sign_in_required', refused_code(static fn() => signedInUser(withSiteUser($request, new SiteUser(-7, null, [ROLE_ADMIN], true)))), 'a visitor, whatever roles it were given');
-    assert_same(MEMBER, signedInUser(withSiteUser($request, new SiteUser(MEMBER, 'm', []))) ->id, 'a person passes');
-    test_login_required(authSettings(), true);
-    assert_same('401 sign_in_required', refused_code(static fn() => in_front(requireOwner('refuse'), who_handler())->handle($request)), 'sign-in required: the key is not read');
 });
 
 test('the servers said nothing they should not have', function (): void {

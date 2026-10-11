@@ -1,7 +1,7 @@
 import { EnvironmentProviders, Injector, inject } from '@angular/core';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { provideAnotokiMigrations } from '@anotoki/lib/migrations';
 import { TranslationService, siteStatusWords } from '@anotoki/lib/translations';
-import { AuthService } from '../auth/auth.service';
 import { localDateText } from '../i18n/local-date.pipe';
 import { BootService } from './boot.service';
 
@@ -17,7 +17,7 @@ export const MIGRATIONS_ROUTE = '/admin/migrations';
  * (@anotoki/lib/migrations: SiteStatus, the interceptor, <anotoki-site-gate>,
  * <anotoki-site-status>, <anotoki-migrations-page>), wired to this app's
  * own: who is signed in and whether they are the site's ADMIN (the token's
- * roles - AuthService), how a sign-in starts (BootService.signIn(): a
+ * roles - AnotokiAuth), how a sign-in starts (BootService.signIn(): a
  * visitor's saves first, the IAM's pages in the language read here, and back
  * to this address), the language on the page (English in the admin panel),
  * the status page's words from the database in that language (the library's
@@ -34,7 +34,7 @@ export const MIGRATIONS_ROUTE = '/admin/migrations';
  */
 export function provideSiteMigrations(): EnvironmentProviders {
   return provideAnotokiMigrations(() => {
-    const auth = inject(AuthService);
+    const auth = inject(AnotokiAuth);
     const i18n = inject(TranslationService);
     const injector = inject(Injector);
     return {

@@ -3,9 +3,9 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import { Router, TitleStrategy, provideRouter } from '@angular/router';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
-import { AuthService } from './auth/auth.service';
 import { provideSiteTranslations } from './i18n/site-translations';
 import { PianoTitleStrategy } from './title.strategy';
 
@@ -80,7 +80,8 @@ describe('PianoTitleStrategy', () => {
 describe('PianoTitleStrategy with no strings at all', () => {
   // The app is not set up: its sign-in settings could not be read, so nothing is asked for - and a first visit has
   // nothing kept either. The words as the app wires them (core/i18n/site-translations.ts).
-  const auth = { user: () => null, signedIn: () => false, preferences: () => null, settingsRead: () => false, userKey: () => null, isStaff: () => false, isAdmin: () => false };
+  // Nobody signed in, and no sign-in settings read: nothing is asked of the server (core/i18n/site-translations.ts's canAsk).
+  const auth = { locale: () => null, signedIn: () => false, preferences: () => null, state: () => 'unavailable', subject: () => null, isStaff: () => false, isAdmin: () => false };
   const http = { get: vi.fn() };
 
   beforeEach(() => {
@@ -88,7 +89,7 @@ describe('PianoTitleStrategy with no strings at all', () => {
     sessionStorage.clear();
     http.get.mockReset();
     TestBed.configureTestingModule({
-      providers: [{ provide: HttpClient, useValue: http }, { provide: AuthService, useValue: auth }, provideSiteTranslations(), provideRouter(ROUTES), { provide: TitleStrategy, useClass: PianoTitleStrategy }],
+      providers: [{ provide: HttpClient, useValue: http }, { provide: AnotokiAuth, useValue: auth }, provideSiteTranslations(), provideRouter(ROUTES), { provide: TitleStrategy, useClass: PianoTitleStrategy }],
     });
   });
 

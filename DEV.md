@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.3"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.4.1"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.3.0/anotoki-lib-0.3.0.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.4.1/anotoki-lib-0.4.1.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -32,12 +32,16 @@ tables, the bundle the pages read, the admin panel's routes and its
 Translations and Languages pages, the command line (below, *The app's
 words*); and the family's UI kit, its styles and its frame (the top bar,
 the theme switch, the language chooser, the menus, the questions, Manrope -
-`frontend/README.md`). Both halves are at 0.3.0 (0.1.1 and 0.2.0 changed
+`frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
+and the admin tools (below, *Signing in, people and the admin tools*). Both
+halves are at 0.4.1 (0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
 site is open; 0.2.0 marked that template - `anotokiSitePages` - gave the
 Migrations page an entry point of its own and added the kit; 0.3.0 added
 the translations to both halves, gave each kit piece an entry point of its
-own and the kit its own class names). **To update
+own and the kit its own class names; 0.4.0 added signing in, the people and
+the admin tools to both halves, and 0.4.1 mended two of its queries on PHP
+8.2 - never 0.4.0). **To update
 it**, both halves together: read its `CHANGELOG.md` (while 0.x a minor
 version may break; a release that leaves a half unchanged may leave it
 where it is), then in `backend/` `composer update anotoki/lib
@@ -184,8 +188,9 @@ bundle `GET /api/translations/{code}`, the admin panel's
 IAM's format; the role checks are this app's, on the route groups) - and
 `frontend/src/app/core/i18n/site-translations.ts` its Angular half (the
 `TranslationService`, the pipes, the admin pages). The library's own words
-are keys of its own, `anotoki.*` (54: the bar's, the menus', the language
-chooser's and theme switch's, the dialogs', the status page's), in the same
+are keys of its own, `anotoki.*` (94: the bar's, the menus', the language
+chooser's and theme switch's, the dialogs', the status page's, the sign-in
+failure page's, the feedback form's), in the same
 tables - its migration set `anotoki_translations` writes them, and an owner
 rewords them on the Translations page like any other.
 
@@ -224,7 +229,8 @@ npm run build                      # the production build
 ```
 
 The frontend's specs need no server: `HttpTestingController` answers the API,
-stand-ins stand for the IAM's SDK, `provideTestTranslations()` gives a page its
+`TestAuth` (`core/testing/test-auth.ts`) stands for the family's `AnotokiAuth`,
+`provideTestTranslations()` gives a page its
 strings. `frontend/README.md` lists what they cover.
 
 The backend tests start the real router under PHP's built-in server (and the
@@ -234,13 +240,13 @@ settings of its own in a temp folder (`PIANO_TEST_CONFIG`, honoured only for
 `piano_test_` databases). They borrow only the PostgreSQL server and user from
 this machine's `config/database.local.php`, so run the setup once first. They
 never touch the owner's database. Sign-in is always the IAM's: tokens the
-tests sign with their own key (`test_token($id, $roles)`; no roles is a
-learner, and so is MEMBER), and the stand-in IAM `tests/tools/fake-iam.php`
-for a whole sign-in and the IAM's "Sign-in required" switch. No test asks a
-real IAM: the switch's answer is a file (`application_file`), or the
-stand-in answers it; `tests/lib.php` refuses anything else.
-One test fails on a CRLF checkout (`unit/config`, the `.gitignore` line
-match) - environmental.
+tests sign with their own key (the library's `TestIam`: `test_token($id,
+$roles)`; no roles is a learner, and so is MEMBER), and the family's
+stand-in IAM (`vendor/anotoki/lib/php/testing/stand-in-iam.php`,
+`stand_in_iam()`) for a whole sign-in, the IAM's "Sign-in required" switch
+and its deleted accounts. No test asks a real IAM: the switch's answer and
+the deleted accounts are files (`application_file`, `anonymized_file`), or
+the stand-in answers them; `tests/lib.php` refuses anything else.
 To run them under a second PHP - the hosting's version - call that binary
 instead of `php`: `run.php` starts each file with the PHP it runs under.
 `php tests/tools/testdb.php template --fresh` drops and rebuilds the template
@@ -259,20 +265,26 @@ PIANO_TEST_CONFIG=storage/manual php -S 127.0.0.1:8590 router.php
 
 (`storage/` is gitignored - the folder holds a copy of the database password.)
 
-Sign in through the stand-in IAM `tests/tools/fake-iam.php` (never the real
-one): its header says how to run it on `:8597` (`--issuer=` points the
+Sign in through the family's stand-in IAM (never the real one),
+`vendor/anotoki/lib/php/testing/stand-in-iam.php`: its header says how to
+run it on `:8597`, with a key the library's `TestIam::create()` writes (the
+browser check's `scripts/run.mjs` does both; `--issuer=` points the
 throwaway copy at another address); `POST /_test/state` with
 `{"user": {"id": 1, "username": "ada", "roles": ["MEMBER", "ADMIN"]}}` sets who signs in
 and with which roles (`["MEMBER"]`: a learner - every account holds MEMBER), and
 `{"login_required": false}` what the IAM says about the app's "Sign-in required"
 (`{"application_missing": true}`: a 404). The app keeps that answer a minute in
 the folder's `cache/`; `testenv.php ... --application-ttl=1` keeps it a second.
-`{"preferences": {"theme": "dark", "date_format": "dmy_dot", "time_format": "12"}}`
-gives the account a theme, a date order and a clock (the tokens' `preferences`
-claim, as an IAM with its migration 015; `null`, the default, is an IAM
-before it), and the app's theme button and language chooser save into it;
-`{"preferences_refuse": true}` makes those saves fail. A sign-in takes the
-claim, so sign in again after changing it.
+`"preferences": {"theme": "dark", "date_format": "dmy_dot", "time_format": "12"}`
+in the `user` gives the account a theme, a date order and a clock (the
+tokens' `preferences` claim, as an IAM with its migration 015; none, the
+default, is an IAM before it), and the app's theme button and language
+chooser save into it; `{"answers": {"/api/oidc/preferences": {"status":
+403, "body": "{\"error\":\"access_denied\"}"}}}` makes those saves
+fail (`{"answers": {}}` ends it). A sign-in takes the claim, so sign in again
+after changing it. `{"anonymized": [{"sub": "1", "anonymized_at":
+"2026-10-10T09:30:00Z"}]}` says the IAM deleted that account: the People
+page's "Check now" scrubs it.
 Throwaway servers go on 8590-8599.
 
 With `login_required` false the throwaway copy keeps visitors' progress
@@ -294,7 +306,7 @@ unseen 30 days are swept after an answer (the marker is the folder's
 
 ### The browser check
 
-The app in a real browser, signed in through the stand-in IAM, on a
+The app in a real browser, signed in through the family's stand-in IAM, on a
 throwaway database - committed, and run after anything a page shows changes
 (the skill `.claude/skills/check-in-browser/` says what it covers):
 
@@ -304,13 +316,15 @@ PHP=/path/to/php node .claude/skills/check-in-browser/scripts/run.mjs [--no-buil
 ```
 
 It builds the frontend, makes `piano_test_browser_<port>` from the tests'
-template, starts the stand-in IAM on 8597 and the built app on 8590
+template, starts the stand-in IAM on 8597 (its key from the library's
+`TestIam`) and the built app on 8590
 (`SITE_PORT` / `IAM_PORT` when another check holds them), drives headless
 Edge (`BROWSER=chrome` for Chrome) through `playwright-core` - installed once
 into `<temp>/pw`, never into `frontend/` - and stops and drops everything at
 the end, also when a check fails. `--keep` keeps the screenshots (the path
 is printed): look at them. `--measure` prints what the top bar's row needs
-in English and Slovak - how `PHONE_BAR_MAX` was chosen.
+in English and Slovak - how `PHONE_BAR_MAX` and the admin panel's
+`ADMIN_PHONE_BAR_MAX` were chosen.
 
 ### Testing without a piano
 
@@ -372,7 +386,10 @@ The translation migrations (002 the tables, 003 the strings; later ones the
 same way) touch nobody's progress - a test holds them to it. They reach a
 database only with a released version, by the owner's own hand.
 
-1. **The dump comes first**, before anything applies the migration. In
+1. **The dump comes first**, before anything applies the migration (the
+   Apply itself makes one more since 0.4.1 - the library's before-migration
+   backup in `storage/backups/`, also from `/setup.php` and `php
+   migration.php`; your own dumps there stay as they are). In
    `backend/`, with the server, port and user of
    `config/database.local.php` (`pg_dump` asks for the password; on Windows it
    is in `C:\Program Files\PostgreSQL\<version>\bin\`; make
@@ -476,6 +493,27 @@ the words made before 009 still names the keys it deleted, and an import
 takes a file whole or not at all: import such a file before 009, or take
 those keys out of it (their strings are under `anotoki.*` since).
 
+**Signing in, people and the admin tools through the family's library
+(migrations 010 and 011, 2026-10-11, not applied anywhere yet)**: the
+build carries `anotoki-lib` 0.4.1 - both halves: signing in (the vendored
+SDKs are gone), the People page with the scrub of the accounts the IAM
+deleted, and the admin tools (the error log, the audit log, feedback,
+backups - the site's ADMIN alone). 010 adds `users.anonymized_at` and
+nothing else (its gate: the column, nullable, and no visitor's row with a
+time in it). 011 copies the sign-in card's three failure sentences
+(`signIn.notCompleted`, `signIn.failed`, `signIn.storageUnavailable`) under
+the library's keys - every language, as the owner worded them, with who
+saved them and when - and deletes the card's five keys (`signIn.button`
+stays); its gate fails loudly if one string did not arrive as it was. The
+library's own files run around them in the same Apply:
+`anotoki_admin/001_audit_log.sql` and `002_feedback.sql` first, then after
+011 `anotoki_translations/003_sign_in_words.sql`,
+`004_feedback_words.sql` and `anotoki_people/001_people.sql`. It all goes
+with 005 to 009 at the hand-over - one Apply. On the host, `storage/logs/`
+and `storage/backups/` are made by PHP inside `storage/` (closed to the web
+by the upload's `.htaccess`): PHP must be able to write there. The first
+answer of each UTC day makes the daily backup, after it is sent.
+
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
 after release needs an `UPDATE` in its migration. The two databases (your
@@ -500,12 +538,13 @@ of the new id first, if there is one).
 | "The site is being updated"; the API answers 503 `update_pending` | A migration waits: an ADMIN applies it on the admin panel's Migrations page (sign in from that page), or `php migration.php`, or the setup page. The sign-in, the words and `/api/health` answer meanwhile. |
 | "The site is not available right now", and it does not come back | The database cannot be reached (`GET /api/site-status` says `unavailable`): is PostgreSQL running, do the settings name it? |
 | The setup page asks for a token on this computer | It was not asked as `localhost` / `127.0.0.1` straight from PHP's built-in server: a LAN address, another name, or a proxy that adds forwarding headers makes it a real host's install. |
-| 403 `forbidden` on `/api/admin/...` | The account has no role of Piano Academy in the IAM (EDITOR for the words, ADMIN for languages and the database) - or the token was issued before the role was given: sign in again. |
+| 403 `forbidden` on `/api/admin/...` | The account has no role of Piano Academy in the IAM (EDITOR for the words, ADMIN for languages, the people, the admin tools and the database) - or the token was issued before the role was given: sign in again. |
+| 403 `reauth_required` on a backup | A backup is made, downloaded, deleted or restored only after a sign-in of the last ten minutes: the Backups page offers "Sign in again". |
 | 409 `busy` / "Another database update is running" | The setup page, `php migration.php` and the app's update take one lock: wait for the other to finish. |
 | 428 `generation_required` on `PUT /api/progress` or `/api/path` | Something saves without `Progress-Generation` - never this frontend (it sends no save without one): an old build in the browser's cache, or a script of your own. Load the page again. The app shows it as "Not saved yet": when every save gets it, something between the browser and PHP drops the header - let `Progress-Generation` through. |
 | 409 `progress_changed` on a save, and the note "Your progress was replaced or deleted somewhere else" | Right: the progress was imported in another tab (or on another computer) or deleted by an administrator since this page loaded it. The page has loaded it again; nothing old was saved over it. |
-| Opening the app goes straight to the IAM | Right: every page signs in first. After a refused or cancelled sign-in the app shows its sign-in card instead, with the reason. |
-| `/admin/languages`, `/people` or `/migrations` opens Translations | The account is an EDITOR, not an ADMIN, of Piano Academy (or the token is from before the role: sign in again). |
+| Opening the app goes straight to the IAM | Right: every page signs in first. After a refused or cancelled sign-in the app shows the family's page "Signing in did not work" (`/sign-in-failed`) instead, with the reason, Try again and a way back. |
+| `/admin/languages`, `/people`, `/migrations` or an admin tool opens the start page | The account is an EDITOR, not an ADMIN, of Piano Academy (or the token is from before the role: sign in again). |
 | 409 `export_too_large` | The person's progress is over `EXPORT_LIMIT` (5 MiB): export it with `php tools/progress.php --export`, which has no limit. |
 | The app loads but every call fails | The backend on :8300 is not running, or was started without `router.php`. |
 | Signing in bounces back with an error | The IAM does not know this address: use `http://localhost:4500`, which it registers for Piano Academy. |

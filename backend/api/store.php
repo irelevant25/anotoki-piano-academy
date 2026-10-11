@@ -307,6 +307,38 @@ function storeNewGeneration(int $userId): int
     return (int) dbValue("UPDATE users SET progress_generation = nextval('progress_generation') WHERE id = ? RETURNING progress_generation", [$userId]);
 }
 
+/** How far past the backup's last number the sequence moves after a restore: more than this app hands out between a backup and its restore. */
+const STORE_GENERATION_RESTORE_GAP = 1_000_000_000_000;
+
+/**
+ * After a restore (api/admin_tools.php's backups(), on the connection that
+ * restored): every progress - a visitor's too - takes a new generation, from
+ * far past any number handed out. A restore puts the users rows back with the
+ * generations of the backup's day, and the sequence too (the library sets
+ * sequences to the backup's values): a tab left open since then holds a
+ * number the restored row has again, so its next save would go over the
+ * restored progress (204), and the next import or delete would hand out a
+ * number an open tab still holds. So the sequence moves
+ * STORE_GENERATION_RESTORE_GAP past where the backup left it, and every users
+ * row takes a new number from there: every tab of before gets 409
+ * progress_changed on its next save, and loads what was restored. One
+ * transaction; a save in flight holds its row, and this waits for it.
+ */
+function storeRenewGenerationsAfterRestore(PDO $pdo): void
+{
+    $pdo->beginTransaction();
+    try {
+        $pdo->query('SELECT setval(\'progress_generation\', (SELECT last_value FROM progress_generation) + ' . STORE_GENERATION_RESTORE_GAP . ')');
+        $pdo->exec("UPDATE users SET progress_generation = nextval('progress_generation')");
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
 /* ------------------------------------------------------------- writing */
 
 /**

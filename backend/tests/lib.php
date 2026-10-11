@@ -15,15 +15,19 @@ declare(strict_types=1);
  * reach your database or change your settings. The databases and folders go
  * when the file's tests end; PIANO_KEEP_TEMP=1 keeps them for a look.
  *
- * Signing in: always the IAM, as in the app. The servers the tests start check
- * tokens the tests sign with their own key (test_token(), test_auth_iam()), or
- * download the key set from the stand-in IAM (tests/tools/fake-iam.php). A
+ * Signing in: always the IAM, as in the app - through the anotoki family's
+ * library (anotoki/lib's Anotoki\Lib\Auth). The servers the tests start check
+ * tokens the tests sign with their own key (the library's TestIam:
+ * test_token(), test_auth_iam()), or download the key set from the family's
+ * stand-in IAM (vendor/anotoki/lib/php/testing/stand-in-iam.php, started by
+ * stand_in_iam()). A
  * token carries no role unless a test gives it one: a learner (the IAM puts
  * MEMBER in every account's token; a learner with it is the same learner).
  *
- * No test ever asks a real IAM. Whether the app requires sign-in is the IAM's
- * answer: the settings a test writes either name the IAM's answer as a file
- * (`application_file`, test_application_file() - read on every call, nothing
+ * No test ever asks a real IAM. Whether the app requires sign-in, and which
+ * accounts it deleted, are the IAM's answers: the settings a test writes
+ * either name them as files (`application_file`, test_application_file();
+ * `anonymized_file`, test_anonymized_file() - read on every call, nothing
  * kept), or an IAM on this computer (the stand-in). test_write_config()
  * refuses anything else (test_offline_auth()), and so does a test that finds
  * settings written some other way (the hosted site's, written by setup.php).
@@ -78,15 +82,17 @@ function test_write_config(string $dir, array $database, array $auth): string
 
 /**
  * Sign-in settings a test may hand to the app: they never make it ask an IAM
- * that is not on this computer - the IAM's answer is a file
- * (`application_file`), or the issuer is this computer's (the stand-in IAM).
- * Anything else throws: the answer would come from the network (the live IAM
- * for https://iam.anotoki.eu), and a test that waits on it, or reads what the
- * owner switched there, is no test.
+ * that is not on this computer - the IAM's answers are files (its answer
+ * about this app, `application_file`, and its list of deleted accounts, which
+ * the people's scrub reads after an answer, `anonymized_file`), or the issuer
+ * is this computer's (the stand-in IAM). Anything else throws: the answers
+ * would come from the network (the live IAM for https://iam.anotoki.eu), and
+ * a test that waits on it, or reads what the owner switched there, is no test.
  */
 function test_offline_auth(array $auth): array
 {
-    if (is_string($auth['application_file'] ?? null) && $auth['application_file'] !== '') {
+    $file = static fn (string $key): bool => is_string($auth[$key] ?? null) && $auth[$key] !== '';
+    if ($file('application_file') && $file('anonymized_file')) {
         return $auth;
     }
     // (Its own test of a name: the app is not loaded yet when the tests' first settings are written.)
@@ -95,11 +101,12 @@ function test_offline_auth(array $auth): array
         return $auth;
     }
     throw new RuntimeException('These sign-in settings would ask the IAM at ' . ($auth['issuer'] ?? '?')
-        . ' whether sign-in is required: give them an application_file (test_application_file()) or the stand-in IAM.');
+        . ' whether sign-in is required, or which accounts it deleted: give them an application_file (test_application_file())'
+        . ' and an anonymized_file (test_anonymized_file()), or the stand-in IAM.');
 }
 
 /**
- * The IAM's answer about this app as a file, for the SDK's application_file:
+ * The IAM's answer about this app as a file, for the library's application_file:
  * what GET {issuer}/api/public/applications/piano-academy would say. A new
  * file each call; test_login_required() changes it.
  */
@@ -109,6 +116,36 @@ function test_application_file(bool $loginRequired = true): string
     test_login_required(['application_file' => $file], $loginRequired);
 
     return $file;
+}
+
+/**
+ * The IAM's list of the accounts it deleted, as a file for the library's
+ * anonymized_file (what GET {issuer}/api/public/anonymized-accounts would
+ * say, paged by the library as the IAM pages it): [IAM id => when, ISO 8601
+ * in whole seconds, UTC]. A new file each call; test_anonymized() changes it.
+ *
+ * @param array<int, string> $accounts
+ */
+function test_anonymized_file(array $accounts = []): string
+{
+    $file = test_temp_dir('iam-anonymized') . '/anonymized.json';
+    test_anonymized(['anonymized_file' => $file], $accounts);
+
+    return $file;
+}
+
+/**
+ * The IAM deleted these accounts (for the settings $auth, their anonymized_file).
+ *
+ * @param array<int, string> $accounts
+ */
+function test_anonymized(array $auth, array $accounts): void
+{
+    $list = [];
+    foreach ($accounts as $sub => $at) {
+        $list[] = ['sub' => (string) $sub, 'anonymized_at' => $at];
+    }
+    file_put_contents($auth['anonymized_file'], json_encode(['accounts' => $list], JSON_UNESCAPED_SLASHES));
 }
 
 /** Switches sign-in on or off for the settings $auth (their application_file): the IAM's switch, as a test flips it. */
@@ -125,7 +162,10 @@ function test_login_required(array $auth, bool $required): void
  */
 function test_auth_settings(): array
 {
-    return ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'cache_dir' => 'storage/cache', 'application_file' => test_application_file()];
+    return [
+        'issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'cache_dir' => 'storage/cache',
+        'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file(),
+    ];
 }
 
 (static function (): void {
@@ -366,19 +406,23 @@ function test_empty_db(string $suffix): string
 
 /**
  * Brings a test's database up to and with the app's own migration $through -
- * every one there is without it, the library's set of the words (which runs
- * after all of the app's) too - with the app's own engine (api/migrations.php):
- * a database as it stood then. The files after $through are held back as
+ * every one there is without it, the library's sets too (its admin tools'
+ * first, its words' and its people's after all of the app's) - with the app's
+ * own engine (api/migrations.php): a database as it stood then, but for the
+ * library's admin tools' tables, which name nothing of the app's (the set runs
+ * first, and the Migrator holds every file after a draft back: it cannot wait
+ * while the app's files run). The app's files after $through are held back as
  * drafts are (the Migrator's `ready`: a draft and everything after it wait),
- * and so are the library's, so what a database already has is skipped and the
- * rest runs in order, each file whole or not at all. Returns what
+ * and so are the library's words and people, so what a database already has
+ * is skipped and the rest runs in order, each file whole or not at all. No
+ * backup is made (the updates' own: databaseUpdater()). Returns what
  * Migrator::apply() says.
  *
  * @return array{applied: list<array{set: string, name: string}>, failed: ?array{set: string, name: string}, error: ?string, busy: bool, note: ?string}
  */
 function test_migrate(PDO $pdo, ?string $through = null): array
 {
-    $options = $through === null ? [] : ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => !$set->library && strnatcmp($name, $through) <= 0];
+    $options = $through === null ? [] : ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => test_ready_until($set, $name, $through, true)];
 
     return databaseMigrator($pdo, $options)->apply();
 }
@@ -386,7 +430,50 @@ function test_migrate(PDO $pdo, ?string $through = null): array
 /** test_migrate(), up to the app's migration before $migration: a database as it stood just before that one came. */
 function test_migrate_before(PDO $pdo, string $migration): array
 {
-    return databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => !$set->library && strnatcmp($name, $migration) < 0])->apply();
+    return databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => test_ready_until($set, $name, $migration, false)])->apply();
+}
+
+/** The `ready` of test_migrate(): the library's admin tools' set always, the app's files up to $file, nothing after. */
+function test_ready_until(\Anotoki\Lib\Migrations\MigrationSet $set, string $name, string $file, bool $with): bool
+{
+    if ($set->name === \Anotoki\Lib\Admin\Schema::SET) {
+        return true;
+    }
+    if ($set->library) {
+        return false;
+    }
+    $order = strnatcmp($name, $file);
+
+    return $with ? $order <= 0 : $order < 0;
+}
+
+/**
+ * A database as an installed one stood before anotoki-lib 0.4 - the sets the
+ * app had then, the app's own and the library's words (no admin tools' set,
+ * no people's), with the app's files up to and with $through and the words'
+ * up to and with $wordsThrough: what the owner's databases hold before the
+ * update this release brings. Made in two goes, as such a database was: the
+ * app's files, then the words' after them - one Migrator over both sets would
+ * hold the words back behind the app's later files (drafts here, and a draft
+ * holds back every file after it). Returns what Migrator::apply() says, the
+ * two goes' files together.
+ *
+ * @return array{applied: list<array{set: string, name: string}>, failed: ?array{set: string, name: string}, error: ?string, busy: bool, note: ?string}
+ */
+function test_migrate_as_installed(PDO $pdo, string $through, ?string $wordsThrough = null): array
+{
+    $apply = static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $last): array => (new \Anotoki\Lib\Migrations\Migrator($pdo, [$set], [
+        'lock' => DATABASE_UPDATE_LOCK,
+        'prepare' => adoptLegacyMigrationsTable(...),
+        'ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => strnatcmp($name, $last) <= 0,
+    ]))->apply();
+    $own = $apply(migrationSet(), $through);
+    if ($wordsThrough === null || $own['failed'] !== null) {
+        return $own;
+    }
+    $words = $apply(\Anotoki\Lib\Translations\Schema::migrationSet(), $wordsThrough);
+
+    return ['applied' => [...$own['applied'], ...$words['applied']]] + $words;
 }
 
 /** The names of the files a Migrator answer lists ({set, name} each). */
@@ -396,15 +483,15 @@ function names_of(array $files): array
 }
 
 /**
- * The files of the anotoki library's set of the words (anotoki_translations,
- * in vendor/anotoki/lib/php/migrations/translations), in the order they run -
- * after every file of the app's own.
+ * The files of one of the anotoki library's sets (in
+ * vendor/anotoki/lib/php/migrations/), in the order they run: the words'
+ * (anotoki_translations) by default.
  *
  * @return list<string>
  */
-function library_migration_files(): array
+function library_migration_files(?\Anotoki\Lib\Migrations\MigrationSet $set = null): array
 {
-    $set = \Anotoki\Lib\Translations\Schema::migrationSet();
+    $set ??= \Anotoki\Lib\Translations\Schema::migrationSet();
     $files = array_values(array_filter(scandir($set->directory) ?: [], static fn (string $entry): bool => $entry[0] !== '.' && str_ends_with($entry, '.sql')));
     natsort($files);
 
@@ -412,19 +499,31 @@ function library_migration_files(): array
 }
 
 /**
- * Every migration in the order they run - the app's set, then the library's -
- * as a Migrator's answer lists them: {set, name}. names_of() of it are the
- * names; migrationLabel() of each is how the `migrations` table, the health
- * check and the command line name it.
+ * Every migration in the order they run - the library's admin tools' set, the
+ * app's, then the library's words' and people's - as a Migrator's answer
+ * lists them: {set, name}. names_of() of it are the names; migrationLabel()
+ * of each is how the `migrations` table, the health check and the command
+ * line name it.
  *
  * @return list<array{set: string, name: string}>
  */
 function every_migration(): array
 {
-    return [
-        ...array_map(static fn (string $name): array => ['set' => MIGRATIONS_SET, 'name' => $name], migrationFiles()),
-        ...array_map(static fn (string $name): array => ['set' => \Anotoki\Lib\Translations\Schema::SET, 'name' => $name], library_migration_files()),
-    ];
+    $files = [];
+    foreach (migrationSets() as $set) {
+        $names = $set->name === MIGRATIONS_SET ? migrationFiles() : library_migration_files($set);
+        foreach ($names as $name) {
+            $files[] = ['set' => $set->name, 'name' => $name];
+        }
+    }
+
+    return $files;
+}
+
+/** The library's admin tools' files (anotoki_admin), as a Migrator lists them: they run first. */
+function admin_migrations(): array
+{
+    return array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] === \Anotoki\Lib\Admin\Schema::SET));
 }
 
 /** A new temp folder, removed at the end. */
@@ -699,50 +798,101 @@ function call_form(string $base, string $url, array $fields, array $files = [], 
 /* ------------------------------------------------ tokens signed by the tests */
 
 /**
- * The tests' own signing key, with its public half written as a JWKS file:
- * ['kid', 'private_pem', 'jwks', 'jwks_file']. One per test file.
+ * The tests' own IAM, without the IAM: the anotoki family's TestIam
+ * (anotoki/lib's Anotoki\Lib\Auth\Testing) - a signing key of its own, its
+ * public half as a key set on disk (`jwksFile()`), the tokens it signs. One
+ * per test file, issuer TEST_ISSUER, client TEST_CLIENT.
  */
-function test_keys(): array
+function test_keys(): \Anotoki\Lib\Auth\Testing\TestIam
 {
-    static $keys = null;
-    if ($keys === null) {
-        $keys = anotoki_iam_test_keypair('piano-test-key');
-        $keys['jwks_file'] = test_temp_dir('jwks') . '/jwks.json';
-        file_put_contents($keys['jwks_file'], json_encode($keys['jwks']));
-    }
+    static $iam = null;
 
-    return $keys;
+    return $iam ??= \Anotoki\Lib\Auth\Testing\TestIam::create(test_temp_dir('test-iam'), TEST_ISSUER, TEST_CLIENT, 'piano-test-key');
+}
+
+/** The key set test_keys() signs against, as a file (the library's jwks_file). */
+function test_jwks_file(): string
+{
+    return test_keys()->dir . '/' . \Anotoki\Lib\Auth\Testing\TestIam::JWKS_FILE;
+}
+
+/**
+ * Another IAM's key - a token it signs is a forgery here. With $kid the tests'
+ * own key's name ('piano-test-key'): the same kid, another key.
+ */
+function test_other_iam(string $kid, string $issuer = TEST_ISSUER): \Anotoki\Lib\Auth\Testing\TestIam
+{
+    return \Anotoki\Lib\Auth\Testing\TestIam::create(test_temp_dir('other-iam'), $issuer, TEST_CLIENT, $kid);
 }
 
 /**
  * Sign-in settings with the tests' key set: the IAM's tokens are the tests' own;
- * and the IAM's answer about this app as a file of their own, saying sign-in is
- * required (test_login_required() switches it). An `application_file` of null
- * in $extra leaves it out: the app then asks the issuer, which must be the
- * stand-in.
+ * the IAM's answer about this app as a file of their own, saying sign-in is
+ * required (test_login_required() switches it); its list of deleted accounts
+ * as a file too, empty (test_anonymized() fills it). An `application_file`
+ * (or `anonymized_file`) of null in $extra leaves it out: the app then asks
+ * the issuer, which must be the stand-in.
  */
 function test_auth_iam(array $extra = []): array
 {
     return array_filter($extra + [
         'issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT,
-        'cache_dir' => test_temp_dir('cache'), 'jwks_file' => test_keys()['jwks_file'],
-        'application_file' => test_application_file(),
+        'cache_dir' => test_temp_dir('cache'), 'jwks_file' => test_jwks_file(),
+        'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file(),
     ], static fn($value): bool => $value !== null);
 }
 
 /**
- * An access token for $userId as the IAM would sign it, with $roles - this
+ * An access token's claims for $userId as the IAM would put them: this IAM,
+ * this client, ten minutes, a session, the profile - with $roles, this
  * application's roles (ROLE_ADMIN, ROLE_EDITOR; none: a learner). $extra
  * overrides claims (an expired one, another audience, a `roles` that is no
- * list…). The header's typ / kid / alg, and the key, can be changed through
- * $sign.
+ * list...; null removes one). $issuer: another IAM's (the stand-in's).
+ */
+function test_claims(int $userId, array $roles = [], array $extra = [], string $issuer = TEST_ISSUER): array
+{
+    return test_keys()->claims($userId, array_values($roles), $extra + ($issuer !== TEST_ISSUER ? ['iss' => $issuer] : []));
+}
+
+/**
+ * An access token for $userId as the IAM would sign it (test_claims()). The
+ * header's typ / kid / alg, and the key, can be changed through $sign
+ * (['iam' => test_other_iam(...)] signs with another key).
  */
 function test_token(int $userId, array $roles = [], array $extra = [], array $sign = []): string
 {
-    $keys = $sign['keys'] ?? test_keys();
-    $claims = anotoki_iam_test_claims(['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT], $userId, $roles, $extra);
+    $iam = $sign['iam'] ?? test_keys();
 
-    return anotoki_iam_test_sign($claims, $keys['private_pem'], $sign['kid'] ?? $keys['kid'], $sign['typ'] ?? 'at+jwt', $sign['alg'] ?? 'RS256');
+    return $iam->sign(
+        test_claims($userId, $roles, $extra),
+        $sign['typ'] ?? 'at+jwt',
+        $sign['alg'] ?? 'RS256',
+        isset($sign['kid']) ? ['kid' => $sign['kid']] : [],
+    );
+}
+
+/** A token of the stand-in IAM's issuer, signed with the tests' key (the stand-in serves that key set). */
+function test_stand_in_token(\Anotoki\Lib\Auth\Testing\StandInIam $iam, int $userId, array $roles = ['MEMBER'], array $extra = []): string
+{
+    return test_keys()->sign(test_claims($userId, $roles, $extra, $iam->issuer));
+}
+
+/**
+ * The anotoki family's stand-in IAM (anotoki/lib's php/testing/stand-in-iam.php,
+ * started by its StandInIam) on a free port of this computer, serving the
+ * tests' key set - so test_token()'s tokens of its issuer verify against it.
+ * Stopped at the end of the file (or by its stop()).
+ */
+function stand_in_iam(): \Anotoki\Lib\Auth\Testing\StandInIam
+{
+    $dir = test_temp_dir('stand-in-iam');
+    copy(test_keys()->dir . '/' . \Anotoki\Lib\Auth\Testing\TestIam::KEY_FILE, $dir . '/' . \Anotoki\Lib\Auth\Testing\TestIam::KEY_FILE);
+    $iam = \Anotoki\Lib\Auth\Testing\StandInIam::start($dir, TEST_CLIENT);
+    $GLOBALS['TEST_SERVERS'][] = static function () use ($iam): void {
+        $iam->stop();
+    };
+
+    return $iam;
 }
 
 /** The Authorization header for a token. */

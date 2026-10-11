@@ -1,9 +1,8 @@
-import { WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { type AnotokiPreferences } from '@anotoki/lib/auth';
 import { TranslatePipe, TranslatePluralPipe, TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
-import { type AnotokiPreferences } from '../auth/anotoki-auth';
-import { AuthService } from '../auth/auth.service';
+import { TestAuth, provideTestAuth } from '../testing/test-auth';
 import { formatClock, formatDatePattern } from './date-patterns';
 import { LocalDatePipe } from './local-date.pipe';
 
@@ -31,7 +30,13 @@ const SLOVAK = {
 function pipes(language: 'en' | 'sk') {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    providers: [language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH), TranslatePipe, TranslatePluralPipe, LocalDatePipe],
+    providers: [
+      language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH),
+      ...provideTestAuth(),
+      TranslatePipe,
+      TranslatePluralPipe,
+      LocalDatePipe,
+    ],
   });
   return {
     i18n: TestBed.inject(TranslationService),
@@ -120,11 +125,10 @@ describe('the localDate pipe', () => {
   });
 });
 
-/** Somebody signed in whose anotoki account chose these - the SDK's user, as AuthService holds it - or, `signedIn` false, a session that ended. */
+/** Somebody signed in whose anotoki account chose these - the user AnotokiAuth holds - or, `signedIn` false, a session that ended. */
 function account(preferences: AnotokiPreferences | null, signedIn = true): void {
-  const auth = TestBed.inject(AuthService);
-  (auth as unknown as { authenticated: WritableSignal<boolean> }).authenticated.set(signedIn);
-  auth.user.set({ sub: '7', preferred_username: 'mia', email: null, email_verified: true, locale: 'en', roles: ['MEMBER'], preferences });
+  const auth = TestBed.inject(TestAuth).signInAs({ sub: '7', preferred_username: 'mia', locale: 'en', preferences });
+  if (!signedIn) auth.now.set('signed-out');
 }
 
 describe('the localDate pipe, for somebody whose anotoki account chose an order or a clock', () => {

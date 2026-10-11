@@ -47,13 +47,27 @@ test('a settings file from before sign-in was the IAM only - a mode, an owner\'s
         file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
         file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(['mode' => $mode, 'local_user_id' => 1] + test_auth_settings(), true) . ';');
         assert_same(null, with_config_dir($dir, 'settingsProblem'), "mode '$mode': the owner's installation keeps working");
-        assert_same(['issuer' => TEST_ISSUER, 'clientId' => TEST_CLIENT, 'loginRequired' => true], with_config_dir($dir, 'authPublicConfig'), "mode '$mode' signs in through the IAM");
+        assert_same(
+            ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'login_required' => true, 'sign_in_available' => true],
+            with_config_dir($dir, static fn (): array => \Anotoki\Lib\Auth\Http\AuthRoutes::configBody(signInRule(), iamClient())),
+            "mode '$mode' signs in through the IAM"
+        );
     }
     // ... but a mode "none" without the IAM is no setting at all - nothing would let anybody in.
     $dir = test_temp_dir('none-only');
     file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
     file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(['mode' => 'none', 'local_user_id' => 1], true) . ';');
     assert_match('/issuer/', (string) with_config_dir($dir, 'settingsProblem'));
+
+    // An IAM over plain http across a network is no setting either: the keys tokens are checked with come from there
+    // (the family's library refuses one) - http only on this computer, as in development.
+    $dir = test_temp_dir('plain-http');
+    file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+    foreach (['http://iam.example.test' => true, 'http://192.168.1.20:4300' => true, 'http://localhost:4300' => false, 'http://127.0.0.1:8597' => false, 'https://iam.anotoki.eu' => false] as $issuer => $refused) {
+        file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(['issuer' => $issuer] + test_auth_settings(), true) . ';');
+        $problem = with_config_dir($dir, 'settingsProblem');
+        assert_same($refused, $problem !== null && str_contains($problem, 'over https'), "$issuer: " . ($problem ?? 'a setting'));
+    }
 });
 
 test('a settings file that does not say what it must is no setting', function (): void {
@@ -102,7 +116,8 @@ test('nothing committed stands in for the settings: config/ holds the loader and
     ));
     assert_same(['config.php'], $committed, 'no template with working values beside the loader');
     $ignored = (string) file_get_contents(dirname(TEST_BACKEND) . '/.gitignore');
-    assert_match('~^backend/config/\*\.local\.php$~m', $ignored, 'git ignores the settings files');
+    // (A checkout on Windows may have the file with CRLF line endings.)
+    assert_match('~^backend/config/\*\.local\.php\r?$~m', $ignored, 'git ignores the settings files');
 });
 
 test('the tests\' settings folder is honoured only for a piano_test_ database', function (): void {

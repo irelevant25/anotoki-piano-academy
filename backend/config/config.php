@@ -23,12 +23,17 @@ declare(strict_types=1);
  *                                                // a folder of this app's own: that answer opens it to visitors
  *       ];
  *
- *   Any other key is passed over: a file from before sign-in became the IAM
- *   only (with 'mode' and 'local_user_id') still works, and signs in through
- *   the IAM it names - whatever its 'mode' said. Setup never writes more; the
- *   tests and the browser check may add the SDK's 'jwks_file' and
- *   'application_file' (the IAM's key set and answer as files),
- *   'application_ttl' and 'application_timeout' (api/auth.php authIamConfig()).
+ *   The issuer is https - http only on this computer (localhost,
+ *   127.0.0.1), as in development: the keys tokens are checked with come
+ *   from there (the anotoki family's library refuses anything else). Any
+ *   other key is passed over: a file from before sign-in became the IAM only
+ *   (with 'mode' and 'local_user_id') still works, and signs in through the
+ *   IAM it names - whatever its 'mode' said. Setup never writes more; the
+ *   tests and the browser check may add the library's 'jwks_file',
+ *   'application_file' and 'anonymized_file' (the IAM's key set, its answer
+ *   about this app and its list of deleted accounts, as files),
+ *   'application_ttl' and 'application_timeout' (anotoki/lib's
+ *   IamClient::fromArray(), api/auth.php's iamClient()).
  *
  * There is nothing to fall back on. Without both files, or with one that does
  * not say what it must - or that PHP cannot run (a slip in an editor) - the
@@ -194,6 +199,11 @@ function authSettingsProblem(array $values): ?string
     $issuer = $values['issuer'] ?? null;
     if (!is_string($issuer) || !preg_match('~^https?://[^/\s]+~i', $issuer)) {
         return 'config/auth.local.php needs the IAM\'s address (issuer).';
+    }
+    // What the anotoki family's library takes (its IamClient): the keys tokens are checked with come from there,
+    // so never over plain http across a network.
+    if (!\Anotoki\Lib\Auth\IamClient::secureAddress(rtrim(trim($issuer), '/'))) {
+        return 'config/auth.local.php needs the IAM\'s address over https (http only on this computer: localhost, 127.0.0.1).';
     }
     if (!is_string($values['client_id'] ?? null) || !preg_match('/^[A-Za-z0-9._-]{1,100}$/D', $values['client_id'])) {
         return 'config/auth.local.php needs this app\'s client id in the IAM.';

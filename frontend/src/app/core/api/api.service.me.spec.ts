@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { AuthService } from '../auth/auth.service';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { ApiService, GENERATION_HEADER, isProgressChanged } from './api.service';
 
 /** Lets the service's awaits run until it has sent its next request. */
@@ -9,13 +9,13 @@ const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve,
 
 const EMPTY = { progress: {}, sessions: [], path: { steps: {} } };
 
-describe('ApiService: the generation of the progress, the own file, the ADMIN calls', () => {
+describe('ApiService: the generation of the progress, the own file', () => {
   let api: ApiService;
   let http: HttpTestingController;
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: { userKey: () => '5' } }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AnotokiAuth, useValue: { subject: () => '5' } }] });
     api = TestBed.inject(ApiService);
     http = TestBed.inject(HttpTestingController);
     api.setDataOwner('5');
@@ -134,18 +134,5 @@ describe('ApiService: the generation of the progress, the own file, the ADMIN ca
     await settle();
     http.expectOne('/api/me/import?replace=true').flush({ notes: 3, steps: 1, sessions: 2, replaced: true, generation: 10, leftOut: 0 });
     expect(await over).toMatchObject({ replaced: true, generation: 10 });
-  });
-
-  it('lists and deletes people - under /api/admin/', async () => {
-    const people = api.people();
-    await settle();
-    const person = { id: 7, username: 'mia', firstSeen: '2026-10-01T10:00:00.000Z', lastSeen: '2026-10-04T10:00:00.000Z', notes: 3, steps: 1, sessions: 2 };
-    http.expectOne({ method: 'GET', url: '/api/admin/people' }).flush({ people: [person], visitors: { count: 2, sessions: 5 } });
-    expect(await people).toEqual({ people: [person], visitors: { count: 2, sessions: 5 } });
-
-    const gone = api.deletePerson(7);
-    await settle();
-    http.expectOne({ method: 'DELETE', url: '/api/admin/people/7' }).flush(null, { status: 204, statusText: 'No Content' });
-    await gone;
   });
 });

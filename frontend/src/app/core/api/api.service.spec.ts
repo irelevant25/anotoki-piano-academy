@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { AuthService } from '../auth/auth.service';
+import { AnotokiAuth } from '@anotoki/lib/auth';
 import { Session } from '../music/music.types';
 import { ApiError, ApiService } from './api.service';
 
@@ -16,7 +16,7 @@ function stored(id: string): Session {
 
 /** Who is signed in, as far as ApiService asks: the IAM user id - null for nobody. */
 let signedInAs: string | null = '5';
-const auth = { userKey: () => signedInAs };
+const auth = { subject: () => signedInAs };
 
 describe('ApiService', () => {
   let api: ApiService;
@@ -25,7 +25,7 @@ describe('ApiService', () => {
   beforeEach(() => {
     localStorage.clear();
     signedInAs = '5';
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AuthService, useValue: auth }] });
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(), { provide: AnotokiAuth, useValue: auth }] });
     api = TestBed.inject(ApiService);
     http = TestBed.inject(HttpTestingController);
     api.setDataOwner('5');
@@ -118,41 +118,41 @@ describe('ApiService', () => {
     await expect(state).rejects.toMatchObject({ status: 503, code: 'not_set_up' });
   });
 
-  describe("the admin panel's calls", () => {
-    // (The words' admin routes are called by the family's pages themselves - @anotoki/lib/translations/admin -
-    // through the app's HttpClient and its interceptors; ApiService has the People page's.)
+  describe("a person's own calls (the progress file)", () => {
+    // (The admin panel's calls are the family's pages' own - @anotoki/lib - through the app's HttpClient and its
+    // interceptors.)
     it('go through the same gate as every call: nothing is sent for another person, or for nobody', async () => {
       api.setDataOwner('7');
-      await expect(api.deletePerson(3)).rejects.toMatchObject({ status: 409, wrongUser: true, details: null });
+      await expect(api.previewImport('{}')).rejects.toMatchObject({ status: 409, wrongUser: true, details: null });
       signedInAs = null;
-      await expect(api.people()).rejects.toMatchObject({ status: 401, details: null });
-      http.expectNone('/api/admin/people/3');
-      http.expectNone('/api/admin/people');
+      await expect(api.importMyProgress('{}', false)).rejects.toMatchObject({ status: 401, details: null });
+      http.expectNone('/api/me/import?dryRun=true');
+      http.expectNone('/api/me/import');
     });
 
     it("keep the answer's body of a refusal as `details`: the server's sentence, and its code", async () => {
-      const body = { error: 'There is nobody with that id here.', code: 'not_found' };
-      const gone = api.deletePerson(3);
+      const body = { error: 'That is not a progress file of Piano Academy.', code: 'not_an_export' };
+      const refused = api.previewImport('{}');
       await settle();
-      http.expectOne('/api/admin/people/3').flush(body, { status: 404, statusText: 'Not Found' });
+      http.expectOne('/api/me/import?dryRun=true').flush(body, { status: 422, statusText: 'Unprocessable Content' });
 
-      await expect(gone).rejects.toMatchObject({ status: 404, code: 'not_found', wrongUser: false, details: body });
+      await expect(refused).rejects.toMatchObject({ status: 422, code: 'not_an_export', wrongUser: false, details: body });
     });
 
     it('have no details when the answer is no object: a text, a list, or no answer at all', async () => {
-      const text = api.people();
+      const text = api.previewImport('{}');
       await settle();
-      http.expectOne('/api/admin/people').flush('Bad Gateway', { status: 502, statusText: 'Bad Gateway' });
+      http.expectOne('/api/me/import?dryRun=true').flush('Bad Gateway', { status: 502, statusText: 'Bad Gateway' });
       await expect(text).rejects.toMatchObject({ status: 502, code: null, details: null });
 
-      const list = api.people();
+      const list = api.previewImport('{}');
       await settle();
-      http.expectOne('/api/admin/people').flush(['no'], { status: 500, statusText: 'Server Error' });
+      http.expectOne('/api/me/import?dryRun=true').flush(['no'], { status: 500, statusText: 'Server Error' });
       await expect(list).rejects.toMatchObject({ status: 500, code: null, details: null });
 
-      const none = api.people();
+      const none = api.previewImport('{}');
       await settle();
-      http.expectOne('/api/admin/people').error(new ProgressEvent('error'));
+      http.expectOne('/api/me/import?dryRun=true').error(new ProgressEvent('error'));
       await expect(none).rejects.toMatchObject({ status: 0, code: null, details: null });
     });
   });

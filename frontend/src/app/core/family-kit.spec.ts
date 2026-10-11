@@ -1,12 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { AnotokiAuth, type AnotokiPreferenceChanges, type AnotokiPreferences, type AnotokiSavedPreferences, type AnotokiTheme } from '@anotoki/lib/auth';
 import { LanguageSwitcherComponent, ThemeService, ThemeToggleComponent } from '@anotoki/lib/shell';
 import { TranslationService } from '@anotoki/lib/translations';
 import { TEST_LANGUAGES, provideTestTranslations } from '@anotoki/lib/translations/testing';
-import { AnotokiWords, LIBRARY_WORDS } from '@anotoki/lib/ui/config';
-import { type AnotokiPreferenceChanges, type AnotokiPreferences, type AnotokiSavedPreferences, type AnotokiTheme } from './auth/anotoki-auth';
-import { AuthService } from './auth/auth.service';
+import { AnotokiWords } from '@anotoki/lib/ui/config';
+import { LIBRARY_WORDS } from '@anotoki/lib/words';
 import { THEME_COLOR, THEME_KEY, provideFamilyKit } from './family-kit';
 import { KEPT_LIBRARY_ENGLISH } from './i18n/kept-english';
 import { provideSiteTranslations } from './i18n/site-translations';
@@ -71,10 +71,10 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
   const auth = {
     user,
     signedIn: () => user() !== null,
-    onAuthChange: () => () => undefined,
+    locale: () => user()?.locale ?? null,
     preferences,
-    settingsRead: () => settingsRead,
-    userKey: () => (user() !== null ? '7' : null),
+    state: () => (!settingsRead ? 'unavailable' : user() !== null ? 'signed-in' : 'signed-out'),
+    subject: () => (user() !== null ? '7' : null),
     isStaff: () => false,
     isAdmin: () => false,
     savePreferences: vi.fn(
@@ -114,7 +114,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       providers: [
         ...(language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH)),
         provideSiteTranslations(),
-        { provide: AuthService, useValue: auth },
+        { provide: AnotokiAuth, useValue: auth },
         provideFamilyKit(),
       ],
     });
@@ -180,7 +180,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
 
     it('are never a key: a library word the database has no string for reads the kit\'s own - and warns of nothing', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}), provideSiteTranslations(), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
+      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}), provideSiteTranslations(), { provide: AnotokiAuth, useValue: auth }, provideFamilyKit()] });
       expect(TestBed.inject(AnotokiWords).t('topbar.account')).toBe('Your anotoki account');
       expect(warn).not.toHaveBeenCalled();
     });
@@ -189,7 +189,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       settingsRead = false;
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const http = { get: vi.fn() };
-      TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: http }, provideSiteTranslations(), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
+      TestBed.configureTestingModule({ providers: [{ provide: HttpClient, useValue: http }, provideSiteTranslations(), { provide: AnotokiAuth, useValue: auth }, provideFamilyKit()] });
       await TestBed.inject(TranslationService).init();
       const words = TestBed.inject(AnotokiWords);
       expect(words.t('theme.light')).toBe('Theme: light');
@@ -338,7 +338,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
     });
 
     it('is not drawn while one language is on offer, nor while the app has no strings (the list comes with them)', async () => {
-      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}, { languages: [TEST_LANGUAGES[0]] }), provideSiteTranslations(), { provide: AuthService, useValue: auth }, provideFamilyKit()] });
+      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}, { languages: [TEST_LANGUAGES[0]] }), provideSiteTranslations(), { provide: AnotokiAuth, useValue: auth }, provideFamilyKit()] });
       fixture = TestBed.createComponent(KitHostComponent);
       host = fixture.nativeElement;
       await fixture.whenStable();
@@ -350,7 +350,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       settingsRead = false;
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       TestBed.configureTestingModule({
-        providers: [{ provide: AuthService, useValue: auth }, { provide: HttpClient, useValue: { get: () => expect.unreachable('nothing is asked for') } }, provideSiteTranslations(), provideFamilyKit()],
+        providers: [{ provide: AnotokiAuth, useValue: auth }, { provide: HttpClient, useValue: { get: () => expect.unreachable('nothing is asked for') } }, provideSiteTranslations(), provideFamilyKit()],
       });
       await TestBed.inject(TranslationService).init();
       fixture = TestBed.createComponent(KitHostComponent);

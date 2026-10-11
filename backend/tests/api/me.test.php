@@ -304,7 +304,7 @@ test('a tab that loaded the progress before an import is refused its next save -
 test('a tab still open on progress an administrator deleted is refused its next save - nothing comes back', function (): void {
     learn(BEN);
     $stale = load(BEN);
-    assert_same(204, as_user(ADMIN, 'DELETE', '/api/admin/people/' . BEN)['status']);
+    assert_same(200, as_user(ADMIN, 'DELETE', '/api/admin/people/' . BEN)['status']);
 
     $answer = save(BEN, '/api/progress', $stale['progress'], $stale['generation']);
     assert_same([409, 'progress_changed'], [$answer['status'], $answer['body']['code'] ?? null]);
@@ -410,6 +410,6 @@ test('the size limit: an export just under it comes back in whole; one that woul
 });
 
 test('the server logged no PHP or database problem', function (): void {
-    $problems = array_values(array_filter(server_problems($GLOBALS['app']), static fn(string $line): bool => !str_contains($line, '[auth] token refused')));
+    $problems = array_values(array_filter(server_problems($GLOBALS['app']), static fn(string $line): bool => !str_contains($line, '[anotoki auth] token refused')));
     assert_same([], $problems);
 });
