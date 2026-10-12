@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.4.1"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.5.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.4.1/anotoki-lib-0.4.1.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.5.0/anotoki-lib-0.5.0.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -35,14 +35,17 @@ the theme switch, the language chooser, the menus, the questions, Manrope,
 and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*). Both
-halves are at 0.4.1 (0.1.1 and 0.2.0 changed
+halves are at 0.5.0 (0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
 site is open; 0.2.0 marked that template - `anotokiSitePages` - gave the
 Migrations page an entry point of its own and added the kit; 0.3.0 added
 the translations to both halves, gave each kit piece an entry point of its
 own and the kit its own class names; 0.4.0 added signing in, the people and
 the admin tools to both halves, and 0.4.1 mended two of its queries on PHP
-8.2 - never 0.4.0). **To update
+8.2 - never 0.4.0; 0.5.0 makes a restore do again what was deleted since
+its backup, seals the plain backups, sends the pages' own errors to the
+error log and reads real visitors' addresses through Cloudflare - below,
+*The library's 0.5.0*). **To update
 it**, both halves together: read its `CHANGELOG.md` (while 0.x a minor
 version may break; a release that leaves a half unchanged may leave it
 where it is), then in `backend/` `composer update anotoki/lib
@@ -301,7 +304,9 @@ says how long the progress is kept, and the shell says what came with a
 sign-in. To try the switch mid-session there, give the copy a short memory
 of the IAM's answer (`testenv.php ... --application-ttl=1`, as the browser
 check does). The limits and the trusted proxies: an optional
-`<folder>/visitors.local.php` (`config/config.php` shows its shape); visitors
+`<folder>/visitors.local.php` (`config/config.php` shows its shape; without
+it Cloudflare's ranges are the trusted proxies - a request from this
+computer is counted by its own address, whatever header it sends); visitors
 unseen 30 days are swept after an answer (the marker is the folder's
 `storage/visitors-swept`).
 
@@ -434,12 +439,19 @@ it is being updated), then the IAM's migrations. It changes no row of anybody's
 row there passes). Then, only if wanted, switch Piano Academy's "Sign-in
 required" off in the IAM's admin panel. On the host check once that the
 `X-Visitor-Key` header reaches PHP (Apache passes `X-*` headers; a save
-without a token answers one). Behind Cloudflare's proxy, put
-`config/visitors.local.php` on the host by FTP (never written by setup) with
-Cloudflare's IP ranges as `client_address.trusted_proxies` - otherwise every
-visitor is counted by Cloudflare's address and the hourly limit per address
-fills for everybody at once. Watch the People page's visitors line; the same
-file lowers the limits (`max_visitors`, `new_per_hour`, ...).
+without a token answers one). The site is behind Cloudflare's proxy, and
+since the library's 0.5.0 its published ranges are the committed trusted
+proxies (`CLIENT_ADDRESS_TRUSTED_PROXIES` in `config/config.php`): a visitor
+is counted by the address Cloudflare names in CF-Connecting-IP - the one
+header ever read, pinned in code (X-Real-IP, True-Client-IP and
+X-Forwarded-For are the visitor's own words) - never by Cloudflare's own. A
+host that is not behind Cloudflare says so in `config/visitors.local.php`,
+put there by FTP (never written by setup): `'client_address' =>
+['trusted_proxies' => []]` - or another proxy's ranges (one that writes
+CF-Connecting-IP); a range wider than /8 (IPv4) or /16 (IPv6) is refused and
+said in PHP's error log. Watch the
+People page's visitors line; the same file lowers the limits
+(`max_visitors`, `new_per_hour`, ...).
 
 **The account's theme, dates and clock (migration 006, 2026-10-06, not
 applied anywhere yet)**: two sentences (`theme.notSaved`,
@@ -515,6 +527,46 @@ and `storage/backups/` are made by PHP inside `storage/` (closed to the web
 by the upload's `.htaccess`): PHP must be able to write there. The first
 answer of each UTC day makes the daily backup, after it is sent.
 
+**The library's 0.5.0 (2026-10-12; no migration of this app's, none of the
+library's)**: the build carries `anotoki-lib` 0.5.0 - both halves. Upload it
+and nothing waits to be applied; the host needs PHP's `mbstring` (and
+`zlib` for the backups). What changes:
+
+- **A restore does again what was deleted since its backup**: every person
+  deleted on the People page and every feedback message deleted is deleted
+  again inside the restore, before anybody sees the rows, and every progress
+  takes a new generation there too (a tab open since before is refused its
+  next save); once it committed the scrub of the IAM's deleted accounts
+  runs. A restore that cannot do a delete again is rolled back whole.
+- **Backups are sealed**: each plain backup carries an HMAC under this
+  installation's key (`storage/anotoki-lib.key` - never delete it: without it
+  no backup made here restores here), and only a sealed one is restored on
+  the Backups page. **A backup made before 0.5.0 has no seal** and is
+  restored offline only: download it (Backups, Download), unpack it
+  (`tail -n +3 <file>.anotoki-backup | tar -xz` - the manifest, the schema
+  files of each applied migration, and each table's rows in COPY's text
+  format), load the schema files into an empty database in the manifest's
+  order and then each table, in the order of the data files' numbers, with
+  `psql`'s `\copy <table> FROM '<file>'` (the library's README, "Backups").
+  Nothing is public yet, so simply make a new backup right after the update.
+  The backups' files are PHP's own user's alone (`0600`): where PHP runs as
+  another user than the FTP account, the FTP program cannot read
+  `storage/backups/` - take a backup off the server with the Backups page's
+  Download.
+- **The pages' own errors reach the Error log** (`source: client`), scrubbed
+  in the page and again on the server, a few a page load; `POST
+  /api/client-errors` answers 204.
+- **Feedback's reply address** is what the form sends: the account's is
+  written into the form for somebody signed in, who may keep, change or
+  clear it.
+
+**Known**: a restore fails (`500 restore_failed`, "setval: value 0 is out of
+bounds for sequence visitor_ids", nothing restored) on a database where a
+visitor was ever made - the library's 0.5.0 moves the visitors' sequence,
+which counts down, the wrong way. The library mends it in a later release;
+until then a restore works only on a database where no visitor was ever made
+(none is made while the IAM's "Sign-in required" is on for Piano Academy).
+
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
 after release needs an `UPDATE` in its migration. The two databases (your
@@ -541,6 +593,8 @@ of the new id first, if there is one).
 | The setup page asks for a token on this computer | It was not asked as `localhost` / `127.0.0.1` straight from PHP's built-in server: a LAN address, another name, or a proxy that adds forwarding headers makes it a real host's install. |
 | 403 `forbidden` on `/api/admin/...` | The account has no role of Piano Academy in the IAM (EDITOR for the words, ADMIN for languages, the people, the admin tools and the database) - or the token was issued before the role was given: sign in again. |
 | 403 `reauth_required` on a backup | A backup is made, downloaded, deleted or restored only after a sign-in of the last ten minutes: the Backups page offers "Sign in again". |
+| A backup's Restore is off; 422 `archive_invalid` "It carries no seal of this site's" | It was made before the library's 0.5.0, made elsewhere, or changed since: it is restored offline only (*The library's 0.5.0*, above). |
+| 500 `restore_failed` "setval: value 0 is out of bounds for sequence visitor_ids" | The library's 0.5.0 cannot restore a database where a visitor was ever made (its restore moves that sequence the wrong way): nothing was restored. A later release of the library mends it. |
 | 409 `busy` / "Another database update is running" | The setup page, `php migration.php` and the app's update take one lock: wait for the other to finish. |
 | 428 `generation_required` on `PUT /api/progress` or `/api/path` | Something saves without `Progress-Generation` - never this frontend (it sends no save without one): an old build in the browser's cache, or a script of your own. Load the page again. The app shows it as "Not saved yet": when every save gets it, something between the browser and PHP drops the header - let `Progress-Generation` through. |
 | 409 `progress_changed` on a save, and the note "Your progress was replaced or deleted somewhere else" | Right: the progress was imported in another tab (or on another computer) or deleted by an administrator since this page loaded it. The page has loaded it again; nothing old was saved over it. |

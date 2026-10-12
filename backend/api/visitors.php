@@ -48,8 +48,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *
  * The limits (config/visitors.local.php may change each, config/config.php):
  * visitors at once (max_visitors, a full site refuses NEW visitors only:
- * 429 too_many_visitors), new ones an hour per address (an IPv6 /64,
- * api/client_address.php) and in all (429 too_many_visitors), the rounds one
+ * 429 too_many_visitors), new ones an hour per address (an IPv6 /64, behind
+ * Cloudflare the address it names - api/client_address.php; visitor_starts
+ * keeps a keyed hash of it, never the address) and in all (429
+ * too_many_visitors), the rounds one
  * visitor keeps (422 visitor_limit) and the size of a visitor's progress or
  * path (413 too_large); and how long the move waits for a row another
  * request holds (move_lock_timeout_ms). There is no early sweep of visitors
@@ -210,10 +212,12 @@ function visitorMake(Request $request): array
     visitorsMustBeReady();
 
     dbValue('SELECT pg_advisory_xact_lock(?::bigint)', [VISITOR_MAKE_LOCK]);
-    // The addresses of an hour ago and more are kept no longer than needed.
+    // The starts of an hour ago and more are kept no longer than needed.
     dbExec("DELETE FROM visitor_starts WHERE started_at < now() - interval '1 hour'");
 
-    $address = clientAddressCounted($request);
+    // Never the address itself: a keyed hash of what the limits count (api/client_address.php) - every backup
+    // carries this table.
+    $address = clientAddressKey($request);
     $counts = dbOne(
         'SELECT (SELECT count(*) FROM users WHERE id < 0) AS visitors,
                 (SELECT count(*) FROM visitor_starts WHERE address = ?) AS here,

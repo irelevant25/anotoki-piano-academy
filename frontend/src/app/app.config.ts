@@ -7,6 +7,7 @@ import { ThemeService } from '@anotoki/lib/shell';
 import { routes } from './app.routes';
 import { provideSiteAuth } from './core/auth/site-auth';
 import { ChangelogService } from './core/changelog/changelog.service';
+import { provideSiteErrorReport } from './core/error-report';
 import { provideFamilyKit } from './core/family-kit';
 import { provideSiteTranslations } from './core/i18n/site-translations';
 import { provideSiteAdmin } from './core/site-admin';
@@ -16,7 +17,10 @@ import { PianoTitleStrategy } from './core/title.strategy';
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    // Every error - window's and a promise nobody caught's too - to the console and to the site's error log
+    // (the family's reporter, through the HttpClient below: core/error-report.ts).
     provideBrowserGlobalErrorListeners(),
+    provideSiteErrorReport(),
     provideZonelessChangeDetection(),
     // Route parameters (/lesson/:unitId/:stepId, /songs/:songId) arrive as component inputs.
     provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'top' })),

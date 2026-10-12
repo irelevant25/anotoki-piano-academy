@@ -72,7 +72,7 @@ describe('the family\'s admin pages and feedback form, wired to Piano Academy (c
       title: 'Delete the progress of ana?',
       message:
         'Everything Piano Academy keeps of ana goes: 3 notes, 1 steps of the path and 2 rounds, and their feedback\'s reply address (its words stay). ' +
-        'The backups made before keep it: restoring one brings it back. Their anotoki account stays; if they sign in again, they start from nothing.',
+        'The backups made before keep it until they are deleted; restoring one deletes it again. Their anotoki account stays; if they sign in again, they start from nothing.',
       confirm: 'Delete their progress',
     });
     expect(people.delete?.question?.(person({ name: null, notes: undefined }), []).title).toBe('Delete the progress of the person with IAM id 12?');

@@ -23,8 +23,10 @@ src/
                                      tables) and Piano's own colours (the keys, the notation, the Continue card's
                                      glow); no rule for buttons, selects or cards - the pages' are the kit's
   app/
-    app.config.ts, app.routes.ts     providers (the interceptors - the family's siteStatusInterceptor first, then
-                                     its anotokiAuthInterceptor -; the words, provideSiteTranslations(); the sign-in,
+    app.config.ts, app.routes.ts     providers (the browser's errors to the error log - Angular's global listeners
+                                     and provideSiteErrorReport(), core/error-report.ts; the interceptors - the
+                                     family's siteStatusInterceptor first, then its anotokiAuthInterceptor -; the
+                                     words, provideSiteTranslations(); the sign-in,
                                      provideSiteAuth(); the family's kit and frame, provideFamilyKit(); People, the
                                      admin tools and the feedback form, provideSiteAdmin(); where the site stands
                                      asked, then the start, in the app initializer) and the routes: every learner
@@ -63,6 +65,8 @@ src/
                                      by the IAM's hint), VisitorKey (the visitor's key in localStorage)
       site-admin.ts                  provideSiteAdmin(): the family's People page (this app's counts and its
                                      question before a delete), admin tools and feedback form wired to this app
+      error-report.ts                provideSiteErrorReport(): the family's reporter (@anotoki/lib/error-report) on
+                                     /api/client-errors - a page's own errors into the error log
       api/                           ApiService: one method a route of ../backend; who each call is for
                                      (ISSUED_AS); the session outbox; the generation every save names; a
                                      visitor's one "maker"; the move at a sign-in
@@ -115,7 +119,7 @@ proxy.conf.json                      /api and /setup.php to the backend on :8300
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.4.1): in
+half is the backend's `anotoki/lib`; one version for both - 0.5.0): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -159,6 +163,10 @@ first load - and a spec reads the kit's markup by the kit's own class names
   admin tools' pages, lazy; `@anotoki/lib/feedback` and `/feedback/form` -
   the visitors' form, in the footer's dialog (`/ui/dialog`); all wired in
   `core/site-admin.ts`.
+- `@anotoki/lib/error-report` - the browser's errors into the error log
+  (`provideAnotokiErrorReport()`, the app's ErrorHandler: each error scrubbed,
+  at most five a page load, through the app's HttpClient to `POST
+  /api/client-errors`), wired in `core/error-report.ts`.
 - `@anotoki/lib/words` - the library's words (`LIBRARY_WORDS`).
 
 To update it: the new release's URL in `package.json`, then `bun install` and
@@ -251,7 +259,10 @@ try again); the
 admin panel's routes (every page the family's, lazy, the ADMIN pages behind
 `adminGuard`), People and the admin tools as this app wires them
 (`core/site-admin.spec.ts`: the question before a delete, the visitors'
-line, the feedback form's sections), the Feedback link's count and the
+line, the feedback form's sections), the browser's errors as `appConfig`
+gives them (`core/error-report.spec.ts`: the family's reporter the
+ErrorHandler, a person's report with the token, a visitor's bare, never a
+failed request's), the Feedback link's count and the
 footer's form (the shell's spec); the family's kit wired to
 this app (`core/family-kit.spec.ts`: its words the database's strings of the
 library's keys - the owner's wording -, English in the admin panel, the

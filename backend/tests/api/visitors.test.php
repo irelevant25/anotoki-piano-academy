@@ -7,7 +7,8 @@
 // counts nothing), the key and what it opens - its own progress, nothing
 // else -, a Bearer header that never falls back to the key, sign-in required
 // again, the limits per address (an IPv6 /64, a trusted proxy's header,
-// X-Forwarded-For never believed) and in all, a visitor's caps, the sweep of
+// X-Forwarded-For never believed - and only a keyed hash of an address ever
+// kept) and in all, a visitor's caps, the sweep of
 // visitors unseen for 30 days after the answer (and one that fails, which
 // never fails the request), a database without 005, and the checks that
 // mean "a verified token" refusing a visitor however they are stacked.
@@ -27,8 +28,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 const MEMBER = 5;
 const KEY_SHAPE = '/^[A-Za-z0-9_-]{43}$/D';
 
-/** Believe 127.0.0.1's CF-Connecting-IP: the tests come from there, and name the address they stand for. */
-const BEHIND_A_PROXY = ['client_address' => ['trusted_proxies' => ['127.0.0.1', '::1'], 'client_ip_header' => 'CF-Connecting-IP']];
+/** Believe 127.0.0.1's CF-Connecting-IP (the one header ever read): the tests come from there, and name the address they stand for. */
+const BEHIND_A_PROXY = ['client_address' => ['trusted_proxies' => ['127.0.0.1', '::1']]];
 
 $GLOBALS['auth'] = null;
 $GLOBALS['app'] = null;
@@ -63,6 +64,22 @@ function generation(int|string $generation): string
 function from(string $address): string
 {
     return 'CF-Connecting-IP: ' . $address;
+}
+
+/**
+ * What visitor_starts keeps for a visitor from $address, as the server $app
+ * counts it: a keyed hash of its bucket (an IPv6 address its /64) under that
+ * server's own installation key - never the address.
+ */
+function counted_as(string $address, ?array $app = null): string
+{
+    return clientAddressHash(\Anotoki\Lib\Support\ClientAddress::bucket($address), ($app ?? $GLOBALS['app'])['config'] . '/storage');
+}
+
+/** visitor_starts as it is, oldest first. */
+function starts(): array
+{
+    return array_column(dbAll('SELECT address FROM visitor_starts ORDER BY id'), 'address');
 }
 
 /** A note state as the frontend's SRS service makes it. */
@@ -199,7 +216,8 @@ test('the first save makes a visitor: the key once, in X-Visitor-Key, never kept
     assert_same(hash('sha256', $key), $row['visitor_key_hash']);
     assert_same((int) $made['headers']['progress-generation'], (int) $row['progress_generation']);
     assert_same([1, 1], visitors_and_starts());
-    assert_same('127.0.0.1', dbValue('SELECT address FROM visitor_starts'), 'the address counted');
+    assert_same([counted_as('127.0.0.1')], starts(), 'the address counted - a keyed hash of it, never the address');
+    assert_match('/^[0-9a-f]{64}$/D', starts()[0]);
 
     // The key itself is nowhere but in that answer.
     foreach (['users', 'visitor_starts', 'progress', 'sessions', 'path_progress'] as $table) {
@@ -397,7 +415,7 @@ test('seen: a visitor\'s last visit is written at most once an hour', function (
 
 /* ------------------------------------------------------------ the limits */
 
-test('new visitors an hour per address: a trusted proxy\'s header, an IPv6 /64 as one, X-Forwarded-For never believed - 429 with Retry-After', function (): void {
+test('new visitors an hour per address: a trusted proxy\'s CF-Connecting-IP, an IPv6 /64 as one, X-Forwarded-For, X-Real-IP and True-Client-IP never believed - 429 with Retry-After', function (): void {
     fresh();
     $tight = $GLOBALS['tight'];
     new_visitor([from('198.51.100.7')], $tight);
@@ -407,20 +425,44 @@ test('new visitors an hour per address: a trusted proxy\'s header, an IPv6 /64 a
     assert_match('/Sign in/', $third['body']['error'] ?? '');
     assert_false(isset($third['headers']['x-visitor-key']));
     new_visitor([from('198.51.100.8')], $tight);
-    assert_same(['198.51.100.7', '198.51.100.7', '198.51.100.8'], array_column(dbAll('SELECT address FROM visitor_starts ORDER BY id'), 'address'), 'an IPv4 address written as IPv6 is that address');
+    assert_same([counted_as('198.51.100.7', $tight), counted_as('198.51.100.7', $tight), counted_as('198.51.100.8', $tight)], starts(), 'an IPv4 address written as IPv6 is that address');
 
     fresh();
     new_visitor([from('2001:db8:1:2::1')], $tight);
     new_visitor([from('2001:db8:1:2:ffff:ffff:ffff:fffe')], $tight);
     assert_same(429, visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('2001:db8:1:2::abcd')], $tight)['status'], 'one /64 is one address');
     new_visitor([from('2001:db8:1:3::1')], $tight);
-    assert_same(['2001:db8:1:2::/64', '2001:db8:1:3::/64'], array_values(array_unique(array_column(dbAll('SELECT address FROM visitor_starts ORDER BY id'), 'address'))));
+    assert_same([counted_as('2001:db8:1:2::abcd', $tight), counted_as('2001:db8:1:3::5', $tight)], array_values(array_unique(starts())), 'each /64 one hash');
 
+    // The header is pinned: from the trusted proxy too, any other is the caller's word - X-Forwarded-For, X-Real-IP,
+    // True-Client-IP (Cloudflare passes them on untouched): the connection counts.
+    foreach (['X-Forwarded-For', 'X-Real-IP', 'True-Client-IP'] as $header) {
+        fresh();
+        new_visitor(["$header: 203.0.113.1"], $tight);
+        new_visitor(["$header: 203.0.113.2"], $tight);
+        assert_same(429, visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), "$header: 203.0.113.3"], $tight)['status'], "$header: a header the caller writes picks no new address");
+        assert_same([counted_as('127.0.0.1', $tight)], array_values(array_unique(starts())), $header);
+    }
+    // A list in the trusted proxy's header is no address: the connection's own counts (CF-Connecting-IP names one).
     fresh();
-    new_visitor(['X-Forwarded-For: 203.0.113.1'], $tight);
-    new_visitor(['X-Forwarded-For: 203.0.113.2'], $tight);
-    assert_same(429, visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), 'X-Forwarded-For: 203.0.113.3'], $tight)['status'], 'a header the caller writes picks no new address');
-    assert_same(['127.0.0.1'], array_values(array_unique(array_column(dbAll('SELECT address FROM visitor_starts'), 'address'))));
+    new_visitor([from('203.0.113.4, 198.51.100.9')], $tight);
+    assert_same([counted_as('127.0.0.1', $tight)], starts(), 'a list is no address - the connection counts');
+});
+
+test('only a keyed hash of an address is ever kept: no address in visitor_starts (which every backup carries) - each server its own key', function (): void {
+    fresh();
+    foreach (['198.51.100.21', '2001:db8:9:9::1', '::ffff:198.51.100.22'] as $address) {
+        new_visitor([from($address)], $GLOBALS['tight']);
+    }
+    new_visitor([from('198.51.100.21')], $GLOBALS['app']);
+    $kept = implode("\n", starts());
+    foreach (['198.51.100.21', '198.51.100.22', '2001:db8', '127.0.0.1'] as $address) {
+        assert_false(str_contains($kept, $address), "no $address in visitor_starts");
+    }
+    assert_same(4, count(array_filter(starts(), static fn (string $row): bool => preg_match('/^[0-9a-f]{64}$/D', $row) === 1)), 'four keyed hashes');
+    assert_true(counted_as('198.51.100.21', $GLOBALS['tight']) !== counted_as('198.51.100.21', $GLOBALS['app']), 'one address, two installations: two hashes - a key of each installation\'s own');
+    assert_same(counted_as('198.51.100.21', $GLOBALS['app']), starts()[3]);
+    assert_false(str_contains((string) file_get_contents($GLOBALS['tight']['log']), '198.51.100.21'), 'nor in the server\'s log');
 });
 
 test('new visitors an hour in all, and visitors at once: a full site refuses new visitors only', function (): void {
@@ -508,14 +550,14 @@ test('the sweep: a visitor unseen for 30 days goes with everything of theirs - n
     // An imports row too: every table of a person's data is emptied first (STORE_PERSON_TABLES), or the batch could never go.
     dbExec("INSERT INTO imports (source, user_id, summary) VALUES ('visitor-test', ?, '{}')", [$old]);
     dbExec("INSERT INTO users (id, preferred_username, last_seen_at) VALUES (9001, 'long gone', now() - interval '400 days') ON CONFLICT (id) DO NOTHING");
-    dbExec("INSERT INTO visitor_starts (address, started_at) VALUES ('203.0.113.1', now() - interval '2 hours'), ('203.0.113.2', now())");
+    dbExec("INSERT INTO visitor_starts (address, started_at) VALUES (?, now() - interval '2 hours'), (?, now())", [counted_as('203.0.113.1'), counted_as('203.0.113.2')]);
 
     assert_same(1, visitorSweep());
     assert_same(['users' => null, 'progress' => null, 'path' => null, 'sessions' => 0], visitor_as_it_is($old));
     assert_same(0, (int) dbValue('SELECT count(*) FROM imports WHERE user_id = ?', [$old]));
     assert_same(1, (int) dbValue('SELECT count(*) FROM users WHERE id = ?', [$recent]), '29 days: stays');
     assert_same(1, (int) dbValue('SELECT count(*) FROM users WHERE id = 9001'), 'a person is never swept');
-    assert_same(['203.0.113.2'], array_column(dbAll('SELECT address FROM visitor_starts'), 'address'), 'and the addresses of an hour ago go');
+    assert_same([counted_as('203.0.113.2')], starts(), 'and the starts of an hour ago go');
     assert_same(0, visitorSweep(), 'nothing more to do');
 });
 

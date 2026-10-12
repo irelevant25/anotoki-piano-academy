@@ -16,7 +16,7 @@ library (`anotoki/lib`'s `SignInRule`, `authLoginRequired()`: kept a minute
 in `cache_dir`, one request asks while the others use the last answer,
 `true` whenever nothing better is known) and relays it to the browser in
 `GET /api/auth/config` (`login_required`). Signing in is the library's on
-both halves (`anotoki-lib` 0.4.1: the IAM's SDKs moved into it). While
+both halves (`anotoki-lib` 0.5.0: the IAM's SDKs moved into it). While
 it is on, every learner route requires a token. While it is off, somebody
 who has not signed in is a **visitor** (below): the backend keeps their
 progress under a key of their browser's, and the learner pages open for
@@ -200,9 +200,29 @@ log's waiting entries), `backups/`, and in `cache/` the feedback's counts.
 
 `backend/config/visitors.local.php` is optional (never written by setup,
 never a reason for "not set up"): the visitors' limits and the proxies whose
-header names a client's address (`client_address.trusted_proxies`,
-`client_ip_header`; Cloudflare's ranges when the site is behind its proxy).
-See `backend/config/config.php`.
+header names a client's address (`client_address.trusted_proxies`). Without
+it the committed default holds: the site is behind Cloudflare, so its
+published ranges are the trusted proxies and CF-Connecting-IP is believed
+from them alone (`CLIENT_ADDRESS_TRUSTED_PROXIES`); a computer or a host not
+behind Cloudflare gives `'trusted_proxies' => []`. A range wider than /8
+(IPv4) or /16 (IPv6) - 0.0.0.0/0, ::/0 - is refused, never believed, and
+the header is no setting. See `backend/config/config.php`.
+
+**Where a request comes from** is one rule, the family's (`anotoki-lib`
+0.5.0's `Support\ClientAddress`, `api/client_address.php`): REMOTE_ADDR, or -
+on a connection from a trusted proxy - the one address CF-Connecting-IP
+names (the owner's rule: that header alone, pinned in code - X-Real-IP,
+True-Client-IP and X-Forwarded-For are whatever the visitor wrote, and
+Cloudflare passes them on; a list is no address: the connection counts); an
+IPv4 address written as IPv6 is the IPv4 one; the limits count an IPv6
+address by its /64. The library's own limits read it the same way
+(`adminContext()` gives it the same proxies and header: feedback's, the
+pages' error reports). What is kept of an address is a keyed hash, never
+the address itself - `visitor_starts` holds an HMAC of the bucket
+(`clientAddressKey()`, a key derived from `storage/anotoki-lib.key`), the
+library's counters keyed hashes of their own. A keyed hash is a pseudonym,
+not anonymity: one address gives the same hash for as long as the key
+lasts, and whoever holds the key can test a guessed address against it.
 
 ## Visitors (sign-in not required)
 
@@ -213,8 +233,8 @@ See `backend/config/config.php`.
   and a positive one without. The store functions are the same for both.
 - Made by nobody's first save, inside that save's transaction, after the
   limits (`visitorMake()`: an advisory lock; `visitor_starts` counts new
-  visitors per address and in all for an hour). The key goes out once, in
-  the answer's `X-Visitor-Key`.
+  visitors per address - a keyed hash of it - and in all for an hour). The
+  key goes out once, in the answer's `X-Visitor-Key`.
 - Found by the library's `Identify` (`visitorFound()`), seen at most
   hourly - taken for anybody only by `requireOwner()` - and by the move at
   sign-in. `requireUser()` / `requireRole()` refuse a visitor.
@@ -285,19 +305,23 @@ everybody's counts and deletes a person whole (`api/people.php`, below).
 
 ## People and the admin tools
 
-The anotoki family's (`anotoki-lib` 0.4.1), for the site's ADMIN alone (the
+The anotoki family's (`anotoki-lib` 0.5.0), for the site's ADMIN alone (the
 owner's decision: EDITORs see none of them), each a page of the library's
 under `/admin`:
 
 - **People** (`api/people.php`, `PeopleRoutes::admin()`; the page
   `@anotoki/lib/people/page`): the people who signed in, 50 a page, found by
   a name or an id, with this app's counts (Notes, Steps, Rounds) and the
-  visitors' line. A delete is this app's (`peopleDelete()`: the person's users
-  row held, then every table of `STORE_PERSON_TABLES` and the row, and
-  their feedback's reply address and browser - a tab of theirs gets `409
-  progress_changed`), after the page's question - this app's words, and
-  nothing more asked - and audited. A backup made before keeps it: a
-  restore brings it back (until the library's 0.4.2).
+  visitors' line. A delete is this app's (`peopleDelete($pdo, $id)`: the
+  person's users row held, then every table of `STORE_PERSON_TABLES` and the
+  row - a tab of theirs gets `409 progress_changed`), after the page's
+  question - this app's words, and nothing more asked. It runs inside the
+  library's transaction (`People::delete()`), on the connection it hands
+  over and with no transaction of its own; in the same transaction the
+  library forgets their feedback's reply address and browser and writes
+  `person.data_deleted` (naming that transaction): no delete without its
+  entry. A backup made before keeps it until the backup goes - and a restore
+  of one does the delete again (below).
 - **The scrub**: the IAM deletes an account thirty days after its owner asks.
   After an answer, at most hourly while the site is ready (`PeopleUpkeep`;
   "Check now" on the page), the library reads the IAM's deleted accounts and
@@ -307,8 +331,15 @@ under `/admin`:
   never recorded again.
 - **The error log** (`storage/logs/`, a file a day, 30 days): every 5xx, 404,
   405, 413, 415 and 429 and PHP's warnings, with the route and a redacted
-  message - never a query, a header, a body, a token or an address. The
-  pages' own errors are not in it yet (the library's 0.4.2 brings them).
+  message - never a query, a header, a body, a token or an address - and the
+  pages' own errors (`source: client`): the library's reporter in the browser
+  (`core/error-report.ts`, the app's ErrorHandler) scrubs each and posts it,
+  through the app's HttpClient (a person's with their token), to `POST
+  /api/client-errors` (`ErrorLogRoutes::client()`), which redacts it again; at
+  most five a page load, twenty an hour from one sender (a person by their
+  account, a visitor by their address bucket), 500 a day from the visitors and
+  as many from the people. An answer that says a state (`update_pending`,
+  `not_set_up`) is not written.
 - **The audit log** (`anotoki_audit_log`): who did what - the words saved and
   imported, a language changed, a progress file brought in, a person's data
   deleted, the scrub asked for, an update applied, the error log cleared, a
@@ -316,11 +347,14 @@ under `/admin`:
   beside the change and never undoing it; while its table waits, entries wait
   in `storage/logs/audit-pending.jsonl`.
 - **Feedback** (`anotoki_feedback`): the form at the foot of every page
-  (`POST /api/feedback`, anybody; 5 an hour and 20 a day from one address, 300
-  a day in all; nothing of where it came from kept), the admin page, and the
-  new ones counted on the admin bar's Feedback link. It mails nobody. A
-  signed-in sender's account address is the reply address unless they tick
-  "Send it without my name" (the owner's decision: their choice).
+  (`POST /api/feedback`, anybody; 5 an hour and 20 a day from one sender - a
+  person by their account, a visitor by their address bucket - and 300 a day
+  from the visitors, as many from the people; nothing of where it came from
+  kept), the admin page, and the new ones counted on the admin bar's Feedback
+  link. It mails nobody. The reply address is the one the form sends: the
+  form writes a signed-in sender's account address in, theirs to keep,
+  change or clear, or to send none with "Send it without my name" (the
+  owner's decision: their choice); the server fills none in.
 - **Backups** (`storage/backups/*.anotoki-backup`: COPY through PDO, no
   pg_dump): one after the first good answer of each UTC day, one before every
   update, one before a restore, and by hand. No maximum age (the owner's
@@ -329,16 +363,32 @@ under `/admin`:
   newest 14 daily, 5 before an update, 5 before a restore) - so a deleted
   person's data stays in the backups made before their scrub until those go.
   Made, downloaded (a single-use ticket), deleted or restored only after a
-  sign-in of the last ten minutes (`403 reauth_required`); a restore only
-  where the schema is the same, after a backup of its own. Before a restore
-  answers, every progress - a visitor's too - takes a new generation far
-  past any number handed out (`storeRenewGenerationsAfterRestore()`: the
-  restore set the rows and the sequence back, and a page open since then
-  would save over what was restored), and the scrub runs again
-  (`peopleScrubAfterRestore()`); what could not be done is the restore's
-  `after_restore_error`, and an unfinished scrub runs with the next request.
-  Not encrypted (the owner's decision: only the IAM's are). Files of other
-  names in the folder - the owner's own dumps - are never touched.
+  sign-in of the last ten minutes (`403 reauth_required`); the list names
+  each one's maker (`adminContext()`'s names). Not encrypted (the owner's
+  decision: only the IAM's are) - sealed: an HMAC of its id and SHA-256 under
+  a key of this installation's (`storage/anotoki-lib.key`), and only a sealed
+  backup is restored here (one made before 0.5.0, made elsewhere or changed
+  since: `422 archive_invalid`, restored offline - DEV.md). A restore runs
+  only where the schema is the same, after a backup of its own, in one
+  transaction (`backupsRestoreHooks()`, `api/admin_tools.php`):
+
+  ```
+  lock every table · TRUNCATE · COPY back · sequences (never moved back) · rows counted
+  beforeCommit: People::replay() - every person.data_deleted and feedback.deleted the audit
+                log holds from the backup's time on, done again (peopleDeleteHook(), on this
+                connection) · storeRenewGenerationsAfterRestore() - every users row a new number
+  COMMIT
+  afterRestore: People::afterRestore() - the scrub of the IAM's deleted accounts at once
+  ```
+
+  Nobody sees the restored rows before the deletes and the new generations:
+  a tab open since before is refused its next save (409), never saving over
+  what was restored. What fails before the commit rolls the restore back
+  whole; a scrub that cannot finish is the restore's `after_restore_error`,
+  and runs with the next request. Files of other names in the folder - the
+  owner's own dumps - are never touched. (On 0.5.0 a restore fails on a
+  database where a visitor was ever made: the library moves the visitors'
+  sequence, which counts down, the wrong way - `decisions.md`.)
 
 ## The frontend
 
@@ -392,7 +442,7 @@ IAM's redirect route (`/auth/callback`, the family's
 the IAM's hint (`hint: false`; the owner's decision: genshin and the build
 analyzer only).
 
-**The family's kit** (`@anotoki/lib` 0.4.1, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.5.0, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are

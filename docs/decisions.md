@@ -2,6 +2,113 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-12 - the family's library 0.5.0 (`anotoki-lib` 0.5.0)
+
+The library's 0.5.0 changes what a site's hooks are given and may do, so
+every site takes it on purpose, both halves together. The owner's decisions
+of 2026-10-11 for every site, and what they mean here:
+
+- **A restore does not bring back what was deleted.** Inside its
+  transaction, before anybody sees its rows, the library does again every
+  delete the audit log holds from the backup's time on - a person's on the
+  People page (with this app's own delete, `peopleDeleteHook()`) and a
+  feedback message's (`People::replay()`); once it committed, the scrub of
+  the IAM's deleted accounts runs at once (`People::afterRestore()`, with
+  this app's runner after the answer). A delete that cannot be done again
+  rolls the restore back whole. `peopleScrubAfterRestore()` and the
+  hand-written afterRestore are gone; the People page's question says
+  "restoring one deletes it again".
+- **The new generations after a restore are made inside it.** The library
+  offers `then:` for a site's own work after a restore, and suggests it for
+  these; it runs after the commit and after the scrub has asked the IAM - a
+  tab open since before the restore holds the generation the restored row
+  has again, and in between its next save would go over what was restored.
+  Inside the restore's transaction (`backupsRestoreHooks()`: the library's
+  `beforeCommit`, then `storeRenewGenerationsAfterRestore()`) the restore
+  still holds `users`, so that save waits and then meets the new number
+  (409). A renewal that fails rolls the restore back (before, the restore
+  stayed and said so). The sequence's jump of 10^12 is gone: the library's
+  restore never moves a sequence back, so `nextval()` hands out no number
+  an open tab holds.
+- **The People delete does all its work on the connection it is handed**
+  (`peopleDelete($pdo, $id)`; the db helpers take a connection last). The
+  library's `People::delete()` holds the transaction - forgetting the
+  person's feedback and writing `person.data_deleted` (naming its
+  transaction) in it, so no delete is made without its entry; in a restore
+  that connection is the restore's own, which holds every table it loaded:
+  on the app's own (`db()`) a statement would wait on those locks while the
+  restore waits on it, until PostgreSQL ends the restore a minute later. The
+  delete begins, commits or rolls back nothing. A test holds it
+  (mutation-checked: on `db()` the restore hangs and fails).
+- **The pages' own errors go to the error log** (every site): the
+  library's reporter is the app's ErrorHandler (`core/error-report.ts`,
+  beside Angular's global listeners), sends each error - scrubbed, at most
+  five a page load - through the app's HttpClient, so the family's
+  interceptor gives a person's report their token and a visitor's none, to
+  `POST /api/client-errors` (`ErrorLogRoutes::client()`): behind the gate and
+  `identify()` like every route, twenty an hour from one sender (a person by
+  account, a visitor by address bucket), 500 a day from the visitors and as
+  many from the people. No CSRF header here: the API reads no cookie (who
+  asks is a Bearer token), every body is JSON and there is no CORS, so
+  another site's page cannot send one.
+- **Real visitors' addresses through Cloudflare, and never the address
+  itself kept.** The site is behind Cloudflare: its published ranges (15
+  IPv4, 7 IPv6, 2026-10-11) are the trusted proxies in the committed
+  `config/config.php` (`CLIENT_ADDRESS_TRUSTED_PROXIES`, held equal to the
+  library's list), and CF-Connecting-IP is believed only on a connection
+  from one of them. The owner's rule is that header only, from Cloudflare's
+  ranges only: the header is pinned in code - no setting names another
+  (X-Real-IP and True-Client-IP, which Cloudflare passes on untouched, are
+  the visitor's own words; an older `client_ip_header` is passed over) -
+  and `visitors.local.php` may name other ranges, or none on a computer not
+  behind Cloudflare, but never a catch-all: a range wider than /8 (IPv4) or
+  /16 (IPv6), 0.0.0.0/0 or ::/0, is refused, never believed, and said in the
+  log. One rule, the library's `ClientAddress`, for this app's visitor
+  limits and the library's own (`adminContext()` gets the same proxies and
+  header): a header is one address - a list, which this app read from the
+  right, is now no address and the connection counts. `visitor_starts`
+  keeps a keyed hash of the bucket (`clientAddressKey()`, a key derived
+  from the installation's) - before, the bucket itself; rows of before go
+  within the hour. A keyed hash is a pseudonym while its key lasts, not
+  anonymity: whoever holds the key can test a guessed address against it.
+- **Feedback's reply address is the one the form sends.** The form writes
+  a signed-in sender's account address in; they keep it, change it, clear
+  it, or tick "Send it without my name" - "their choice" (2026-10-11), now
+  made on the page: the server fills no address in. A signed-in sender is
+  counted by their account, apart from the visitors.
+- **Backups name their maker and are sealed.** The Backups page's "By" is
+  this app's copy of the IAM's name (`adminContext()`'s `names`, which the
+  audit log and feedback now read too). A plain backup carries an HMAC
+  under this installation's key (`storage/anotoki-lib.key`), and only a
+  sealed one is restored here: a file put into the folder, or changed, is
+  refused. **The backups made before 0.5.0 carry no seal and are restored
+  offline only** (DEV.md says how); nothing is public yet, so a new backup
+  right after the update is the way. Files `0600`, folders `0700`.
+- **What 0.5.0 made unnecessary is gone**: `peopleScrubAfterRestore()` and
+  the hand-written afterRestore (its own sentence of what failed - the
+  library's chains the causes), the generation sequence's jump after a
+  restore, the delete's own forgetting of the person's feedback, the
+  admin context's own address reading (`clientKey`: Cloudflare's ranges now
+  go to the library), the audit log's and feedback's own name lookups (the
+  context's `names`), the account's address given to feedback, and the
+  address reading's right-to-left list and its configurable header
+  (`client_address.php` is the library's rule, CF-Connecting-IP pinned).
+  The error log never had an exclusion of this app's: the
+  library's `expected` codes leave the states out (`update_pending`,
+  `not_set_up`), and a 503 that is a failure (`database_unavailable`,
+  `storage_unavailable`) stays in - `tests/api/site.test.php` holds both
+  (mutation-checked).
+- **Known, the library's to mend**: 0.5.0's restore moves each sequence on
+  to the greater of the backup's next value and today's - right for one that
+  counts up, wrong for `visitor_ids`, which counts down from -1: on a
+  database where a visitor was ever made it asks `setval(visitor_ids, 0)`,
+  out of bounds, and the restore fails whole (`500 restore_failed`, nothing
+  restored). `admin-tools.test.php`'s last test holds what a restore must do,
+  and fails until a release of the library mends it.
+- **Nothing a learner notices**: no line in What's new, no words, no
+  migration. The first load is 533.5 kB (535.4 with 0.4.1): the sign-in's
+  two screens left it, the reporter came in.
+
 ## 2026-10-11, later still - Piano's own pages on the family's kit (`@anotoki/lib` 0.4.1)
 
 Since 0.2.0 the family's kit drew the bar, its menus and the questions; the
@@ -149,10 +256,11 @@ what they mean here:
 - **A restore brings back what was deleted for a person** (People - Delete
   their progress) since the backup was made, until the library's 0.4.2
   keeps such a delete across a restore. Until then, after a restore, delete
-  them again; the People page's question says so before a delete.
+  them again; the People page's question says so before a delete. (No
+  longer since 0.5.0 - the release 0.4.2 became - 2026-10-12, above.)
 - **The pages' own errors are not logged yet**: they go to every site's error
   log with the library's 0.4.2 (its Angular reporter). `ErrorLogRoutes::client`
-  is not mounted until then.
+  is not mounted until then. (Mounted since 0.5.0, 2026-10-12, above.)
 - **What's new tells what a learner notices**: 0.4.0 (still unreleased)
   gains "Send feedback" and the sign-in failure's page; the admin tools are
   the staff's.
@@ -761,6 +869,9 @@ trusts - then its header, read from the right; `X-Forwarded-For` is never
 believed on its own (anybody can write it). Behind Cloudflare's proxy the
 owner lists Cloudflare's ranges there. `visitors.local.php` is optional,
 gitignored and never written by setup: no setting is needed for the defaults.
+(Since 2026-10-12, anotoki-lib 0.5.0: Cloudflare's ranges are the committed
+default, the header is CF-Connecting-IP alone and one address, a catch-all
+range is refused, and `visitor_starts` keeps a keyed hash of it - above.)
 At worst 500 visitors x (2 x 128 KiB + 1000 rounds) is a few hundred MB, and
 reaching 500 takes at least eight hours at 60 an hour - the People page's
 visitors line is where to watch it, and the file lowers the limits.

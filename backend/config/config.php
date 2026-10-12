@@ -52,8 +52,7 @@ declare(strict_types=1);
  *
  *       return [
  *           'client_address' => [
- *               'trusted_proxies' => [],                   // e.g. Cloudflare's ranges, when the site is behind its proxy
- *               'client_ip_header' => 'CF-Connecting-IP',  // the header such a proxy writes the address into
+ *               'trusted_proxies' => [],   // none here: not behind Cloudflare (the default is its ranges, below)
  *           ],
  *           'visitors' => [
  *               'max_visitors' => 500,             // visitors at once; a full site refuses new ones only
@@ -64,6 +63,17 @@ declare(strict_types=1);
  *               'move_lock_timeout_ms' => 5000,    // how long the move at sign-in waits for a row another request holds
  *           ],
  *       ];
+ *
+ * Where a request comes from has a committed default
+ * (CLIENT_ADDRESS_TRUSTED_PROXIES below): the site is behind Cloudflare (the
+ * owner's decision of 2026-10-11), so its published ranges are the trusted
+ * proxies, and CF-Connecting-IP is believed only on a connection from one of
+ * them - from anywhere else the connection's own address counts. The header is
+ * pinned in code (CF-Connecting-IP alone - no setting names another: an older
+ * file's client_ip_header is passed over). A computer or a host that is not
+ * behind Cloudflare says so in visitors.local.php ('trusted_proxies' => []);
+ * a range there wider than /8 (IPv4) or /16 (IPv6) - 0.0.0.0/0, ::/0 - is
+ * refused, never believed (api/client_address.php).
  *
  * The tests run against throwaway databases with settings of their own:
  * PIANO_TEST_CONFIG names a folder holding the same two files, and it is only
@@ -238,10 +248,48 @@ function authSettings(): array
 }
 
 /**
+ * The trusted proxies, unless visitors.local.php's client_address says
+ * otherwise (api/client_address.php reads them; the anotoki family's library
+ * reads the address by the same rule - AdminContext's trustedProxies,
+ * api/admin_tools.php): Cloudflare's published ranges,
+ * https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6 as
+ * of 2026-10-11 (15 IPv4, 7 IPv6 - the library's ClientAddress::CLOUDFLARE,
+ * which tests/unit/config.test.php holds them equal to). They change rarely:
+ * refresh them from those two addresses when Cloudflare announces a change.
+ * The header they are believed for is CF-Connecting-IP, pinned in code.
+ */
+const CLIENT_ADDRESS_TRUSTED_PROXIES = [
+    // IPv4 (https://www.cloudflare.com/ips-v4, 2026-10-11)
+    '173.245.48.0/20',
+    '103.21.244.0/22',
+    '103.22.200.0/22',
+    '103.31.4.0/22',
+    '141.101.64.0/18',
+    '108.162.192.0/18',
+    '190.93.240.0/20',
+    '188.114.96.0/20',
+    '197.234.240.0/22',
+    '198.41.128.0/17',
+    '162.158.0.0/15',
+    '104.16.0.0/13',
+    '104.24.0.0/14',
+    '172.64.0.0/13',
+    '131.0.72.0/22',
+    // IPv6 (https://www.cloudflare.com/ips-v6, 2026-10-11)
+    '2400:cb00::/32',
+    '2606:4700::/32',
+    '2803:f800::/32',
+    '2405:b500::/32',
+    '2405:8100::/32',
+    '2a06:98c0::/29',
+    '2c0f:f248::/32',
+];
+
+/**
  * The optional visitors.local.php (see the top of this file): the array it
  * returns, or [] when there is none or it cannot be read - then every
  * default holds. Read once per request, again with $reload. What each value
- * may be is checked where it is used (visitorLimit(), clientAddress()).
+ * may be is checked where it is used (visitorLimit(), clientAddressTrustedProxies()).
  */
 function visitorSettings(bool $reload = false): array
 {

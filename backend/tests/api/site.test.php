@@ -24,6 +24,11 @@
 // switch on or off or the IAM out of reach, and with a settings file PHP
 // cannot run (not set up): the pages read it to know what to say, and a 401
 // or a 500 there would have them say "not available right now" instead.
+//
+// And the error log (anotoki-lib 0.5.0's rule, no exclusion of this app's):
+// an answer that says a state - not_set_up, update_pending - is not written,
+// however often it comes; a 503 that is a failure - the database out of
+// reach - is.
 
 declare(strict_types=1);
 
@@ -61,6 +66,7 @@ function held_routes(): array
         ['GET', '/api/admin/audit', null],
         ['GET', '/api/admin/feedback', null],
         ['POST', '/api/feedback', ['kind' => 'idea', 'message' => 'x']],
+        ['POST', '/api/client-errors', ['message' => 'x']],
         ['GET', '/api/nope', null],
     ];
 }
@@ -82,6 +88,22 @@ function askers(): array
         'a token that ran out' => bearer(test_token(PERSON, [], ['exp' => time() - 3600])),
         'a password file\'s Basic header' => ['Authorization: Basic ' . base64_encode('owner:secret')],
     ];
+}
+
+/** The error log's lines of a server on the settings in $config (its storage/logs), as [status, code] pairs. */
+function logged(string $config): array
+{
+    $lines = [];
+    foreach (glob("$config/storage/logs/errors-*.jsonl") ?: [] as $file) {
+        foreach (preg_split('/\R/', (string) file_get_contents($file)) as $line) {
+            $entry = json_decode($line, true);
+            if (is_array($entry)) {
+                $lines[] = [(int) ($entry['status'] ?? 0), $entry['code'] ?? null];
+            }
+        }
+    }
+
+    return $lines;
 }
 
 /** GET /api/site-status asked by each of askers(): 200 and {state, installed} to every one, never kept by a cache. */
@@ -111,6 +133,7 @@ test('not set up and never installed: every path but the status is 503 not_set_u
     assert_match('/Set up Piano Academy/', call($app['base'], 'GET', '/setup.php')['raw'], 'the page the answer names');
     assert_same(200, call($app['base'], 'GET', '/')['status'], 'the app itself loads, to say so');
     assert_same([], server_problems($app));
+    assert_same([], array_values(array_filter(logged($config), static fn (array $line): bool => $line[1] === 'not_set_up')), 'a state, never a line of the error log');
 });
 
 test('not set up once installed (storage/installed.lock): the same 503, never the setup page again - only "not available right now"', function (): void {
@@ -153,7 +176,8 @@ test('an update waiting: 503 update_pending everywhere but the open paths - whic
     $newest = migrationFiles()[count(migrationFiles()) - 1];
     assert_same(null, test_migrate_before($pdo, $newest)['failed']);
     $waiting = array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] === MIGRATIONS_SET ? $file['name'] === $newest : $file['set'] !== 'anotoki_admin'));
-    $app = server_on(test_config_dir(test_auth_iam(), $name));
+    $config = test_config_dir(test_auth_iam(), $name);
+    $app = server_on($config);
 
     // Asked by anybody - the tests' IAM requires a sign-in, and nobody is signed in.
     assert_status_to_everybody($app['base'], ['state' => 'update_pending', 'installed' => false]);
@@ -177,6 +201,7 @@ test('an update waiting: 503 update_pending everywhere but the open paths - whic
         (int) $pdo->query('SELECT count(*) FROM progress')->fetchColumn(),
         (int) $pdo->query('SELECT count(*) FROM sessions')->fetchColumn(),
     ], 'nobody looked up or recorded, nothing saved');
+    assert_same([], array_values(array_filter(logged($config), static fn (array $line): bool => $line[1] === 'update_pending')), 'some ninety answers that say a state: never a line of the error log');
 
     // Open: the sign-in settings (signing in works while an update waits), the words, the health check...
     $signIn = call($app['base'], 'GET', '/api/auth/config');
@@ -212,6 +237,7 @@ test('the database out of reach: unavailable - nothing is held at the gate, and 
     assert_same(['issuer', 'client_id', 'login_required', 'sign_in_available'], array_keys((array) call($app['base'], 'GET', '/api/auth/config')['body']), 'what needs no database answers');
     $state = call($app['base'], 'GET', '/api/state', null, bearer(test_token(PERSON)));
     assert_same([503, ['error' => 'The database is not reachable right now.', 'code' => 'database_unavailable']], [$state['status'], $state['body']], 'the app\'s own answer, as before');
+    assert_true(in_array([503, 'database_unavailable'], logged($config), true), 'a 503 that is a failure is a line of the error log: ' . test_show(logged($config)));
 });
 
 test('ready: the status says so to anybody - sign-in required or not, the IAM in reach or not - and every route answers as usual', function (): void {

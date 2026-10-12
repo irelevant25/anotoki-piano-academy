@@ -165,15 +165,16 @@ change, a person deleted, a progress file brought in), feedback (the
 visitors' form from the footer, `ui/feedback-dialog`; no mail - the bar's
 "Feedback" says how many are new; a signed-in sender's account address is
 the reply address unless they tick "Send it without my name" - the owner's
-decision: their choice) and backups (daily after the day's first answer,
+decision: their choice; since 0.5.0 the address the form sends, below) and
+backups (daily after the day's first answer,
 before every update, by hand; a sign-in of the last ten minutes for each
 made, downloaded, deleted or restored; no maximum age - the owner's
 decision: one made by hand stays until the owner deletes it, a deleted
 person's data with it, and a restore brings it back until the library's
-0.4.2; not encrypted - only the IAM's are; before a restore answers, every
+0.5.0, below; not encrypted - only the IAM's are; before a restore answers, every
 progress takes a new generation and the scrub runs again). The People
 delete takes the person's feedback address too. The pages' own errors come to the error log with
-the library's 0.4.2 (`ErrorLogRoutes::client` is not mounted until then).
+the library's 0.5.0 (below).
 Its sets run first and last
 (`migrationSets()`: `anotoki_admin`, this app's, `anotoki_translations`,
 `anotoki_people`). Migration **010** adds `users.anonymized_at`, **011** moves
@@ -210,6 +211,48 @@ What's new's 0.4.0; no words, no migration. The first load is 535 kB (the
 kit's alert, card, badge and error state on the first page, the base and
 utilities: +16 kB), under angular.json's 550 kB warning.
 
+**2026-10-12: the family's library 0.5.0 - `anotoki-lib` 0.5.0** (both
+halves; the owner's decisions of 2026-10-11 for every site,
+`docs/decisions.md`). A restore no longer brings back what was deleted:
+inside its transaction, before anybody sees its rows, the library does again
+every People delete and feedback delete the audit log holds from the
+backup's time on (`People::replay()`, with this app's `peopleDeleteHook()`),
+then every progress takes a new generation (`storeRenewGenerationsAfterRestore()`,
+inside the restore too - not the library's `then:`, after the commit and the
+scrub, when a tab of before could still save over what was restored; the
+sequence's gap is gone: a restore never moves a sequence back), and once it
+committed the scrub of the IAM's deleted accounts runs (`People::afterRestore()`);
+`backupsRestoreHooks()` in `api/admin_tools.php`, `peopleScrubAfterRestore()`
+gone. The People delete (`peopleDelete($pdo, $id)`) does ALL its work on the
+connection the library hands it, inside the library's transaction - which
+forgets the person's feedback and writes `person.data_deleted` in it, by its
+transaction id - and begins none of its own (`db()` would wait on a
+restore's locks). The pages' own errors go to the error log: the library's
+reporter (`core/error-report.ts`, `provideSiteErrorReport()` beside
+`provideBrowserGlobalErrorListeners()`) posts them through the app's
+HttpClient to `POST /api/client-errors` (`ErrorLogRoutes::client`, behind
+the gate and `identify()`; 20 an hour from one sender, 500 a day from the
+visitors and as many from the people). Where a request comes from is the
+library's one rule (`Support\ClientAddress`): Cloudflare's published ranges
+are committed as the trusted proxies (`CLIENT_ADDRESS_TRUSTED_PROXIES` in
+`config/config.php`; `visitors.local.php` may name others or none, never a
+catch-all - a range wider than /8 or /16 is refused), CF-Connecting-IP -
+pinned in code, no setting names another - believed only from them, one
+address (a list is none), and `adminContext()` gives the library the same
+list and header; `visitor_starts` keeps a keyed hash of the bucket
+(`clientAddressKey()`: a stable pseudonym while the installation's key
+lasts), never the address itself. Feedback's
+reply address is the one the form sends (the form writes the account's in;
+the server fills none in), a signed-in sender counted by their account.
+Backups name their maker (`adminContext()`'s `names`), and a plain backup is
+sealed under `storage/anotoki-lib.key`: only a backup made here is restored
+here - the ones made before 0.5.0 are restored offline only (DEV.md). The
+admin routes' own name lookups gave way to the context's. The error log
+keeps the library's rule - a state (`update_pending`, `not_set_up`) never a
+line, a 503 that is a failure a line (`tests/api/site.test.php`). No line in
+What's new; no migration. The first load is 533.5 kB (the sign-in's screens left
+it; the reporter came in).
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -236,7 +279,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
 ## Essentials
 
 - **Sign-in is the anotoki IAM, and nothing else, through the family's
-  library** (`anotoki-lib` 0.4.1's auth module): OIDC code + PKCE in the
+  library** (`anotoki-lib` 0.5.0's auth module): OIDC code + PKCE in the
   browser, RS256 access tokens verified by the backend with
   `Anotoki\Lib\Auth` (`iamClient()`, `accessTokens()`, `signInRule()` in
   `api/auth.php`). Who a request is comes only from a verified token (the
@@ -271,8 +314,13 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   key not even read), sign-in required is 401 `sign_in_required` (the key not
   looked up), and `requireUser()` / `requireRole()` refuse a visitor however
   they are stacked - no own progress file, no admin panel. Limits per address
-  (trusted proxies only, IPv6 /64), in all and per visitor
-  (`config/visitors.local.php`, optional, never written by setup); visitors
+  (the family's rule, `api/client_address.php`: Cloudflare's published
+  ranges committed as the trusted proxies - `CLIENT_ADDRESS_TRUSTED_PROXIES`
+  -, their CF-Connecting-IP alone believed - pinned, never X-Real-IP,
+  True-Client-IP or X-Forwarded-For -, an IPv6 /64 as one; `visitor_starts`
+  keeps a keyed hash of it, a pseudonym, never the address itself), in all
+  and per visitor (`config/visitors.local.php`, optional, never written by
+  setup - it may name other proxies, or none, never a catch-all); visitors
   unseen 30 days are swept after somebody's answer. **In the browser, who a
   request is is decided when it is issued** (`ApiService`, from the page's
   data owner - a person's id or `VISITOR_OWNER` - carried in the `ISSUED_AS`
@@ -340,7 +388,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   **EDITOR** also rewords the app's
   words; **ADMIN** also adds / changes / deletes languages, applies database
   updates, sees and deletes people's data (`/api/admin/people`) and has the
-  admin tools - the error log, the audit log, feedback, backups (EDITORs see
+  admin tools - the error log (the server's failures and the pages' own
+  errors), the audit log, feedback, backups (EDITORs see
   none of them: the owner's decision). `ROLE_ADMIN`, `ROLE_EDITOR`,
   `ROLES_STAFF`; `requireRole(...ROLES_STAFF)` / `requireRole(ROLE_ADMIN)` /
   `adminByToken()` on a whole Slim group in `api/routes/admin.php`
@@ -351,7 +400,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   / Feedback / Error log / Audit log / Backups / Migrations for `isAdmin` via
   the family's `adminGuard`; "Admin panel" in the person's menu, as on every
   anotoki site). People's delete asks its question alone (no recent sign-in)
-  and is audited (`person.data_deleted`).
+  and is audited (`person.data_deleted`, inside the delete's own
+  transaction); a restore of an older backup does it again.
 - **Settings are required and never committed**: `backend/config/database.local.php`
   and `auth.local.php` (`issuer`, `client_id`, `cache_dir`; gitignored). Any
   other key is passed over, so an old file with `mode` / `local_user_id`
@@ -509,9 +559,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves): PHP
-  `anotoki/lib` 0.4.1 (Composer's VCS repository on GitHub, committed in
-  `vendor/`), Angular `@anotoki/lib` 0.4.1 (the GitHub release's tarball, in
-  both lock files). Never
+  `anotoki/lib` 0.5.1 (Composer's VCS repository on GitHub, committed in
+  `vendor/`), Angular `@anotoki/lib` 0.5.0 (the GitHub release's tarball, in
+  both lock files) - 0.5.1 changed only the PHP half (a restore's sequences that count down). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry

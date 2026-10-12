@@ -319,10 +319,10 @@ test('People: everybody with what they have, the most recently seen first - and 
     assert_same([(string) LEARNER], array_column(ask($GLOBALS['app'], 'GET', '/api/admin/people?q=USER' . LEARNER, null, bearer(token_for(ADMIN)))['body']['people'], 'sub'));
     assert_same(['6'], array_column(ask($GLOBALS['app'], 'GET', '/api/admin/people?q=6', null, bearer(token_for(ADMIN)))['body']['people'], 'sub'));
 
-    // The editor and the learner each sent feedback, signed in - their account's address its reply address.
+    // The editor and the learner each sent feedback, signed in - with their account's address, which the form wrote in.
     $browser = ['User-Agent: PianoTest/1.0 (people)'];
     foreach ([EDITOR => 'Show the note names, please.', LEARNER => 'More songs, please.'] as $user => $words) {
-        $sent = ask($GLOBALS['app'], 'POST', '/api/feedback', ['kind' => 'idea', 'message' => $words], array_merge($browser, bearer(token_for($user))));
+        $sent = ask($GLOBALS['app'], 'POST', '/api/feedback', ['kind' => 'idea', 'message' => $words, 'email' => "user$user@example.test"], array_merge($browser, bearer(token_for($user))));
         assert_same(201, $sent['status'], test_show($sent['body']));
     }
     $feedbackOf = static fn (int $user): array => dbAll('SELECT message, contact_email, user_agent FROM anotoki_feedback WHERE user_id = ? ORDER BY id', [$user]);
@@ -342,7 +342,9 @@ test('People: everybody with what they have, the most recently seen first - and 
     assert_same(['Iné slovo', null], [dbValue("SELECT value FROM translations WHERE key_name = ? AND language_code = 'sk'", [$key]), dbValue("SELECT updated_by FROM translations WHERE key_name = ? AND language_code = 'sk'", [$key])], 'the string they reworded stays, by nobody');
     $entry = dbOne("SELECT actor_id, target_type, target_id, details::text AS details FROM anotoki_audit_log WHERE action = 'person.data_deleted'");
     assert_same([ADMIN, 'user', (string) EDITOR], [(int) $entry['actor_id'], $entry['target_type'], $entry['target_id']], 'the delete is audited, by the administrator');
-    assert_json_same(['deleted' => ['Notes' => 2, 'Steps' => 1, 'Rounds' => 2]], json_decode($entry['details'], true));
+    $details = json_decode($entry['details'], true);
+    assert_json_same(['Notes' => 2, 'Steps' => 1, 'Rounds' => 2], $details['deleted'] ?? null);
+    assert_match('/^\d+$/', (string) ($details['_txid'] ?? ''), 'written inside the delete\'s own transaction, which it names - a restore does the delete again by it');
     assert_same(array_map('strval', [ADMIN, LEARNER, 6, 7]), array_column(ask($GLOBALS['app'], 'GET', '/api/admin/people', null, bearer(token_for(ADMIN)))['body']['people'], 'sub'));
 
     $again = ask($GLOBALS['app'], 'DELETE', '/api/admin/people/' . EDITOR, null, bearer(token_for(ADMIN)));
@@ -373,7 +375,7 @@ test('a database behind the code: every other route says the site is being updat
     // The gate answers first: an administrator too is told the site is being updated, everywhere but the Migrations
     // page's routes, the error log's and the backups' (they need no table) - never a restore.
     foreach ([['GET', '/api/state'], ['GET', '/api/admin/translations'], ['DELETE', '/api/admin/languages/sk'], ['GET', '/api/admin/people'],
-        ['GET', '/api/admin/audit'], ['GET', '/api/admin/feedback'], ['POST', '/api/feedback'], ['POST', '/api/admin/backups/20261011-120000Z-manual-0123456789abcdef0123456789abcdef/restore']] as [$method, $url]) {
+        ['GET', '/api/admin/audit'], ['GET', '/api/admin/feedback'], ['POST', '/api/feedback'], ['POST', '/api/client-errors'], ['POST', '/api/admin/backups/20261011-120000Z-manual-0123456789abcdef0123456789abcdef/restore']] as [$method, $url]) {
         $answer = ask($app, $method, $url, null, bearer(token_for(ADMIN)));
         assert_same([503, 'update_pending', '60'], [$answer['status'], $answer['body']['code'] ?? null, $answer['headers']['retry-after'] ?? null], "$method $url");
     }

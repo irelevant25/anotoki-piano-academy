@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Anotoki\Lib\Auth\Http\AuthRoutes;
+use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
@@ -40,14 +41,28 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                                 (anotoki/lib's FeedbackRoutes::public()): {kind, section?,
  *                                 subject?, message, email?, page?, language?, anonymous?}
  *                                 -> 201 {ok: true}. Who sent it comes from the token alone
- *                                 (nobody for a visitor); nothing of where it came from is
- *                                 kept; 5 an hour and 20 a day from one address bucket, 300 a
- *                                 day in all (429 too_many); 422 for what the form checks
- *                                 too; 503 feature_unavailable while its table waits
+ *                                 (nobody for a visitor), the reply address from the form
+ *                                 alone (the server fills none in); nothing of where it came
+ *                                 from is kept; 5 an hour and 20 a day from one sender - a
+ *                                 person by their account, a visitor by their address bucket
+ *                                 - and 300 a day from the visitors, as many from the people
+ *                                 signed in (429 too_many); 422 for what the form checks too;
+ *                                 503 feature_unavailable while its table waits
+ *   POST /api/client-errors       an error a page met in the browser (anotoki/lib's
+ *                                 ErrorLogRoutes::client(); its Angular reporter,
+ *                                 provideAnotokiErrorReport()): {type?, message, page?,
+ *                                 stack?, status?} -> 204, into the error log as `source:
+ *                                 client`, redacted again; JSON only (415), 8 KB at most
+ *                                 (413), a message (422); 20 an hour from one sender - a
+ *                                 person by their account, a visitor by their address bucket
+ *                                 - and 500 a day from the visitors, as many from the people
+ *                                 signed in (429 too_many)
  *
  * The first three answer while an update waits too (siteOpenPaths() in
  * api/index.php): somebody can sign in then, and the pages have their words.
- * The first four read no token at all (meddleware/auth.php's publicPaths()).
+ * The first four read no token at all (meddleware/auth.php's publicPaths());
+ * the last two read who is asking as every route does (identify()) - a token
+ * that does not check out is 401 there too.
  *
  * @var \Slim\App $app
  */
@@ -91,3 +106,9 @@ MigrationsRoutes::status($app, siteState());
 // The feedback form's messages (api/admin_tools.php's feedback()): anybody's - a visitor's and nobody's too -
 // the sender from the token alone.
 FeedbackRoutes::public($app, '/api/feedback', feedback(), adminContext(), feedbackSender(...));
+
+// The pages' own errors (the owner's decision of 2026-10-11: every site's error log holds them), from the
+// library's reporter in the browser: anybody's, behind the site's gate and its identify() like any route, counted
+// by the library's limits - a person by their account (adminContext()'s actorId), a visitor by their address
+// bucket (its trusted proxies: Cloudflare's).
+ErrorLogRoutes::client($app, '/api/client-errors', errorLog(), adminContext());

@@ -173,6 +173,20 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   form), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
+- **The anotoki family's library 0.5.0 (2026-10-12).** `anotoki-lib` 0.5.0,
+  both halves. A restore of a backup no longer brings back what was deleted
+  since it was made: a person deleted on the People page, or a feedback
+  message deleted, is deleted again inside the restore, and every progress
+  takes a new generation before anybody sees the restored rows. The pages'
+  own errors reach the admin panel's Error log (scrubbed, a few a page load).
+  The site counts real visitors' addresses through Cloudflare (its published
+  ranges are the trusted proxies, committed; CF-Connecting-IP the one header
+  it believes) and keeps a keyed hash of an address - a pseudonym, never the
+  address itself. Feedback keeps the reply address the form sends - the
+  account's is written in for somebody signed in, who may change or clear
+  it. Backups name who made them and are sealed by this installation: one
+  made before 0.5.0 is restored offline only (DEV.md). Nothing a learner
+  notices; no migration.
 - **Every page drawn by the anotoki family's kit (2026-10-11, later
   still).** The pages' buttons, cards, notes and messages, badges, the
   tempo's and the piano's selects, What's new's dialog, "Working…", "Could

@@ -69,36 +69,43 @@ function dbParams(array $params): array
     return array_map(static fn($value) => is_bool($value) ? ($value ? 't' : 'f') : $value, $params);
 }
 
-function dbQuery(string $sql, array $params = []): PDOStatement
+/**
+ * A statement on the app's connection - or on $pdo, a connection somebody
+ * handed over: the People page's delete runs on the connection the library
+ * gives it, which in a restore is the restore's own (api/people.php). Its
+ * rows come back as arrays by column name, whichever connection it is.
+ */
+function dbQuery(string $sql, array $params = [], ?PDO $pdo = null): PDOStatement
 {
-    $statement = db()->prepare($sql);
+    $statement = ($pdo ?? db())->prepare($sql);
+    $statement->setFetchMode(PDO::FETCH_ASSOC);
     $statement->execute(dbParams($params));
 
     return $statement;
 }
 
-function dbAll(string $sql, array $params = []): array
+function dbAll(string $sql, array $params = [], ?PDO $pdo = null): array
 {
-    return dbQuery($sql, $params)->fetchAll();
+    return dbQuery($sql, $params, $pdo)->fetchAll();
 }
 
-function dbOne(string $sql, array $params = []): ?array
+function dbOne(string $sql, array $params = [], ?PDO $pdo = null): ?array
 {
-    $row = dbQuery($sql, $params)->fetch();
+    $row = dbQuery($sql, $params, $pdo)->fetch();
 
     return $row === false ? null : $row;
 }
 
-function dbValue(string $sql, array $params = []): mixed
+function dbValue(string $sql, array $params = [], ?PDO $pdo = null): mixed
 {
-    $value = dbQuery($sql, $params)->fetchColumn();
+    $value = dbQuery($sql, $params, $pdo)->fetchColumn();
 
     return $value === false ? null : $value;
 }
 
-function dbExec(string $sql, array $params = []): int
+function dbExec(string $sql, array $params = [], ?PDO $pdo = null): int
 {
-    return dbQuery($sql, $params)->rowCount();
+    return dbQuery($sql, $params, $pdo)->rowCount();
 }
 
 /** Runs $fn in a transaction (or in the one already open) and returns its result. */

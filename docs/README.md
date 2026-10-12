@@ -99,3 +99,16 @@ stay Piano's own, from the same tokens; `styles.scss` takes the family's
 base, utilities and tables, and no rule of Piano's for buttons, selects or
 cards is left - `architecture.md` ("The family's kit"); `decisions.md`. No
 words, no migration.
+Then (2026-10-12) the library's 0.5.0, both halves: a restore does again
+every People delete and feedback delete made since its backup, inside its
+transaction, and renews the generations there too; the People delete works
+on the connection the library hands it; the pages' own errors go to the
+error log (`POST /api/client-errors`); where a request comes from is the
+library's rule with Cloudflare's ranges committed and CF-Connecting-IP
+pinned (a catch-all range refused), and a keyed hash of an address is kept,
+never the address; feedback keeps the reply address the form sends;
+backups name their maker and are sealed (one of before 0.5.0 restores
+offline only) - `architecture.md` ("Visitors", "People and the admin
+tools"), `api.md`; `decisions.md`. No words, no migration. Known: the
+library's 0.5.0 cannot restore a database where a visitor was ever made
+(`decisions.md`).

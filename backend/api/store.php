@@ -88,18 +88,20 @@ function storeStateJson(int $userId, bool $withGeneration = false): string
 /**
  * How much progress this person has: notes with a state, path steps with a
  * result, sessions. An account whose documents are empty has none - the app
- * saves an empty document as readily as a full one.
+ * saves an empty document as readily as a full one. ($pdo: a connection
+ * handed over - the People page's delete, api/people.php.)
  *
  * @return array{notes: int, steps: int, sessions: int}
  */
-function storeProgressCounts(int $userId): array
+function storeProgressCounts(int $userId, ?PDO $pdo = null): array
 {
     $row = dbOne(
         "SELECT
             (SELECT count(*) FROM progress p, jsonb_object_keys(p.notes) WHERE p.user_id = ?) AS notes,
             (SELECT count(*) FROM path_progress pp, jsonb_object_keys(pp.data -> 'steps') WHERE pp.user_id = ?) AS steps,
             (SELECT count(*) FROM sessions WHERE user_id = ?) AS sessions",
-        [$userId, $userId, $userId]
+        [$userId, $userId, $userId],
+        $pdo
     );
 
     return ['notes' => (int) $row['notes'], 'steps' => (int) $row['steps'], 'sessions' => (int) $row['sessions']];
@@ -268,11 +270,12 @@ function storeGenerationFrom(string $header, bool $allowZero = false): int
  * Inside a transaction: takes this person's users row for the rest of it -
  * FOR UPDATE, so an import, an administrator's delete and a save of this
  * person take turns - and answers their generation now, or null when they
- * have no users row (deleted a moment ago).
+ * have no users row (deleted a moment ago). $pdo: the transaction's
+ * connection when it is not the app's own (the People page's delete).
  */
-function storeLockGeneration(int $userId): ?int
+function storeLockGeneration(int $userId, ?PDO $pdo = null): ?int
 {
-    $generation = dbValue('SELECT progress_generation FROM users WHERE id = ? FOR UPDATE', [$userId]);
+    $generation = dbValue('SELECT progress_generation FROM users WHERE id = ? FOR UPDATE', [$userId], $pdo);
 
     return $generation === null ? null : (int) $generation;
 }
@@ -307,36 +310,31 @@ function storeNewGeneration(int $userId): int
     return (int) dbValue("UPDATE users SET progress_generation = nextval('progress_generation') WHERE id = ? RETURNING progress_generation", [$userId]);
 }
 
-/** How far past the backup's last number the sequence moves after a restore: more than this app hands out between a backup and its restore. */
-const STORE_GENERATION_RESTORE_GAP = 1_000_000_000_000;
-
 /**
- * After a restore (api/admin_tools.php's backups(), on the connection that
- * restored): every progress - a visitor's too - takes a new generation, from
- * far past any number handed out. A restore puts the users rows back with the
- * generations of the backup's day, and the sequence too (the library sets
- * sequences to the backup's values): a tab left open since then holds a
- * number the restored row has again, so its next save would go over the
- * restored progress (204), and the next import or delete would hand out a
- * number an open tab still holds. So the sequence moves
- * STORE_GENERATION_RESTORE_GAP past where the backup left it, and every users
- * row takes a new number from there: every tab of before gets 409
- * progress_changed on its next save, and loads what was restored. One
- * transaction; a save in flight holds its row, and this waits for it.
+ * Inside a restore's transaction, before it commits (api/admin_tools.php's
+ * backups(): the restore's beforeCommit, after the library's replay of the
+ * deletes done since the backup), on the restore's connection: every
+ * progress - a visitor's too - takes a new generation. A restore puts the
+ * users rows back with the generations of the backup's day: a tab left open
+ * since then holds a number the restored row has again, and its next save
+ * would go over the restored progress (204). With a new number for every
+ * row, every tab of before gets 409 progress_changed on its next save, and
+ * loads what was restored.
+ *
+ * Inside the transaction, not after it: the restore holds every table it
+ * loaded until it commits, so a save in flight waits and then meets the new
+ * number - there is no moment in which the restored rows can be seen, and
+ * saved over, with their old generations. The numbers are new: the library's
+ * restore never moves a sequence back (anotoki-lib 0.5.0: it goes on from the
+ * later of the backup's value and today's), so nextval() hands out none an
+ * open tab holds. It begins, commits or rolls back no transaction of its own.
  */
 function storeRenewGenerationsAfterRestore(PDO $pdo): void
 {
-    $pdo->beginTransaction();
-    try {
-        $pdo->query('SELECT setval(\'progress_generation\', (SELECT last_value FROM progress_generation) + ' . STORE_GENERATION_RESTORE_GAP . ')');
-        $pdo->exec("UPDATE users SET progress_generation = nextval('progress_generation')");
-        $pdo->commit();
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        throw $e;
+    if (!$pdo->inTransaction()) {
+        throw new LogicException('storeRenewGenerationsAfterRestore() belongs inside the restore\'s transaction.');
     }
+    $pdo->exec("UPDATE users SET progress_generation = nextval('progress_generation')");
 }
 
 /* ------------------------------------------------------------- writing */

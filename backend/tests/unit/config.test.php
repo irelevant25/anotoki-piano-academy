@@ -3,7 +3,9 @@
 // config/config.php: the settings come from the two *.local.php files and
 // nowhere else - without them the app is not set up, a committed file can
 // never stand in for them, and the tests' own folder is only ever for a
-// throwaway database.
+// throwaway database. The one committed default: where a request comes from
+// (Cloudflare's published ranges, the family's list), which the optional
+// visitors.local.php may override.
 
 declare(strict_types=1);
 
@@ -144,4 +146,17 @@ test('the settings files: written for their owner only, and read again at once',
         assert_same('0600', substr(sprintf('%o', fileperms("$dir/database.local.php")), -4), 'readable by its owner only');
     }
     assert_same("$dir/storage", with_config_dir($dir, 'storageDir'), 'the tests write at run time inside their own folder');
+});
+
+test('the committed default of where a request comes from: Cloudflare\'s published ranges - the anotoki family\'s list - each one a range taken', function (): void {
+    // The site is behind Cloudflare (the owner's decision of 2026-10-11): config/config.php holds its ranges, which a
+    // computer or host that is not behind it overrides in visitors.local.php. They are the library's list, range for range.
+    assert_same(\Anotoki\Lib\Support\ClientAddress::CLOUDFLARE, CLIENT_ADDRESS_TRUSTED_PROXIES);
+    assert_same([15, 7], [
+        count(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, static fn (string $range): bool => !str_contains($range, ':'))),
+        count(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, static fn (string $range): bool => str_contains($range, ':'))),
+    ], '15 IPv4 ranges, 7 IPv6');
+    assert_same(CLIENT_ADDRESS_TRUSTED_PROXIES, array_values(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, 'clientAddressRangeTaken')), 'none of them a catch-all');
+    // The header is no setting: CF-Connecting-IP, pinned in code (api/client_address.php).
+    assert_false(defined('CLIENT_ADDRESS_DEFAULTS'), 'no committed setting of a header');
 });

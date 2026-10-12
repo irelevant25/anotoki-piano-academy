@@ -30,9 +30,9 @@ export const ADMIN_TOOL_ROUTES = { people: '/admin/people', errors: '/admin/erro
  * The People page's question before a delete, in this app's words: who, and
  * what goes - their notes, steps of the path and rounds (the server's
  * columns, PEOPLE_COLUMNS in api/people.php), and their feedback's reply
- * address - and that the backups made before keep it: a restore of one
- * brings it back (until the library's 0.4.2 keeps such a delete across a
- * restore).
+ * address - and that the backups made before keep it until they are
+ * deleted, while a restore of one deletes it again (anotoki-lib 0.5.0: the
+ * restore does again every delete the audit log holds since its backup).
  */
 export function deleteQuestion(person: PeoplePerson): { title: string; message: string; confirm: string } {
   const name = person.name ?? `the person with IAM id ${person.sub}`;
@@ -41,7 +41,7 @@ export function deleteQuestion(person: PeoplePerson): { title: string; message: 
     title: `Delete the progress of ${name}?`,
     message:
       `Everything Piano Academy keeps of ${name} goes: ${count('notes')} notes, ${count('steps')} steps of the path and ${count('sessions')} rounds, ` +
-      'and their feedback\'s reply address (its words stay). The backups made before keep it: restoring one brings it back. ' +
+      'and their feedback\'s reply address (its words stay). The backups made before keep it until they are deleted; restoring one deletes it again. ' +
       'Their anotoki account stays; if they sign in again, they start from nothing.',
     confirm: 'Delete their progress',
   };
@@ -49,7 +49,7 @@ export function deleteQuestion(person: PeoplePerson): { title: string; message: 
 
 /**
  * The anotoki family's admin pages and the visitors' feedback form
- * (anotoki-lib 0.4.1), wired to this app's own. Every page is the site's
+ * (anotoki-lib 0.5.0), wired to this app's own. Every page is the site's
  * ADMIN's alone (the owner's decision of 2026-10-07: EDITORs see none of
  * them) - the token's roles, AnotokiAuth.isAdmin; the server checks again on
  * every route - in English, as the whole admin panel is, its dates in the
@@ -62,16 +62,20 @@ export function deleteQuestion(person: PeoplePerson): { title: string; message: 
  *   progress" behind the page's question alone (no proof of a recent sign-in:
  *   the owner's decision of 2026-10-11) - one's own too, after which this tab
  *   loads its own (empty) progress and tells the other tabs.
- * - The error log, the audit log, feedback and backups
+ * - The error log (the server's failures, and the pages' own errors -
+ *   core/error-report.ts), the audit log, feedback and backups
  *   (@anotoki/lib/admin/*): a backup made, downloaded, deleted or restored
  *   asks for a sign-in of the last ten minutes - "Sign in again" goes through
- *   the IAM asking for the password. The admin bar's "Feedback" says how many
- *   are new (FeedbackUnread): no mail is sent.
+ *   the IAM asking for the password; its maker is named (the server's names).
+ *   The admin bar's "Feedback" says how many are new (FeedbackUnread): no
+ *   mail is sent.
  * - The feedback form (@anotoki/lib/feedback/form, opened from the footer):
  *   for everybody, in the language on the page (English in the admin panel),
  *   the library's words from the database (anotoki.feedback.*) - the places
- *   it can be about worded as the bar's sections; "send it without my name"
- *   and the account's address written in for somebody signed in.
+ *   it can be about worded as the bar's sections; "send it without my name",
+ *   and the account's address written in for somebody signed in - the reply
+ *   address is what the form sends (they may keep, change or clear it): the
+ *   server never fills one in.
  *
  * The factories run in an injection context; ProgressStore is asked for when
  * a delete needs it.

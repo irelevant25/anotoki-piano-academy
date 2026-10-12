@@ -10,57 +10,77 @@ use Anotoki\Lib\Backups\Copy;
 use Anotoki\Lib\ErrorLog\ErrorLog;
 use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\Migrations\Migrator;
+use Anotoki\Lib\Support\ClientAddress;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\App;
 
 /**
- * The admin panel's tools, the anotoki family's (anotoki/lib 0.4.1's admin
- * tools, one implementation for every anotoki site): the error log, the audit
- * log, feedback and backups - each an admin page of the library's, for the
- * site's ADMIN alone (the owner's decision of 2026-10-07: EDITORs see none of
- * them). This file says what is Piano Academy's own of them: who acts and who
- * is the ADMIN (from the token), the proof a backup asks for, the address a
- * limit counts, the folders, and the places of the app a message can be
+ * The admin panel's tools, the anotoki family's (anotoki/lib's admin tools -
+ * 0.4.1, 0.5.0 since 2026-10-12 - one implementation for every anotoki site):
+ * the error log, the audit log, feedback and backups - each an admin page of
+ * the library's, for the site's ADMIN alone (the owner's decision of
+ * 2026-10-07: EDITORs see none of them). This file says what is Piano
+ * Academy's own of them: who acts and who is the ADMIN (from the token), the
+ * proof a backup asks for, the proxies whose word on an address is believed
+ * (api/client_address.php: Cloudflare's), the people's names, the folders,
+ * what a restore must do again, and the places of the app a message can be
  * about. (Piano Academy takes no file explorer: it keeps no files of its own.)
  *
  *   error log   storage/logs/errors-YYYY-MM-DD.jsonl: one line per failure - a
- *               5xx, a 404, 405, 413, 415, 429, a PHP warning or fatal - with
- *               its route, its redacted message and its trace (never a query, a
+ *               5xx, a 404, 405, 413, 415, 429, a PHP warning or fatal, and
+ *               an error a page met in the browser (POST /api/client-errors:
+ *               the library's ErrorLogRoutes::client(), its Angular reporter;
+ *               20 an hour from one sender - a person by their account, a
+ *               visitor by their address bucket - and 500 a day from the
+ *               visitors, as many from the people signed in) - with its
+ *               route, its redacted message and its trace (never a query, a
  *               header, a body, a token or an address: an HMAC of the address
- *               bucket instead); 30 days, 64 MB at most. No table: it works
- *               while the database is down or an update waits
+ *               bucket instead); 30 days, 64 MB at most. An answer that says
+ *               a state (update_pending, not_set_up) is no failure, and not
+ *               written. No table: it works while the database is down or an
+ *               update waits
  *   audit log   the table anotoki_audit_log (the library's anotoki_admin/001):
- *               who did what - a person's data deleted, a scrub asked for, the
- *               words saved and imported, a language added, changed or
- *               deleted, a progress file brought in, a database update
- *               applied, the admin tools' own (backup.*, feedback.*,
- *               errors.cleared). Never an address. Kept for ever
+ *               who did what - a person's data deleted (written inside the
+ *               delete's own transaction: a restore does the delete again by
+ *               it), a scrub asked for, the words saved and imported, a
+ *               language added, changed or deleted, a progress file brought
+ *               in, a database update applied, the admin tools' own (backup.*,
+ *               feedback.*, errors.cleared). Never an address. Kept for ever
  *   feedback    the table anotoki_feedback (anotoki_admin/002): what people
  *               send with the form at the foot of every page (POST
  *               /api/feedback, open to everybody - identity from the token
- *               only, nothing of where it came from kept, 5 an hour and 20 a
- *               day from one address bucket, 300 a day in all); no mail - the
- *               admin panel shows how many are new. A signed-in sender's
- *               account address is the reply address unless they tick "Send
- *               it without my name" (the owner's decision of 2026-10-11:
- *               their choice)
+ *               only, nothing of where it came from kept; 5 an hour and 20 a
+ *               day from one sender - a person by their account, a visitor by
+ *               their address bucket - and 300 a day from the visitors, as
+ *               many from the people signed in); no mail - the admin panel
+ *               shows how many are new. The reply address is the one the form
+ *               sends, never one the server fills in: the form writes the
+ *               account's in for somebody signed in, who may keep it, change
+ *               it or clear it, or tick "Send it without my name" (the
+ *               owner's decision of 2026-10-11: their choice)
  *   backups     storage/backups/*.anotoki-backup: the whole database by COPY
  *               (no pg_dump), daily (14 kept), before every update (5), before
  *               a restore (5), and by hand; each made, downloaded, deleted and
- *               restored only after a sign-in of the last ten minutes. No
- *               maximum age (the owner's decision of 2026-10-11): one made by
- *               hand stays until the owner deletes it, so a deleted person's
- *               data stays in the backups made before until they go - and a
- *               restore brings it back (until the library's 0.4.2). Not
- *               encrypted (the owner's decision: only the IAM's are). After
- *               a restore every progress takes a new generation and the scrub
- *               of the IAM's deleted accounts runs at once
+ *               restored only after a sign-in of the last ten minutes, its
+ *               maker shown by name. No maximum age (the owner's decision of
+ *               2026-10-11): one made by hand stays until the owner deletes
+ *               it, so a deleted person's data stays in the backups made
+ *               before until they go. Not encrypted (the owner's decision:
+ *               only the IAM's are) - sealed instead (an HMAC under this
+ *               installation's key, storage/anotoki-lib.key): only a backup
+ *               made here is restored here; one made before 0.5.0 has no seal
+ *               and is restored offline only (docs/decisions.md). A restore
+ *               does again, inside its transaction, every person's delete and
+ *               every feedback delete made since the backup, and gives every
+ *               progress a new generation; once it committed, the scrub of
+ *               the IAM's deleted accounts runs at once (backupsRestoreHooks())
  *
- * The routes are the library's, in api/routes/admin.php (and the form's in
- * routes/public.php); every one of its admin groups asks adminContext()'s
- * isAdmin before anything else, and this app adds its own check on each
- * (adminByToken()) - neither reads a table, so the error log and the backups
- * answer while an update waits (the gate's open paths, api/index.php).
+ * The routes are the library's, in api/routes/admin.php (and the form's and
+ * the pages' errors' in routes/public.php); every one of its admin groups asks
+ * adminContext()'s isAdmin before anything else, and this app adds its own
+ * check on each (adminByToken()) - neither reads a table, so the error log
+ * and the backups answer while an update waits (the gate's open paths,
+ * api/index.php).
  */
 
 /** The places of the app a feedback message can be about (the form's sections; English, as kept). */
@@ -70,9 +90,13 @@ const FEEDBACK_SECTIONS = ['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', '
  * What the library's admin tools know of this app: who acts (the token's user
  * id), whether that is the site's ADMIN (the token's roles), the proof a
  * backup asks for (a sign-in at the IAM in the last ten minutes - the token's
- * auth_time; the page offers "Sign in again"), the address a limit counts
- * (api/client_address.php: the trusted proxy's, an IPv6 /64), and the app's
- * error shape.
+ * auth_time; the page offers "Sign in again"), whose word on an address is
+ * believed (api/client_address.php: CF-Connecting-IP alone, from Cloudflare's
+ * published ranges - or the ranges config/visitors.local.php names, never a
+ * catch-all; the library reads the address by that rule for feedback's limits
+ * and the error log, as this app does for its visitors), people's names by id
+ * (the Backups page's maker, the audit log's and feedback's people) and the
+ * app's error shape.
  */
 function adminContext(): AdminContext
 {
@@ -81,9 +105,11 @@ function adminContext(): AdminContext
     return $context ??= new AdminContext(
         actorId: static fn (Request $request): ?int => Identify::person($request)?->sub,
         proof: AdminContext::recentSignIn(static fn (Request $request): ?int => Identify::person($request)?->authTime),
-        clientKey: static fn (Request $request): string => clientAddressCounted($request),
         error: authRefused(...),
         isAdmin: static fn (Request $request): bool => Identify::person($request)?->isAdmin() ?? false,
+        names: static fn (array $ids): array => peopleNames($ids),
+        trustedProxies: clientAddressTrustedProxies(),
+        clientHeader: ClientAddress::CLOUDFLARE_HEADER,
     );
 }
 
@@ -139,12 +165,16 @@ function feedback(): Feedback
     ]);
 }
 
-/** The signed-in sender of a feedback message, from the token alone (null: nobody - a visitor too). */
+/**
+ * The signed-in sender of a feedback message, from the token alone (null:
+ * nobody - a visitor too): who, never an address - the reply address is the
+ * one the form sends.
+ */
 function feedbackSender(Request $request): ?array
 {
     $person = Identify::person($request);
 
-    return $person === null ? null : ['id' => $person->sub, 'email' => $person->email];
+    return $person === null ? null : ['id' => $person->sub];
 }
 
 /**
@@ -171,32 +201,55 @@ function backups(?array $settings = null): Backups
             'onError' => static function (Throwable $e): void {
                 errorLog()->record($e);
             },
-            // After a restore committed, before it answers: every progress takes a new generation (no tab left
-            // open since before may save over what was restored - api/store.php), and the scrub of the IAM's
-            // deleted accounts runs at once (the restore brought back its place of the backup's day - api/
-            // people.php). What could not be done is the restore's to say: the library answers it as
-            // after_restore_error, the Backups page shows it, and the error log has it (onError).
-            'afterRestore' => static function (array $manifest, PDO $pdo): void {
-                $failed = [];
-                try {
-                    storeRenewGenerationsAfterRestore($pdo);
-                } catch (Throwable $e) {
-                    $failed[] = 'Not every progress took a new generation (' . rtrim($e->getMessage(), '.') . '): a page left open since '
-                        . 'before the restore may still save over what was restored - such pages need loading again.';
-                }
-                try {
-                    peopleScrubAfterRestore();
-                } catch (Throwable $e) {
-                    $failed[] = $e->getMessage();
-                }
-                if ($failed !== []) {
-                    throw new RuntimeException(implode(' ', $failed));
-                }
-            },
+            ...backupsRestoreHooks(),
         ],
     );
 
     return $settings !== null ? $make($settings) : ($backups ??= $make(null));
+}
+
+/**
+ * What a restore does besides putting the rows back - the library's two hooks
+ * (People::replay() and People::afterRestore(), what People::restoreHooks()
+ * gives; anotoki-lib 0.5.0) and this app's own:
+ *
+ * - beforeCommit, inside the restore's transaction, on its connection, every
+ *   table it loaded still held - so nobody sees the rows before it ran, and a
+ *   request that dies after the commit leaves nothing of it undone: the
+ *   library's People::replay() does again every delete the audit log holds
+ *   from the backup's time on - a person's on the People page
+ *   (peopleDeleteHook(), its request null) and a feedback message's - and
+ *   then every progress takes a new generation (storeRenewGenerationsAfterRestore():
+ *   a tab left open since before the restore is refused its next save, never
+ *   saving over what was restored). What fails rolls the restore back whole.
+ *   The new generations are this app's work "after a restore" (the library's
+ *   then:), done here rather than once the restore committed: there, a save
+ *   from a tab of before would get through in the moments between the commit
+ *   and the scrub's end, over what was restored.
+ * - afterRestore, once it committed: the library's People::afterRestore() -
+ *   the scrub of the IAM's deleted accounts at once (the restore brought back
+ *   its place of the backup's day); one that does not finish is the
+ *   restore's after_restore_error (the Backups page, the error log), and the
+ *   hourly upkeep's stamp goes after this answer (this app's runner,
+ *   api/after_response.php), so the next request scrubs again.
+ *
+ * The people are asked for when a restore runs, not before: setup.php's Save
+ * makes its backup before the IAM's settings are written, and people() needs
+ * them.
+ *
+ * @return array{beforeCommit: Closure(array<string, mixed>, PDO): void, afterRestore: Closure(array<string, mixed>, PDO): void}
+ */
+function backupsRestoreHooks(): array
+{
+    return [
+        'beforeCommit' => static function (array $manifest, PDO $pdo): void {
+            people()->replay(peopleDeleteHook())($manifest, $pdo);
+            storeRenewGenerationsAfterRestore($pdo);
+        },
+        'afterRestore' => static function (array $manifest, PDO $pdo): void {
+            people()->afterRestore(defer: afterResponse(...))($manifest, $pdo);
+        },
+    ];
 }
 
 /**

@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 use Anotoki\Lib\Admin\Schema as AdminSchema;
 use Anotoki\Lib\Auth\Http\Identify;
-use Anotoki\Lib\People\Http\PeopleUpkeep;
+use Anotoki\Lib\Feedback\Feedback;
 use Anotoki\Lib\People\Http\RecordPerson;
 use Anotoki\Lib\People\People;
 use Anotoki\Lib\People\PeopleColumn;
 use Anotoki\Lib\People\PeopleTable;
+use Psr\Http\Message\ServerRequestInterface as Request;
 
 /**
  * The people who use the app - through the anotoki family's library
  * (anotoki/lib's Anotoki\Lib\People, since 0.4.1: one way for every anotoki
- * site to keep its people). This file says what is Piano Academy's own: its
- * table and columns, what the People page counts, what a delete takes, and
- * the copies of a person a scrub blanks besides their name.
+ * site to keep its people; 0.5.0 since 2026-10-12). This file says what is
+ * Piano Academy's own: its table and columns, what the People page counts,
+ * what a delete takes, and the copies of a person a scrub blanks besides
+ * their name.
  *
  * - Recording: the users row of the request's person - made on their first
  *   request, the name kept to the token's preferred_username (a token without
@@ -37,8 +39,9 @@ use Anotoki\Lib\People\PeopleTable;
  *   seen first, 50 a page, a search by name or IAM id, with how much progress
  *   each has (peopleColumns()); the visitors on a line of their own
  *   (peopleVisitors()); a delete of everything the app keeps of one person
- *   (peopleDelete()), audited (person.data_deleted) - the page's question is
- *   all it asks (the owner's decision of 2026-10-11).
+ *   (peopleDelete()), audited (person.data_deleted, written inside the
+ *   delete's own transaction - no delete without it) - the page's question
+ *   is all it asks (the owner's decision of 2026-10-11).
  *
  * The only reads across people in the app; every other query on a person's
  * data is scoped to the request's own id (api/store.php).
@@ -47,13 +50,18 @@ use Anotoki\Lib\People\PeopleTable;
  * progress, path progress and sessions, an imports row that names them, and
  * their users row (a string they reworded stays, by nobody:
  * translations.updated_by is ON DELETE SET NULL); their feedback messages
- * lose the reply address and the browser, the words stay. A backup made
- * before keeps it all: a restore of one brings it back (until the library's
- * 0.4.2 keeps such a delete across a restore). It takes their users row
- * first (FOR UPDATE), as an import and a save do, so a save of theirs in
- * flight waits and is then refused. Their next request makes an empty users
- * row again - with a generation no tab of theirs holds (api/store.php), so a
- * tab still open on the old progress cannot write it back.
+ * lose the reply address and the browser, the words stay (the library does
+ * that part, in the same transaction). It takes their users row first (FOR
+ * UPDATE), as an import and a save do, so a save of theirs in flight waits
+ * and is then refused. Their next request makes an empty users row again -
+ * with a generation no tab of theirs holds (api/store.php), so a tab still
+ * open on the old progress cannot write it back.
+ *
+ * A backup made before keeps it all - and a restore of one does the delete
+ * again (anotoki-lib 0.5.0, People::replay()): inside the restore's
+ * transaction, before anybody sees its rows, every person.data_deleted the
+ * audit log holds from the backup's time on is done once more with this same
+ * delete, on the restore's connection (api/admin_tools.php's backups()).
  *
  * Visitors - somebody practising without signing in, a users row with a
  * negative id (api/visitors.php) - are not people here: the list leaves them
@@ -85,57 +93,18 @@ function recordPerson(): RecordPerson
 }
 
 /**
- * The scrub's hook (inside the account's transaction), and the People page's
- * delete (inside its own): what else of the person this app keeps that is a
- * copy of them - a feedback message's reply address and browser
- * (anotoki_feedback, the library's table: its own forgetPeople()); the
- * message's words stay. Idempotent; nothing before the table is there.
+ * The scrub's hook, inside the account's transaction and on its connection:
+ * what else of the person this app keeps that is a copy of them - a feedback
+ * message's reply address and browser (anotoki_feedback, the library's
+ * table); the message's words stay. Idempotent; nothing before the table is
+ * there. (The People page's delete forgets the same itself: the library's
+ * People::delete().)
  */
 function peopleForgetCopies(PDO $pdo, int $sub, ?array $former): void
 {
     if (AdminSchema::has($pdo, AdminSchema::FEEDBACK_TABLE)) {
-        feedback()->forgetPeople([$sub]);
+        Feedback::forgetPeopleOn($pdo, [$sub]);
     }
-}
-
-/**
- * After a restore (api/admin_tools.php's backups()), the scrub of the IAM's
- * deleted accounts at once: the restored database brings back the scrub's
- * place of its day, and with it the names - and feedback addresses - of
- * whoever the IAM deleted since. A scrub that does not finish (the IAM out of
- * reach, its time up with more to read, a run already going) is the
- * restore's failure to say - the library's after_restore_error, the Backups
- * page's note, the error log - never a restore that looks complete with a
- * deleted person named again. And the hourly upkeep's stamp goes then, after
- * this answer (this request's own upkeep claims the hour first), so the next
- * request runs the scrub again instead of an hour later - as the survey's
- * surveyScrubAfterRestore() does.
- */
-function peopleScrubAfterRestore(): void
-{
-    $run = people()->scrubber()->run();
-    if ($run['state'] === 'done') {
-        return;
-    }
-
-    $cache = people()->iam->cacheDirectory();
-    if ($cache !== null) {
-        afterResponse(static function () use ($cache): void {
-            @unlink($cache . '/' . PeopleUpkeep::STAMP);
-        });
-    }
-    $why = match ($run['state']) {
-        'unreachable', 'stopped' => lcfirst(rtrim((string) $run['error'], '.')),
-        'more' => 'its time ran out with more of the IAM\'s list to read',
-        'busy' => 'another check was running',
-        'not_ready' => 'what it needs is not there: ' . implode('; ', $run['problems']),
-        default => 'it ended ' . $run['state'],
-    };
-
-    throw new RuntimeException(
-        "The accounts the IAM deleted were not checked again ($why). Whoever it deleted since this backup was made may be named here "
-        . 'until they are: the check runs again with the next request, and at once with Check now on the People page.'
-    );
 }
 
 /**
@@ -169,38 +138,58 @@ function peopleColumns(): array
 }
 
 /**
- * Deletes everything the app keeps of one person, in one transaction - the
- * People page's delete (the library's hook). What went, by the page's labels;
- * null when there is nobody with that id.
+ * Deletes everything the app keeps of one person - the People page's delete,
+ * and a restore's doing it again (peopleDeleteHook()). What went, by the
+ * page's labels; null when there is nobody with that id.
+ *
+ * Inside a transaction of the library's, on the connection it hands over
+ * ($pdo) - ALL of it there, and none of its own begun, committed or rolled
+ * back: People::delete() holds the transaction (the person's feedback
+ * forgotten and the audit entry written in it too). In a restore $pdo is the
+ * restore's own connection, which holds every table it loaded until it
+ * commits: a statement on the app's own connection (db()) would wait on
+ * those locks while the restore waits on this, until PostgreSQL ended the
+ * restore a minute later.
  *
  * @return ?array<string, int>
  */
-function peopleDelete(int $id): ?array
+function peopleDelete(PDO $pdo, int $id): ?array
 {
     // A visitor's id (negative) is nobody's here: the route takes an IAM id only, and this says so again.
     if ($id < 1) {
         return null;
     }
+    if (!$pdo->inTransaction()) {
+        throw new LogicException('peopleDelete() runs inside the library\'s transaction (People::delete()).');
+    }
 
-    return dbTx(static function () use ($id): ?array {
-        if (storeLockGeneration($id) === null) {
-            return null;
-        }
-        $counts = storeProgressCounts($id);
-        foreach (STORE_PERSON_TABLES as $table) {
-            dbExec("DELETE FROM $table WHERE user_id = ?", [$id]);
-        }
-        dbExec('DELETE FROM users WHERE id = ?', [$id]);
-        // Their feedback's reply address and browser go too, in the same transaction - as the scrub takes them;
-        // the messages' words stay, nobody's.
-        peopleForgetCopies(db(), $id, null);
+    if (storeLockGeneration($id, $pdo) === null) {
+        return null;
+    }
+    $counts = storeProgressCounts($id, $pdo);
+    foreach (STORE_PERSON_TABLES as $table) {
+        dbExec("DELETE FROM $table WHERE user_id = ?", [$id], $pdo);
+    }
+    dbExec('DELETE FROM users WHERE id = ?', [$id], $pdo);
 
-        return [
-            PEOPLE_COLUMNS['notes'] => $counts['notes'],
-            PEOPLE_COLUMNS['steps'] => $counts['steps'],
-            PEOPLE_COLUMNS['sessions'] => $counts['sessions'],
-        ];
-    });
+    return [
+        PEOPLE_COLUMNS['notes'] => $counts['notes'],
+        PEOPLE_COLUMNS['steps'] => $counts['steps'],
+        PEOPLE_COLUMNS['sessions'] => $counts['sessions'],
+    ];
+}
+
+/**
+ * The delete as the library calls it - the People page's DELETE (its request
+ * the page's) and a restore's replay of the deletes done since its backup
+ * (its request null): the same work either way, there is no copy to keep
+ * first.
+ *
+ * @return Closure(PDO, int, ?Request): ?array<string, int>
+ */
+function peopleDeleteHook(): Closure
+{
+    return static fn (PDO $pdo, int $sub, ?Request $request): ?array => peopleDelete($pdo, $sub);
 }
 
 /**

@@ -14,7 +14,9 @@ declare(strict_types=1);
  *                             AuthRoutes::config()), GET /api/translations/{code} (its
  *                             TranslationsRoutes::bundle()), GET /api/site-status,
  *                             POST /api/feedback (the form at the foot of every page:
- *                             its FeedbackRoutes::public())
+ *                             its FeedbackRoutes::public()), POST /api/client-errors (an
+ *                             error a page met, into the error log: its
+ *                             ErrorLogRoutes::client())
  *   routes/progress.php       GET /api/state, PUT /api/progress, PUT /api/path, POST /api/sessions
  *                             (a person's or - when the IAM says sign-in is not required - a
  *                             visitor's, api/visitors.php), GET /api/me/export, POST /api/me/import

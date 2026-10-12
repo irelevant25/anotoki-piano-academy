@@ -867,10 +867,23 @@ try {
     await page.waitForFunction(([nav, expected]) => (document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? '0') === expected, [BAR.nav, String(unread - 1)], { timeout: 5000 }).catch(() => undefined);
     check(((await badge()) ?? '0') === String(unread - 1), 'opened: read - the bar\'s number one less', await badge());
 
+    // A page's own error (anotoki-lib 0.5.0's reporter, core/error-report.ts): thrown outside Angular's own code, it
+    // goes to the console and - through the app's HttpClient, so with ada's token - into the error log. Thrown on
+    // purpose, so it is taken off the list of the page errors this check otherwise allows none of.
+    const thrown = 'The browser check threw this on purpose';
+    const reportSent = page.waitForResponse((response) => response.url().endsWith('/api/client-errors') && response.request().method() === 'POST', { timeout: 10000 }).catch(() => null);
+    await page.evaluate((words) => setTimeout(() => { throw new Error(`${words} (token=abc123secretvalue456)`); }, 0), thrown);
+    const report = await reportSent;
+    check(report?.status() === 204 && ((await report?.request().headerValue('authorization')) ?? '').startsWith('Bearer '), 'a page\'s own error: reported to the error log (204), with her token', report?.status());
+    await page.waitForTimeout(300);
+    errors.splice(0, errors.length, ...errors.filter((message) => !message.includes(thrown)));
+
     await page.goto(`${APP}/admin/errors`);
     await page.waitForSelector('[data-groups]', { timeout: 20000 });
-    const errors = await page.textContent('[data-groups]');
-    check(errors.includes('/api/no-such-thing') && !errors.includes('secret-in-the-query'), 'the error log: the 404 by its path - never its query', errors.slice(0, 300));
+    const errorLog = await page.textContent('[data-groups]');
+    check(errorLog.includes('/api/no-such-thing') && !errorLog.includes('secret-in-the-query'), 'the error log: the 404 by its path - never its query', errorLog.slice(0, 300));
+    check(errorLog.includes(thrown) && !errorLog.includes('abc123secretvalue456'), 'the error log: the page\'s own error, the secret in it gone', errorLog.slice(0, 400));
+    await page.screenshot({ path: join(shots, `admin-errors-client-${DESKTOP}.png`), fullPage: true });
 
     await page.goto(`${APP}/admin/people`);
     await page.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
@@ -888,6 +901,8 @@ try {
     await page.waitForTimeout(1500);
     await page.waitForFunction((count) => document.querySelectorAll('[data-backups] [data-backup*="-manual-"]').length > count, already, { timeout: 20000 }).catch(() => undefined);
     check((await manual()).length === already + 1, 'Back up now (a sign-in of the last ten minutes): a backup made, in the list');
+    const madeRows = await Promise.all((await manual()).map((row) => row.textContent()));
+    check(madeRows.some((text) => (text ?? '').includes('ada')), 'the backup made by hand: "By" ada - the name this app keeps of her', madeRows.map((text) => text?.slice(0, 160)));
     await page.screenshot({ path: join(shots, `admin-backups-made-${DESKTOP}.png`), fullPage: true });
 
     await page.goto(`${APP}/admin/audit`);

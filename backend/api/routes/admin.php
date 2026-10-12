@@ -52,10 +52,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                                                 IAM id; the visitors (practising without signing in) only counted -
  *                                                 they go 30 days after their last visit
  *   DELETE /api/admin/people/{sub}                {deleted: {Notes, Steps, Rounds}}: everything the app keeps of that
- *                                                 person goes (their progress, path, sessions, users row); a tab of
- *                                                 theirs still open gets 409 progress_changed on its next save. 404
- *                                                 not_found for nobody - a visitor's negative id too. Audited
- *                                                 (person.data_deleted); the page's question is all it asks
+ *                                                 person goes (their progress, path, sessions, users row; their
+ *                                                 feedback's reply address and browser); a tab of theirs still open
+ *                                                 gets 409 progress_changed on its next save. 404 not_found for
+ *                                                 nobody - a visitor's negative id too. Audited (person.data_deleted,
+ *                                                 inside the delete's transaction: 503 feature_unavailable while the
+ *                                                 audit log's table waits - nothing deleted); a restore of an older
+ *                                                 backup does it again. The page's question is all it asks
  *   POST   /api/admin/people/sync                 {run, sync}: the scrub of the IAM's deleted accounts, now (audited
  *                                                 people.synced)
  *
@@ -131,13 +134,16 @@ $auditWords = static function (Request $request, string $action, ?string $type, 
 TranslationsRoutes::strings($app, '/api/admin', $words, translationsWriter(...), translationsRefused(...), $auditWords)->add(requireRole(...ROLES_STAFF));
 TranslationsRoutes::languages($app, '/api/admin', $words, translationsRefused(...), $auditWords)->add(requireRole(ROLE_ADMIN));
 
+// The delete runs inside the library's transaction, on its connection (peopleDeleteHook(), api/people.php) - the
+// person's feedback forgotten and its audit entry written in the same transaction, which a restore does the delete
+// again by.
 PeopleRoutes::admin(
     $app,
     '/api/admin/people',
     people(),
     columns: peopleColumns(),
     visitors: static fn (PDO $pdo): array => peopleVisitors(),
-    delete: static fn (PDO $pdo, int $sub, Request $request): ?array => peopleDelete($sub),
+    delete: peopleDeleteHook(),
     error: authRefused(...),
     audit: auditLog(),
     context: adminContext(),
@@ -163,10 +169,11 @@ MigrationsRoutes::admin($app, '/api/admin/migrations', static fn (): Migrator =>
     }
 })->add(adminByToken());
 
-// The admin tools - the site's ADMIN, from the token (each group asks adminContext() too).
+// The admin tools - the site's ADMIN, from the token (each group asks adminContext() too, and names the people in
+// it by adminContext()'s names: the audit log's, feedback's, a backup's maker).
 ErrorLogRoutes::admin($app, '/api/admin/errors', errorLog(), adminContext(), auditLog())->add(adminByToken());
-AuditRoutes::admin($app, '/api/admin/audit', auditLog(), adminContext(), static fn (array $ids): array => peopleNames($ids))->add(adminByToken());
-FeedbackRoutes::admin($app, '/api/admin/feedback', feedback(), adminContext(), auditLog(), static fn (array $ids): array => peopleNames($ids))->add(adminByToken());
+AuditRoutes::admin($app, '/api/admin/audit', auditLog(), adminContext())->add(adminByToken());
+FeedbackRoutes::admin($app, '/api/admin/feedback', feedback(), adminContext(), auditLog())->add(adminByToken());
 BackupsRoutes::admin($app, '/api/admin/backups', backups(), adminContext())->add(adminByToken());
 // The download: its single-use ticket is its check (a browser's navigation sends no token) - never an admin check.
 BackupsRoutes::file($app, '/api/admin/backups', backups(), adminContext());
