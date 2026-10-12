@@ -1367,7 +1367,7 @@ en dash and „ “ quotes, never a hyphen as a dash or a straight quote.
 
 ## Tests
 
-- **Backend** (`cd backend && php tests/run.php`; also under PHP 8.2): each file
+- **Backend** (`cd backend && php tests/run.php`; it must pass on PHP 8.5): each file
   its own process and throwaway database; `tests/lib.php` first (it writes a
   `PIANO_TEST_CONFIG` folder with the machine's DB server + a `piano_test_`
   name before the app loads, and refuses anything else).
@@ -1463,7 +1463,7 @@ pill instead of crashing, which is what to check.
 - Note names, song titles and device names are never translated.
 - A new shell string is also in `kept-english.ts`; a key put together at run time has its prefix and tails in `dynamic-keys.ts`.
 - The top bar's words are keys (in kept-english.ts too) but for the admin panel's own (English literals); a word the family's kit says is the library's key (`anotoki.*`, worded in the database - a new site wording of one goes in a migration as 009 did, never a mapping in code); a change to its row is measured again (`run.mjs --measure`) and PHONE_BAR_MAX changed in `top-bar.component.ts` (the bar's `phoneMax`; no .scss copy); the browser check passes and its screenshots are looked at.
-- `php tests/run.php` (8.5 and 8.2), `npm test`, `npm run build` pass; interactive changes checked in a browser on a throwaway database; `setup.php` still parses under PHP 7.4.
+- `php tests/run.php` (PHP 8.5), `npm test`, `npm run build` pass; interactive changes checked in a browser on a throwaway database; `setup.php` still parses under PHP 7.4.
 
 ## Extending the curriculum
 

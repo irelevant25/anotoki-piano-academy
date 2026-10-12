@@ -156,8 +156,8 @@ Working conventions specific to this repo:
   the sign-in guards send nobody to the IAM then. A new route that must
   answer while an update waits goes into `siteOpenPaths()` (`api/index.php`).
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
-- Before reporting done: `php tests/run.php` in `backend/` (and under the
-  hosting's PHP 8.2 if you touched PHP), `npm test` and `npm run build` in
+- Before reporting done: `php tests/run.php` in `backend/` (it must pass on
+  PHP 8.5; the hosting runs 8.2, so use nothing 8.2 lacks), `npm test` and `npm run build` in
   `frontend/`, and the skill's review checklist. The key scan in
   `tests/unit/translations.test.php` fails on a key no migration wrote and on
   a key nothing asks for (`php tools/translations.php --status` runs it
