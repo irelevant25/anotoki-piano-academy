@@ -253,6 +253,19 @@ line, a 503 that is a failure a line (`tests/api/site.test.php`). No line in
 What's new; no migration. The first load is 533.5 kB (the sign-in's screens left
 it; the reporter came in).
 
+**2026-10-13: the origin secret - `anotoki-lib` PHP 0.5.2** (Angular stays
+0.5.0; the owner's decision of 2026-10-13, `docs/decisions.md`). Cloudflare's
+ranges are every Cloudflare customer's: anybody's Worker can connect from them
+and write the CF-Connecting-IP it likes, a new address every time. A Transform
+Rule of the owner's zone adds `X-Anotoki-Origin` with a secret to every
+request; the app keeps the same value in the optional
+`config/cloudflare.local.php` (`['origin_secret' => ...]`, `originSecret()` in
+`config/config.php` - never written or read by setup, never printed or
+logged) and believes CF-Connecting-IP only on a request that carries it -
+`clientAddress()` and `adminContext()` (`originSecret:`) both pass it; any
+other request from Cloudflare counts as its edge, coarser, never looser.
+Without the file, as before. No line in What's new; no migration.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -317,7 +330,10 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   (the family's rule, `api/client_address.php`: Cloudflare's published
   ranges committed as the trusted proxies - `CLIENT_ADDRESS_TRUSTED_PROXIES`
   -, their CF-Connecting-IP alone believed - pinned, never X-Real-IP,
-  True-Client-IP or X-Forwarded-For -, an IPv6 /64 as one; `visitor_starts`
+  True-Client-IP or X-Forwarded-For - and, with the origin secret
+  (`config/cloudflare.local.php`, optional, by hand), only on a request that
+  carries it in `X-Anotoki-Origin` (any other from Cloudflare counts as its
+  edge), an IPv6 /64 as one; `visitor_starts`
   keeps a keyed hash of it, a pseudonym, never the address itself), in all
   and per visitor (`config/visitors.local.php`, optional, never written by
   setup - it may name other proxies, or none, never a catch-all); visitors
@@ -559,9 +575,10 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves): PHP
-  `anotoki/lib` 0.5.1 (Composer's VCS repository on GitHub, committed in
+  `anotoki/lib` 0.5.2 (Composer's VCS repository on GitHub, committed in
   `vendor/`), Angular `@anotoki/lib` 0.5.0 (the GitHub release's tarball, in
-  both lock files) - 0.5.1 changed only the PHP half (a restore's sequences that count down). Never
+  both lock files) - 0.5.1 and 0.5.2 changed only the PHP half (a restore's sequences that count down; the
+  origin secret). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry

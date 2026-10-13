@@ -64,7 +64,8 @@ api/
                        transaction, the limits), the move at sign-in (visitorMove: notes, path steps merged per
                        step, rounds), the sweep after the answer
   client_address.php   the address a request is counted by - the library's rule (ClientAddress): CF-Connecting-IP
-                       alone (pinned) from Cloudflare's ranges, a catch-all range refused, an IPv6 /64 - and its
+                       alone (pinned) from Cloudflare's ranges - with the origin secret only on a request
+                       carrying it (X-Anotoki-Origin) -, a catch-all range refused, an IPv6 /64 - and its
                        keyed hash (a pseudonym), what visitor_starts keeps
   after_response.php   work after the answer (the sweep, the scrub, the day's backup, feedback's prune):
                        afterResponse(), afterResponseRun()
@@ -77,7 +78,8 @@ config/
   config.php           reads database.local.php and auth.local.php - both written by setup.php,
                        gitignored, never committed - and the optional visitors.local.php (the visitors'
                        limits, the trusted proxies; never written by setup); CLIENT_ADDRESS_TRUSTED_PROXIES,
-                       the one committed default: Cloudflare's published ranges
+                       the one committed default: Cloudflare's published ranges; and the optional
+                       cloudflare.local.php (the origin secret, originSecret(); never written or read by setup)
 migrations/piano_academy/   the schema and the app's strings, NNN_name.sql (never edit an applied one)
 storage/               cache/ (the IAM's keys and answers, the limits' counts), logs/ (the error log), backups/
                        (the library's backups; files of other names left alone), on a host the setup token and
@@ -92,7 +94,8 @@ vendor/                Slim and its pieces, and anotoki/lib (the anotoki family'
 ```
 
 `anotoki/lib` is the PHP half of the family's library (the Angular half is the
-frontend's `@anotoki/lib`; one version for both - 0.5.0, both halves: the
+frontend's `@anotoki/lib`; one version for both - PHP 0.5.2, Angular 0.5.0 (0.5.1 and 0.5.2 changed only
+the PHP half): the
 engine and the gate; the words - `Anotoki\Lib\Translations` with its
 migration set `anotoki_translations`, run after this app's own; signing in -
 `Anotoki\Lib\Auth`; the people - `Anotoki\Lib\People`, its set

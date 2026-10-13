@@ -93,10 +93,11 @@ const FEEDBACK_SECTIONS = ['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', '
  * auth_time; the page offers "Sign in again"), whose word on an address is
  * believed (api/client_address.php: CF-Connecting-IP alone, from Cloudflare's
  * published ranges - or the ranges config/visitors.local.php names, never a
- * catch-all; the library reads the address by that rule for feedback's limits
- * and the error log, as this app does for its visitors), people's names by id
- * (the Backups page's maker, the audit log's and feedback's people) and the
- * app's error shape.
+ * catch-all - and with the origin secret, config/cloudflare.local.php, only on
+ * a request that carries it; the library reads the address by that rule for
+ * feedback's limits and the error log, as this app does for its visitors),
+ * people's names by id (the Backups page's maker, the audit log's and
+ * feedback's people) and the app's error shape.
  */
 function adminContext(): AdminContext
 {
@@ -110,6 +111,7 @@ function adminContext(): AdminContext
         names: static fn (array $ids): array => peopleNames($ids),
         trustedProxies: clientAddressTrustedProxies(),
         clientHeader: ClientAddress::CLOUDFLARE_HEADER,
+        originSecret: originSecret(),
     );
 }
 

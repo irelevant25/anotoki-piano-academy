@@ -207,6 +207,8 @@ from them alone (`CLIENT_ADDRESS_TRUSTED_PROXIES`); a computer or a host not
 behind Cloudflare gives `'trusted_proxies' => []`. A range wider than /8
 (IPv4) or /16 (IPv6) - 0.0.0.0/0, ::/0 - is refused, never believed, and
 the header is no setting. See `backend/config/config.php`.
+`backend/config/cloudflare.local.php` is optional too (never written or read
+by setup, never a reason for "not set up"): the origin secret, below.
 
 **Where a request comes from** is one rule, the family's (`anotoki-lib`
 0.5.0's `Support\ClientAddress`, `api/client_address.php`): REMOTE_ADDR, or -
@@ -215,8 +217,14 @@ names (the owner's rule: that header alone, pinned in code - X-Real-IP,
 True-Client-IP and X-Forwarded-For are whatever the visitor wrote, and
 Cloudflare passes them on; a list is no address: the connection counts); an
 IPv4 address written as IPv6 is the IPv4 one; the limits count an IPv6
-address by its /64. The library's own limits read it the same way
-(`adminContext()` gives it the same proxies and header: feedback's, the
+address by its /64. With the origin secret (`config/cloudflare.local.php`,
+`originSecret()`; `anotoki-lib` PHP 0.5.2, the owner's decision of
+2026-10-13) the header is believed only on a request that carries it in
+`X-Anotoki-Origin`, which a Transform Rule of the owner's Cloudflare zone adds
+to every request: anybody's Cloudflare Worker can connect from Cloudflare's
+ranges, and any other request from them counts as its edge - coarser, never
+looser; without the file, as before. The library's own limits read it the same way
+(`adminContext()` gives it the same proxies, header and secret: feedback's, the
 pages' error reports). What is kept of an address is a keyed hash, never
 the address itself - `visitor_starts` holds an HMAC of the bucket
 (`clientAddressKey()`, a key derived from `storage/anotoki-lib.key`), the

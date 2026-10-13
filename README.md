@@ -162,6 +162,12 @@ hosting:
     `CF-Connecting-IP` for IPv6 visitors.
   - The site believes the visitor's address in `CF-Connecting-IP` only on a connection from Cloudflare's
     published ranges (the anotoki library's list), and counts every limit by it.
+  - Rules -> Transform Rules -> **Modify Request Header**: "Set static" `X-Anotoki-Origin` to the origin
+    secret, for every request of the zone - and the same value in `config/cloudflare.local.php`
+    (`return ['origin_secret' => '...'];`, put there by hand; a long random value, 32+ characters). With it the
+    site believes `CF-Connecting-IP` only on a request that carries the secret - anybody's Cloudflare Worker
+    can connect from Cloudflare's ranges; without the file it believes `CF-Connecting-IP` from Cloudflare's
+    ranges alone. Set the rule first, then the file.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.
@@ -193,6 +199,13 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   form), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
+- **The origin secret (2026-10-13).** `anotoki-lib` PHP 0.5.2, Angular 0.5.0:
+  given the secret the owner's Cloudflare zone adds to every request
+  (`config/cloudflare.local.php`, the Hosting checklist above), the site
+  believes `CF-Connecting-IP` only on a request that carries it - anybody's
+  Cloudflare Worker can connect from Cloudflare's ranges, and any other
+  request from them counts as the edge it came from. Nothing a learner
+  notices; no migration.
 - **The anotoki family's library 0.5.0 (2026-10-12).** `anotoki-lib` 0.5.0,
   both halves. A restore of a backup no longer brings back what was deleted
   since it was made: a person deleted on the People page, or a feedback

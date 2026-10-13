@@ -121,7 +121,7 @@ it to them alone).
 - A key never opens `/api/me/export`, `/api/me/import` or `/api/admin/...`:
   `401 sign_in_required`.
 
-The address a limit counts is the connection's, or - from one of the trusted proxies, Cloudflare's published ranges by default - the one address its `CF-Connecting-IP` names - the one header ever read: X-Real-IP, True-Client-IP and X-Forwarded-For are the caller's own words (an IPv6 address by its /64); `visitor_starts` keeps a keyed hash of it, never the address. The limits and the trusted proxies can be changed in the optional
+The address a limit counts is the connection's, or - from one of the trusted proxies, Cloudflare's published ranges by default - the one address its `CF-Connecting-IP` names - the one header ever read: X-Real-IP, True-Client-IP and X-Forwarded-For are the caller's own words (an IPv6 address by its /64) - and, with the origin secret (the optional `backend/config/cloudflare.local.php`), only on a request that carries it in `X-Anotoki-Origin`, any other from Cloudflare counting as its edge; `visitor_starts` keeps a keyed hash of it, never the address. The limits and the trusted proxies can be changed in the optional
 `backend/config/visitors.local.php` (`backend/config/config.php`). Visitors
 unseen for 30 days are deleted after somebody's answer.
 

@@ -112,3 +112,9 @@ offline only) - `architecture.md` ("Visitors", "People and the admin
 tools"), `api.md`; `decisions.md`. No words, no migration. Known: the
 library's 0.5.0 cannot restore a database where a visitor was ever made
 (`decisions.md`).
+Then (2026-10-13) the library's PHP 0.5.2 (Angular stays 0.5.0): the origin
+secret - given `config/cloudflare.local.php`, CF-Connecting-IP is believed
+only on a request that carries the secret the owner's Cloudflare zone adds
+(`X-Anotoki-Origin`); any other request from Cloudflare counts as its edge -
+`architecture.md` ("Where a request comes from"), `api.md`; `decisions.md`.
+No words, no migration.

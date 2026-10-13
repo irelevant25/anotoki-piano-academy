@@ -8,7 +8,8 @@
 // else -, a Bearer header that never falls back to the key, sign-in required
 // again, the limits per address (an IPv6 /64, a trusted proxy's header,
 // X-Forwarded-For never believed - and only a keyed hash of an address ever
-// kept) and in all, a visitor's caps, the sweep of
+// kept; with the origin secret, a request without it counted as the proxy)
+// and in all, a visitor's caps, the sweep of
 // visitors unseen for 30 days after the answer (and one that fails, which
 // never fails the request), a database without 005, and the checks that
 // mean "a verified token" refusing a visitor however they are stacked.
@@ -463,6 +464,41 @@ test('only a keyed hash of an address is ever kept: no address in visitor_starts
     assert_true(counted_as('198.51.100.21', $GLOBALS['tight']) !== counted_as('198.51.100.21', $GLOBALS['app']), 'one address, two installations: two hashes - a key of each installation\'s own');
     assert_same(counted_as('198.51.100.21', $GLOBALS['app']), starts()[3]);
     assert_false(str_contains((string) file_get_contents($GLOBALS['tight']['log']), '198.51.100.21'), 'nor in the server\'s log');
+});
+
+test('with the origin secret, a Worker writing a new CF-Connecting-IP every time is one sender - the proxy it came through - for the visitors\' limit and the library\'s alike; through the zone, each visitor their own', function (): void {
+    fresh();
+    // A server of its own with config/cloudflare.local.php: the proxy this file trusts (127.0.0.1, the tests)
+    // stands for an edge of Cloudflare's, which carries anybody's requests - the owner's zone's alone with the secret.
+    $secret = 'origin-' . bin2hex(random_bytes(20));
+    $guarded = start_app($GLOBALS['auth'], [], [
+        'visitors' => BEHIND_A_PROXY + ['visitors' => ['new_per_hour_per_address' => 2]],
+        'cloudflare' => ['origin_secret' => $secret],
+    ]);
+    touch(sweep_marker($guarded)); // no sweep in this test
+    try {
+        new_visitor([from('198.51.100.31')], $guarded);
+        new_visitor([from('198.51.100.32')], $guarded);
+        $third = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.33')], $guarded);
+        assert_same([429, 'too_many_visitors'], [$third['status'], $third['body']['code'] ?? null], 'the third, from an address never seen: the proxy\'s limit is spent');
+        $wrong = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.34'), 'X-Anotoki-Origin: not the secret'], $guarded);
+        assert_same([429, 'too_many_visitors'], [$wrong['status'], $wrong['body']['code'] ?? null], 'a wrong secret: the proxy too');
+        assert_same([counted_as('127.0.0.1', $guarded), counted_as('127.0.0.1', $guarded)], starts(), 'counted as the proxy, never as the addresses claimed');
+        new_visitor([from('198.51.100.35'), "X-Anotoki-Origin: $secret"], $guarded);
+        assert_same(counted_as('198.51.100.35', $guarded), starts()[2], 'through the owner\'s zone: the visitor it names');
+
+        // The pages' own errors: the library's limit (20 an hour from one sender), by adminContext()'s reading.
+        $report = static fn (string $address, array $headers = []): array => visit('POST', '/api/client-errors', ['message' => "A page's error from $address", 'page' => '/'], array_merge([from($address)], $headers), $guarded);
+        for ($i = 1; $i <= 20; $i++) {
+            assert_same(204, $report("203.0.113.$i")['status'], "report $i, from a made-up visitor");
+        }
+        $over = $report('203.0.113.21');
+        assert_same([429, 'too_many'], [$over['status'], $over['body']['code'] ?? null], 'the 21st, from an address never seen: the proxy\'s budget is spent');
+        assert_same(204, $report('203.0.113.22', ["X-Anotoki-Origin: $secret"])['status'], 'through the zone: a visitor with a budget of their own');
+        assert_same([], server_problems($guarded), 'its server said nothing it should not have');
+    } finally {
+        $guarded['stop']();
+    }
 });
 
 test('new visitors an hour in all, and visitors at once: a full site refuses new visitors only', function (): void {

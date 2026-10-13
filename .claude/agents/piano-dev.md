@@ -166,7 +166,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.5.0): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` PHP 0.5.2, Angular 0.5.0): in the browser `@anotoki/lib/auth`, wired in
   `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -182,7 +182,10 @@ Working conventions specific to this repo:
   the `$pdo` it is given, never `db()`, and begins no transaction. Where a
   request comes from is `api/client_address.php` (the library's rule,
   CF-Connecting-IP alone, pinned, from Cloudflare's ranges; no catch-all
-  range taken); a keyed hash of an address is kept (a pseudonym), never the
+  range taken; with the origin secret, `config/cloudflare.local.php`, only on
+  a request carrying it in `X-Anotoki-Origin` - `clientAddress()` and
+  `adminContext()` both pass `originSecret()`, which is never printed or
+  logged); a keyed hash of an address is kept (a pseudonym), never the
   address itself. A
   spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
 - The anotoki family's kit (`@anotoki/lib` 0.5.0, wired in

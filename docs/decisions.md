@@ -2,6 +2,34 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-13 - the origin secret (`anotoki-lib` PHP 0.5.2, Angular 0.5.0)
+
+The owner's decision of 2026-10-13, for every anotoki site. Cloudflare's
+published ranges are every Cloudflare customer's, not the owner's zone alone:
+anybody's Worker can open a connection to the host from them and write a
+CF-Connecting-IP of its choosing - a new address for every request, past
+every limit counted per address (new visitors an hour, feedback's and the
+pages' reports' senders). So a Transform Rule of the owner's zone adds a
+secret header, `X-Anotoki-Origin`, to every request through it, and the app,
+given the same value, believes CF-Connecting-IP only on a request that
+carries it (the library's `ClientAddress::of()`, compared in constant time).
+Any other request from Cloudflare counts as the edge it came from: coarser -
+a Worker's made-up visitors share the edge's one bucket - never looser.
+
+- **One setting, the same file in every site**: the optional
+  `config/cloudflare.local.php` (`['origin_secret' => ...]`), read by
+  `originSecret()` in `config/config.php` - put there by hand like
+  `visitors.local.php`: setup neither writes nor reads it, the build never
+  carries it, and it is never a reason for "not set up". Only a string with
+  something in it is a secret (trimmed); anything else, or no file, is none -
+  the app as before. A file PHP cannot run is said in PHP's error log by its
+  line alone (what PHP said may quote the file) and passed over. The secret
+  is never printed or logged.
+- **Every reading of an address takes it**: `clientAddress()` (the visitors'
+  limits) and `adminContext()` (`originSecret:` - feedback's limits and the
+  error log's). The audit log keeps no address, so it needs none.
+- **Only the PHP half changed**: the frontend stays on the 0.5.0 tarball.
+
 ## 2026-10-12 - the family's library 0.5.0 (`anotoki-lib` 0.5.0)
 
 The library's 0.5.0 changes what a site's hooks are given and may do, so

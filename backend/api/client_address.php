@@ -30,6 +30,16 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * it is refused - left out, never believed, and said in PHP's error log - as
  * is anything that is no range at all.
  *
+ * Nor, with the origin secret (config/cloudflare.local.php, originSecret();
+ * anotoki/lib 0.5.2, the owner's decision of 2026-10-13), is the header
+ * believed from a Cloudflare address on a request that does not carry the
+ * secret in X-Anotoki-Origin: Cloudflare's ranges are every Cloudflare
+ * customer's, and anybody's Worker can open a connection from them and write
+ * the CF-Connecting-IP it likes. The owner's zone adds the secret to every
+ * request through it (a Transform Rule); a request without it counts as the
+ * edge it came from - coarser, never looser. Without the file the trusted
+ * proxies alone decide, as before.
+ *
  * One address, for counting (a bucket): an IPv4 address as it is, an IPv6
  * address by its /64 - one household or one server is handed a whole /64 and
  * picks from it at will, so counting single IPv6 addresses would count
@@ -114,10 +124,10 @@ function clientAddressSays(string $sentence): void
     }
 }
 
-/** The address this request comes from (see above); '?' when the server gave none. */
+/** The address this request comes from (see above - the origin secret too); '?' when the server gave none. */
 function clientAddress(Request $request): string
 {
-    return ClientAddress::of($request, clientAddressTrustedProxies(), ClientAddress::CLOUDFLARE_HEADER) ?? '?';
+    return ClientAddress::of($request, clientAddressTrustedProxies(), ClientAddress::CLOUDFLARE_HEADER, originSecret()) ?? '?';
 }
 
 /** What the limits count for this request: its address, or for IPv6 its /64 ("2001:db8:1:2::/64"). */

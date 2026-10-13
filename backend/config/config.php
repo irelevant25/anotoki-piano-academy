@@ -75,6 +75,18 @@ declare(strict_types=1);
  * a range there wider than /8 (IPv4) or /16 (IPv6) - 0.0.0.0/0, ::/0 - is
  * refused, never believed (api/client_address.php).
  *
+ * A fourth file is optional too, never written or read by setup.php, and the
+ * same in every anotoki site: cloudflare.local.php - the secret the owner's
+ * Cloudflare zone adds to every request through it, in X-Anotoki-Origin (a
+ * Transform Rule; the owner's decision of 2026-10-13):
+ *
+ *       return ['origin_secret' => '<a long random value, 32 characters or more>'];
+ *
+ * With it, CF-Connecting-IP is believed only on a request that carries that
+ * secret (originSecret()); without it - or with a value that is not a string
+ * with something in it - from the trusted proxies alone, as before. The secret
+ * is never printed or logged.
+ *
  * The tests run against throwaway databases with settings of their own:
  * PIANO_TEST_CONFIG names a folder holding the same two files, and it is only
  * honoured while the database named there is a piano_test_ one.
@@ -310,6 +322,56 @@ function visitorSettings(bool $reload = false): array
     }
 
     return $settings = is_array($values) ? $values : [];
+}
+
+/**
+ * The secret the owner's Cloudflare zone adds to every request through it
+ * (X-Anotoki-Origin, the library's ClientAddress::ORIGIN_HEADER: a Transform
+ * Rule - the owner's decision of 2026-10-13), from the optional
+ * config/cloudflare.local.php; null without one. Cloudflare's published ranges
+ * are every Cloudflare customer's, not the owner's zone alone: anybody's
+ * Worker can reach the host from them and write the CF-Connecting-IP it likes,
+ * a new one for every request. With the secret that header is believed only
+ * on a request that carries it, and any other request from Cloudflare counts
+ * as the edge it came from - coarser, never looser (api/client_address.php,
+ * and the library's own reading, adminContext()).
+ *
+ * Only a string with something in it is a secret (trimmed: a header's value
+ * never starts or ends with a space); anything else - or no file - is none,
+ * which is how the app worked before it. A file PHP cannot run is said in
+ * PHP's error log and passed over, never "not set up" - by its line alone:
+ * what PHP said may quote the file, the secret and all. Read once per
+ * request, again with $reload.
+ */
+function originSecret(bool $reload = false): ?string
+{
+    static $read = false;
+    static $secret = null;
+
+    if ($read && !$reload) {
+        return $secret;
+    }
+    $read = true;
+    $secret = null;
+    $file = localConfigFile('cloudflare');
+    if (!is_file($file)) {
+        return null;
+    }
+    try {
+        $values = require $file;
+    } catch (Throwable $e) {
+        error_log("[config] config/cloudflare.local.php cannot be read, so there is no origin secret: PHP stops at its line {$e->getLine()}.");
+
+        return null;
+    }
+    $value = is_array($values) ? ($values['origin_secret'] ?? null) : null;
+    if (!is_string($value) || trim($value) === '') {
+        error_log('[config] config/cloudflare.local.php holds no origin_secret (a string with something in it), so there is none.');
+
+        return null;
+    }
+
+    return $secret = trim($value);
 }
 
 /**

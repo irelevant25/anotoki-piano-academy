@@ -34,8 +34,10 @@ words*); and the family's UI kit, its styles and its frame (the top bar,
 the theme switch, the language chooser, the menus, the questions, Manrope,
 and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
-and the admin tools (below, *Signing in, people and the admin tools*). Both
-halves are at 0.5.0 (0.1.1 and 0.2.0 changed
+and the admin tools (below, *Signing in, people and the admin tools*). The
+PHP half is at 0.5.2, the Angular half at 0.5.0 (0.5.1 and 0.5.2 changed only
+the PHP half: 0.5.1 a restore's sequences that count down, 0.5.2 the origin
+secret - below, *The library's PHP 0.5.2*; 0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
 site is open; 0.2.0 marked that template - `anotokiSitePages` - gave the
 Migrations page an entry point of its own and added the kit; 0.3.0 added
@@ -308,7 +310,9 @@ check does). The limits and the trusted proxies: an optional
 it Cloudflare's ranges are the trusted proxies - a request from this
 computer is counted by its own address, whatever header it sends); visitors
 unseen 30 days are swept after an answer (the marker is the folder's
-`storage/visitors-swept`).
+`storage/visitors-swept`). The origin secret's `config/cloudflare.local.php`
+is for the host behind Cloudflare (*The library's PHP 0.5.2*): a computer of
+yours needs none.
 
 ### The browser check
 
@@ -444,7 +448,9 @@ since the library's 0.5.0 its published ranges are the committed trusted
 proxies (`CLIENT_ADDRESS_TRUSTED_PROXIES` in `config/config.php`): a visitor
 is counted by the address Cloudflare names in CF-Connecting-IP - the one
 header ever read, pinned in code (X-Real-IP, True-Client-IP and
-X-Forwarded-For are the visitor's own words) - never by Cloudflare's own. A
+X-Forwarded-For are the visitor's own words) - never by Cloudflare's own;
+with the origin secret (`config/cloudflare.local.php`, *The library's PHP
+0.5.2*, below), only on a request that carries it. A
 host that is not behind Cloudflare says so in `config/visitors.local.php`,
 put there by FTP (never written by setup): `'client_address' =>
 ['trusted_proxies' => []]` - or another proxy's ranges (one that writes
@@ -560,12 +566,36 @@ and nothing waits to be applied; the host needs PHP's `mbstring` (and
   written into the form for somebody signed in, who may keep, change or
   clear it.
 
-**Known**: a restore fails (`500 restore_failed`, "setval: value 0 is out of
-bounds for sequence visitor_ids", nothing restored) on a database where a
-visitor was ever made - the library's 0.5.0 moves the visitors' sequence,
-which counts down, the wrong way. The library mends it in a later release;
-until then a restore works only on a database where no visitor was ever made
-(none is made while the IAM's "Sign-in required" is on for Piano Academy).
+**Mended in the library's 0.5.1**: under 0.5.0 a restore failed (`500
+restore_failed`, "setval: value 0 is out of bounds for sequence visitor_ids",
+nothing restored) on a database where a visitor was ever made - it moved the
+visitors' sequence, which counts down, the wrong way. Since 0.5.1 a restore
+moves every sequence one of its own steps past the later value, in its own
+direction (`admin-tools.test.php`'s restore with visitors).
+
+**The library's PHP 0.5.2 (2026-10-13; no migration; the frontend stays on
+0.5.0)**: the origin secret (the owner's decision of 2026-10-13,
+`docs/decisions.md`). Cloudflare's ranges are every Cloudflare customer's:
+anybody's Worker can connect to the host from them and write the
+CF-Connecting-IP it likes, a new address every time. So, in this order:
+
+1. In Cloudflare: Rules -> Transform Rules -> Modify Request Header ->
+   "Set static" `X-Anotoki-Origin` to the secret (a long random value, 32+
+   characters), for every request of the zone - one rule for every anotoki
+   site; an app without the secret pays it no heed.
+2. On the host, by FTP (never written or read by setup, never in the build):
+   `config/cloudflare.local.php` -
+   `<?php return ['origin_secret' => '<the same value>'];` - the same file in
+   every anotoki site. Keep a copy off the server.
+
+From then on CF-Connecting-IP is believed only on a request that carries the
+secret; any other request from Cloudflare counts as its edge (coarser, never
+looser). Without the file the app believes CF-Connecting-IP from the trusted
+proxies alone, as before. A file PHP cannot run is said in PHP's error log
+(`[config] config/cloudflare.local.php cannot be read ...`, by its line -
+never its contents) and passed over. To change the secret, change the rule
+first, then the file (between the two, visitors count as their edge). The
+secret is never printed or logged.
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
