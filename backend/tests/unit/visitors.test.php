@@ -243,12 +243,21 @@ test('config/cloudflare.local.php: only a string with something in it is a secre
         'nothing returned' => ["<?php ['origin_secret' => '" . ORIGIN_SECRET . "'];\n", 'holds no origin_secret'],
         'a parse error' => ["<?php return ['origin_secret' => 'x' '" . ORIGIN_SECRET . "'];\n", 'cannot be read, so there is no origin secret: PHP stops at its line 1.'],
         'a bare word' => ["<?php return ['origin_secret' => $bare];\n", 'cannot be read, so there is no origin secret: PHP stops at its line 1.'],
+        // Written by hand without its first line, or saved with a BOM: PHP would print the file before every answer.
+        'no <?php line' => ["return ['origin_secret' => '" . ORIGIN_SECRET . "'];\n", 'prints '],
+        'a BOM' => ["\xEF\xBB\xBF<?php return ['origin_secret' => '" . ORIGIN_SECRET . "'];\n", 'prints 3 bytes of its own'],
     ] as $case => [$contents, $said]) {
         $log = error_log_of(static function () use ($contents, $case): void {
             with_cloudflare_file($contents, static function () use ($case): void {
-                assert_same(null, originSecret(), "$case: no secret");
-                assert_same(null, settingsProblem(), "$case: never \"not set up\"");
-                assert_same('198.51.100.70', clientAddress(request_from('173.245.48.10', ['CF-Connecting-IP' => '198.51.100.70'])), "$case: CF-Connecting-IP from the trusted proxies alone, as before");
+                ob_start();
+                try {
+                    assert_same(null, originSecret(true), "$case: no secret");
+                    assert_same(null, settingsProblem(), "$case: never \"not set up\"");
+                    assert_same('198.51.100.70', clientAddress(request_from('173.245.48.10', ['CF-Connecting-IP' => '198.51.100.70'])), "$case: CF-Connecting-IP from the trusted proxies alone, as before");
+                } finally {
+                    $printed = (string) ob_get_clean();
+                }
+                assert_same('', $printed, "$case: nothing of the file printed");
             });
         });
         assert_true(str_contains($log, '[config] config/cloudflare.local.php ' . $said), "$case: said - " . $log);
