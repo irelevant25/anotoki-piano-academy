@@ -210,6 +210,19 @@ the header is no setting. See `backend/config/config.php`.
 `backend/config/cloudflare.local.php` is optional too (never written or read
 by setup, never a reason for "not set up"): the origin secret, below.
 
+Every one of these files is read cleanly or not at all
+(`settingsFileReadCleanly()`, as the IAM reads its own): a file edited by
+hand that prints as PHP reads it - a byte-order mark or a line before its
+`<?php`, no `<?php` line at all (then all of it, the database password
+too), text after a closing tag - has what it prints caught, never sent, and
+is passed over, like one PHP cannot parse, run or open. A database or auth
+file read so leaves the site not set up (never a 500, never its text; the
+setup page on this computer names the file and its fault), the visitors'
+file the defaults, the origin secret's file a secret no request carries.
+Each fault is said in PHP's error log at most once a day (`settingsSaid()`),
+by its kind and line or the bytes printed - never what PHP said, which may
+quote the file.
+
 **Where a request comes from** is one rule, the family's (`anotoki-lib`
 0.5.0's `Support\ClientAddress`, `api/client_address.php`): REMOTE_ADDR, or -
 on a connection from a trusted proxy - the one address CF-Connecting-IP

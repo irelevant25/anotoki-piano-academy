@@ -138,7 +138,10 @@ Working conventions specific to this repo:
   the move of a visitor's notes or path at sign-in starts a new one, taking the person's users row `FOR UPDATE` first. A new session field or mode goes into `SESSION_FIELDS` /
   `SESSION_MODES` (`api/store.php`) and `SessionInput`.
 - Settings are only `backend/config/*.local.php` (gitignored, written by
-  `setup.php`); nothing committed stands in for them. Setup's Save,
+  `setup.php`); nothing committed stands in for them. Every `*.local.php` is
+  read cleanly or not at all (`settingsFileReadCleanly()`: what a file prints -
+  a byte-order mark, no `<?php` line, the password with it - is caught and never
+  sent; never log `$e->getMessage()` of one, it may quote the file). Setup's Save,
   `php migration.php`, an administrator's Apply on the Migrations page and
   the tests' builders take one lock (`DATABASE_UPDATE_LOCK`,
   `api/migrations.php`).

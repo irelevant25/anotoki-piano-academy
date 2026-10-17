@@ -303,6 +303,15 @@ running on; one read cleanly that names no secret is none; each said in
 PHP's error log at most once a day, by its kind and line or the bytes it
 printed, never its text (`settingsFileReadCleanly()`, `settingsSaid()`;
 `tests/unit/visitors.test.php`, and the attack in `tests/api/visitors.test.php`).
+**Every settings file is read through that guard** - `database.local.php`
+(the password), `auth.local.php`, `visitors.local.php` too, as the IAM reads
+its own: whatever a file prints (a byte-order mark, no `<?php` line, text
+after a closing tag) is caught and never sent, the file passed over - a
+database or auth file then leaves the site not set up (never a 500, never
+its text), a visitors file the defaults; said once a day by its kind and
+line or its bytes, never what PHP said (`tests/api/site.test.php` holds the
+attack: a byte-order-marked database file with no `<?php` line - no answer
+carries its password, the status included).
 Migration **012** adds the legal pages' 43 keys (English and informal
 Slovak), rewords `brand.area`'s description and deletes the unreachable
 `whatsNew.notLoaded` (What's new opens only from the version, which shows
@@ -467,13 +476,19 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
 - **Settings are required and never committed**: `backend/config/database.local.php`
   and `auth.local.php` (`issuer`, `client_id`, `cache_dir`; gitignored). Any
   other key is passed over, so an old file with `mode` / `local_user_id`
-  still works (and signs in through the IAM). **Where the site stands is the
+  still works (and signs in through the IAM). **Every `*.local.php` is read
+  cleanly or not at all** (`settingsFileReadCleanly()` in
+  `config/config.php`; the IAM's rule): what a file prints as PHP reads it -
+  a byte-order mark, no `<?php` line, text after a closing tag: the password
+  with it - is caught and never sent, and a file that prints, or that PHP
+  cannot parse, run or open, is passed over - said once a day by its kind and
+  line or its bytes, never its text. **Where the site stands is the
   family's** (`anotoki/lib`; `siteState()` in `api/migrations.php`, the
   `SiteGate` in front of every route, `GET /api/site-status` for the pages -
   always 200 `{state, installed}`, to anybody: nothing may stand in front of
   it, no token, key or role check, since the pages ask it before anybody can
   be signed in and read a 401 or a 500 there as "not available right now"):
-  without the settings (or with one PHP cannot run) every path is `503 {code: "not_set_up", installed,
+  without the settings (or with one that cannot be read cleanly) every path is `503 {code: "not_set_up", installed,
   message}` - `setup: "/setup.php"` only while `storage/installed.lock` is not
   there (a real host's install writes it; once installed the setup page is
   never offered again); a migration waiting is `503 {code:

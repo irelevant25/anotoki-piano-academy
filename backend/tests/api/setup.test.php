@@ -242,7 +242,7 @@ test('a settings file PHP cannot run: the page opens and says which - never a PH
     file_put_contents($GLOBALS['config'] . '/database.local.php', "<?php\nreturn ['host' => '127.0.0.1', 'password' => 'it's',\n];\n");
     $page = page('GET', '/setup.php', null, with_cookie());
     assert_same(200, $page['status']);
-    assert_match('/The saved settings are not complete: config\/database\.local\.php cannot be read: PHP stops at its line 2\./', $page['raw']);
+    assert_match('/The saved settings are not complete: config\/database\.local\.php could not be read \(ParseError on line 2\)\./', $page['raw']);
     assert_no_match('/it\'s|unexpected/', $page['raw'], 'nothing of the file, nor what PHP said');
     $answer = call_form($GLOBALS['site']['base'], '/setup.php', fields(), [], with_cookie());
     assert_match('/<h1>Saved<\/h1>/', $answer['raw']);

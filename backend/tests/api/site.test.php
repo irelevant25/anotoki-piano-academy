@@ -165,7 +165,39 @@ test('a settings file PHP cannot run: not set up - the status still answers, nev
         assert_same([503, 'not_set_up', '/setup.php'], [$answer['status'], $answer['body']['code'] ?? null, $answer['body']['setup'] ?? null], "$method $url");
     }
     assert_same([], server_problems($app), 'no PHP error on any path');
-    assert_match('~\[config\] config/database\.local\.php cannot be read: PHP stops at its line \d+\.~', (string) file_get_contents($app['log']), 'the log says which file, and where');
+    $log = (string) file_get_contents($app['log']);
+    assert_match('~\[config\] config/database\.local\.php could not be read \(ParseError on line \d+\): the site is not set up until it is mended\.~', $log, 'the log says which file, the kind and where');
+    assert_same(1, substr_count($log, '[config] config/database.local.php could not be read'), 'once, though every request reads it');
+});
+
+test('a database.local.php saved with a byte-order mark and without its <?php line, its password in it, is never printed: no answer carries the password - the status the pages read, the pages, the setup page - and the site says it is not set up', function (): void {
+    $config = test_write_config(test_temp_dir('printing'), ['name' => dbName()] + machineDatabaseSettings(), test_auth_iam());
+    $password = 'sesame-' . bin2hex(random_bytes(12));
+    // Without its <?php line every byte of the file is text to PHP, printed as PHP reads it - ahead of the answer
+    // and its headers, on every request, unless what it prints is caught (settingsFileReadCleanly()).
+    $file = "\xEF\xBB\xBFreturn ['host' => '127.0.0.1', 'port' => 5432, 'name' => '" . dbName() . "', 'user' => 'postgres', 'password' => '$password'];\n";
+    file_put_contents("$config/database.local.php", $file);
+    $app = server_on($config);
+
+    assert_status_to_everybody($app['base'], ['state' => 'not_set_up', 'installed' => false]);
+    $paths = [['GET', '/api/site-status'], ['GET', '/api/auth/config'], ['GET', '/api/state'], ['GET', '/api/translations/en'], ['GET', '/api/health'], ['PUT', '/api/progress'], ['GET', '/'], ['GET', '/stats'], ['GET', '/setup.php']];
+    foreach ($paths as [$method, $url]) {
+        $answer = call($app['base'], $method, $url);
+        $seen = $answer['raw'] . "\n" . implode("\n", $answer['headers']);
+        assert_false(str_contains($seen, $password) || str_contains($seen, 'sesame') || str_contains($answer['raw'], "\xEF\xBB\xBF"), "$method $url: nothing of the file in the answer");
+        if ($url === '/api/site-status') {
+            assert_same([200, ['state' => 'not_set_up', 'installed' => false]], [$answer['status'], $answer['body']], 'the status the pages read: not set up');
+        } elseif (str_starts_with($url, '/api/')) {
+            assert_same([503, 'not_set_up', '/setup.php'], [$answer['status'], $answer['body']['code'] ?? null, $answer['body']['setup'] ?? null], "$method $url: not set up, the setup page named");
+        } else {
+            assert_same(200, $answer['status'], "$method $url");
+        }
+    }
+    assert_match('~config/database\.local\.php prints ' . strlen($file) . ' bytes of its own~', call($app['base'], 'GET', '/setup.php')['raw'], 'the setup page on this computer says which file, and how many bytes it printed - never what');
+    assert_same([], server_problems($app), 'no PHP warning - nothing went out ahead of the headers');
+    $log = (string) file_get_contents($app['log']);
+    assert_same(1, substr_count($log, '[config] config/database.local.php prints ' . strlen($file) . ' bytes of its own'), 'the log says which file and how many bytes, once: ' . $log);
+    assert_false(str_contains($log, $password) || str_contains($log, 'sesame'), 'and never the password');
 });
 
 test('an update waiting: 503 update_pending everywhere but the open paths - which answer, so somebody can sign in and an administrator applies it', function (): void {

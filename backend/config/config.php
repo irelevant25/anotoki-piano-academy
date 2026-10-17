@@ -36,7 +36,11 @@ declare(strict_types=1);
  *   IamClient::fromArray(), api/auth.php's iamClient()).
  *
  * There is nothing to fall back on. Without both files, or with one that does
- * not say what it must - or that PHP cannot run (a slip in an editor) - the
+ * not say what it must - or that cannot be read cleanly (a slip in an editor:
+ * PHP cannot parse, run or open it, or it prints anything as PHP reads it - a
+ * byte-order mark or a line before its <?php, no <?php line at all, text after
+ * a closing tag; what it prints, the password with it, is caught and never
+ * sent: settingsFileReadCleanly()) - the
  * API answers every request but GET /api/site-status 503 {code: "not_set_up"}
  * (pointing at /setup.php while the site was never installed: the anotoki
  * family's gate, api/index.php), and the frontend shows the family's status
@@ -48,7 +52,8 @@ declare(strict_types=1);
  * too): visitors.local.php - the limits on practising without signing in,
  * and the proxies whose word on a client's address is believed
  * (api/visitors.php, api/client_address.php). Without it, or with one that
- * cannot be read, the defaults hold; it is never a reason for "not set up":
+ * cannot be read cleanly (read the same careful way), the defaults hold; it is
+ * never a reason for "not set up":
  *
  *       return [
  *           'client_address' => [
@@ -142,25 +147,28 @@ function localSettings(bool $reload = false): array
         return $settings;
     }
 
-    // A file PHP cannot run is no setting - said, rather than a 500 on every
-    // path (the site's status too, which the pages read to know what to say).
-    // What PHP said is not repeated: it may quote the file, password and all.
+    // A file that cannot be read cleanly is no setting - said, rather than a
+    // 500 on every path (the site's status too, which the pages read to know
+    // what to say). It is read through settingsFileReadCleanly(): whatever it
+    // prints as PHP reads it - all of it, the password too, from a file
+    // without its <?php line - is caught and never sent; what PHP said is not
+    // repeated (it may quote the file, password and all), only its kind and
+    // line, or how many bytes the file printed.
     $unreadable = null;
     $read = static function (string $name) use (&$unreadable): ?array {
         $file = localConfigFile($name);
         if (!is_file($file)) {
             return null;
         }
-        try {
-            $values = require $file;
-        } catch (Throwable $e) {
-            $unreadable ??= "config/$name.local.php cannot be read: PHP stops at its line {$e->getLine()}.";
-            error_log("[config] $unreadable");
+        $read = settingsFileReadCleanly($file);
+        if ($read['problem'] !== null) {
+            $unreadable ??= "config/$name.local.php {$read['problem']}.";
+            settingsSaid("config/$name.local.php {$read['problem']}: the site is not set up until it is mended.");
 
             return [];
         }
 
-        return is_array($values) ? $values : [];
+        return is_array($read['value']) ? $read['value'] : [];
     };
 
     $database = $read('database');
@@ -301,9 +309,12 @@ const CLIENT_ADDRESS_TRUSTED_PROXIES = [
 
 /**
  * The optional visitors.local.php (see the top of this file): the array it
- * returns, or [] when there is none or it cannot be read - then every
- * default holds. Read once per request, again with $reload. What each value
- * may be is checked where it is used (visitorLimit(), clientAddressTrustedProxies()).
+ * returns, or [] when there is none or it cannot be read cleanly - then every
+ * default holds (settingsFileReadCleanly(): nothing it prints is sent, and
+ * its fault is said once a day by its kind and line or its bytes, never what
+ * PHP said, which may quote it). Read once per request, again with $reload.
+ * What each value may be is checked where it is used (visitorLimit(),
+ * clientAddressTrustedProxies()).
  */
 function visitorSettings(bool $reload = false): array
 {
@@ -316,14 +327,14 @@ function visitorSettings(bool $reload = false): array
     if (!is_file($file)) {
         return $settings = [];
     }
-    try {
-        $values = require $file;
-    } catch (Throwable $e) {
-        error_log('[config] config/visitors.local.php cannot be read, so the defaults hold: ' . $e->getMessage());
-        $values = [];
+    $read = settingsFileReadCleanly($file);
+    if ($read['problem'] !== null) {
+        settingsSaid("config/visitors.local.php {$read['problem']}, so the defaults hold.");
+
+        return $settings = [];
     }
 
-    return $settings = is_array($values) ? $values : [];
+    return $settings = is_array($read['value']) ? $read['value'] : [];
 }
 
 /**
@@ -418,15 +429,20 @@ function originSecretNobodyCarries(): string
 }
 
 /**
- * Requires a *.local.php written by hand - in a closure of its own, so it sees
- * none of the caller's variables - with whatever it prints caught. A file
+ * Requires a *.local.php - every one is read this way: database, auth,
+ * visitors, cloudflare - in a closure of its own, so it sees none of the
+ * caller's variables, with whatever it prints caught. A file
  * without its <?php line, with a byte-order mark or a line before it, or with
  * text after a closing tag prints what is outside its PHP when PHP requires it
- * (all of it, the secret too, where the line is missing) ahead of the answer:
+ * (all of it, the password or the secret too, where the line is missing) ahead
+ * of the answer:
  * caught here, it goes nowhere, and the file is read as no file - its problem
  * the number of bytes it printed. One PHP cannot parse or run (a ParseError, an
  * Error, a warning api/bootstrap.php's handler throws), or may not open, is no
- * file either, said by the kind of error and its line alone.
+ * file either, said by the kind of error and its line alone. What each caller
+ * makes of no file is its own: the database's or the auth's leaves the site
+ * not set up (localSettings()), the visitors' the defaults, the cloudflare's
+ * a secret no request carries.
  *
  * @return array{value: mixed, problem: ?string}
  */

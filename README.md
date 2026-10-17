@@ -222,7 +222,11 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   figures on Stats and in the Note Trainer, a lesson's step dots, Stats'
   number columns. A Cloudflare origin-secret file that cannot be read
   cleanly no longer switches the check off: no request carries its secret
-  until it is mended. Migration 012 (the pages' words; a word no page could
+  until it is mended. No settings file edited by hand can print itself any
+  more - a database file saved with a byte-order mark or without its first
+  line would have sent its password ahead of every answer: what it prints is
+  caught, and the site says it is not set up until the file is mended.
+  Migration 012 (the pages' words; a word no page could
   show any more goes) and the library's words 005 to 010 go in one Apply. In
   What's new's 0.4.0 (not released yet).
 - **The origin secret (2026-10-13).** `anotoki-lib` PHP 0.5.2, Angular 0.5.0:

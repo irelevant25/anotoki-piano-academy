@@ -100,9 +100,33 @@ first, and set the pattern), both halves of the library on 0.6.1.
   addresses from Cloudflare's ranges, even with the file's own secret in
   `X-Anotoki-Origin`, all count as the edge: the third new visitor of the
   hour is refused, the error reports' limit trips, the log says it once and
-  never the secret. `visitors.local.php`, `database.local.php` and
-  `auth.local.php` are still read with a plain `require` (the last two
-  written by setup): left for a later pass.
+  never the secret.
+- **Every settings file is read through the same guard** (the same day,
+  before the push: the round's review would not leave it for later). A
+  `database.local.php` saved with a byte-order mark, without its `<?php`
+  line or with text after a closing tag printed itself - the database
+  password with it, where the line was missing - ahead of every answer, the
+  status the pages read included, since a plain `require` was all that read
+  it; so did `auth.local.php` and `visitors.local.php`. Now each is read by
+  `settingsFileReadCleanly()`, as the IAM's `readLocalConfigFile()` reads
+  its files: whatever a file prints is caught and never sent, and the file
+  is passed over. A database or auth file that cannot be read cleanly
+  leaves the site not set up (`settingsProblem()` names the file and its
+  fault - its kind and line, or the bytes it printed; never a 500, never its
+  text), and the setup page on this computer says which, as before; a
+  visitors file means the defaults. Each fault is said in PHP's error log at
+  most once a day (`settingsSaid()`) by its kind and line or its bytes -
+  never what PHP said (`visitorSettings()` used to log `$e->getMessage()`,
+  which a parse error fills with the file's own text). The attack it stops
+  is in `tests/api/site.test.php`: a `database.local.php` with a byte-order
+  mark, a password and no `<?php` line - no answer carries the password (the
+  status, the pages, the setup page), the site says it is not set up, and
+  no PHP warning says something went out ahead of the headers; with a plain
+  `require` back, the status answer begins with the whole file (checked).
+  `tests/unit/config.test.php` and `tests/unit/visitors.test.php` hold each
+  way a file prints or fails. The setup token (`storage/setup-token.php`,
+  written by setup.php itself, never by hand) is still read with a plain
+  `require`.
 - **Migration 012** (words only): the legal pages' 43 keys of the app's,
   English and informal Slovak, none with an address; `brand.area`'s
   description tells of the legal pages; `whatsNew.notLoaded` deleted. The

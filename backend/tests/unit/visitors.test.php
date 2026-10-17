@@ -353,14 +353,38 @@ test('the limits: the defaults, or visitors.local.php\'s whole numbers - and a d
         assert_same(3, visitorLimit('new_per_hour_per_address'));
         assert_same(VISITOR_DEFAULTS['move_lock_timeout_ms'], visitorLimit('move_lock_timeout_ms'), 'the move waits at least a moment');
     });
+    // A file that cannot be read cleanly: the defaults, never "not set up" - nothing of it printed, its fault said once
+    // by its kind and line or its bytes, never what PHP said (a parse error's message may quote the file).
     $broken = $GLOBALS['TEST_CONFIG_DIR'] . '/visitors.local.php';
-    file_put_contents($broken, '<?php return [');
-    try {
-        assert_same([], visitorSettings(true), 'a file that cannot be read: the defaults, never "not set up"');
-        assert_same(null, settingsProblem());
-    } finally {
-        @unlink($broken);
-        visitorSettings(true);
+    $mine = "['visitors' => ['max_visitors' => 0], 'client_address' => ['trusted_proxies' => ['192.0.2.0/24']]]";
+    foreach ([
+        'a parse error' => ["<?php return ['visitors' => ['max_visitors' => 0 'unexpected-words'];\n", 'could not be read (ParseError on line 1)'],
+        'no <?php line' => ["return {$mine};\n", 'prints ' . strlen("return {$mine};\n") . ' bytes of its own'],
+        'a byte-order mark' => ["\xEF\xBB\xBF<?php return {$mine};\n", 'prints 3 bytes of its own'],
+    ] as $case => [$contents, $fault]) {
+        forget_said();
+        file_put_contents($broken, $contents);
+        try {
+            $log = error_log_of(static function () use ($case): void {
+                ob_start();
+                try {
+                    assert_same([], visitorSettings(true), "$case: the defaults");
+                    assert_same(VISITOR_DEFAULTS['max_visitors'], visitorLimit('max_visitors'), "$case: none of the file's limits");
+                    assert_same(CLIENT_ADDRESS_TRUSTED_PROXIES, clientAddressTrustedProxies(), "$case: nor its proxies - Cloudflare's ranges, the committed default");
+                    assert_same(null, settingsProblem(), "$case: never \"not set up\"");
+                    assert_same([], visitorSettings(true), "$case: read again, the same");
+                } finally {
+                    $printed = (string) ob_get_clean();
+                }
+                assert_same('', $printed, "$case: nothing of the file printed");
+            });
+        } finally {
+            @unlink($broken);
+            visitorSettings(true);
+        }
+        assert_same(1, lines_saying($log, "[config] config/visitors.local.php $fault"), "$case: its fault said once - " . $log);
+        assert_true(str_contains($log, 'so the defaults hold.'), "$case: and that the defaults hold - " . $log);
+        assert_false(str_contains($log, 'unexpected') || str_contains($log, '192.0.2.0'), "$case: never what PHP said, nor the file's text - " . $log);
     }
     assert_throws(static fn() => visitorLimit('max_people'), '/No visitor limit/');
 });
