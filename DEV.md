@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.5.0"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.6.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.5.0/anotoki-lib-0.5.0.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.1/anotoki-lib-0.6.1.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -34,8 +34,12 @@ words*); and the family's UI kit, its styles and its frame (the top bar,
 the theme switch, the language chooser, the menus, the questions, Manrope,
 and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
-and the admin tools (below, *Signing in, people and the admin tools*). The
-PHP half is at 0.5.2, the Angular half at 0.5.0 (0.5.1 and 0.5.2 changed only
+and the admin tools (below, *Signing in, people and the admin tools*); the
+legal pages (below, *Terms, Privacy and Contact*). Both
+halves are at 0.6.1 (0.6.0 added the legal pages - Terms, Privacy, Contact
+and the footer's links - and the kit's chips, stat tiles and step dots, the
+highlighted card and the select's own entry point; 0.6.1 made the Privacy
+page's sentences on the backups true; 0.5.1 and 0.5.2 changed only
 the PHP half: 0.5.1 a restore's sequences that count down, 0.5.2 the origin
 secret - below, *The library's PHP 0.5.2*; 0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
@@ -53,9 +57,10 @@ version may break; a release that leaves a half unchanged may leave it
 where it is), then in `backend/` `composer update anotoki/lib
 --prefer-dist` (change the constraint first when the new version needs
 it) and commit what changed in `vendor/`; in `frontend/` the
-new release's URL in `package.json`, then `bun install` and `npm install
---package-lock-only` (both lock files agree; npm 10 may crash on it -
-`npx -y npm@11 install --package-lock-only` then).
+new release's URL in `package.json`, then `bun install` - never `npm
+install` - and give `package-lock.json`'s `node_modules/@anotoki/lib` entry
+the same `version`, `resolved` (the URL) and `integrity` as `bun.lock`'s, by
+hand: both lock files agree, and `npm ci` installs from the second.
 
 ## First setup
 
@@ -591,11 +596,40 @@ CF-Connecting-IP it likes, a new address every time. So, in this order:
 From then on CF-Connecting-IP is believed only on a request that carries the
 secret; any other request from Cloudflare counts as its edge (coarser, never
 looser). Without the file the app believes CF-Connecting-IP from the trusted
-proxies alone, as before. A file PHP cannot run is said in PHP's error log
-(`[config] config/cloudflare.local.php cannot be read ...`, by its line -
-never its contents) and passed over. To change the secret, change the rule
-first, then the file (between the two, visitors count as their edge). The
-secret is never printed or logged.
+proxies alone, as before; a file read cleanly that names no secret is none,
+the same. **A file that is there but cannot be read cleanly fails closed**
+(since 2026-10-18, the IAM's rule): one that prints anything when PHP reads
+it (no `<?php` line, a byte-order mark or a line before it, text after a
+closing tag) or that PHP cannot parse, run or open stands for a secret no
+request carries, so every request from Cloudflare counts as its edge until
+the file is mended - its owner meant a secret, and a slip of the editor
+never switches the check off. The site runs on, and PHP's error log says so
+at most once a day (a stamp in `storage/cache`), by the fault alone -
+`[config] config/cloudflare.local.php prints 3 bytes of its own (...)` or
+`... could not be read (ParseError on line 2)` - never the file's text. To
+change the secret, change the rule first, then the file (between the two,
+visitors count as their edge). The secret is never printed or logged.
+
+**Terms, Privacy and Contact (migration 012, 2026-10-18, not applied
+anywhere yet; the library's 0.6.1)**: the build carries `anotoki-lib` 0.6.1 -
+both halves: the family's legal pages on `/terms`, `/privacy` and `/contact`
+(anybody's, signed in or not), Terms · Privacy · Contact under every page,
+and the kit's chips, stat tiles, step dots and highlighted card in place of
+Piano's own. 012 adds the pages' words of this app's - what Piano Academy is,
+each part it keeps, why and for how long, its stored items' purposes, the
+tabs' titles, a lesson's steps' name for a screen reader: 43 keys, English
+and informal Slovak, none of them an address -, rewords `brand.area`'s
+description and deletes `whatsNew.notLoaded` (no page can show it any
+more); its gate fails loudly if a key lacks its English or its Slovak, the
+deleted key is still there, or `brand.area`'s description does not tell of
+the legal pages. The library's `anotoki_translations/005_legal_words.sql`
+to `010_backups_where_words.sql` run right after it in the same Apply (the
+legal pages' own words and the kit pieces' - 257 `anotoki.*` keys in all).
+It all goes with 005 to 011 at the hand-over - one Apply. Before the site is
+public the owner names the hosting company (the Privacy page says "to be
+named" until then: `{ preset: 'hosting' }` in
+`frontend/src/app/core/legal/legal-facts.ts` takes its name) and confirms
+the facts `docs/decisions.md` (2026-10-18) lists.
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
@@ -620,6 +654,7 @@ of the new id first, if there is one).
 | "This site is not set up yet" (or, once installed, "The site is not available right now"); the API answers 503 `not_set_up` | The setup page has not run, or a `config/*.local.php` is missing - or PHP cannot run it (edited by hand? the PHP error log says `[config] config/....local.php cannot be read: PHP stops at its line N`). On a host the setup page is offered only while `storage/installed.lock` is not there. |
 | "The site is being updated"; the API answers 503 `update_pending` | A migration waits: an ADMIN applies it on the admin panel's Migrations page (sign in from that page), or `php migration.php`, or the setup page. The sign-in, the words and `/api/health` answer meanwhile. |
 | "The site is not available right now", and it does not come back | The database cannot be reached (`GET /api/site-status` says `unavailable`): is PostgreSQL running, do the settings name it? |
+| The visitors' limits trip early, every visitor counted as one; PHP's error log says `[config] config/cloudflare.local.php ...: no request carries its secret` | The origin secret's file cannot be read cleanly (a byte-order mark, a line before `<?php`, a typo PHP cannot parse): it fails closed, so every request from Cloudflare counts as its edge. Mend the file (*The library's PHP 0.5.2*). |
 | The setup page asks for a token on this computer | It was not asked as `localhost` / `127.0.0.1` straight from PHP's built-in server: a LAN address, another name, or a proxy that adds forwarding headers makes it a real host's install. |
 | 403 `forbidden` on `/api/admin/...` | The account has no role of Piano Academy in the IAM (EDITOR for the words, ADMIN for languages, the people, the admin tools and the database) - or the token was issued before the role was given: sign in again. |
 | 403 `reauth_required` on a backup | A backup is made, downloaded, deleted or restored only after a sign-in of the last ten minutes: the Backups page offers "Sign in again". |

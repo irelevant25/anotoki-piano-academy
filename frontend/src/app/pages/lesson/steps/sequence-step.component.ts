@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
-import { SelectComponent, SelectOption } from '@anotoki/lib/ui/forms';
+import { SelectComponent, SelectOption } from '@anotoki/lib/ui/select';
 import { MidiService } from '../../../core/midi/midi.service';
 import { PathStep, Song } from '../../../core/music/music.types';
 import { PASS_ACCURACY, PathService } from '../../../core/music/path.service';

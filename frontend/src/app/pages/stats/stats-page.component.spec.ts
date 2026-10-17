@@ -123,7 +123,8 @@ describe('Stats: the page in the language of the reader', () => {
       const cell = row.querySelectorAll('td')[1];
       return [(cell.textContent ?? '').replace(/\s+/g, ' ').trim(), cell.querySelector('[lang]')?.getAttribute('lang') ?? null];
     });
-  const tile = (index: number): string => (host.querySelectorAll('.stat-tile .value')[index].textContent ?? '').trim();
+  /** A figure of the family's tiles (@anotoki/lib/ui/stat-tiles): its number as shown. */
+  const tile = (index: number): string => (host.querySelectorAll('anotoki-stat-tile .anotoki-stat-tile__value')[index].textContent ?? '').trim();
 
   async function show(list: Session[], language: 'en' | 'sk' = 'sk', signedIn = true, preferences: AnotokiPreferences | null = null): Promise<void> {
     sessions.set(list);
@@ -311,5 +312,25 @@ describe('Stats: the page in the language of the reader', () => {
     await fixture.whenStable();
     expect(tile(2)).toBe('67%');
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('draws the figures as the family’s tiles - a list, each read number first - and marks the table’s numbers for the family’s stacked rows (anotoki-lib 0.6.0)', async () => {
+    await show([played('1', { mode: 'sheet', correct: 4, attempts: 6, accuracy: 67, avgTimingErrorMs: 115 })], 'sk');
+    const tiles = host.querySelector('anotoki-stat-tiles');
+    expect(tiles?.getAttribute('role')).toBe('list');
+    const each = Array.from(host.querySelectorAll('anotoki-stat-tile'));
+    expect(each.map((one) => one.getAttribute('role'))).toEqual(['listitem', 'listitem', 'listitem', 'listitem', 'listitem', 'listitem']);
+    expect(each.map((one) => one.querySelector('.anotoki-stat-tile__label')?.textContent?.trim())).toEqual([
+      'Notes known',
+      'Notes mastered',
+      'Overall accuracy',
+      'Day streak',
+      'Sessions logged',
+      'Minutes practiced',
+    ]);
+    expect([tile(0), tile(3), tile(4)]).toEqual(['0/15', '0', '1']);
+    // Score, accuracy and timing are numbers: at the column's end on a desktop, read from their names when a round is a small card.
+    expect(Array.from(host.querySelectorAll('thead th')).map((cell) => cell.classList.contains('cell-num'))).toEqual([false, false, true, true, true]);
+    expect(Array.from(host.querySelectorAll('tbody tr:first-child td')).map((cell) => cell.classList.contains('cell-num'))).toEqual([false, false, true, true, true]);
   });
 });

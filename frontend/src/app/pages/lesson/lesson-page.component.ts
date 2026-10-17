@@ -4,6 +4,7 @@ import { TranslatePipe, TranslationParams, TranslationService } from '@anotoki/l
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { IconComponent } from '@anotoki/lib/ui/icon';
+import { StepDotsComponent, type StepItem } from '@anotoki/lib/ui/stepper';
 import { phaseTitle, stepShort, stepTitle, unitTitle } from '../../core/i18n/path-words';
 import { PathStep, StepRecord } from '../../core/music/music.types';
 import { PASS_ACCURACY, PathService, STEP_TYPES } from '../../core/music/path.service';
@@ -30,15 +31,16 @@ interface ResultView {
  * (best accuracy >= PASS_ACCURACY) opens the next step, otherwise the learner
  * tries again. Each step type has its own component; all of them report the
  * moment an attempt ends (StepOutcome) and stop listening to the piano. The
- * card and the buttons are the family's; the steps' dots, the steps and the
- * result are Piano's own.
+ * card, the buttons and the unit's steps as dots (@anotoki/lib/ui/stepper,
+ * anotoki-lib 0.6.0: pills of the steps' short names) are the family's; the
+ * steps and the result are Piano's own.
  */
 @Component({
   selector: 'app-lesson-page',
   templateUrl: './lesson-page.component.html',
   styleUrl: './lesson-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MeetStepComponent, DrillStepComponent, SequenceStepComponent, TranslatePipe, ButtonComponent, CardComponent, IconComponent],
+  imports: [MeetStepComponent, DrillStepComponent, SequenceStepComponent, TranslatePipe, ButtonComponent, CardComponent, IconComponent, StepDotsComponent],
 })
 export class LessonPageComponent {
   private readonly router = inject(Router);
@@ -70,15 +72,23 @@ export class LessonPageComponent {
       heading: this.i18n.t('lesson.heading', { unit: unitTitle(this.i18n, entry.unit), step: stepTitle(this.i18n, entry.step.type) }),
     };
   });
-  protected readonly dots = computed(() => {
+  /**
+   * The unit's steps for the family's dots: each its whole name (what a screen
+   * reader hears) and its short one (the pill), passed or not - a step after
+   * the one in hand may be passed too, when an earlier one is played again -
+   * and which one is in hand.
+   */
+  protected readonly dots = computed<{ steps: StepItem[]; current: number }>(() => {
     const entry = this.entry();
-    if (!entry) return [];
-    return entry.unit.steps.map((step) => ({
-      id: step.id,
-      short: stepShort(this.i18n, step.type),
-      current: step.id === entry.step.id,
-      passed: this.path.isStepPassed(this.store.pathProgress(), this.path.stepKey(entry.unit.id, step.id)),
-    }));
+    if (!entry) return { steps: [], current: 0 };
+    return {
+      steps: entry.unit.steps.map((step) => ({
+        label: stepTitle(this.i18n, step.type),
+        short: stepShort(this.i18n, step.type),
+        done: this.path.isStepPassed(this.store.pathProgress(), this.path.stepKey(entry.unit.id, step.id)),
+      })),
+      current: entry.unit.steps.findIndex((step) => step.id === entry.step.id),
+    };
   });
 
   /** Changes to start the step afresh: a new attempt is a new step component. */

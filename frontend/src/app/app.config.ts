@@ -2,6 +2,7 @@ import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/
 import { ApplicationConfig, inject, provideAppInitializer, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from '@angular/core';
 import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { anotokiAuthInterceptor } from '@anotoki/lib/auth';
+import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { ThemeService } from '@anotoki/lib/shell';
 import { routes } from './app.routes';
@@ -10,6 +11,7 @@ import { ChangelogService } from './core/changelog/changelog.service';
 import { provideSiteErrorReport } from './core/error-report';
 import { provideFamilyKit } from './core/family-kit';
 import { provideSiteTranslations } from './core/i18n/site-translations';
+import { pianoLegalConfig } from './core/legal/legal.config';
 import { provideSiteAdmin } from './core/site-admin';
 import { BootService } from './core/state/boot.service';
 import { provideSiteMigrations } from './core/state/site-migrations';
@@ -42,6 +44,10 @@ export const appConfig: ApplicationConfig = {
     // The admin panel's People page and admin tools (error log, audit log, feedback, backups), and the visitors'
     // feedback form - the family's (core/site-admin.ts).
     provideSiteAdmin(),
+    // The anotoki family's legal pages - Terms, Privacy, Contact, on lazy routes open to anybody - and the footer's
+    // links to them: the library's words around Piano Academy's facts, every address the pages link to in the code
+    // (core/legal/legal.config.ts; the facts, which only the pages read, come with their frame: core/legal/legal-facts.ts).
+    provideAnotokiLegal(pianoLegalConfig),
     // The browser tab's title: a route's title is a translation key, worded in
     // the language on the page, before the app's name.
     { provide: TitleStrategy, useClass: PianoTitleStrategy },

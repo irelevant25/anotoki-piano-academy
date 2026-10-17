@@ -2,6 +2,140 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-18 - Terms, Privacy and Contact, the kit's newer pieces, and a broken origin-secret file that fails closed (`anotoki-lib` 0.6.1)
+
+The round-3 pass of every anotoki site (the IAM's and the survey's went
+first, and set the pattern), both halves of the library on 0.6.1.
+
+- **The legal pages are the family's, the facts Piano's.**
+  `@anotoki/lib/legal/pages` draws Terms, Privacy and Contact - their
+  structure and shared words (`anotoki.legal.*`) the library's; Piano gives
+  its facts (`core/legal/legal-facts.ts`): what it keeps, what for and how
+  long, its visitors, feedback, the error log, the audit log, the backups,
+  its cookies and browser storage by name, counting visits (Umami), who else
+  handles data. The operator stays the library's default (Code Hero s.r.o.,
+  support@anotoki.eu, Slovakia). **The facts are true of the code as it
+  is**: each rests on a line of it (the doc comment of `pianoLegalFacts()`
+  names them), and where the code does not settle one, the page says the
+  conservative truth and the owner confirms it (the list below). A change to
+  what the app keeps, or for how long, changes the `legal.*` strings (by a
+  migration) and `PIANO_LEGAL_UPDATED`.
+- **Each page a path of its own, the frame its parent, before the
+  catch-all** (the survey's lesson: under the learner's `''` parent, with its
+  guard, or after `**`, a legal page would be sent to the IAM or to Learn).
+  No guard: the pages are anybody's - somebody not signed in where a sign-in
+  is required reads them without a trip to the IAM (`isLegalPage()`: the
+  shell's `pageShown()` shows them, the bar offers Sign in there).
+  `app.routes.spec.ts` holds `/`, an unknown address and the three paths;
+  the browser check reads them signed out, and signed in from the footer.
+- **The facts load with the pages.** The root configuration
+  (`provideAnotokiLegal(pianoLegalConfig)`: the page's language, the
+  database's words) is all the first load carries; the frame
+  (`layouts/legal-layout`) provides the facts, over the root's
+  (`skipSelf`).
+- **The account is the anotoki account's.** Its Privacy page and its
+  account page are linked at the IAM's address the app signs in with
+  (`AnotokiAuth.issuer()`, `accountUrl()`): the account is deleted there,
+  and Contact sends there - never a mail. Contact offers the family's
+  feedback form first (Piano takes feedback), then the address.
+- **Every address is the code's**: the anotoki account's pages, the
+  operator, Cloudflare, the authority - never a string an administrator
+  rewords, so a rewording on the Translations page changes words, never
+  where a link goes (`legal-facts.spec.ts` rewords two strings into a
+  foreign address and finds no link to it). The stored items' names are the
+  constants the code uses (`THEME_KEY`, `VISITOR_STORAGE_KEY`,
+  `OUTBOX_PREFIX`, `PROGRESS_REPLACED_PREFIX`, `LAST_DEVICE_KEY`, the
+  translations' storage names).
+- **The footer**: the family's `<anotoki-legal-links>` under "Send
+  feedback" and the version - the library's words, the open page's link
+  marked.
+- **The kit's newer pieces in Piano's place** (0.6.0): the path's step chips
+  are `button[anotokiChip]` (passed success, open primary, locked neutral
+  and disabled); the Continue card is the kit's highlighted card
+  (`tone="highlight"`: Piano's own glow and `--continue-glow` are gone); the
+  figures on Stats and in the Note Trainer are `<anotoki-stat-tiles>`
+  (`pages/_stat-tiles.scss` is gone); a lesson's step dots are
+  `<anotoki-step-dots>` with their labels (`lesson.steps` names the row);
+  Stats' score, accuracy and timing columns are `.cell-num` under
+  `.table-stack`; the spinner's label is the bare `showLabel`; every select
+  comes from `@anotoki/lib/ui/select`, its own entry point since 0.6.0.
+  **Kept, and why**: the piano's device select stays in its `@defer (on
+  idle)` - imported at once it would bring the select's code (6.4 kB) into
+  the first load, over the budget; the meet step's repetition dots (●●○) - a
+  count of plays, not steps, which the kit's dots are for; the path's phase
+  heads, units and badges - the kit has no path.
+- **The first load stays under its 550 kB warning**: 533.46 kB (152.94 kB
+  transferred) before, 549.40 kB (160.81) after. The legal links bring
+  `RouterLinkActive` and the library's legal module into it, and esbuild's
+  tree-shaking is global: `NgComponentOutlet`, which only the lazy Contact
+  page uses, lands in the first load's chunk of `@angular/common` too. So
+  What's new's dialog now loads when it opens (`@defer` behind the version
+  button, as the feedback dialog does), and its `whatsNew.notLoaded` - for a
+  list that did not load - could never show: the version button shows only
+  once the list is loaded (migration 012 deletes it). Tried and set aside:
+  Piano's own three links in the footer (551 kB), one lazy `loadChildren`
+  for the three pages (558.8 kB), the chunk optimizer (558.3 kB). **The
+  margin is 0.6 kB**: the next thing in the first load needs the budget
+  raised (the owner's call).
+- **A broken `config/cloudflare.local.php` fails closed** (the IAM's rule,
+  its `readLocalConfigFile()` of 2026-10-13). A file that is there but
+  cannot be read cleanly - it prints anything (no `<?php` line, a byte-order
+  mark or a line before it, text after a closing tag), PHP cannot parse or
+  run it, or may not open it - is a secret no request carries
+  (`originSecretNobodyCarries()`: 256 random bits a process, never printed,
+  logged or stored), so every request from Cloudflare's ranges counts as its
+  edge until the file is mended. Its owner meant a secret: reading it as no
+  file would believe CF-Connecting-IP from anybody's Worker - the looser
+  reading - because of a slip of the editor. A file read cleanly that names
+  no secret is none, as before and as the IAM reads it. The app keeps
+  running either way (the file is optional, never "not set up"), and each
+  fault is said in PHP's error log at most once a day (`settingsSaid()`: a
+  stamp in `storage/cache`), by its kind and line or the bytes it printed -
+  never its text, which a parse error may quote and which may hold the
+  secret. `settingsFileReadCleanly()` catches what the file prints (every
+  output buffer down to the caller's) and what it throws. The tests:
+  `tests/unit/visitors.test.php` (each way a file is broken, said once,
+  mended) and the attack it stops, in `tests/api/visitors.test.php` - with a
+  byte-order-marked file holding the secret, made-up CF-Connecting-IP
+  addresses from Cloudflare's ranges, even with the file's own secret in
+  `X-Anotoki-Origin`, all count as the edge: the third new visitor of the
+  hour is refused, the error reports' limit trips, the log says it once and
+  never the secret. `visitors.local.php`, `database.local.php` and
+  `auth.local.php` are still read with a plain `require` (the last two
+  written by setup): left for a later pass.
+- **Migration 012** (words only): the legal pages' 43 keys of the app's,
+  English and informal Slovak, none with an address; `brand.area`'s
+  description tells of the legal pages; `whatsNew.notLoaded` deleted. The
+  library's translations 005 to 010 run after it in the same Apply.
+- **For the owner to confirm** (the pages say the conservative truth until
+  then):
+  1. the hosting company - "to be named" on the Privacy page until it is
+     named (`{ preset: 'hosting' }` takes its name);
+  2. feedback: spam goes 30 days after it is marked, a resolved message 365
+     days after - but only when the next message arrives (the library's
+     prune runs then, at most daily): "with the first message sent after
+     that day";
+  3. backups are kept by count, not age: the 14 newest daily copies (made
+     only on days the site is used, so they may reach back further than 14
+     days), the 5 newest before an update and before a restore, those made by
+     hand until deleted - each holding what was deleted after it, until it
+     goes;
+  4. the audit log has no time limit, and holds a person's own progress
+     file brought back (`progress.imported`) besides the staff's changes;
+  5. the library's sentence on the account says the site "does not keep
+     your account's e-mail address" - true of the record; a feedback message
+     keeps the reply address the form writes in from the account, unless the
+     sender changes or clears it (the Feedback part says so): the library's
+     words for every site that takes feedback;
+  6. visitors: kept until a sign-in moves them, or 30 days after the last
+     visit; the count of new visitors per address an hour, as a keyed hash;
+  7. the IAM's hint cookie `anotoki_signed_in` is listed: it reaches the
+     site, which never reads it;
+  8. not on the page: the first version's `imports` table, written by
+     nothing since (the owner's own one-time import);
+  9. the Slovak of 012's strings (informal, "ty"; nothing gendered about the
+     learner).
+
 ## 2026-10-13 - the origin secret (`anotoki-lib` PHP 0.5.2, Angular 0.5.0)
 
 The owner's decision of 2026-10-13, for every anotoki site. Cloudflare's
@@ -23,8 +157,9 @@ a Worker's made-up visitors share the edge's one bucket - never looser.
   carries it, and it is never a reason for "not set up". Only a string with
   something in it is a secret (trimmed); anything else, or no file, is none -
   the app as before. A file PHP cannot run is said in PHP's error log by its
-  line alone (what PHP said may quote the file) and passed over. The secret
-  is never printed or logged.
+  line alone (what PHP said may quote the file) and passed over - since
+  2026-10-18 no longer passed over: a file that cannot be read cleanly fails
+  closed (above). The secret is never printed or logged.
 - **Every reading of an address takes it**: `clientAddress()` (the visitors'
   limits) and `adminContext()` (`originSecret:` - feedback's limits and the
   error log's). The audit log keeps no address, so it needs none.

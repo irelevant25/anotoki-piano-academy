@@ -2,9 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, DestroyRef, Provider, inject } from '@angular/core';
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
 import { ROUTES, Router, provideRouter } from '@angular/router';
 import { SignInFailureComponent, type AnotokiUser } from '@anotoki/lib/auth';
+import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { AnotokiThemeMode, ThemeService } from '@anotoki/lib/shell';
 import { TranslationService } from '@anotoki/lib/translations';
@@ -18,6 +18,7 @@ import { provideFamilyKit } from './core/family-kit';
 import { KEPT_ENGLISH } from './core/i18n/kept-english';
 import { provideSiteTranslations } from './core/i18n/site-translations';
 import { VISITOR_WORDS } from './core/i18n/visitor-words';
+import { pianoLegalConfig } from './core/legal/legal.config';
 import { MidiService } from './core/midi/midi.service';
 import { provideSiteAdmin } from './core/site-admin';
 import { BootService } from './core/state/boot.service';
@@ -25,7 +26,6 @@ import { ProgressStore } from './core/state/progress-store.service';
 import { SITE_STATUS_URL, provideSiteMigrations } from './core/state/site-migrations';
 import { TestAuth, provideTestAuth } from './core/testing/test-auth';
 import { provideTestKit } from './core/testing/test-kit';
-import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog.component';
 
 /**
  * A key as it would stand on a page: a namespace, then segments that begin
@@ -81,15 +81,16 @@ class CountedPageComponent {
  * The shell, made with the providers given: the real translation service with no bundle unless they say otherwise -
  * wired as the app wires it (core/i18n/site-translations.ts: the kept English) - the family's sign-in configured as
  * the app configures it (core/auth/site-auth.ts: the failure's screen on its route, its words from this app's), its
- * state the spec's (nobody known yet: the sign-in settings not read, nothing asked for), and the admin panel's and
- * the feedback form's configuration (core/site-admin.ts).
+ * state the spec's (nobody known yet: the sign-in settings not read, nothing asked for), the admin panel's and the
+ * feedback form's configuration (core/site-admin.ts), and the legal pages' (core/legal/legal.config.ts: the footer's
+ * links in the page's language and the database's words).
  */
 async function shell(providers: Provider[] = []): Promise<Shell> {
   TestBed.resetTestingModule();
   const auth = new TestAuth();
   auth.now.set('starting');
   TestBed.configureTestingModule({
-    // The shell itself, so its @defer block's component (the feedback dialog) is resolved by compileComponents() below.
+    // The shell itself, so its @defer blocks' components (the feedback dialog, What's new) are resolved by compileComponents() below.
     imports: [AppComponent],
     providers: [
       provideHttpClient(),
@@ -101,6 +102,7 @@ async function shell(providers: Provider[] = []): Promise<Shell> {
       ...provideTestAuth(auth),
       provideFamilyKit(),
       provideSiteAdmin(),
+      provideAnotokiLegal(pianoLegalConfig),
       ...providers,
     ],
   });
@@ -366,11 +368,9 @@ async function drawn(state: (s: Shell) => void, providers: Provider[] = [], look
     (s.host.querySelector('#midi-button') as HTMLButtonElement).click();
     await s.fixture.whenStable();
   } else if (look.open === 'whats-new') {
-    // The footer's version opens the family's dialog (drawn only while open). With no list of changes there is no
-    // version to press: the dialog is opened as the footer would open it, to read what it says then.
-    const version = s.host.querySelector<HTMLButtonElement>('#app-version');
-    if (version) version.click();
-    else s.fixture.debugElement.query(By.directive(ChangelogDialogComponent)).componentInstance.open();
+    // The footer's version opens the family's dialog - its code loaded as it opens (a @defer, as the feedback form's):
+    // the dialog a moment later. (With no list of changes there is no version, so nothing opens it.)
+    (s.host.querySelector('#app-version') as HTMLButtonElement).click();
     await settledAll(s);
   } else if (look.open) {
     (s.host.querySelector(look.open === 'phone' ? BAR.phoneButton : BAR.personButton) as HTMLButtonElement).click();
@@ -417,7 +417,6 @@ const OPENED: [string, (s: Shell) => void, Look][] = [
   ['What\'s new, opened from the footer\'s version', (s) => {
     s.changelog.entries.set(RELEASES);
   }, { open: 'whats-new' }],
-  ['What\'s new with no list of changes', () => undefined, { open: 'whats-new' }],
   ['the sign-out question, some progress not saved', (s) => {
     session(s.auth, PERSON);
     s.store.loaded.set(true);
@@ -1099,5 +1098,70 @@ describe('the shell with a bundle in memory', () => {
     const english = [provideTestTranslations({})];
     const plain = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], english, { open: 'whats-new' });
     expect(Array.from(plain.host.querySelectorAll('.release ul')).map((list) => list.hasAttribute('lang'))).toEqual([false, false, false, false]);
+  });
+});
+
+describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
+  // The family's dialogs, menus and boxes ask jsdom for what it lacks (showModal(), checkVisibility(), popovers).
+  beforeAll(() => provideTestKit());
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  const footerLinks = (s: Shell) => Array.from(s.host.querySelectorAll('footer anotoki-legal-links a')).map((link) => [link.textContent?.trim(), link.getAttribute('href')]);
+
+  it('the footer has the family’s Terms · Privacy · Contact under every page, in the library’s words - also while the app has no strings, and in the database’s words, an owner’s rewording too', async () => {
+    const onTheWay = await drawn(STATES['nobody signed in, on the way to the IAM']);
+    expect(footerLinks(onTheWay)).toEqual([
+      ['Terms', '/terms'],
+      ['Privacy', '/privacy'],
+      ['Contact', '/contact'],
+    ]);
+    expect(onTheWay.host.querySelector('footer anotoki-legal-links nav')?.getAttribute('aria-label')).toBe('Legal');
+    // Beside the footer's own: Send feedback and the version stay where they were.
+    expect(onTheWay.host.querySelector('footer .footer-actions #feedback-open')).not.toBeNull();
+
+    const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there']);
+    expect(footerLinks(running).map(([, href]) => href)).toEqual(['/terms', '/privacy', '/contact']);
+
+    const slovak = [provideTestTranslations({ 'anotoki.legalLinks.privacy': 'Osobné údaje' }, { language: 'sk' })];
+    const reworded = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], slovak);
+    expect(footerLinks(reworded)).toEqual([
+      ['Podmienky', '/terms'],
+      ['Osobné údaje', '/privacy'],
+      ['Kontakt', '/contact'],
+    ]);
+  });
+
+  it('a legal page is drawn whatever the start says - nobody signed in where a sign-in is required: the page, not the start’s "Loading…" - and the bar offers Sign in there, back to the page', async () => {
+    const routes: Provider = { provide: ROUTES, multi: true, useValue: [{ path: 'privacy', component: StubPageComponent }, { path: '**', component: StubPageComponent }] };
+    const s = await drawn(STATES['nobody signed in, on the way to the IAM'], [routes], { at: '/privacy' });
+    expect(s.host.querySelector('#view-root #stub-page')).not.toBeNull();
+    expect(s.host.querySelector('.loading')).toBeNull();
+    const signIn = vi.spyOn(s.boot, 'signIn').mockResolvedValue(undefined);
+    expect(text(s, BAR.signIn)).toBe('Sign in');
+    (s.host.querySelector(BAR.signIn) as HTMLButtonElement).click();
+    expect(signIn).toHaveBeenCalledTimes(1);
+    // The open page's link is marked in the footer.
+    expect(s.host.querySelector('footer [data-legal-link="privacy"]')?.getAttribute('aria-current')).toBe('page');
+
+    // Anywhere else in the same state the start's card stands (the guard is on its way to the IAM) - no page, no Sign in.
+    await TestBed.inject(Router).navigateByUrl('/stats');
+    await settledAll(s);
+    expect(s.host.querySelector('#stub-page')).toBeNull();
+    expect(text(s, '.loading')).toBe('Loading…');
+    expect(s.host.querySelector(BAR.signIn)).toBeNull();
+  });
+
+  it('while the site is not ready the family’s status page stands in a legal page’s place too, as in every page’s', async () => {
+    const routes: Provider = { provide: ROUTES, multi: true, useValue: [{ path: 'terms', component: StubPageComponent }] };
+    const s = await drawn(STATES['an update waits, nobody signed in'], [routes], { at: '/terms' });
+    expect(s.host.querySelector('#stub-page')).toBeNull();
+    expect(statusPage(s)?.title).toBe('The site is being updated');
+    // The footer's links stay: what the site keeps is said whatever it is doing.
+    expect(footerLinks(s).map(([, href]) => href)).toEqual(['/terms', '/privacy', '/contact']);
   });
 });

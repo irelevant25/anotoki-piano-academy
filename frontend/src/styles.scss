@@ -114,11 +114,11 @@
 @include anotoki.utilities;
 @include anotoki.tables;
 
-/// Piano's own colours, beside the family's: the "Continue" card's glow, the
-/// text on a good (green) ground, the keyboard and the staff.
+/// Piano's own colours, beside the family's: the text on a good (green) ground,
+/// the keyboard and the staff. (The "Continue" card's glow is the family's card's
+/// own since anotoki-lib 0.6.0: its highlight, from the soft primary.)
 @mixin piano-light {
   --good-contrast: #ffffff;
-  --continue-glow: rgb(31 111 209 / 10%);
 
   --key-white: #ffffff;
   --key-black: #1a1c22;
@@ -140,7 +140,6 @@
 
 @mixin piano-dark {
   --good-contrast: #0b1a12;
-  --continue-glow: rgb(90 169 255 / 14%);
 
   --key-white: #f4f4f4;
   --key-black: #1a1c22;

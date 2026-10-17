@@ -8,7 +8,7 @@
 // needs (how PHONE_BAR_MAX was chosen).
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,6 +96,24 @@ const ADA = { id: 1, username: 'ada', roles: ['MEMBER', 'ADMIN'] };
 
 /** The admin panel's Migrations page: the anotoki family's (@anotoki/lib/migrations/page). */
 const MIGRATIONS = 'anotoki-migrations-page';
+
+/**
+ * The migration sets as the engine records them - the library's files named with their set, the app's one set's by
+ * their names alone - each with its files on disk, in its own order: the check follows the files.
+ */
+const sqlFiles = (folder) => readdirSync(join(repo, folder)).filter((name) => /^\d{3}_.+\.sql$/.test(name)).sort();
+const MIGRATION_SETS = [
+  ['anotoki_admin/', sqlFiles('backend/vendor/anotoki/lib/php/migrations/admin')],
+  ['', sqlFiles('backend/migrations/piano_academy')],
+  ['anotoki_translations/', sqlFiles('backend/vendor/anotoki/lib/php/migrations/translations')],
+  ['anotoki_people/', sqlFiles('backend/vendor/anotoki/lib/php/migrations/people')],
+].map(([set, files]) => [set, files.map((name) => `${set}${name}`)]);
+
+/** A figure on Stats and in the Note Trainer: the family's stat tile's value (@anotoki/lib/ui/stat-tiles). */
+const TILE = 'anotoki-stat-tile .anotoki-stat-tile__value';
+
+/** Where the footer's Terms · Privacy · Contact are: the family's links (@anotoki/lib/legal's <anotoki-legal-links>). */
+const LEGAL_LINKS = '#footer-legal';
 
 /** An ADMIN's sections in the admin panel (layouts/top-bar's ADMIN_LINKS): the family's admin tools among them. */
 const ADMIN_SECTIONS = 'Translations|Languages|People|Feedback|Error log|Audit log|Backups|Migrations';
@@ -585,8 +603,8 @@ try {
     check(true, 'replaced');
     await b.waitForSelector('#progress-changed', { timeout: 10000 }).catch(() => undefined);
     check(!!(await b.$('#progress-changed')), 'the other tab says the progress changed elsewhere');
-    await b.waitForFunction(() => document.querySelector('.stat-tile .value')?.textContent?.trim().startsWith('5/'), null, { timeout: 5000 }).catch(() => undefined);
-    check((await b.textContent('.stat-tile .value')).trim().startsWith('5/'), 'and shows what is saved now (5 notes)', (await b.textContent('.stat-tile .value')).trim());
+    await b.waitForFunction((tile) => document.querySelector(tile)?.textContent?.trim().startsWith('5/'), TILE, { timeout: 5000 }).catch(() => undefined);
+    check((await b.textContent(TILE)).trim().startsWith('5/'), 'and shows what is saved now (5 notes)', (await b.textContent(TILE)).trim());
     await b.screenshot({ path: join(shots, 'stale-tab.png'), fullPage: true });
 
     // The Note Trainer in this browser heard it: it loaded the progress in the middle of its round. A note played now is
@@ -678,22 +696,19 @@ try {
     const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.anotoki-migrations-page__when')?.textContent.trim() ?? '']));
     // Four sets: the library's admin tools' first, the app's own, then the library's words' and people's - the
     // library's files named with their set, the app's one set's by their names alone (as the engine records them).
+    // Listed in the order they were applied: a database made at once has the app's 012 before the library's words,
+    // one brought up to date (the tests' template, which this check's database is a copy of) has the newer files of
+    // every set after the older ones - so each set is checked in its own order, every file once.
     const names = applied.map(([name]) => name);
+    const everyFile = MIGRATION_SETS.flatMap(([, files]) => files);
     check(
-      applied.length >= 18 &&
+      names.length === everyFile.length &&
+        everyFile.every((file) => names.filter((name) => name === file).length === 1) &&
+        MIGRATION_SETS.every(([set, files]) => JSON.stringify(names.filter((name) => (set ? name.startsWith(set) : !name.includes('/')))) === JSON.stringify(files)) &&
         JSON.stringify(names.slice(0, 3)) === JSON.stringify(['anotoki_admin/001_audit_log.sql', 'anotoki_admin/002_feedback.sql', '001_init.sql']) &&
-        JSON.stringify(names.slice(-7)) ===
-          JSON.stringify([
-            '010_people.sql',
-            '011_sign_in_failure_words.sql',
-            'anotoki_translations/001_languages_and_strings.sql',
-            'anotoki_translations/002_library_words.sql',
-            'anotoki_translations/003_sign_in_words.sql',
-            'anotoki_translations/004_feedback_words.sql',
-            'anotoki_people/001_people.sql',
-          ]) &&
+        names.indexOf('002_languages_and_translations.sql') < names.indexOf('anotoki_translations/001_languages_and_strings.sql') &&
         applied.every(([, when]) => /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(when)),
-      'Applied: every file with when (the admin panel\'s stamp), the library\'s admin tools first, its words\' and people\'s last',
+      `Applied: every file once with when (the admin panel's stamp), each set in its own order - the app's to ${MIGRATION_SETS[1][1].at(-1)}, the library's words' to ${MIGRATION_SETS[2][1].at(-1)} -, the library's admin tools first, its words after the app's tables of them`,
       names,
     );
     check((await admin.title()) === 'Migrations · Admin panel · Piano Academy', 'its title', await admin.title());
@@ -810,6 +825,129 @@ try {
     }
     const kept = fromTheDatabase(`SELECT user_id, page, kind, message FROM anotoki_feedback ORDER BY id OFFSET ${before}`);
     check(kept.length === 2 && kept.every((row) => Number(row.user_id) === 7 && row.page === '/stats' && row.kind === 'bug'), 'the server kept both, by mia, from /stats - and nothing of where they came from', kept);
+  }
+
+  step(`Terms, Privacy and Contact (the family's pages, @anotoki/lib/legal/pages) with nobody signed in and a sign-in required - never a trip to the IAM: 1280 and 390, light and dark, English and Slovak; the footer's links; signed in, from Stats`);
+  {
+    // Each page's heading is the library's words (its translations' 005) and the tab's title too (migration 012's
+    // title.*); the footer's links are the library's words (anotoki.legalLinks.*).
+    const LEGAL = {
+      en: { headings: { '/terms': 'Terms of use', '/privacy': 'Privacy policy', '/contact': 'Contact' }, links: ['Terms', 'Privacy', 'Contact'], signIn: 'Sign in' },
+      sk: { headings: { '/terms': 'Podmienky používania', '/privacy': 'Ochrana osobných údajov', '/contact': 'Kontakt' }, links: ['Podmienky', 'Súkromie', 'Kontakt'], signIn: 'Prihlásiť sa' },
+    };
+    // Every address a legal page of Piano Academy's may link to: the anotoki account's pages at the IAM the app signs in
+    // with, its own Contact page, the family's address and operator, the authority, Cloudflare (core/legal/legal-facts.ts).
+    const ADDRESSES = [`${IAM}/account`, `${IAM}/privacy`, '/contact', 'mailto:support@anotoki.eu', 'https://codehero.sk', 'https://dataprotection.gov.sk/', 'https://www.cloudflare.com/privacypolicy/'];
+    const attribute = (page, selector, name) => page.getAttribute(selector, name, { timeout: 5000 }).catch(() => null);
+    for (const language of ['en', 'sk']) {
+      for (const scheme of ['light', 'dark']) {
+        for (const width of [1280, 390]) {
+          const label = `${language} ${scheme} ${width}`;
+          const words = LEGAL[language];
+          const context = await newContext({ width, scheme });
+          const page = await context.newPage();
+          const trips = [];
+          const calls = [];
+          page.on('request', (request) => {
+            if (request.isNavigationRequest() && request.frame() === page.mainFrame()) trips.push(request.url());
+            else if (request.url().startsWith(`${APP}/api/`)) calls.push(request.url().slice(APP.length).split('?')[0]);
+          });
+          for (const [index, address] of ['/terms', '/privacy', '/contact'].entries()) {
+            // The first by its address, the language with it; the others from the footer's links, in the app.
+            if (index === 0) await page.goto(`${APP}${address}?lang=${language}`);
+            else await page.click(`${LEGAL_LINKS} a[href="${address}"]`);
+            const heading = words.headings[address];
+            const where = `${label} ${address}`;
+            await page.waitForFunction((expected) => document.querySelector('#view-root h1')?.textContent.trim() === expected, heading, { timeout: 20000 }).catch(() => undefined);
+            const shown = (await page.textContent('#view-root h1', { timeout: 5000 }).catch(() => null))?.trim();
+            check(new URL(page.url()).pathname === address && shown === heading, `${where}: "${heading}", on its own address`, [page.url(), shown]);
+            check((await page.title()) === `${heading} · Piano Academy`, `${where}: the tab's title`, await page.title());
+            check((await page.getAttribute('html', 'lang')) === language, `${where}: <html lang="${language}">`);
+            await page.waitForTimeout(250);
+            check((await keysOnPage(page)).length === 0, `${where}: no key on the page`, await keysOnPage(page));
+            check(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${where}: no sideways scroll`);
+            const footer = await page.$$eval(`${LEGAL_LINKS} a`, (all) => all.map((a) => [a.textContent.trim(), a.getAttribute('href'), a.getAttribute('aria-current')]));
+            check(
+              JSON.stringify(footer.map(([text]) => text)) === JSON.stringify(words.links) && JSON.stringify(footer.filter(([, , current]) => current === 'page').map(([, href]) => href)) === JSON.stringify([address]),
+              `${where}: the footer's links in the library's words, this page's marked`,
+              footer,
+            );
+            if (address === '/terms') {
+              check(!!(await page.textContent('[data-about]', { timeout: 5000 }).catch(() => ''))?.trim() && !(await page.$('[data-fan]')), `${where}: what Piano Academy is (012's words) first, no fan clause`);
+            }
+            if (address === '/privacy') {
+              check((await attribute(page, '[data-account-privacy]', 'href')) === `${IAM}/privacy` && (await attribute(page, '[data-account-page]', 'href')) === `${IAM}/account`, `${where}: the anotoki account's Privacy page and account page, at the IAM the app signs in with`, [await attribute(page, '[data-account-privacy]', 'href'), await attribute(page, '[data-account-page]', 'href')]);
+              const kept = await page.$$eval('[data-kept]', (all) => all.map((part) => part.getAttribute('data-kept')));
+              check(JSON.stringify(kept) === JSON.stringify(['data-0', 'data-1', 'data-2', 'data-3', 'visitors', 'feedback', 'error-log', 'audit-log', 'backups']), `${where}: what is kept - the app's four parts, the visitors, feedback, the error log, the audit log, the backups`, kept);
+              const stored = await page.$$eval('[data-stored] code', (all) => all.map((code) => code.textContent.trim()));
+              check(stored.length === 11 && stored[0] === 'anotoki-auth:piano-academy' && stored.includes('anotoki_signed_in') && stored.includes('piano-academy:visitor'), `${where}: this browser's storage by name - the sign-in's under the app's client id`, stored);
+              const links = await page.$$eval('anotoki-privacy-page a[href]', (all) => all.map((a) => a.getAttribute('href')));
+              check(links.every((href) => href.startsWith('#') || ADDRESSES.includes(href)), `${where}: every link where the code says`, links);
+              if (language === 'en') {
+                const recipients = await page.$$eval('[data-recipient] .anotoki-legal-page__item-name', (all) => all.map((name) => name.textContent.trim()));
+                check(JSON.stringify(recipients) === JSON.stringify(['The hosting company (to be named)', 'Cloudflare, Inc.']), `${where}: who else handles data - the hosting company (to be named), Cloudflare`, recipients);
+              }
+            }
+            if (address === '/contact') {
+              check((await attribute(page, '[data-section="email"] a', 'href')) === 'mailto:support@anotoki.eu' && (await attribute(page, '[data-account-page]', 'href')) === `${IAM}/account`, `${where}: the family's address, and the anotoki account's page to delete the account`);
+              check(!!(await page.$('[data-section="feedback"] [data-open-feedback]')), `${where}: the feedback form offered first`);
+            }
+            await page.screenshot({ path: join(shots, `legal-${language}-${scheme}-${width}${address.replace('/', '-')}.png`), fullPage: true });
+          }
+          // Nobody signed in where a sign-in is required: the bar offers Sign in - on a folded bar in its menu, alone (no
+          // sections: the app does not run for nobody).
+          if (width <= PHONE_BAR_MAX) {
+            await page.click(BAR.phoneButton);
+            await page.waitForSelector(BAR.menu);
+            const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
+            check(JSON.stringify(items) === JSON.stringify([words.signIn]), `${label}: the folded bar's menu holds Sign in alone`, items);
+            await onTop(page, BAR.menu, `${label}: that menu`);
+            await page.screenshot({ path: join(shots, `legal-${language}-${scheme}-${width}-menu.png`) });
+            await page.keyboard.press('Escape');
+          } else {
+            check((await page.textContent(BAR.signIn, { timeout: 5000 }).catch(() => null))?.trim() === words.signIn, `${label}: Sign in in the bar`);
+          }
+          // Contact's "Send feedback": the family's form in the kit's dialog, for anybody - nothing sent here.
+          if (scheme === 'light') {
+            await page.click('[data-open-feedback]');
+            await page.waitForSelector('anotoki-dialog dialog[open] anotoki-feedback-form [data-send]', { timeout: 20000 });
+            await page.waitForTimeout(300);
+            const box = await page.$eval('anotoki-dialog dialog[open]', (dialog) => {
+              const rect = dialog.getBoundingClientRect();
+              return { left: rect.left, right: rect.right, screen: document.documentElement.clientWidth };
+            });
+            check(box.left >= 0 && box.right <= box.screen && (await keysOnPage(page)).length === 0, `${label}: Contact's "Send feedback" opens the family's form, inside the screen, no key`, box);
+            await page.screenshot({ path: join(shots, `legal-${language}-${width}-contact-feedback.png`) });
+            await page.keyboard.press('Escape');
+            await page.waitForSelector('anotoki-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
+            check(!(await page.$('anotoki-dialog dialog[open]')), `${label}: Escape closes it`);
+          }
+          check(trips.length === 1 && !trips.some((url) => url.startsWith(IAM)), `${label}: one page load, never a trip to the IAM`, trips);
+          const learnerCalls = calls.filter((api) => !/^\/api\/(site-status|auth\/config|translations\/[a-z-]+|health)$/.test(api));
+          check(learnerCalls.length === 0, `${label}: no call for a learner's data - only where the site stands, the sign-in's settings and the words`, calls);
+          await context.close();
+        }
+      }
+    }
+
+    // Signed in: the footer's Privacy from Stats - in the app (no page load, nothing to the IAM), the person's bar and the
+    // learner's sections still there, none of them this page; an address the app does not have goes to Learn.
+    const context = await newContext();
+    const page = await signedIn(context, MIA, '/stats');
+    const trips = [];
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) trips.push(request.url());
+    });
+    await page.click(`${LEGAL_LINKS} a[href="/privacy"]`);
+    await page.waitForFunction(() => document.querySelector('#view-root h1')?.textContent.trim() === 'Privacy policy', null, { timeout: 20000 }).catch(() => undefined);
+    check(new URL(page.url()).pathname === '/privacy' && trips.length === 0, 'signed in: the footer\'s Privacy opens in the app - no page load, nothing to the IAM', [page.url(), trips]);
+    const sections = await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => [a.textContent.trim(), a.getAttribute('aria-current')]));
+    check((await page.textContent(BAR.name)) === 'mia' && sections.length === 5 && sections.every(([, current]) => current === null), 'the person\'s bar and the learner\'s sections - none of them this page', sections);
+    await page.screenshot({ path: join(shots, `legal-signed-in-privacy-${DESKTOP}.png`), fullPage: true });
+    await page.goto(`${APP}/no-such-page`);
+    await page.waitForFunction(() => location.pathname === '/' && !!document.querySelector('#view-root app-home-page'), null, { timeout: 20000 }).catch(() => undefined);
+    check(new URL(page.url()).pathname === '/' && !!(await page.$('#view-root app-home-page')), 'an address the app does not have: Learn', page.url());
+    await context.close();
   }
 
   step(`The family's admin pages (ADMIN, English): People, Feedback (how many are new, in the bar), Error log, Audit log, Backups - light and dark, ${DESKTOP} and 390`);
@@ -1080,7 +1218,7 @@ try {
     await page.waitForSelector('#own-progress-visitor');
     check(!(await page.$('#own-progress')) && (await page.textContent('#own-progress-visitor p'))?.trim() === 'Sign in to save your progress to a file, or to bring it back from one.', 'Stats: no progress file for a visitor - the sign-in line in its place');
     check(!!(await page.$('#visitor-notice')), 'Stats: the notice');
-    const tiles = await page.$$eval('.stat-tile .value', (all) => all.map((tile) => tile.textContent.trim()));
+    const tiles = await page.$$eval(TILE, (all) => all.map((tile) => tile.textContent.trim()));
     check(tiles[4] === '1', 'a reload keeps the visitor\'s progress (its round)', tiles);
     await page.screenshot({ path: join(shots, `visitor-stats-${DESKTOP}.png`), fullPage: true });
 
@@ -1093,7 +1231,7 @@ try {
     });
     await o.goto(`${APP}/stats`);
     await o.waitForSelector('#own-progress-visitor');
-    const oTiles = await o.$$eval('.stat-tile .value', (all) => all.map((tile) => tile.textContent.trim()));
+    const oTiles = await o.$$eval(TILE, (all) => all.map((tile) => tile.textContent.trim()));
     check(oTiles[4] === '0', 'another browser starts empty', oTiles);
     await o.goto(`${APP}/admin`);
     await o.waitForSelector(BAR.signedIn, { timeout: 20000 });
@@ -1273,8 +1411,9 @@ try {
     check((await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === 'dark', 'kept for the next first paint (theme-boot.js)');
     const whens = await page.$$eval('#view-root tbody tr td:first-child', (cells) => cells.map((cell) => cell.textContent.trim()));
     check(whens.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [ap]m$/.test(when)), 'Stats: when each round was played, in the account’s order and on its clock', whens);
+    // What's new: its code loaded only once the footer's version is pressed (the dialog drawn when it arrives).
     await page.click('#app-version');
-    await page.waitForSelector('.release-date');
+    await page.waitForSelector('.release-date', { timeout: 20000 });
     const [year, month, day] = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0].date.split('-').map(Number);
     check((await page.textContent('.release-date'))?.trim() === `${day}.${month}.${year}`, 'What’s new: the release day in the account’s order', await page.textContent('.release-date'));
     await page.screenshot({ path: join(shots, `account-dark-whats-new-${DESKTOP}.png`) });
@@ -1368,7 +1507,7 @@ try {
 
   step('A database behind the code: everybody else reads that the site is being updated, an ADMIN signs in from that page and applies it on the Migrations page - one Apply failing with what PostgreSQL said - and the pages come back');
   {
-    // 005 - a schema part of its own (006 to 011 and the library's files stay applied) - taken off the record: the
+    // 005 - a schema part of its own (006 to 012 and the library's files stay applied) - taken off the record: the
     // code is ahead of the database, and the site's gate (anotoki/lib's SiteGate) answers 503 update_pending but on its
     // open paths. 005 runs again cleanly - every statement steps aside for what is there, and its gates hold with
     // visitors in the database; tests/unit/migrations.test.php runs 004 and 005 again too.

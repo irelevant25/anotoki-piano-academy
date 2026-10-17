@@ -31,6 +31,7 @@ const ENGLISH: Record<string, string> = {
   'lesson.result.nextUnit': 'Next unit',
   'lesson.result.practiceAgain': 'Practice again',
   'lesson.result.tryAgain': 'Try again',
+  'lesson.steps': 'The unit’s steps',
   'path.phase.right-hand.title': 'Right hand',
   'path.unit.rh-5.title': 'B and high C',
   'path.step.meet.title': 'Meet the notes',
@@ -63,6 +64,7 @@ const SLOVAK: Record<string, string> = {
   'lesson.result.nextUnit': 'Ďalšia lekcia',
   'lesson.result.practiceAgain': 'Cvičiť znova',
   'lesson.result.tryAgain': 'Skúsiť znova',
+  'lesson.steps': 'Kroky lekcie',
   'path.phase.right-hand.title': 'Pravá ruka',
   'path.unit.rh-5.title': 'B a vysoké C',
   'path.step.meet.title': 'Zoznám sa s notami',
@@ -93,7 +95,8 @@ describe('Lesson page: its words are keys, and what it stores stays as it was', 
   const pathProgress = signal<PathProgress>({ steps: {} });
 
   const text = (selector: string): string | null => host.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
-  const dots = (): string[] => Array.from(host.querySelectorAll('.step-dots li')).map((dot) => dot.textContent?.trim() ?? '');
+  /** The unit's steps as the family's dots show them: each pill's short name (what a screen reader hears is the step's whole name instead). */
+  const dots = (): string[] => Array.from(host.querySelectorAll('.step-dots .anotoki-step-dots__short')).map((dot) => dot.textContent?.trim() ?? '');
 
   /** The steps of the path before `unitId/stepId`, all passed. */
   function passedBefore(unitId: string, stepId: string): PathProgress {
@@ -162,6 +165,25 @@ describe('Lesson page: its words are keys, and what it stores stays as it was', 
     // Back to the path: the family's button, its arrow the kit's icon.
     expect(text('#ls-back')).toBe('Cesta');
     expect(host.querySelector('#ls-back anotoki-icon')?.getAttribute('name')).toBe('arrowLeft');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('the unit’s steps are the family’s dots (anotoki-lib 0.6.0): a list named in the page’s words, the step in hand its current one, every step passed done - a later one too', async () => {
+    await open('rh-1', 'drill');
+    // The song played before (the move at sign-in can bring a step passed out of order): done, though after the step in hand.
+    pathProgress.set(path.recordStepResult(pathProgress(), 'rh-1/song', 100));
+    await fixture.whenStable();
+
+    const list = host.querySelector('anotoki-step-dots.step-dots ol');
+    expect(list?.getAttribute('aria-label')).toBe('Kroky lekcie');
+    const states = Array.from(host.querySelectorAll('.anotoki-step-dots__dot')).map((dot) =>
+      dot.classList.contains('anotoki-step-dots__dot--current') ? 'current' : dot.classList.contains('anotoki-step-dots__dot--done') ? 'done' : 'to come',
+    );
+    expect(states).toEqual(['done', 'current', 'to come', 'to come', 'done']);
+    const current = host.querySelector('.anotoki-step-dots__dot[aria-current="step"]');
+    expect(current?.querySelector('.anotoki-step-dots__short')?.textContent?.trim()).toBe('Precvičovanie');
+    // Heard by its whole name, never the pill's short one alone.
+    expect(current?.querySelector('.anotoki-visually-hidden')?.textContent).toContain('Precvičovanie nôt');
     expect(warn).not.toHaveBeenCalled();
   });
 

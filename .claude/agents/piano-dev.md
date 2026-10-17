@@ -123,9 +123,10 @@ Working conventions specific to this repo:
   006, two sentences of the account's preferences, 007, the old "not set
   up yet" card's words deleted, 008, the round theme button's words deleted,
   009, the kit's words copied under the library's keys, 010, the people's
-  `users.anonymized_at`, and 011, the sign-in failure's words moved under the
-  library's keys, are written whole and final and wait for the owner at the
-  hand-over - a later change is 012), applied by the anotoki family's engine
+  `users.anonymized_at`, 011, the sign-in failure's words moved under the
+  library's keys, and 012, the legal pages' words, are written whole and
+  final and wait for the owner at the hand-over - a later change is 013),
+  applied by the anotoki family's engine
   (`anotoki/lib`'s `Migrator`, `api/migrations.php`: the library's
   `anotoki_admin`, this app's set, then the library's `anotoki_translations`
   and `anotoki_people`; a backup before every update, `databaseUpdater()`);
@@ -166,7 +167,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` PHP 0.5.2, Angular 0.5.0): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.6.1, both halves): in the browser `@anotoki/lib/auth`, wired in
   `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -185,17 +186,24 @@ Working conventions specific to this repo:
   range taken; with the origin secret, `config/cloudflare.local.php`, only on
   a request carrying it in `X-Anotoki-Origin` - `clientAddress()` and
   `adminContext()` both pass `originSecret()`, which is never printed or
-  logged); a keyed hash of an address is kept (a pseudonym), never the
-  address itself. A
+  logged; a file there that cannot be read cleanly fails closed - a secret no
+  request carries, said once a day by its fault, never its text); a keyed
+  hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.5.0, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.6.1, wired in
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
   the app's root) are the family's - and every page's buttons
-  (`anotokiButton`), cards, alerts (the notes under the bar too), badges,
-  selects (`/ui/forms`, lazy: the piano's in a `@defer`), What's new's
-  dialog, the error state and the table styles - never copy one into `ui/`,
+  (`anotokiButton`), cards (the Continue card `tone="highlight"`), alerts
+  (the notes under the bar too), badges, the path's chips (`/ui/chips`),
+  selects (`/ui/select`, lazy: the piano's in a `@defer`), stat tiles
+  (`/ui/stat-tiles`), a lesson's step dots (`/ui/stepper`), What's new's
+  dialog (made when it opens), the error state, the table styles (numbers
+  `.cell-num`), and Terms, Privacy and Contact (`@anotoki/lib/legal/pages`,
+  lazy, each its own path before the catch-all, no guard; the facts
+  `core/legal/legal-facts.ts` - TRUE of the code; the footer's
+  `<anotoki-legal-links>`) - never copy one into `ui/`,
   never restyle one (a site gives its colours only) - each
   imported from its own entry point (`@anotoki/lib/ui/config`, `/ui/icon`,
   `/ui/button`...; never the `@anotoki/lib/ui` barrel). Their words are the
@@ -203,9 +211,11 @@ Working conventions specific to this repo:
   app's wording, the owner's rewordings -, else the kit's own); colours are
   the family's tokens in Piano's palette (`anotoki.root()` in `styles.scss`,
   with the family's base, utilities and tables), the font Manrope. What is
-  Piano's alone (the path, the practice screens - `pages/_practice.scss` -,
-  the tiles - `pages/_stat-tiles.scss` -, the keyboard, the staff, the
-  piano's button) is built from the `--anotoki-*` tokens; there is no global
+  Piano's alone (the path's phases and units, the practice screens -
+  `pages/_practice.scss` -, the meet step's count of plays, the keyboard,
+  the staff, the piano's button) is built from the `--anotoki-*` tokens. The
+  first load is 549.4 kB of its 550 kB warning: build and read "Initial
+  total" before adding anything to the first page; there is no global
   rule for buttons, selects or cards. Specs read the kit's markup by
   its own class names (`anotoki-<component>__<part>`); `provideTestKit()`,
   `drawTestQuestions()` (`core/testing/test-kit.ts`), the library's

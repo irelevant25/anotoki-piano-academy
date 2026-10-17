@@ -313,8 +313,19 @@ test('the two languages the app is released in, English first - and the keys, on
 
 test('the library\'s set of the words comes after this app\'s own, and the library\'s keys are its own: anotoki.*, in English and Slovak', function (): void {
     test_db();
-    // Recorded after this app's files, under its set's name - the bookkeeping table as it always was.
-    assert_same(array_map('migrationLabel', every_migration()), array_column(dbAll('SELECT filename FROM migrations ORDER BY id'), 'filename'));
+    // Recorded under its set's name - the bookkeeping table as it always was. Every file once, each set's in its own
+    // order, the library's words' first file after this app's tables of the words (002); across sets, in the order
+    // they ran - a database (this one's template too) that had the later sets before a release added a file to an
+    // earlier one runs that file later (this app's 012 after the library's people, the library's words 005 to 010
+    // after people/001). A fresh database runs set after set: tests/unit/migrations.test.php holds that.
+    $recorded = array_column(dbAll('SELECT filename FROM migrations ORDER BY id'), 'filename');
+    $labels = array_map('migrationLabel', every_migration());
+    assert_same(in_order($labels), in_order($recorded), 'every file recorded, once');
+    foreach (array_unique(array_column(every_migration(), 'set')) as $set) {
+        $ofSet = array_map('migrationLabel', array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] === $set)));
+        assert_same($ofSet, array_values(array_intersect($recorded, $ofSet)), "$set: in its own order");
+    }
+    assert_true(array_search('002_languages_and_translations.sql', $recorded, true) < array_search('anotoki_translations/001_languages_and_strings.sql', $recorded, true), 'the library\'s words after this app\'s tables of them');
     assert_same([], translations()->keysWithout('en'), 'every key reads in English, the library\'s too');
     $library = array_values(array_filter(database_keys(), static fn(string $key): bool => str_starts_with($key, 'anotoki.')));
     assert_same(in_order(\Anotoki\Lib\Translations\LibraryWords::keys()), $library, 'the library\'s keys, and no other key of the namespace');
@@ -456,6 +467,26 @@ test('the English the shell keeps for when it has no strings is the database\'s 
         assert_same($english[$key] ?? null, $text, "$key: the database's English as 009 and 011 left it");
         assert_true($text !== \Anotoki\Lib\Translations\LibraryWords::english($key), "$key: worded otherwise than the library's own - else nothing to keep");
     }
+});
+
+test('the legal pages\' facts (012) hold no address - where a link goes is the code\'s, never a string an administrator rewords - and their Slovak speaks to the reader as ty, never formally', function (): void {
+    test_db();
+    $rows = dbAll("SELECT key_name, language_code, value FROM translations WHERE key_name LIKE 'legal.%' ORDER BY key_name COLLATE \"C\", language_code");
+    $keys = array_values(array_unique(array_column($rows, 'key_name')));
+    assert_same(in_order(migration_keys('012_legal_pages.sql')['keys']), in_order(array_merge($keys, ['lesson.steps', 'title.contact', 'title.privacy', 'title.terms'])), 'the facts 012 writes, the three tabs\' titles and the step dots\' name');
+    assert_true(count($keys) >= 39, 'the facts are there: ' . count($keys));
+    foreach ($rows as ['key_name' => $key, 'language_code' => $code, 'value' => $value]) {
+        assert_false((bool) preg_match('~https?:|://|www\.|@|\.(eu|sk|com|org)\b~i', $value), "$key ($code) holds no address: $value");
+        if ($code === 'sk') {
+            // The app's Slovak is informal: never Vy, Vás, Váš (any case) - and nothing gendered about the learner.
+            assert_false((bool) preg_match('/\b(vy|vás|vám|vami|váš|vaš[a-záéíóúý]*)\b/iu', $value), "$key: ty, never formal - $value");
+            // (A past form after "si" is the learner's, gendered - "si použil"; the site's own "stránka sa pripojila" is not.)
+            assert_false((bool) preg_match('/\b(prihlásený|prihlásená)\b|\bsi\s+(použil|použila|pripojil|pripojila|dokončil|dokončila|uložil|uložila|obnovil|obnovila|prihlásil|prihlásila)\b/iu', $value), "$key: nothing gendered about the learner - $value");
+        }
+    }
+    // What's new's sentence for a list that did not load: gone - nothing could show it.
+    assert_false(in_array('whatsNew.notLoaded', database_keys(), true), 'whatsNew.notLoaded is gone');
+    assert_match('/legal pages/', (string) dbValue("SELECT description FROM translation_keys WHERE name = 'brand.area'"), 'the app\'s name is the legal pages\' too');
 });
 
 /* ------------------------------------ what the migrations touch, and do not */

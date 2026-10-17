@@ -1,0 +1,5 @@
+// The family's page is laid out by the library (a measure a person reads comfortably, its sections apart); the
+// column around it is the shell's (app.component.scss: .view-root).
+:host {
+  display: block;
+}

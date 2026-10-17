@@ -237,15 +237,20 @@ test('an administrator: through every route - staff and ADMIN alike', function (
     assert_same(['error' => 'There is no such message.', 'code' => 'not_found'], $none['body']);
 
     // The Migrations page's list: the library's admin tools' set first, the app's, then the library's words' and
-    // people's - every file applied in the order they ran, when in ISO 8601 UTC.
+    // people's - every file applied in the order they ran (the bookkeeping table's: a database that had the people's
+    // set before a release added files to the words' set ran those later), when in ISO 8601 UTC.
     $list = ask($GLOBALS['app'], 'GET', '/api/admin/migrations', null, bearer(token_for(ADMIN)));
     $status = $list['body'];
     assert_same(['sets', 'applied', 'pending', 'missing'], array_keys($status));
+    $applied = array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $status['applied']);
     assert_same(
-        [['anotoki_admin', MIGRATIONS_SET, 'anotoki_translations', 'anotoki_people'], every_migration(), [], []],
-        [$status['sets'], array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], $status['applied']), $status['pending'], $status['missing']],
-        'every file applied, in the order they ran'
+        [['anotoki_admin', MIGRATIONS_SET, 'anotoki_translations', 'anotoki_people'], [], []],
+        [$status['sets'], $status['pending'], $status['missing']],
+        'the sets in their order; nothing pending, nothing missing'
     );
+    assert_same(array_column(dbAll('SELECT filename FROM migrations ORDER BY id'), 'filename'), array_map('migrationLabel', $applied), 'every file applied, in the order they ran');
+    $present = array_map('migrationLabel', array_values(array_filter(every_migration(), static fn (array $file): bool => in_array($file, $applied, true))));
+    assert_same([array_map('migrationLabel', every_migration()), count(every_migration())], [$present, count($applied)], 'every file of every set, once');
     foreach ($status['applied'] as $file) {
         assert_same(['set', 'name', 'applied_at'], array_keys($file));
         assert_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', (string) $file['applied_at'], 'when ' . $file['name'] . ' was applied');

@@ -110,7 +110,7 @@
                         <app-load-error />
                     }
                     @default {
-                        <anotoki-spinner class="loading" [label]="'common.loading' | translate" [showLabel]="true" />
+                        <anotoki-spinner class="loading" [label]="'common.loading' | translate" showLabel />
                     }
                 }
             }
@@ -119,14 +119,23 @@
 </main>
 
 <footer class="app-footer">
-    <!-- The family's feedback form, for everybody (core/site-admin.ts): its words are the library's (anotoki.feedback.*). -->
-    <button anotokiButton variant="ghost" size="sm" id="feedback-open" (click)="feedbackOpen.set(true)">{{ 'anotoki.feedback.title' | translate }}</button>
-    @if (changelog.version(); as version) {
-        <button anotokiButton variant="ghost" size="sm" id="app-version" [title]="'footer.whatsNew' | translate" (click)="openChangelog()">Piano Academy v{{ version }}</button>
-    }
+    <div class="footer-actions">
+        <!-- The family's feedback form, for everybody (core/site-admin.ts): its words are the library's (anotoki.feedback.*). -->
+        <button anotokiButton variant="ghost" size="sm" id="feedback-open" (click)="feedbackOpen.set(true)">{{ 'anotoki.feedback.title' | translate }}</button>
+        @if (changelog.version(); as version) {
+            <button anotokiButton variant="ghost" size="sm" id="app-version" [title]="'footer.whatsNew' | translate" (click)="whatsNewOpen.set(true)">Piano Academy v{{ version }}</button>
+        }
+    </div>
+    <!-- Terms · Privacy · Contact: the family's links (@anotoki/lib/legal) to the legal pages' own paths - their words the library's (anotoki.legalLinks.*), the open page's marked. -->
+    <anotoki-legal-links class="footer-legal" id="footer-legal" />
 </footer>
 
-<app-changelog-dialog />
+<!-- What's new: its code (the family's dialog with the releases) loaded only once it is opened, from the footer's version. -->
+@if (whatsNewOpen()) {
+    @defer (on immediate) {
+        <app-changelog-dialog (closed)="whatsNewOpen.set(false)" />
+    }
+}
 
 <!-- The feedback form's dialog: its code (and the family's form) loaded only once it is opened. -->
 @if (feedbackOpen()) {

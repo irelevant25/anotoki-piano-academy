@@ -5,6 +5,7 @@ import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { ChipComponent, type ChipTone } from '@anotoki/lib/ui/chips';
 import { phaseDescription, phaseTitle, stepShort, stepTitle, unitTitle } from '../../core/i18n/path-words';
 import { PathStep, Phase, Unit } from '../../core/music/music.types';
 import { PathService, UnitStatus } from '../../core/music/path.service';
@@ -18,8 +19,15 @@ interface ChipView {
   stepId: string;
   label: string;
   title: string;
-  state: 'passed' | 'open' | 'locked';
+  state: StepState;
+  /** The family's chip's colour for the state (the ✓ or ▶ before the words says it too). */
+  tone: ChipTone;
 }
+
+type StepState = 'passed' | 'open' | 'locked';
+
+/** A step's state as the family's chip draws it: passed green, open blue, locked the quiet one (and off). */
+const STEP_TONES: Readonly<Record<StepState, ChipTone>> = { passed: 'success', open: 'primary', locked: 'neutral' };
 
 interface UnitView {
   unit: Unit;
@@ -40,10 +48,11 @@ interface PhaseView {
 /**
  * "Learn": the learning path. A Continue button for the next step, every phase
  * with its units and their step chips (passed / open / locked), the notes due
- * for review, and the free-practice modes underneath. The cards, the review's
- * note, "Coming soon" and the buttons are the family's kit; the path itself -
- * the call to go on, the units, the step chips - is Piano's own, in the
- * family's tokens.
+ * for review, and the free-practice modes underneath. The cards - the call to
+ * go on is the card's highlight -, the review's note, "Coming soon", the
+ * buttons and the step chips (@anotoki/lib/ui/chips, anotoki-lib 0.6.0) are
+ * the family's kit; the path itself - the phases' heads, the units and their
+ * badges - is Piano's own, in the family's tokens.
  *
  * The words are the language's: what `phases`, `due` and `nextWords` hold is
  * worded inside a computed() - t() reads signals, so it is worded again when
@@ -55,7 +64,7 @@ interface PhaseView {
   templateUrl: './home-page.component.html',
   styleUrl: './home-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslatePipe, AlertComponent, BadgeComponent, ButtonComponent, CardComponent],
+  imports: [TranslatePipe, AlertComponent, BadgeComponent, ButtonComponent, CardComponent, ChipComponent],
 })
 export class HomePageComponent {
   private readonly router = inject(Router);
@@ -104,13 +113,15 @@ export class HomePageComponent {
           const record = this.path.getStepRecord(progress, key);
           const score = passed && step.type !== 'meet' && record ? ` ${this.i18n.t('common.percent', { value: record.bestAccuracy })}` : '';
           const icon = passed ? '✓ ' : unlocked ? '▶ ' : '';
+          const state: StepState = passed ? 'passed' : unlocked ? 'open' : 'locked';
           return {
             key,
             unitId: unit.id,
             stepId: step.id,
             label: `${icon}${stepShort(this.i18n, step.type)}${score}`,
             title: stepTitle(this.i18n, step.type),
-            state: passed ? 'passed' : unlocked ? 'open' : 'locked',
+            state,
+            tone: STEP_TONES[state],
           };
         });
 

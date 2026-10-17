@@ -145,6 +145,22 @@ test('the error log: a 404 is a line - its route and its path, never its query, 
     assert_same([[ADMIN, 'error_log', null]], array_map(static fn (array $entry): array => array_slice($entry, 0, 3), audited('errors.cleared')));
 });
 
+/** Every line of the error log, oldest first (the server's failures and the pages' own errors alike). */
+function error_lines(): array
+{
+    $lines = [];
+    foreach (glob(storage() . '/logs/errors-*.jsonl') ?: [] as $file) {
+        foreach (preg_split('/\R/', (string) file_get_contents($file)) as $line) {
+            $entry = json_decode($line, true);
+            if (is_array($entry)) {
+                $lines[] = $entry;
+            }
+        }
+    }
+
+    return $lines;
+}
+
 /** The error log's lines of the pages' own errors (source client), oldest first. */
 function client_lines(): array
 {
@@ -529,11 +545,17 @@ test('a restore runs the scrub of the IAM\'s deleted accounts before it answers 
     $list = $GLOBALS['auth']['anonymized_file'];
     rename($list, "$list.away");
     touch($GLOBALS['auth']['cache_dir'] . '/' . \Anotoki\Lib\People\Http\PeopleUpkeep::STAMP);
+    $logged = count(error_lines());
     $again = as_admin('POST', "/api/admin/backups/$id/restore", ['confirm' => substr($id, -6)]);
-    assert_same(200, $again['status'], test_show($again['body']));
-    assert_match('/^The accounts the IAM deleted were not checked again \(the IAM could not be reached\)/', (string) ($again['body']['after_restore_error'] ?? ''));
-    assert_same('user6', $name(), 'named again until the scrub runs');
+    $why = array_column(array_slice(error_lines(), $logged), 'message');
+    // Back before anything can stop this test: the tests after it read the IAM's list too.
     rename("$list.away", $list);
+    assert_same(200, $again['status'], test_show($again['body']));
+    // The answer says it in the library's fixed sentence (anotoki-lib 0.6.0: no answer carries a failure's own words);
+    // what did not go through, and why, is the error log's - where the site's ADMIN reads it.
+    assert_same('What this site does after a restore did not all go through. The error log says what.', $again['body']['after_restore_error'] ?? null);
+    assert_true((bool) preg_grep('/^The accounts the IAM deleted were not checked again \(the IAM could not be reached\)/', $why), 'why, in the error log: ' . test_show($why));
+    assert_same('user6', $name(), 'named again until the scrub runs');
     assert_same(200, ask('GET', '/api/health')['status'], 'the next request: its upkeep finds no stamp, and scrubs after its answer');
     assert_same(200, ask('GET', '/api/health')['status'], 'one request at a time: the one before has finished');
     assert_same('deleted-6', $name(), 'the next request scrubbed it');
@@ -621,9 +643,13 @@ test('a backup that carries no seal of this installation\'s - one made before an
     $listed = array_values(array_filter(as_admin('GET', '/api/admin/backups')['body']['backups'], static fn (array $each): bool => $each['id'] === $id));
     assert_same(false, $listed[0]['sealed'] ?? null, test_show($listed));
     $users = dbAll('SELECT id, progress_generation FROM users ORDER BY id');
+    $logged = count(error_lines());
     $refused = as_admin('POST', "/api/admin/backups/$id/restore", ['confirm' => substr($id, -6)]);
     assert_same([422, 'archive_invalid'], [$refused['status'], $refused['body']['code'] ?? null], test_show($refused['body']));
-    assert_match('/seal/', (string) ($refused['body']['error'] ?? ''));
+    // The answer is the library's fixed sentence (anotoki-lib 0.6.0); which it was - the seal - is the error log's.
+    assert_match('/One not made here is restored offline/', (string) ($refused['body']['error'] ?? ''));
+    $why = array_column(array_slice(error_lines(), $logged), 'message');
+    assert_true((bool) preg_grep('/seal/', $why), 'why, in the error log: ' . test_show($why));
     assert_same($users, dbAll('SELECT id, progress_generation FROM users ORDER BY id'), 'nothing restored, nothing renewed');
     assert_same(['deleted' => true], as_admin('DELETE', "/api/admin/backups/$id", new stdClass())['body']);
 });

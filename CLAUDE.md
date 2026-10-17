@@ -266,6 +266,50 @@ logged) and believes CF-Connecting-IP only on a request that carries it -
 other request from Cloudflare counts as its edge, coarser, never looser.
 Without the file, as before. No line in What's new; no migration.
 
+**2026-10-18: Terms, Privacy and Contact - `anotoki-lib` 0.6.1** (both
+halves; the round-3 pass of every anotoki site, `docs/decisions.md`). The
+family's legal pages (`@anotoki/lib/legal/pages`) on lazy routes of their
+own - `/terms`, `/privacy`, `/contact`, each its own path with the frame
+(`layouts/legal-layout`) as its parent, before the learner's routes and the
+catch-all (`app.routes.spec.ts` holds `/` and an unknown address) - for
+anybody: no guard, never a trip to the IAM; the shell shows them while
+nobody is signed in, and the bar offers Sign in there. The root
+configuration (`provideAnotokiLegal(pianoLegalConfig)`,
+`core/legal/legal.config.ts`: the page's language, the database's words) is
+in the first load, Piano's facts (`core/legal/legal-facts.ts`) come with the
+frame. **The facts are true of the code as it is**: a change to what the app
+keeps, or for how long, changes their `legal.*` strings (by a migration) and
+`PIANO_LEGAL_UPDATED`. The operator is the library's default (Code Hero
+s.r.o., support@anotoki.eu, Slovakia); the account is the anotoki account's
+(its Privacy page and its account page at the IAM's address the app signs
+in with); Contact opens the feedback form; every address and every stored
+item's name is the code's, never a string. The footer has the family's
+Terms · Privacy · Contact (`<anotoki-legal-links>`). The kit's new pieces
+replace Piano's own: the path's step chips (`button[anotokiChip]`), the
+Continue card (`tone="highlight"`), the figures on Stats and in the Note
+Trainer (`<anotoki-stat-tiles>`; `pages/_stat-tiles.scss` is gone), a
+lesson's step dots (`<anotoki-step-dots>`), Stats' number columns
+(`.cell-num` under `.table-stack`); every select comes from
+`@anotoki/lib/ui/select`. Kept: the piano's select in its `@defer (on idle)`
+(the first load's budget), the meet step's count of plays (a count, not
+steps), the path's phase heads and units. What's new's code loads when it
+opens, so the first load stays under its 550 kB warning: 549.4 kB (533.5
+before). **A `config/cloudflare.local.php` that is there but cannot be read
+cleanly fails closed** (the IAM's rule): it prints anything (no `<?php`
+line, a byte-order mark or a line before it, text after a closing tag), PHP
+cannot parse or run it, or may not open it - a secret no request carries,
+so every request from Cloudflare's ranges counts as its edge, the app
+running on; one read cleanly that names no secret is none; each said in
+PHP's error log at most once a day, by its kind and line or the bytes it
+printed, never its text (`settingsFileReadCleanly()`, `settingsSaid()`;
+`tests/unit/visitors.test.php`, and the attack in `tests/api/visitors.test.php`).
+Migration **012** adds the legal pages' 43 keys (English and informal
+Slovak), rewords `brand.area`'s description and deletes the unreachable
+`whatsNew.notLoaded` (What's new opens only from the version, which shows
+once the list is loaded); the library's translations 005 to 010 (257
+`anotoki.*` words now) run after it in the same Apply. In What's new's
+0.4.0: Terms, Privacy and Contact at the foot of every page.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -292,7 +336,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
 ## Essentials
 
 - **Sign-in is the anotoki IAM, and nothing else, through the family's
-  library** (`anotoki-lib` 0.5.0's auth module): OIDC code + PKCE in the
+  library** (`anotoki-lib`'s auth module): OIDC code + PKCE in the
   browser, RS256 access tokens verified by the backend with
   `Anotoki\Lib\Auth` (`iamClient()`, `accessTokens()`, `signInRule()` in
   `api/auth.php`). Who a request is comes only from a verified token (the
@@ -333,7 +377,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   True-Client-IP or X-Forwarded-For - and, with the origin secret
   (`config/cloudflare.local.php`, optional, by hand), only on a request that
   carries it in `X-Anotoki-Origin` (any other from Cloudflare counts as its
-  edge), an IPv6 /64 as one; `visitor_starts`
+  edge; a file there that cannot be read cleanly is a secret no request
+  carries - fails closed, said once a day, never its text), an IPv6 /64 as one; `visitor_starts`
   keeps a keyed hash of it, a pseudonym, never the address itself), in all
   and per visitor (`config/visitors.local.php`, optional, never written by
   setup - it may name other proxies, or none, never a catch-all); visitors
@@ -352,7 +397,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   context tokens; the first save that makes a visitor goes alone in
   `ApiService`, whose waiting saves write their generation once it is back).
   **Every page signs in first** - but for a visitor while the IAM requires no
-  sign-in: the family's guards (`@anotoki/lib/auth`, `app.routes.ts`) -
+  sign-in, and the legal pages (`/terms`, `/privacy`, `/contact`: anybody's,
+  no guard, never a trip to the IAM): the family's guards (`@anotoki/lib/auth`, `app.routes.ts`) -
   `personOrVisitorGuard` on the learner pages, `staffGuard` on `/admin`
   (never a visitor's), `adminGuard` on its ADMIN pages (anybody else signed
   in goes to the start page); anybody else signed out is sent to the IAM and
@@ -488,13 +534,16 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   never merging; `EXPORT_LIMIT` both ways).
 - **Angular components are three files** (`.ts`, `.html`, `.scss`) - never an
   inline template or styles. Standalone, OnPush, signals, zoneless. Where the
-  family's kit has a piece (`@anotoki/lib`: a button, a card, an alert, a
-  badge, a field, a dialog, the spinner, an error state, the table styles,
-  the bar, a menu, a popover, a question, an icon) it is the family's, as
-  the family draws it - a site gives its colours, never its own look to a kit
-  component; what the kit lacks and is Piano's alone (the path, the practice
-  screens, the tiles, the keyboard, the staff, the piano's button) is built
-  from the tokens. No global rule for buttons, selects or cards. Colours are
+  family's kit has a piece (`@anotoki/lib`: a button, a card - the
+  highlighted one too -, an alert, a badge, a chip, a field, a select, a
+  dialog, the spinner, an error state, stat tiles, step dots, the table
+  styles and their number columns, the bar, a menu, a popover, a question,
+  an icon, the legal pages and links) it is the family's, as the family
+  draws it - a site gives its colours, never its own look to a kit
+  component; what the kit lacks and is Piano's alone (the path's phases and
+  units, the practice screens, the meet step's count of plays, the keyboard,
+  the staff, the piano's button) is built from the tokens. No global rule
+  for buttons, selects or cards. Colours are
   the family's tokens (`--anotoki-*`) in Piano's palette (`anotoki.root()`)
   and Piano's own (`--key-*`, `--notation-*`); the font the family's
   Manrope, the type its base (`anotoki.base`).
@@ -521,7 +570,20 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   piano, and "Back to Piano Academy"; an ADMIN's "Feedback" there carries
   how many messages are new (the family's `FeedbackUnread`).
   The footer has "Send feedback" (the family's form in a dialog, its code
-  loaded when it opens: `ui/feedback-dialog`) and the version (What's new).
+  loaded when it opens: `ui/feedback-dialog`), the version (What's new, its
+  code loaded when it opens) and the family's Terms · Privacy · Contact
+  (`<anotoki-legal-links>`, the open page's marked).
+- **Terms, Privacy and Contact are the family's pages with Piano's facts**
+  (`@anotoki/lib/legal/pages`, lazy; `core/legal/legal-facts.ts`, given by
+  the frame `layouts/legal-layout`): each page a path of its own with the
+  frame as its parent, before the catch-all, no guard. The facts are true of
+  the code as it is - its tables and how long each keeps what, the storage
+  by name, Umami, the hosting company ("to be named") and Cloudflare; a
+  change to what the app keeps, or for how long, changes the `legal.*`
+  strings by a migration and `PIANO_LEGAL_UPDATED`. Every address a page
+  links to (the anotoki account's pages at the IAM's address, the operator,
+  Cloudflare) is the code's, never a string: a rewording changes words,
+  never where a link goes (`legal-facts.spec.ts`).
 - **PHP**: `declare(strict_types=1)`, camelCase functions by area (`store*`,
   `transfer*`, `auth*`, `translation*`, `language*`, `database*`...), `?`
   parameters in every query, every query **on a person's data** scoped to the
@@ -532,7 +594,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the staff's to write (`/api/admin/...`). `setup.php` stays parseable by
   PHP 7.4 (it must be able to say "PHP is too old"); the rest needs 8.2.
 - **The app's words live in the database** (`languages`, `translation_keys`,
-  `translations`; migrations 002 to 011, then the library's set
+  `translations`; migrations 002 to 012, then the library's set
   `anotoki_translations`) and are edited in the browser, on the admin panel's
   Translations and Languages pages (the family's, from
   `@anotoki/lib/translations/admin`; English, not translated; EDITOR rewords,
@@ -574,15 +636,15 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the point held back as drafts, the library's words and people too unless
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
-- **The family's library** (`anotoki-lib`, one version for both halves): PHP
-  `anotoki/lib` 0.5.2 (Composer's VCS repository on GitHub, committed in
-  `vendor/`), Angular `@anotoki/lib` 0.5.0 (the GitHub release's tarball, in
-  both lock files) - 0.5.1 and 0.5.2 changed only the PHP half (a restore's sequences that count down; the
-  origin secret). Never
+- **The family's library** (`anotoki-lib`, one version for both halves):
+  0.6.1 - PHP `anotoki/lib` (`^0.6.0`, Composer's VCS repository on GitHub,
+  committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
+  v0.6.1 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry
-  point (`@anotoki/lib/ui/config`, `/ui/icon`, `/ui/dialog`...; never the
+  point (`@anotoki/lib/ui/config`, `/ui/icon`, `/ui/dialog`, `/ui/select`,
+  `/ui/chips`, `/ui/stat-tiles`, `/ui/stepper`...; never the
   `@anotoki/lib/ui` barrel, which would put the whole kit in the first load),
   and a spec reads the kit's markup by the kit's own class names
   (`anotoki-<component>__<part>`, `--<state>`). Its components take this app's colours from the

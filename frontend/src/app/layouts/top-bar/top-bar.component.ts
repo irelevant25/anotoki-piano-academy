@@ -9,6 +9,7 @@ import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
+import { isLegalPage } from '../../core/legal/legal.config';
 import { ADMIN_TOOL_ROUTES } from '../../core/site-admin';
 import { BootService } from '../../core/state/boot.service';
 import { ProgressStore } from '../../core/state/progress-store.service';
@@ -232,13 +233,17 @@ export class TopBarComponent {
 
   /**
    * Sign in: only once the app has run and the sign-in ended (in the middle
-   * of practising), or for a visitor. Before, a signed-out visitor is on the
-   * way to the IAM, or on the screen that says why a sign-in did not work,
-   * with its Try again. To the IAM
+   * of practising), or for a visitor - and on a legal page (Terms, Privacy,
+   * Contact: anybody's) for somebody not signed in where a sign-in is
+   * required, whom no guard sends to the IAM there. Before, a signed-out
+   * visitor is on the way to the IAM, or on the screen that says why a
+   * sign-in did not work, with its Try again. To the IAM
    * and back to this page, its pages in the learner's language (BootService:
    * a visitor's saves arrive first - the family's item waits for them).
    */
-  private readonly offerSignIn = computed(() => !this.auth.signedIn() && this.store.loaded());
+  private readonly offerSignIn = computed(
+    () => !this.auth.signedIn() && (this.store.loaded() || (isLegalPage(this.here()) && this.boot.status() === 'sign-in')),
+  );
   protected readonly signIn = computed(() => (this.offerSignIn() ? () => this.boot.signIn() : null));
 
   /**

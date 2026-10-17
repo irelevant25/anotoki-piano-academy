@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { AnotokiAuth, SignInFailure, failureText, signInWords } from '@anotoki/lib/auth';
+import { LegalLinksComponent } from '@anotoki/lib/legal';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
@@ -15,6 +16,7 @@ import { CALLBACK_PATH, SIGN_IN_FAILED_ROUTE } from './core/auth/site-auth';
 import { VisitorKey } from './core/auth/visitor-key';
 import { ChangelogService } from './core/changelog/changelog.service';
 import { VISITOR_KEEP_DAYS, VISITOR_WORDS } from './core/i18n/visitor-words';
+import { isLegalPage } from './core/legal/legal.config';
 import { BootService } from './core/state/boot.service';
 import { ProgressStore } from './core/state/progress-store.service';
 import { MIGRATIONS_ROUTE } from './core/state/site-migrations';
@@ -51,13 +53,17 @@ import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.co
  *
  * The family's "Are you sure?" (<anotoki-confirm-host>, ConfirmService) is
  * drawn here once, for every question the app asks. The footer's "Send
- * feedback" opens the family's form in a dialog (ui/feedback-dialog, loaded
- * only when it is opened: no first load carries the form).
+ * feedback" opens the family's form in a dialog (ui/feedback-dialog), and its
+ * version What's new (ui/changelog-dialog) - each loaded only when it is
+ * opened: no first load carries either. Under them the family's Terms ·
+ * Privacy · Contact (<anotoki-legal-links>, @anotoki/lib/legal: the legal
+ * pages' own paths, the library's words `anotoki.legalLinks.*`, the open one
+ * marked), on every page.
  *
  * The sign-in's own pages - the IAM's callback and the family's screen that
- * says why a sign-in did not work - are drawn in the view's place whatever
- * the start says: nobody is signed in on them, so the app has no progress to
- * run on.
+ * says why a sign-in did not work - and the legal pages (Terms, Privacy,
+ * Contact) are drawn in the view's place whatever the start says: nobody need
+ * be signed in on them, and none runs on anybody's progress.
  *
  * For a VISITOR - practising without signing in, while the IAM does not
  * require it (BootService.visiting) - the notes of core/i18n/visitor-words.ts:
@@ -98,6 +104,7 @@ import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.co
     AlertComponent,
     ButtonComponent,
     SpinnerComponent,
+    LegalLinksComponent,
   ],
 })
 export class AppComponent {
@@ -109,8 +116,6 @@ export class AppComponent {
   private readonly i18n = inject(TranslationService);
   protected readonly store = inject(ProgressStore);
   protected readonly site = inject(SiteStatus);
-
-  private readonly changelogDialog = viewChild.required(ChangelogDialogComponent);
 
   private readonly router = inject(Router);
   /** The address of the page, without its query. */
@@ -126,7 +131,9 @@ export class AppComponent {
    * Inside the gate, the page rather than a card of the start: the app runs -
    * or an ADMIN is on the Migrations page, which works while the rest of the
    * app waits for an update, or the address is one of the sign-in's own pages
-   * (the callback, the failure's screen). One outlet for all, so the
+   * (the callback, the failure's screen), or one of the legal pages (Terms,
+   * Privacy, Contact: anybody's, signed in or not, with nothing of a person's
+   * progress on them - core/legal). One outlet for all, so the
    * Migrations page stays (with what its Apply said) as the app starts after
    * it. Otherwise the card that says where the start is (loading, could not
    * load).
@@ -140,6 +147,7 @@ export class AppComponent {
       this.boot.status() === 'ready' ||
       this.path() === SIGN_IN_FAILED_ROUTE ||
       this.path() === CALLBACK_PATH ||
+      isLegalPage(this.path()) ||
       (this.auth.isAdmin() && (this.path() === MIGRATIONS_ROUTE || this.path().startsWith(MIGRATIONS_ROUTE + '/'))),
   );
 
@@ -203,7 +211,6 @@ export class AppComponent {
   /** The feedback form's dialog is open (its code is loaded the first time). */
   protected readonly feedbackOpen = signal(false);
 
-  protected openChangelog(): void {
-    this.changelogDialog().open();
-  }
+  /** What's new is open (its code is loaded the first time) - from the footer's version, there only once the list came. */
+  protected readonly whatsNewOpen = signal(false);
 }

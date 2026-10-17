@@ -53,7 +53,8 @@ import { writeStorage } from '../util/storage';
 //    for the page to word; after a 429 no new visitor is asked for before its
 //    Retry-After (refused here meanwhile, with the time left).
 
-const OUTBOX_PREFIX = 'piano-learning:unsaved-sessions:';
+/** The outbox's localStorage key, before the page's owner (a person's id, or VISITOR_OWNER) - the Privacy page names it. */
+export const OUTBOX_PREFIX = 'piano-learning:unsaved-sessions:';
 
 /** The header a save of a whole document names its generation in (the backend's GENERATION_HEADER). */
 export const GENERATION_HEADER = 'Progress-Generation';

@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { StatTileComponent, StatTilesComponent } from '@anotoki/lib/ui/stat-tiles';
 import { MidiService, NoteOnDetail } from '../../core/midi/midi.service';
 import { PathService } from '../../core/music/path.service';
 import { SrsService } from '../../core/music/srs.service';
@@ -19,16 +20,16 @@ const ROUND_LENGTH = 12;
  * The Note Trainer: a round of twelve notes from the adaptive schedule -
  * notes due for review first, then the ones being learned, and a new note
  * when there is room for one. Every answer goes into the SRS; the round is
- * logged as a session. The card and the buttons are the family's; the
- * practice screen and the end's figures are Piano's own (pages/_practice,
- * pages/_stat-tiles).
+ * logged as a session. The card, the buttons and the end's figures (the
+ * family's tiles, @anotoki/lib/ui/stat-tiles) are the family's; the practice
+ * screen is Piano's own (pages/_practice).
  */
 @Component({
   selector: 'app-trainer-page',
   templateUrl: './trainer-page.component.html',
   styleUrl: './trainer-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe, ButtonComponent, CardComponent],
+  imports: [NotationComponent, PianoKeyboardComponent, TranslatePipe, ButtonComponent, CardComponent, StatTileComponent, StatTilesComponent],
 })
 export class TrainerPageComponent {
   private readonly midi = inject(MidiService);

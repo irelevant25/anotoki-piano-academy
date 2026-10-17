@@ -1,21 +1,23 @@
-<!-- The next step of the path: Piano's own call to go on, in the family's tokens. -->
+<!-- The next step of the path: the family's call to action (the card's highlight - its blue edge and soft glow), the step named in it Piano's. -->
 @if (next(); as step) {
-    <section class="continue-card">
-        <div class="continue-text">
-            <p class="continue-tag">{{ started() ? ('home.continue.tag' | translate) : ('home.start.tag' | translate) }}</p>
-            <h2 class="continue-title">{{ 'home.unit.title' | translate: { number: step.unit.number, title: nextWords()?.unit } }}</h2>
-            <p class="continue-step">{{ nextWords()?.step }}</p>
+    <anotoki-card class="continue-card" tone="highlight">
+        <div class="continue-body">
+            <div class="continue-text">
+                <p class="continue-tag">{{ started() ? ('home.continue.tag' | translate) : ('home.start.tag' | translate) }}</p>
+                <h2 class="continue-title">{{ 'home.unit.title' | translate: { number: step.unit.number, title: nextWords()?.unit } }}</h2>
+                <p class="continue-step">{{ nextWords()?.step }}</p>
+            </div>
+            <button anotokiButton variant="primary" size="lg" id="continue" (click)="open(step.unit.id, step.step.id)">{{ started() ? ('home.continue.button' | translate) : ('home.start.button' | translate) }}</button>
         </div>
-        <button anotokiButton variant="primary" size="lg" id="continue" (click)="open(step.unit.id, step.step.id)">{{ started() ? ('home.continue.button' | translate) : ('home.start.button' | translate) }}</button>
-    </section>
+    </anotoki-card>
 } @else {
-    <section class="continue-card">
+    <anotoki-card class="continue-card" tone="highlight">
         <div class="continue-text">
             <p class="continue-tag">{{ 'home.done.tag' | translate }}</p>
             <h2 class="continue-title">{{ 'home.done.title' | translate }}</h2>
             <p>{{ 'home.done.text' | translate }}</p>
         </div>
-    </section>
+    </anotoki-card>
 }
 
 @if (dueCount() > 0) {
@@ -59,18 +61,10 @@
                                 <p class="unit-details">{{ item.details }}</p>
                             </div>
                         </div>
+                        <!-- The unit's steps: the family's chips (@anotoki/lib/ui/chips) - passed green, open blue, locked off; the ✓ and ▶ say it in a shape too. -->
                         <div class="step-chips">
                             @for (chip of item.chips; track chip.key) {
-                                <button
-                                    type="button"
-                                    class="step-chip"
-                                    [class.is-passed]="chip.state === 'passed'"
-                                    [class.is-open]="chip.state === 'open'"
-                                    [class.is-locked]="chip.state === 'locked'"
-                                    [attr.data-open]="chip.key"
-                                    [disabled]="chip.state === 'locked'"
-                                    [title]="chip.title"
-                                    (click)="open(chip.unitId, chip.stepId)">
+                                <button anotokiChip [tone]="chip.tone" [disabled]="chip.state === 'locked'" [attr.data-open]="chip.key" [attr.data-state]="chip.state" [title]="chip.title" (click)="open(chip.unitId, chip.stepId)">
                                     {{ chip.label }}
                                 </button>
                             }

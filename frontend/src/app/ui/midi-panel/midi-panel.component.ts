@@ -2,11 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
-// The select alone, and only in its @defer block: the forms entry point is lazy, never in the first load.
-import { SelectComponent } from '@anotoki/lib/ui/forms';
-import type { SelectOption } from '@anotoki/lib/ui/forms';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { PopoverComponent, PopoverTriggerDirective } from '@anotoki/lib/ui/menu';
+// The select alone (anotoki-lib 0.6.0's entry point: the forms' would bring every other field of the kit with it), and
+// only in its @defer block: the bar is in every first load, which has no room for it (anything else of this file that
+// named it would put it back there - its options' type is an import type).
+import { SelectComponent } from '@anotoki/lib/ui/select';
+import type { SelectOption } from '@anotoki/lib/ui/select';
 import { MidiProblemKind, MidiService } from '../../core/midi/midi.service';
 
 /** Why there is no piano, as a sentence of the app's own: the kind's key, written out whole. */
@@ -33,9 +35,10 @@ const NOT_CONNECTED = 'midi.notConnected';
  * outside, or the focus leaving it, closes it; it is drawn over the page,
  * under the button, and kept on the screen at 360 px. What it holds is the
  * family's too: the state is an alert (said politely, green or amber), the
- * list the family's select - loaded once the page is idle (@defer), as the
- * kit's fields are a lazy entry point the first load must not carry - and
- * Connect and Rescan the family's buttons.
+ * list the family's select - from its own entry point (@anotoki/lib/ui/select,
+ * anotoki-lib 0.6.0: the select without the kit's other fields), loaded once
+ * the page is idle (@defer), as the first load the bar is part of has no room
+ * for it within its budget - and Connect and Rescan the family's buttons.
  *
  * MidiService says what is the case - connected and the device's name, or the
  * kind of a problem and its detail - and the words are chosen here. A device's

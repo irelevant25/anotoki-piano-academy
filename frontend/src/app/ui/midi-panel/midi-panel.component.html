@@ -32,7 +32,7 @@
             }
         </anotoki-alert>
         <div class="midi-connect">
-            <!-- The family's select is a field of its lazy forms (@anotoki/lib/ui/forms): loaded once the page is idle, never in the first load the bar is part of. -->
+            <!-- The family's select, from its own small entry point (@anotoki/lib/ui/select) - loaded once the page is idle: the first load, which the bar is part of, has no room for it within its budget (docs/decisions.md, 2026-10-18). -->
             @defer (on idle) {
                 <anotoki-select id="midi-device-select" class="midi-device" [label]="'midi.device' | translate" hideLabel inline [options]="deviceOptions()" [value]="midi.selectedId()" (valueChange)="midi.selectedId.set($event)" />
             }

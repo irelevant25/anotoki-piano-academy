@@ -25,16 +25,11 @@
 } @else {
     <anotoki-card id="tr-done" [heading]="'trainer.done.title' | translate">
         <div class="stack">
-            <div class="stat-tiles">
-                <div class="stat-tile">
-                    <div class="value">{{ correctCount() }}/{{ roundLength }}</div>
-                    <div class="label">{{ 'trainer.done.correct' | translate }}</div>
-                </div>
-                <div class="stat-tile">
-                    <div class="value">{{ 'common.percent' | translate: { value: accuracy() } }}</div>
-                    <div class="label">{{ 'trainer.done.accuracy' | translate }}</div>
-                </div>
-            </div>
+            <!-- The round's figures: the family's tiles (@anotoki/lib/ui/stat-tiles). -->
+            <anotoki-stat-tiles>
+                <anotoki-stat-tile [label]="'trainer.done.correct' | translate" [value]="correctCount() + '/' + roundLength" />
+                <anotoki-stat-tile [label]="'trainer.done.accuracy' | translate" [value]="'common.percent' | translate: { value: accuracy() }" />
+            </anotoki-stat-tiles>
             <div class="cluster">
                 <button anotokiButton id="tr-again" (click)="newRound()">{{ 'trainer.done.again' | translate }}</button>
                 <button anotokiButton id="tr-stats" (click)="viewStats()">{{ 'trainer.done.stats' | translate }}</button>

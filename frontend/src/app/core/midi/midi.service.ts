@@ -19,7 +19,8 @@ export interface NoteOnDetail {
   timestamp: number;
 }
 
-const LAST_DEVICE_KEY = 'piano-learning:last-midi-device-name';
+/** Where the name of the piano last connected is kept (localStorage), to connect to it again - the Privacy page names it. */
+export const LAST_DEVICE_KEY = 'piano-learning:last-midi-device-name';
 
 /**
  * A thin wrapper around Web MIDI: an EventTarget emitting 'noteon' / 'noteoff'

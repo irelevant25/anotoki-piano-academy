@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
-import { SelectComponent, SelectOption } from '@anotoki/lib/ui/forms';
+import { SelectComponent, SelectOption } from '@anotoki/lib/ui/select';
 import { IconComponent } from '@anotoki/lib/ui/icon';
 import { MidiService } from '../../core/midi/midi.service';
 import { SongsService } from '../../core/music/songs.service';

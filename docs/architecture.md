@@ -223,7 +223,13 @@ address by its /64. With the origin secret (`config/cloudflare.local.php`,
 `X-Anotoki-Origin`, which a Transform Rule of the owner's Cloudflare zone adds
 to every request: anybody's Cloudflare Worker can connect from Cloudflare's
 ranges, and any other request from them counts as its edge - coarser, never
-looser; without the file, as before. The library's own limits read it the same way
+looser; without the file, as before, and the same for a file read cleanly
+that names no secret. A file that is there but cannot be read cleanly - it
+prints anything, PHP cannot parse, run or open it - fails closed (since
+2026-10-18, the IAM's rule: `settingsFileReadCleanly()`): a secret no request
+carries, so every request from Cloudflare's ranges counts as its edge until
+the file is mended, said in PHP's error log at most once a day by the fault
+alone, never the file's text; the app runs on. The library's own limits read it the same way
 (`adminContext()` gives it the same proxies, header and secret: feedback's, the
 pages' error reports). What is kept of an address is a keyed hash, never
 the address itself - `visitor_starts` holds an HMAC of the bucket
@@ -446,27 +452,47 @@ page through, the address kept: the family's status page stands in its
 place, with its own quiet Sign in - how a signed-out ADMIN gets in and back
 to the page. While the sign-in is starting they let nothing through. The
 IAM's redirect route (`/auth/callback`, the family's
-`AuthCallbackComponent`) and the failure screen have no guard. No sign-in by
+`AuthCallbackComponent`), the failure screen and the legal pages have no
+guard. No sign-in by
 the IAM's hint (`hint: false`; the owner's decision: genshin and the build
 analyzer only).
 
-**The family's kit** (`@anotoki/lib` 0.5.0, `core/family-kit.ts`): the top
+**The legal pages** (`/terms`, `/privacy`, `/contact`: the family's
+`@anotoki/lib/legal/pages`, lazy): each a route of its own whose parent is
+the frame `layouts/legal-layout` - which gives the pages Piano's facts
+(`core/legal/legal-facts.ts`, over the root configuration
+`provideAnotokiLegal(pianoLegalConfig)` in `app.config.ts`: the page's
+language, the database's words) - placed before the learner's `''` parent
+and the catch-all, so neither the learner's guard nor `**` ever takes them.
+They are anybody's: while nobody is signed in where a sign-in is required
+the shell still draws them (`pageShown()`: `isLegalPage()`, `core/legal/legal.config.ts`)
+and the bar offers Sign in; nothing of a learner's is asked. The facts are
+true of the code as it is (`docs/decisions.md`, 2026-10-18), every address
+on the pages the code's - the anotoki account's Privacy and account pages
+at the IAM's address (`AnotokiAuth.issuer()`, `accountUrl()`) -, never a
+string's.
+
+**The family's kit** (`@anotoki/lib` 0.6.1, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
 the anotoki family's - and so are the pages' own building blocks (since
-2026-10-11): every button (`anotokiButton`), card (`<anotoki-card>`), note
+2026-10-11): every button (`anotokiButton`), card (`<anotoki-card>`; the
+Continue card its highlighted one, `tone="highlight"`), note
 and message (`<anotoki-alert>`: the notes under the bar, the review's
 reminder, the progress file's warning and refusals, the piano's state),
-badge ("Coming soon", "Latest", "Not saved yet", What's new's lists), field
-(`<anotoki-select>`: the tempo, the MIDI device), dialog (What's new),
-spinner, error state ("Could not load your progress"), empty state (Stats
-with no round yet) and table (the family's table styles: a small card a
-round on a phone). Each is imported
+badge ("Coming soon", "Latest", "Not saved yet", What's new's lists), chip
+(the path's steps, `button[anotokiChip]`), select (`<anotoki-select>` from
+`/ui/select`: the tempo, the MIDI device), dialog (What's new), stat tiles
+(the figures on Stats and in the Note Trainer), step dots (a lesson's
+steps), spinner, error state ("Could not load your progress"), empty state
+(Stats with no round yet) and table (the family's table styles: a small card a
+round on a phone, the numbers in `.cell-num`). Each is imported
 from its own entry point (`@anotoki/lib/ui/config`, `/ui/button`,
-`/ui/card`...: the first load carries only the pieces it draws; the fields,
-`/ui/forms`, are lazy - the piano's select in the bar is a `@defer` block,
-loaded once the page is idle). They draw with the family's tokens, which
+`/ui/card`...: the first load carries only the pieces it draws; the select
+is lazy - the piano's select in the bar is a `@defer` block,
+loaded once the page is idle, and What's new loads when it opens: the first
+load is 549.4 kB, under its 550 kB warning). They draw with the family's tokens, which
 `styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
 a site gives the colours only), with the family's corners, shadows, font
 (Manrope) and base (`anotoki.base`: type, links, the focus ring), and its
@@ -476,11 +502,11 @@ the library's own keys, `anotoki.*` (the translations module's
 009 copied there, or the owner's rewording - else the kit's own English and
 informal Slovak (and, while no bundle is in memory, the theme switch's
 "Theme: light" kept in code). What is Piano's own is what no other site
-has, built from the family's tokens: the path (the call to go on, the
-phases' heads, the units, the step chips), a lesson's steps and its result,
-the practice screens (`pages/_practice.scss`), the figures in tiles
-(`pages/_stat-tiles.scss`), the keyboard, the notation, the piano's button
-in the bar and What's new's list of releases. Piano has no global rule for
+has, built from the family's tokens: the path (the phases' heads, the
+units), a lesson's steps and its result (the meet step's count of plays
+among them), the practice screens (`pages/_practice.scss`), the keyboard,
+the notation, the piano's button in the bar and What's new's list of
+releases. Piano has no global rule for
 buttons, selects or cards any more (`styles.scss` keeps the palette,
 Piano's own colours and `body`'s word breaking): nothing of Piano's can
 reach the kit's components.
@@ -529,7 +555,9 @@ link carries the number of new messages (the family's `FeedbackUnread`,
 asked when an ADMIN opens the panel). The footer keeps "Send feedback" -
 the family's form in the family's dialog (`ui/feedback-dialog`, drawn in a
 `@defer`, so neither is in the first load), in the learner's language, for
-anybody - and the version, which opens What's new.
+anybody - the version, which opens What's new (`ui/changelog-dialog`, a
+`@defer` too), and the family's Terms · Privacy · Contact
+(`<anotoki-legal-links>`, the open page's link marked).
 
 **The admin panel** (`/admin`, English): its sections are the top bar's links
 there - Translations (EDITOR, ADMIN); Languages, People, Feedback, Error

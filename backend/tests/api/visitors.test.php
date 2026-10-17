@@ -8,8 +8,9 @@
 // else -, a Bearer header that never falls back to the key, sign-in required
 // again, the limits per address (an IPv6 /64, a trusted proxy's header,
 // X-Forwarded-For never believed - and only a keyed hash of an address ever
-// kept; with the origin secret, a request without it counted as the proxy)
-// and in all, a visitor's caps, the sweep of
+// kept; with the origin secret, a request without it counted as the proxy,
+// and with a cloudflare.local.php that cannot be read cleanly every request
+// the proxy's - it fails closed) and in all, a visitor's caps, the sweep of
 // visitors unseen for 30 days after the answer (and one that fails, which
 // never fails the request), a database without 005, and the checks that
 // mean "a verified token" refusing a visitor however they are stacked.
@@ -498,6 +499,46 @@ test('with the origin secret, a Worker writing a new CF-Connecting-IP every time
         assert_same([], server_problems($guarded), 'its server said nothing it should not have');
     } finally {
         $guarded['stop']();
+    }
+});
+
+test('a config/cloudflare.local.php that cannot be read cleanly - saved with a byte-order mark - fails closed: never printed, and a Worker writing a new CF-Connecting-IP every time is one sender, the proxy - the file\'s own secret in X-Anotoki-Origin too - for the visitors\' limit and the library\'s alike', function (): void {
+    fresh();
+    // The owner meant a secret, and the file holds one - but PHP prints the byte-order mark before its <?php: the app
+    // reads no secret from it, and believes no CF-Connecting-IP from the proxy it trusts (127.0.0.1, standing for an
+    // edge of Cloudflare's) - never "no secret", which would believe anybody's Worker there (the IAM's rule).
+    $secret = 'origin-' . bin2hex(random_bytes(20));
+    $broken = start_app($GLOBALS['auth'], [], ['visitors' => BEHIND_A_PROXY + ['visitors' => ['new_per_hour_per_address' => 2]]]);
+    file_put_contents($broken['config'] . '/cloudflare.local.php', "\xEF\xBB\xBF<?php\n\nreturn " . var_export(['origin_secret' => $secret], true) . ";\n");
+    touch(sweep_marker($broken)); // no sweep in this test
+    try {
+        $save = static fn (string $address): array => visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from($address), "X-Anotoki-Origin: $secret"], $broken);
+        foreach (['198.51.100.41', '198.51.100.42'] as $address) {
+            $made = $save($address);
+            assert_same(204, $made['status'], "a made-up visitor from $address: " . $made['raw']);
+            assert_same('', $made['raw'], "$address: nothing of the file printed ahead of the answer");
+        }
+        $third = $save('198.51.100.43');
+        assert_same([429, 'too_many_visitors'], [$third['status'], $third['body']['code'] ?? null], 'the third, from an address never seen, with the file\'s own secret: the proxy\'s limit is spent');
+        assert_true(str_starts_with($third['raw'], '{') && !str_contains($third['raw'], $secret), 'a refusal with nothing of the file before it');
+        assert_same([counted_as('127.0.0.1', $broken), counted_as('127.0.0.1', $broken)], starts(), 'every one counted as the proxy, never as the address it claimed');
+
+        // The pages' own errors: the library's limit (20 an hour from one sender), by adminContext()'s reading - the proxy too.
+        $report = static fn (string $address): array => visit('POST', '/api/client-errors', ['message' => "A page's error from $address", 'page' => '/'], [from($address), "X-Anotoki-Origin: $secret"], $broken);
+        for ($i = 1; $i <= 20; $i++) {
+            assert_same(204, $report("203.0.113.$i")['status'], "report $i, from a made-up visitor");
+        }
+        assert_same([429, 'too_many'], [$report('203.0.113.21')['status'], $report('203.0.113.22')['body']['code'] ?? null], 'the 21st and 22nd, from addresses never seen: the proxy\'s budget is spent');
+
+        $log = (string) file_get_contents($broken['log']);
+        assert_true(str_contains($log, '[config] config/cloudflare.local.php prints 3 bytes of its own') && str_contains($log, 'no request carries its secret'), 'said in the server\'s log: ' . $log);
+        assert_same(1, substr_count($log, '[config] config/cloudflare.local.php prints 3 bytes of its own'), 'once, though the file is read on every request');
+        assert_false(str_contains($log, $secret), 'never the secret');
+        $status = visit('GET', '/api/site-status', null, [], $broken);
+        assert_same([200, 'ready'], [$status['status'], $status['body']['state'] ?? null], 'the site runs: the file is optional, never "not set up"');
+        assert_same([], server_problems($broken), 'its server said nothing it should not have');
+    } finally {
+        $broken['stop']();
     }
 });
 

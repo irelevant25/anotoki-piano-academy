@@ -86,7 +86,6 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'whatsNew.added': 'Added',
   'whatsNew.changed': 'Changed',
   'whatsNew.fixed': 'Fixed',
-  'whatsNew.notLoaded': 'The list of changes could not be loaded.',
   // The browser tab's titles (app.routes.ts, title.strategy.ts).
   'title.learn': 'Learn',
   'title.lesson': 'Lesson',
@@ -95,6 +94,9 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'title.songs': 'Songs',
   'title.stats': 'Stats',
   'title.signingIn': 'Signing in',
+  'title.terms': 'Terms of use',
+  'title.privacy': 'Privacy policy',
+  'title.contact': 'Contact',
 };
 
 /**

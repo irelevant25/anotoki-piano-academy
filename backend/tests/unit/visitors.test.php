@@ -8,7 +8,8 @@
 // refused; an IPv6 /64 as one; an untrusted proxy never believed; a keyed
 // hash of it kept, never the address; with the origin secret,
 // config/cloudflare.local.php, only on a request carrying it in
-// X-Anotoki-Origin), the optional config/visitors.local.php and its limits,
+// X-Anotoki-Origin - and a file that cannot be read cleanly failing closed,
+// the IAM's rule case for case), the optional config/visitors.local.php and its limits,
 // the key's shape, the days the frontend promises, and the work after the
 // answer (api/after_response.php) that never fails the request.
 
@@ -222,47 +223,120 @@ test('the origin secret: from a Cloudflare address, CF-Connecting-IP only on a r
     });
 });
 
-test('config/cloudflare.local.php: only a string with something in it is a secret - anything else, or a file PHP cannot run, is none: said in the log, never "not set up", never the secret itself', function (): void {
+/** Forgets what the settings files' faults have said today (settingsSaid()'s stamps): each case is said afresh. */
+function forget_said(): void
+{
+    array_map('unlink', glob(storageDir() . '/cache/said-*.logged') ?: []);
+}
+
+/** How many lines of $log say $what. */
+function lines_saying(string $log, string $what): int
+{
+    return count(array_filter(preg_split('/\R/', $log) ?: [], static fn (string $line): bool => str_contains($line, $what)));
+}
+
+test('config/cloudflare.local.php read cleanly: its value trimmed; one that names no secret - empty, spaces, no string, another key, no array - is none, as the IAM reads it: said once a day by the file\'s name, never a value, and never "not set up"', function (): void {
     with_cloudflare_file(null, static function (): void {
         assert_same(null, originSecret(), 'no file: no secret');
     });
     with_origin_secret(" \t" . ORIGIN_SECRET . "\n", static function (): void {
         assert_same(ORIGIN_SECRET, originSecret(), 'spaces around it are no part of it: a header\'s value never has them');
+        assert_same('198.51.100.70', clientAddress(request_from('173.245.48.10', ['CF-Connecting-IP' => '198.51.100.70', 'X-Anotoki-Origin' => ORIGIN_SECRET])), 'and so it matches the header');
     });
 
-    // A secret written bare is a constant PHP does not know, whose error quotes it; two strings side by side are a
-    // parse error quoting the second.
-    $bare = 'secret_' . bin2hex(random_bytes(16));
     foreach ([
-        'an empty value' => ["<?php return ['origin_secret' => ''];\n", 'holds no origin_secret'],
-        'only spaces' => ["<?php return ['origin_secret' => '   '];\n", 'holds no origin_secret'],
-        'a number' => ["<?php return ['origin_secret' => 123456789012345678];\n", 'holds no origin_secret'],
-        'a list' => ["<?php return ['origin_secret' => ['a', 'b']];\n", 'holds no origin_secret'],
-        'another key' => ["<?php return ['secret' => '" . ORIGIN_SECRET . "'];\n", 'holds no origin_secret'],
-        'no array returned' => ["<?php return '" . ORIGIN_SECRET . "';\n", 'holds no origin_secret'],
-        'nothing returned' => ["<?php ['origin_secret' => '" . ORIGIN_SECRET . "'];\n", 'holds no origin_secret'],
-        'a parse error' => ["<?php return ['origin_secret' => 'x' '" . ORIGIN_SECRET . "'];\n", 'cannot be read, so there is no origin secret: PHP stops at its line 1.'],
-        'a bare word' => ["<?php return ['origin_secret' => $bare];\n", 'cannot be read, so there is no origin secret: PHP stops at its line 1.'],
-        // Written by hand without its first line, or saved with a BOM: PHP would print the file before every answer.
-        'no <?php line' => ["return ['origin_secret' => '" . ORIGIN_SECRET . "'];\n", 'prints '],
-        'a BOM' => ["\xEF\xBB\xBF<?php return ['origin_secret' => '" . ORIGIN_SECRET . "'];\n", 'prints 3 bytes of its own'],
-    ] as $case => [$contents, $said]) {
+        'an empty value' => "<?php return ['origin_secret' => ''];\n",
+        'only spaces' => "<?php return ['origin_secret' => '   '];\n",
+        'a number' => "<?php return ['origin_secret' => 123456789012345678];\n",
+        'a list' => "<?php return ['origin_secret' => ['a', 'b']];\n",
+        'another key' => "<?php return ['secret' => '" . ORIGIN_SECRET . "'];\n",
+        'no array returned' => "<?php return '" . ORIGIN_SECRET . "';\n",
+        'nothing returned' => "<?php ['origin_secret' => '" . ORIGIN_SECRET . "'];\n",
+        'null returned' => "<?php return null;\n",
+    ] as $case => $contents) {
+        forget_said();
         $log = error_log_of(static function () use ($contents, $case): void {
             with_cloudflare_file($contents, static function () use ($case): void {
                 ob_start();
                 try {
                     assert_same(null, originSecret(true), "$case: no secret");
                     assert_same(null, settingsProblem(), "$case: never \"not set up\"");
-                    assert_same('198.51.100.70', clientAddress(request_from('173.245.48.10', ['CF-Connecting-IP' => '198.51.100.70'])), "$case: CF-Connecting-IP from the trusted proxies alone, as before");
+                    assert_same('198.51.100.70', clientAddress(request_from('173.245.48.10', ['CF-Connecting-IP' => '198.51.100.70'])), "$case: CF-Connecting-IP from the trusted proxies alone, as with no file");
+                    assert_same(null, originSecret(true), "$case: read again, the same");
                 } finally {
                     $printed = (string) ob_get_clean();
                 }
                 assert_same('', $printed, "$case: nothing of the file printed");
             });
         });
-        assert_true(str_contains($log, '[config] config/cloudflare.local.php ' . $said), "$case: said - " . $log);
+        assert_same(1, lines_saying($log, '[config] config/cloudflare.local.php holds no origin_secret'), "$case: said once, though read again and again - " . $log);
+        assert_false(str_contains($log, ORIGIN_SECRET), "$case: the log never holds the value");
+    }
+});
+
+/**
+ * A cloudflare.local.php that is there but cannot be read cleanly fails closed,
+ * as the IAM's does: its secret is one no request carries - not the file's (it
+ * was never read), never none - so a request from Cloudflare's ranges is the
+ * edge it came from, without X-Anotoki-Origin and with the very value the file
+ * holds; from anywhere else, the connection, as ever.
+ */
+function fails_closed(string $case): void
+{
+    $secret = originSecret(true);
+    assert_true(is_string($secret) && preg_match('/^[0-9a-f]{64}$/D', $secret) === 1 && $secret !== ORIGIN_SECRET, "$case: a secret no request carries, not the file's");
+    assert_same($secret, originSecret(true), "$case: the same one all through the process");
+    assert_same(null, settingsProblem(), "$case: never \"not set up\" - the file is optional");
+
+    $forged = ['CF-Connecting-IP' => '198.51.100.70'];
+    assert_same('173.245.48.10', clientAddress(request_from('173.245.48.10', $forged)), "$case: a forged CF-Connecting-IP from Cloudflare's ranges is not believed - the edge");
+    assert_same('2400:cb00::1', clientAddress(request_from('2400:cb00::1', ['CF-Connecting-IP' => '2001:db8:5::7'])), "$case: over IPv6 too");
+    assert_same('173.245.48.10', clientAddress(request_from('173.245.48.10', $forged + ['X-Anotoki-Origin' => ORIGIN_SECRET])), "$case: the edge with the file's own value too");
+    assert_same('203.0.113.9', clientAddress(request_from('203.0.113.9', $forged)), "$case: from elsewhere, the connection");
+    // The library's own reading (feedback's and the pages' reports' limits, the error log) takes the same secret: adminContext() passes originSecret().
+    assert_same('173.245.48.10', \Anotoki\Lib\Support\ClientAddress::of(request_from('173.245.48.10', $forged), clientAddressTrustedProxies(), \Anotoki\Lib\Support\ClientAddress::CLOUDFLARE_HEADER, originSecret()), "$case: the library's reading - the edge");
+    $keys = array_unique(array_map(static fn (int $i): string => clientAddressKey(request_from('173.245.48.10', ['CF-Connecting-IP' => "198.51.100.$i"])), range(1, 20)));
+    assert_same([clientAddressKey(request_from('173.245.48.10'))], array_values($keys), "$case: twenty made-up visitors from one edge - one bucket, the edge's");
+}
+
+test('a config/cloudflare.local.php that cannot be read cleanly - it prints (no <?php line, a byte-order mark or a line before it, text after a closing tag, a buffer of its own), PHP cannot parse or run it - fails closed: never printed, a secret no request carries, every request from Cloudflare\'s ranges its edge; its fault said once by its kind or its bytes, never its text', function (): void {
+    $secret = var_export(['origin_secret' => ORIGIN_SECRET], true);
+    // A secret written bare is a constant PHP does not know, whose error quotes it; two strings side by side are a
+    // parse error quoting the second.
+    $bare = 'secret_' . bin2hex(random_bytes(16));
+    foreach ([
+        'no <?php line' => ["return {$secret};\n", 'prints ' . strlen("return {$secret};\n") . ' bytes of its own'],
+        'a byte-order mark' => ["\xEF\xBB\xBF<?php\n\nreturn {$secret};\n", 'prints 3 bytes of its own'],
+        'a line before its <?php' => ["\n<?php\n\nreturn {$secret};\n", 'prints 1 bytes of its own'],
+        'text after a closing tag' => ["<?php \$kept = 1; ?>\n" . ORIGIN_SECRET . "\n<?php return {$secret};\n", 'prints ' . (strlen(ORIGIN_SECRET) + 1) . ' bytes of its own'],
+        'a buffer of its own left open' => ["<?php ob_start(); echo '" . ORIGIN_SECRET . "'; return {$secret};\n", 'prints ' . strlen(ORIGIN_SECRET) . ' bytes of its own'],
+        'a parse error' => ["<?php return ['origin_secret' => 'x' '" . ORIGIN_SECRET . "'];\n", 'could not be read (ParseError on line 1)'],
+        'a bare word' => ["<?php return ['origin_secret' => $bare];\n", 'could not be read (Error on line 1)'],
+    ] as $case => [$contents, $fault]) {
+        forget_said();
+        $log = error_log_of(static function () use ($contents, $case): void {
+            with_cloudflare_file($contents, static function () use ($case): void {
+                $level = ob_get_level();
+                ob_start();
+                try {
+                    fails_closed($case);
+                } finally {
+                    $printed = (string) ob_get_clean();
+                }
+                assert_same('', $printed, "$case: nothing of the file printed");
+                assert_same($level, ob_get_level(), "$case: no buffer of the file's left open");
+            });
+        });
+        assert_same(1, lines_saying($log, "[config] config/cloudflare.local.php $fault"), "$case: its fault said once, though read again and again - " . $log);
+        assert_true(str_contains($log, 'no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from'), "$case: and that it fails closed - " . $log);
         assert_false(str_contains($log, ORIGIN_SECRET) || str_contains($log, $bare), "$case: the log never holds the value");
     }
+
+    // Mended - the file gone, or read cleanly - and the next reading is as the file says.
+    assert_same('198.51.100.70', clientAddress(request_from('173.245.48.10', ['CF-Connecting-IP' => '198.51.100.70'])), 'the file gone: the trusted proxies alone again');
+    with_origin_secret(ORIGIN_SECRET, static function (): void {
+        assert_same(ORIGIN_SECRET, originSecret(), 'read cleanly again: its own secret');
+    });
 });
 
 test('the limits: the defaults, or visitors.local.php\'s whole numbers - and a document never over the app\'s own limit', function (): void {

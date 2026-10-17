@@ -1,5 +1,5 @@
-// A lesson: the family's card and buttons around Piano's own step - the unit's steps as dots, the step itself,
-// its result - drawn with the family's tokens.
+// A lesson: the family's card, buttons and step dots around Piano's own step - the step itself, its result -
+// drawn with the family's tokens.
 
 .lesson-head {
   display: flex;
@@ -22,34 +22,9 @@
   font-size: 1.375rem;
 }
 
-// The unit's steps, the one in hand filled.
+// The unit's steps (the family's dots): apart from the head above and the step below.
 .step-dots {
-  list-style: none;
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  padding: 0;
   margin: 1rem 0;
-}
-
-.step-dots li {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid var(--anotoki-border);
-  color: var(--anotoki-muted);
-}
-
-.step-dots li.is-passed {
-  border-color: var(--anotoki-success);
-  color: var(--anotoki-success-text);
-}
-
-.step-dots li.is-current {
-  border-color: var(--anotoki-primary);
-  background: var(--anotoki-primary);
-  color: var(--anotoki-primary-contrast);
-  font-weight: 600;
 }
 
 .lesson-result {

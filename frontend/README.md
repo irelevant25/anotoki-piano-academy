@@ -20,20 +20,24 @@ src/
   styles.scss                        the family's styles (@anotoki/lib/styles: its tokens in Piano's palette,
                                      light and dark - the colours only -, through anotoki.root(); its corners,
                                      shadows, Manrope; its base, utilities - .stack, .cluster, .facts... - and
-                                     tables) and Piano's own colours (the keys, the notation, the Continue card's
-                                     glow); no rule for buttons, selects or cards - the pages' are the kit's
+                                     tables) and Piano's own colours (the keys, the notation); no rule for
+                                     buttons, selects or cards - the pages' are the kit's
   app/
     app.config.ts, app.routes.ts     providers (the browser's errors to the error log - Angular's global listeners
                                      and provideSiteErrorReport(), core/error-report.ts; the interceptors - the
                                      family's siteStatusInterceptor first, then its anotokiAuthInterceptor -; the
                                      words, provideSiteTranslations(); the sign-in,
                                      provideSiteAuth(); the family's kit and frame, provideFamilyKit(); People, the
-                                     admin tools and the feedback form, provideSiteAdmin(); where the site stands
+                                     admin tools and the feedback form, provideSiteAdmin(); the legal pages' root
+                                     configuration, provideAnotokiLegal(pianoLegalConfig); where the site stands
                                      asked, then the start, in the app initializer) and the routes: every learner
                                      page behind the family's personOrVisitorGuard (a visitor too, while the IAM
                                      requires no sign-in), /admin behind staffGuard (always a sign-in), each ADMIN
                                      page behind adminGuard; /auth/callback and /sign-in-failed the family's
-                                     (AuthCallbackComponent, SignInFailureComponent); every admin page the family's,
+                                     (AuthCallbackComponent, SignInFailureComponent); /terms, /privacy, /contact the
+                                     family's legal pages (@anotoki/lib/legal/pages, lazy), each its own path with
+                                     layouts/legal-layout as its parent, before the learner's routes and the
+                                     catch-all, no guard - anybody's; every admin page the family's,
                                      lazy - /admin/translations and /admin/languages (@anotoki/lib/translations/admin;
                                      anotokiUnsavedChangesGuard), /admin/people (@anotoki/lib/people/page),
                                      /admin/errors, /audit, /feedback, /backups (@anotoki/lib/admin/*),
@@ -44,9 +48,11 @@ src/
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
                                      ready), the family's <anotoki-site-gate> with the page or a boot card as its
                                      marked template (<ng-template anotokiSitePages>: made only while the gate
-                                     shows it, so nothing runs behind the status page), the footer's "Send
-                                     feedback" (ui/feedback-dialog, in a @defer) and version, the family's
-                                     questions (<anotoki-confirm-host>: ConfirmService)
+                                     shows it, so nothing runs behind the status page; the legal pages drawn for
+                                     anybody), the footer's "Send feedback" (ui/feedback-dialog, in a @defer),
+                                     version (What's new, ui/changelog-dialog, in a @defer) and Terms · Privacy ·
+                                     Contact (the family's <anotoki-legal-links>), the family's questions
+                                     (<anotoki-confirm-host>: ConfirmService)
     boot/                            drawn instead of the app: could not load (the family's error state). (Not set up, being
                                      updated, not available: the family's status page, @anotoki/lib/migrations; a
                                      sign-in that did not work: the family's screen on /sign-in-failed)
@@ -67,6 +73,12 @@ src/
                                      question before a delete), admin tools and feedback form wired to this app
       error-report.ts                provideSiteErrorReport(): the family's reporter (@anotoki/lib/error-report) on
                                      /api/client-errors - a page's own errors into the error log
+      legal/                         legal.config.ts (pianoLegalConfig(): the legal pages' root configuration - the
+                                     page's language, the database's words; LEGAL_PAGE_PATHS, isLegalPage()) and
+                                     legal-facts.ts (pianoLegalFacts(): Piano's facts - what it keeps, why, how
+                                     long, its storage by name, who else handles data, the anotoki account's pages
+                                     at the IAM's address; true of the code, every address the code's;
+                                     PIANO_LEGAL_UPDATED), given by the legal pages' frame
       api/                           ApiService: one method a route of ../backend; who each call is for
                                      (ISSUED_AS); the session outbox; the generation every save names; a
                                      visitor's one "maker"; the move at a sign-in
@@ -100,18 +112,20 @@ src/
                                      English
     layouts/admin-layout/            /admin's frame: the page, or why there is nothing for you; asks for the
                                      feedback's count when an ADMIN opens it
-    pages/                           home (the path), lesson (+ steps), trainer, sheet, songs, stats
-                                     (+ own-progress: your progress file - signed in; a visitor gets the sign-in
-                                     line in its place) - drawn with the kit's buttons, cards, alerts, badges,
-                                     selects and table; _practice.scss (the practice screens' column: the
-                                     instruction, the controls, the staff, the note's name, the feedback) and
-                                     _stat-tiles.scss (the figures in tiles), @used by the pages that have them.
-                                     Every admin page is the family's (above)
+    layouts/legal-layout/            the legal pages' frame (lazy): gives them Piano's facts (core/legal), so the
+                                     facts load with the pages, never with the first one
+    pages/                           home (the path: the kit's highlighted card and chips), lesson (+ steps; the
+                                     kit's step dots), trainer, sheet, songs, stats (+ own-progress: your progress
+                                     file - signed in; a visitor gets the sign-in line in its place) - drawn with
+                                     the kit's buttons, cards, alerts, badges, chips, selects, stat tiles, step
+                                     dots and table; _practice.scss (the practice screens' column: the
+                                     instruction, the controls, the staff, the note's name, the feedback), @used
+                                     by the pages that have them. Every admin page is the family's (above)
     ui/                              Piano's own: the piano's widget in the bar (midi-panel: its button Piano's,
                                      its box the family's popover, alert, buttons and select - the select in a
                                      @defer, out of the first load), the piano keyboard, the notation, What's new
-                                     (changelog-dialog: the family's dialog and badges), feedback-dialog (the
-                                     family's form in the family's dialog)
+                                     (changelog-dialog: the family's dialog and badges, made when it opens),
+                                     feedback-dialog (the family's form in the family's dialog)
 public/                              changelog.json (the version shown: MAJOR.MINOR.PATCH, the newest entry's -
                                      package.json's too), anotoki.png (the family's mark), favicon.svg
 proxy.conf.json                      /api and /setup.php to the backend on :8300
@@ -119,8 +133,7 @@ proxy.conf.json                      /api and /setup.php to the backend on :8300
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - Angular 0.5.0,
-PHP 0.5.2, whose 0.5.1 and 0.5.2 changed only the PHP half): in
+half is the backend's `anotoki/lib`; one version for both - 0.6.1): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -137,10 +150,17 @@ first load - and a spec reads the kit's markup by the kit's own class names
   `provideFamilyKit()` (`forKit()`).
 - `@anotoki/lib/ui/button`, `/ui/card`, `/ui/alert`, `/ui/badge`,
   `/ui/spinner`, `/ui/error-state`, `/ui/empty-state` - the pages' buttons,
-  cards, notes, badges, "Working…", "Could not load your progress" and Stats
-  with no round yet; `/ui/forms` - the
+  cards (the Continue card the highlighted one), notes, badges, "Working…",
+  "Could not load your progress" and Stats with no round yet; `/ui/chips` -
+  the path's step chips; `/ui/stat-tiles` - the figures on Stats and in the
+  Note Trainer; `/ui/stepper` - a lesson's step dots; `/ui/select` - the
   kit's select (the tempo, the MIDI device), lazy: the pages that have one
-  are, and the piano's box loads it in a `@defer` once the page is idle.
+  are, and the piano's box loads it in a `@defer` once the page is idle (in
+  the first load it would cost 6.4 kB of a 0.6 kB margin).
+- `@anotoki/lib/legal` - the legal pages' configuration
+  (`provideAnotokiLegal`, `ANOTOKI_LEGAL_CONFIG`, `LegalFacts`) and the
+  footer's `<anotoki-legal-links>`; `/legal/pages` - Terms, Privacy and
+  Contact, lazy (`core/legal/`, `layouts/legal-layout`).
 - `@anotoki/lib/translations` - the words: `TranslationService`, the
   `translate` and `translatePlural` pipes, `forKit()` / `forShell()`, the
   status page's words (`siteStatusWords()`), `anotokiUnsavedChangesGuard`;
@@ -170,18 +190,22 @@ first load - and a spec reads the kit's markup by the kit's own class names
   /api/client-errors`), wired in `core/error-report.ts`.
 - `@anotoki/lib/words` - the library's words (`LIBRARY_WORDS`).
 
-To update it: the new release's URL in `package.json`, then `bun install` and
-`npm install --package-lock-only`, with the backend's half to the same
-version where the release changed it (DEV.md).
+To update it: the new release's URL in `package.json`, then `bun install` -
+never `npm install` - and `package-lock.json`'s `node_modules/@anotoki/lib`
+entry given `bun.lock`'s version, URL (`resolved`) and `integrity` by hand,
+with the backend's half to the same version where the release changed it
+(DEV.md).
 
 Components are three files (`.ts`, `.html`, `.scss`); colours come from the
 family's tokens (`--anotoki-*`, in Piano's palette by `src/styles.scss`) and
 Piano's own (`--key-*`, `--notation-*`); every page works at 390 px. Where
-the family has a piece - a button, a card, an alert, a badge, a field, a
-dialog, the spinner, the table, the bar, a menu, a popover, a question - it
+the family has a piece - a button, a card, an alert, a badge, a chip, a
+field, a select, a dialog, the spinner, stat tiles, step dots, the table,
+the bar, a menu, a popover, a question, the legal pages and links - it
 is the family's, as the family draws it (a site gives its colours, never
-its own look to a kit component); what is Piano's alone - the path, the
-practice screens, the tiles, the keyboard, the staff, the piano's button -
+its own look to a kit component); what is Piano's alone - the path's
+phases and units, the practice screens, the meet step's count of plays, the
+keyboard, the staff, the piano's button -
 is built from the same tokens. Every word a learner meets is a
 key (`'stats.title' | translate`) whose strings are in the database (a
 migration writes each with its English and informal Slovak); what the shell
@@ -211,7 +235,9 @@ npm run build      # production -> dist/piano-academy/browser/ (budgets: 6 kB wa
 
 Sign in at `http://localhost:4500` - the address the IAM knows for
 `piano-academy`; `127.0.0.1` does not sign in. Any page you open while
-signed out sends you to the IAM first, and back.
+signed out sends you to the IAM first, and back - but Terms, Privacy and
+Contact, which are anybody's. The first load's budget warns at 550 kB: it is
+549.4 kB (2026-10-18), so a new piece in it needs room made first.
 
 ## Tests
 
@@ -254,9 +280,19 @@ English with its wordmark, the way into it only while the site is ready, the
 sign-out question); the piano's widget (its box the family's popover, its
 state the family's alert, its devices in the family's select - drawn from
 its `@defer` block in the spec, `getDeferBlocks()`); What's new (the family's
-dialog, its lists named by badges, with and without a list); the pages on the
+dialog, its lists named by badges, made only once the version is pressed);
+the pages on the
 kit's markup (the lesson's large primary button where the one thing to do is
-try again); the
+try again; the path's chips and highlighted card, a lesson's step dots, the
+stat tiles and Stats' number columns); the legal pages as this app fills
+them in (`core/legal/legal-facts.spec.ts`: the root configuration and the
+frame's facts, the Privacy page drawn for real - its parts in order, its
+storage by name, who else handles data, every link where the code says,
+whatever an administrator rewords -, Terms, Contact with the feedback form
+and the account page, Slovak), the routes (`app.routes.spec.ts`: `/` and an
+unknown address, each legal page its own path in the frame, no guard,
+before the catch-all) and the footer's links and a legal page signed out in
+the shell; the
 admin panel's routes (every page the family's, lazy, the ADMIN pages behind
 `adminGuard`), People and the admin tools as this app wires them
 (`core/site-admin.spec.ts`: the question before a delete, the visitors'

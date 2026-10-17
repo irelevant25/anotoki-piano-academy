@@ -4,6 +4,7 @@ import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
+import { StatTileComponent, StatTilesComponent } from '@anotoki/lib/ui/stat-tiles';
 import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
 import { stepShort, unitTitle } from '../../core/i18n/path-words';
 import { Session, SessionMode } from '../../core/music/music.types';
@@ -91,16 +92,27 @@ interface RecentRow {
  * sessions - and the learner's own progress file (OwnProgressComponent), for
  * somebody signed in: a visitor (practising without signing in) has no file
  * of their own, and is offered the sign-in in its place (ownProgress.visitor).
- * The cards, the table (the family's table styles: a small card a round on a
- * phone), its empty state and the buttons are the family's; the tiles and the
- * keyboard Piano's.
+ * The cards, the tiles (@anotoki/lib/ui/stat-tiles, anotoki-lib 0.6.0), the
+ * table (the family's table styles: a small card a round on a phone, its
+ * numbers read from their names), its empty state and the buttons are the
+ * family's; the keyboard and its legend Piano's.
  */
 @Component({
   selector: 'app-stats-page',
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe, OwnProgressComponent, ButtonComponent, CardComponent, EmptyStateComponent],
+  imports: [
+    PianoKeyboardComponent,
+    TranslatePipe,
+    LocalDatePipe,
+    OwnProgressComponent,
+    ButtonComponent,
+    CardComponent,
+    EmptyStateComponent,
+    StatTileComponent,
+    StatTilesComponent,
+  ],
 })
 export class StatsPageComponent {
   private readonly store = inject(ProgressStore);

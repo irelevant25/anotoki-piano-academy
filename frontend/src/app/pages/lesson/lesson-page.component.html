@@ -7,11 +7,8 @@
                 <h2>{{ head().heading }}</h2>
             </div>
         </div>
-        <ol class="step-dots">
-            @for (dot of dots(); track dot.id) {
-                <li [class.is-current]="dot.current" [class.is-passed]="!dot.current && dot.passed">{{ dot.short }}</li>
-            }
-        </ol>
+        <!-- The unit's steps: the family's dots as pills of their short names (@anotoki/lib/ui/stepper) - the one in hand filled, the ones passed green; heard "Step 3 of 5: Read a melody". -->
+        <anotoki-step-dots class="step-dots" [label]="'lesson.steps' | translate" [steps]="dots().steps" [current]="dots().current" showLabels />
 
         <div class="lesson-body" id="ls-body">
             @if (result(); as done) {

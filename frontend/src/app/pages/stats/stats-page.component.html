@@ -1,36 +1,13 @@
 <anotoki-card [heading]="'stats.title' | translate">
-    <div class="stat-tiles">
-        <div class="stat-tile">
-            <div class="value">{{ tiles().known }}/{{ curriculumLength }}</div>
-            <div class="label">{{ 'stats.tile.known' | translate }}</div>
-        </div>
-        <div class="stat-tile">
-            <div class="value">{{ tiles().mastered }}</div>
-            <div class="label">{{ 'stats.tile.mastered' | translate }}</div>
-        </div>
-        <div class="stat-tile">
-            <div class="value">
-                @if (tiles().accuracy !== null) {
-                    {{ 'common.percent' | translate: { value: tiles().accuracy } }}
-                } @else {
-                    —
-                }
-            </div>
-            <div class="label">{{ 'stats.tile.accuracy' | translate }}</div>
-        </div>
-        <div class="stat-tile">
-            <div class="value">{{ tiles().streak }}</div>
-            <div class="label">{{ 'stats.tile.streak' | translate }}</div>
-        </div>
-        <div class="stat-tile">
-            <div class="value">{{ tiles().sessions }}</div>
-            <div class="label">{{ 'stats.tile.sessions' | translate }}</div>
-        </div>
-        <div class="stat-tile">
-            <div class="value">{{ tiles().minutes }}</div>
-            <div class="label">{{ 'stats.tile.minutes' | translate }}</div>
-        </div>
-    </div>
+    <!-- The figures: the family's tiles (@anotoki/lib/ui/stat-tiles) - a number given as one written the page's way, read number first. -->
+    <anotoki-stat-tiles>
+        <anotoki-stat-tile [label]="'stats.tile.known' | translate" [value]="tiles().known + '/' + curriculumLength" />
+        <anotoki-stat-tile [label]="'stats.tile.mastered' | translate" [value]="tiles().mastered" />
+        <anotoki-stat-tile [label]="'stats.tile.accuracy' | translate" [value]="tiles().accuracy !== null ? ('common.percent' | translate: { value: tiles().accuracy }) : '—'" />
+        <anotoki-stat-tile [label]="'stats.tile.streak' | translate" [value]="tiles().streak" />
+        <anotoki-stat-tile [label]="'stats.tile.sessions' | translate" [value]="tiles().sessions" />
+        <anotoki-stat-tile [label]="'stats.tile.minutes' | translate" [value]="tiles().minutes" />
+    </anotoki-stat-tiles>
 </anotoki-card>
 
 <anotoki-card [heading]="'stats.keyboard.title' | translate">
@@ -49,16 +26,16 @@
         <!-- Nothing played yet: the family's empty state, with the piano. -->
         <anotoki-empty-state icon="piano" [heading]="'stats.recent.empty' | translate" />
     } @else {
-        <!-- The family's table: wide enough on a desktop; on a phone every round a small card, each cell named. -->
+        <!-- The family's table: wide enough on a desktop, the numbers at the column's end (.cell-num); on a phone every round a small card, each cell named, a number read from its name (anotoki-lib 0.6.0). -->
         <div class="table-scroll">
             <table class="table table-stack">
                 <thead>
                     <tr>
                         <th>{{ 'stats.recent.when' | translate }}</th>
                         <th>{{ 'stats.recent.mode' | translate }}</th>
-                        <th>{{ 'stats.recent.score' | translate }}</th>
-                        <th>{{ 'stats.recent.accuracy' | translate }}</th>
-                        <th>{{ 'stats.recent.timing' | translate }}</th>
+                        <th class="cell-num">{{ 'stats.recent.score' | translate }}</th>
+                        <th class="cell-num">{{ 'stats.recent.accuracy' | translate }}</th>
+                        <th class="cell-num">{{ 'stats.recent.timing' | translate }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -74,9 +51,9 @@
                                     <span>{{ row.mode[1] }}</span>
                                 </span>
                             </td>
-                            <td [attr.data-label]="'stats.recent.score' | translate">{{ row.score }}</td>
-                            <td [attr.data-label]="'stats.recent.accuracy' | translate">{{ 'common.percent' | translate: { value: row.accuracy } }}</td>
-                            <td [attr.data-label]="'stats.recent.timing' | translate">
+                            <td class="cell-num" [attr.data-label]="'stats.recent.score' | translate">{{ row.score }}</td>
+                            <td class="cell-num" [attr.data-label]="'stats.recent.accuracy' | translate">{{ 'common.percent' | translate: { value: row.accuracy } }}</td>
+                            <td class="cell-num" [attr.data-label]="'stats.recent.timing' | translate">
                                 @if (row.timingMs !== null) {
                                     {{ 'common.milliseconds' | translate: { value: row.timingMs } }}
                                 } @else {

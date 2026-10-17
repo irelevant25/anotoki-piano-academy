@@ -175,8 +175,8 @@ describe('Home page: the path in the learner’s words', () => {
     expect(all('.unit-head strong')).toEqual(['Unit 1 · C, D, E', 'Unit 2 · G', 'Unit 3 · F', 'Unit 4 · A', 'Unit 5 · B and high C']);
     expect(all('.unit-head .unit-details')[0]).toBe('New: C4, D4, E4 · Song: Hot Cross Buns');
     expect(all('.unit-head .unit-details')[4]).toBe('New: B4, C5 · Song: Joy to the World (opening, simplified rhythm)');
-    expect(all('.unit:first-child .step-chip')).toEqual(['▶ Meet', 'Drill', 'Read', 'In time', 'Song']);
-    expect(Array.from(host.querySelectorAll('.unit:first-child .step-chip')).map((chip) => chip.getAttribute('title'))).toEqual(['Meet the notes', 'Note drill', 'Read a melody', 'Play in time', 'Song']);
+    expect(all('.unit:first-child .anotoki-chip')).toEqual(['▶ Meet', 'Drill', 'Read', 'In time', 'Song']);
+    expect(Array.from(host.querySelectorAll('.unit:first-child .anotoki-chip')).map((chip) => chip.getAttribute('title'))).toEqual(['Meet the notes', 'Note drill', 'Read a melody', 'Play in time', 'Song']);
 
     expect(all('.phase.is-coming strong')).toEqual(['Left hand', 'Both hands', 'Left-hand chords', 'Right-hand chords', 'Melody and chords']);
     expect(all('.phase.is-coming anotoki-badge')).toEqual(['Coming soon', 'Coming soon', 'Coming soon', 'Coming soon', 'Coming soon']);
@@ -192,6 +192,27 @@ describe('Home page: the path in the learner’s words', () => {
     expect(Array.from(host.querySelectorAll('.unit:first-child [data-open]')).map((chip) => chip.getAttribute('data-open'))).toEqual(['rh-1/meet', 'rh-1/drill', 'rh-1/read', 'rh-1/tempo', 'rh-1/song']);
   });
 
+  it('draws the path with the family’s pieces (anotoki-lib 0.6.0): the call to go on the card’s highlight, each step a chip in its state - passed green, open blue, locked off', async () => {
+    await page('en');
+    await having({}, played({ 'rh-1/meet': 100, 'rh-1/drill': 90 }));
+    // The Continue card is the family's highlighted card - its blue edge and glow are the kit's, not Piano's own.
+    const card = host.querySelector('anotoki-card.continue-card');
+    expect(card?.getAttribute('data-tone')).toBe('highlight');
+    expect(card?.querySelector('#continue')).not.toBeNull();
+    // Each step is the kit's chip on a real button: its tone the step's state, a locked one off (and said so by the ✓ / ▶ too).
+    const chips = Array.from(host.querySelectorAll<HTMLButtonElement>('.unit:first-child button.anotoki-chip'));
+    expect(chips.map((chip) => [chip.getAttribute('data-state'), chip.getAttribute('data-tone'), chip.disabled])).toEqual([
+      ['passed', 'success', false],
+      ['passed', 'success', false],
+      ['open', 'primary', false],
+      ['locked', 'neutral', true],
+      ['locked', 'neutral', true],
+    ]);
+    // Never a toggle: a step is no choice, so no chip says pressed or checked (and none draws the kit's check).
+    expect(chips.some((chip) => chip.hasAttribute('aria-pressed') || chip.hasAttribute('aria-checked') || chip.querySelector('.anotoki-chip__check'))).toBe(false);
+    expect(chips.every((chip) => chip.type === 'button')).toBe(true);
+  });
+
   it('reads in Slovak: the path’s own words are translated, note names and song titles are not', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     await page('sk');
@@ -203,7 +224,7 @@ describe('Home page: the path in the learner’s words', () => {
     expect(all('.phase h2')).toEqual(['Pravá ruka']);
     expect(all('.unit-head strong')).toEqual(['Lekcia 1 · C, D, E', 'Lekcia 2 · G', 'Lekcia 3 · F', 'Lekcia 4 · A', 'Lekcia 5 · B a vysoké C']);
     expect(all('.unit-head .unit-details')[0]).toBe('Nové: C4, D4, E4 · Skladba: Hot Cross Buns');
-    expect(all('.unit:first-child .step-chip')).toEqual(['▶ Zoznámenie', 'Precvičovanie', 'Čítanie', 'V rytme', 'Skladba']);
+    expect(all('.unit:first-child .anotoki-chip')).toEqual(['▶ Zoznámenie', 'Precvičovanie', 'Čítanie', 'V rytme', 'Skladba']);
     expect(all('.phase.is-coming strong')).toEqual(['Ľavá ruka', 'Obe ruky', 'Akordy ľavou rukou', 'Akordy pravou rukou', 'Melódia a akordy']);
     expect(all('.phase.is-coming anotoki-badge')[0]).toBe('Už čoskoro');
     expect(all('.free-practice button')).toEqual(['Tréning nôt', 'Hra z nôt', 'Skladby', 'Štatistiky']);
@@ -214,14 +235,14 @@ describe('Home page: the path in the learner’s words', () => {
   it('a passed step shows its best result, the unit written the language’s way', async () => {
     await page('en');
     await having({}, played({ 'rh-1/meet': 100, 'rh-1/drill': 90, 'rh-1/read': 70 }));
-    expect(all('.unit:first-child .step-chip')).toEqual(['✓ Meet', '✓ Drill 90%', '▶ Read', 'In time', 'Song']);
+    expect(all('.unit:first-child .anotoki-chip')).toEqual(['✓ Meet', '✓ Drill 90%', '▶ Read', 'In time', 'Song']);
     expect(text('.continue-card .continue-tag')).toBe('Continue where you left off');
     expect(text('.continue-step')).toBe('Read a melody');
     expect(text('#continue')).toBe('Continue');
 
     await page('sk');
     await having({}, played({ 'rh-1/meet': 100, 'rh-1/drill': 90, 'rh-1/read': 70 }));
-    expect(all('.unit:first-child .step-chip')).toEqual(['✓ Zoznámenie', '✓ Precvičovanie 90 %', '▶ Čítanie', 'V rytme', 'Skladba']);
+    expect(all('.unit:first-child .anotoki-chip')).toEqual(['✓ Zoznámenie', '✓ Precvičovanie 90 %', '▶ Čítanie', 'V rytme', 'Skladba']);
     expect(text('.continue-card .continue-tag')).toBe('Pokračuj tam, kde sa naposledy skončilo');
     expect(text('#continue')).toBe('Pokračovať');
   });
@@ -281,12 +302,12 @@ describe('Home page: the path in the learner’s words', () => {
   it('follows the language when it changes on the page', async () => {
     await page('sk');
     await having(dueNotes(2), played({ 'rh-1/meet': 100, 'rh-1/drill': 85 }));
-    expect(all('.unit:first-child .step-chip').slice(0, 2)).toEqual(['✓ Zoznámenie', '✓ Precvičovanie 85 %']);
+    expect(all('.unit:first-child .anotoki-chip').slice(0, 2)).toEqual(['✓ Zoznámenie', '✓ Precvičovanie 85 %']);
     expect(all('.unit-head strong')[4]).toBe('Lekcia 5 · B a vysoké C');
 
     await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
     await fixture.whenStable();
-    expect(all('.unit:first-child .step-chip').slice(0, 2)).toEqual(['✓ Meet', '✓ Drill 85%']);
+    expect(all('.unit:first-child .anotoki-chip').slice(0, 2)).toEqual(['✓ Meet', '✓ Drill 85%']);
     expect(all('.unit-head strong')[4]).toBe('Unit 5 · B and high C');
     expect(text('.review-banner span')).toBe('2 notes are due for review.');
     expect(all('.phase h2')).toEqual(['Right hand']);

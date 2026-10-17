@@ -31,12 +31,28 @@ function withNotation<T>(load: () => Promise<T>): () => Promise<T> {
  * out of reach) nobody is sent anywhere: the family's status page stands in
  * every page's place (<anotoki-site-gate>), with a Sign in of its own.
  *
+ * The legal pages - Terms, Privacy, Contact: the anotoki family's
+ * (@anotoki/lib/legal/pages) with Piano Academy's facts, which their frame
+ * gives them (layouts/legal-layout) - are anybody's: no guard, nothing of a
+ * person's progress on them, and the shell draws them whatever its start says
+ * (AppComponent's pageShown). Each is a path of its own with the frame as its
+ * parent - never one parent with an empty path holding the three: the router
+ * takes an address it has read whole ("/") for such a parent when none of its
+ * children match, and would draw the empty frame at "/" with no guard (the
+ * survey's lesson, 2026-10-17; app.routes.spec.ts). They come before the
+ * learner's pages, whose "**" would take them. Their paths are the library's
+ * (DEFAULT_LEGAL_PATHS), the footer's links go there.
+ *
  * A title is a translation key (`title.*`): PianoTitleStrategy words it in the
  * language on the page and puts the app's name after it. The admin panel's
  * pages are English whatever the language, and so are their titles: written
  * here as they are (PianoTitleStrategy puts "Admin panel" between them and
  * the app's name).
  */
+
+/** The legal pages' frame, loaded with the first of them that is opened (and the app's facts with it, out of the first load). */
+const legalFrame = () => import('./layouts/legal-layout/legal-layout.component').then((m) => m.LegalLayoutComponent);
+
 export const routes: Routes = [
   // The IAM's redirect URI (core/auth/site-auth.ts): AnotokiAuth.init() finishes the sign-in before the router
   // starts, so the page is seen only when opened by hand ("Signing you in…", then the start page). Never guarded.
@@ -118,6 +134,22 @@ export const routes: Routes = [
   // Where the owner's two pages were before the admin panel.
   { path: 'translations', redirectTo: '/admin/translations', pathMatch: 'full' },
   { path: 'languages', redirectTo: '/admin/languages', pathMatch: 'full' },
+  // The legal pages: anybody's, each a path of its own in the frame that gives them the app's facts (see above).
+  {
+    path: 'terms',
+    loadComponent: legalFrame,
+    children: [{ path: '', title: 'title.terms', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.TermsPageComponent) }],
+  },
+  {
+    path: 'privacy',
+    loadComponent: legalFrame,
+    children: [{ path: '', title: 'title.privacy', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.PrivacyPageComponent) }],
+  },
+  {
+    path: 'contact',
+    loadComponent: legalFrame,
+    children: [{ path: '', title: 'title.contact', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.ContactPageComponent) }],
+  },
   // The learner's pages.
   {
     path: '',

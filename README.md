@@ -112,6 +112,10 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   the app's administrators (the bar counts the new ones) and mails nobody.
 - **If signing in does not work**, a page of its own says why, with **Try
   again** and a way back to where you were.
+- **Terms, Privacy and Contact**, at the foot of every page - anybody may
+  read them, signed in or not: what Piano Academy is and the rules of using
+  it, what it keeps about you and for how long, and how to reach the people
+  behind it (the feedback form, or an address for everything else).
 
 ### Data and privacy
 
@@ -146,6 +150,15 @@ no backup goes for its age, so a deleted account's data stays in the
 backups made before until they go. Its error log keeps what went wrong -
 never a query, a header, a body or an address - for 30 days.
 
+The **Privacy** page (`/privacy`, at the foot of every page) says all of
+this in full, in English and Slovak: each part the app keeps, why and for
+how long, what this browser stores (by name), who else handles data (the
+hosting company and Cloudflare) and your rights; your anotoki account itself
+is the IAM's, and its own Privacy page is linked from there. The facts on it
+are written in the code (`frontend/src/app/core/legal/legal-facts.ts`) and
+must stay true of it: a change to what the app keeps, or for how long,
+changes them too.
+
 ## Hosting checklist
 
 What the host and Cloudflare need for this site - check it before the first upload and after any change of
@@ -167,7 +180,9 @@ hosting:
     (`return ['origin_secret' => '...'];`, put there by hand; a long random value, 32+ characters). With it the
     site believes `CF-Connecting-IP` only on a request that carries the secret - anybody's Cloudflare Worker
     can connect from Cloudflare's ranges; without the file it believes `CF-Connecting-IP` from Cloudflare's
-    ranges alone. Set the rule first, then the file.
+    ranges alone. Set the rule first, then the file. A file that is there but cannot be read cleanly (a
+    byte-order mark, a line before `<?php`, a typo PHP cannot parse) stands for a secret no request carries:
+    every visitor then counts as Cloudflare's edge until it is mended - PHP's error log says so once a day.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.
@@ -192,13 +207,24 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
-- English and Slovak (informal), 262 keys of the app's own words in the
-  database (migrations 002 to 011) and the anotoki library's 94 (`anotoki.*`:
+- English and Slovak (informal), 304 keys of the app's own words in the
+  database (migrations 002 to 012) and the anotoki library's 257 (`anotoki.*`:
   the words of the bar, its menus, the language chooser, the theme switch,
-  the dialogs, the status page, the sign-in's failure page and the feedback
-  form), a language chooser, and the
+  the dialogs, the status page, the sign-in's failure page, the feedback
+  form and the legal pages), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
+- **Terms, Privacy and Contact (2026-10-18).** `anotoki-lib` 0.6.1, both
+  halves: the anotoki family's legal pages, at the foot of every page and
+  open to anybody (no sign-in), filled in with what this app keeps and for
+  how long - written in the code, true of it. The kit's newer pieces in
+  place of Piano's own: the path's step chips, the Continue card, the
+  figures on Stats and in the Note Trainer, a lesson's step dots, Stats'
+  number columns. A Cloudflare origin-secret file that cannot be read
+  cleanly no longer switches the check off: no request carries its secret
+  until it is mended. Migration 012 (the pages' words; a word no page could
+  show any more goes) and the library's words 005 to 010 go in one Apply. In
+  What's new's 0.4.0 (not released yet).
 - **The origin secret (2026-10-13).** `anotoki-lib` PHP 0.5.2, Angular 0.5.0:
   given the secret the owner's Cloudflare zone adds to every request
   (`config/cloudflare.local.php`, the Hosting checklist above), the site
