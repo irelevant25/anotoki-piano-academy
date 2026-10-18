@@ -502,14 +502,15 @@ test('with the origin secret, a Worker writing a new CF-Connecting-IP every time
     }
 });
 
-test('a config/cloudflare.local.php that cannot be read cleanly - saved with a byte-order mark - fails closed: never printed, and a Worker writing a new CF-Connecting-IP every time is one sender, the proxy - the file\'s own secret in X-Anotoki-Origin too - for the visitors\' limit and the library\'s alike', function (): void {
+test('a config/cloudflare.local.php that cannot be read cleanly - saved with a byte-order mark before <?php declare(strict_types=1), a file PHP could not even compile - fails closed: never printed, the site keeps answering, and a Worker writing a new CF-Connecting-IP every time is one sender, the proxy - the file\'s own secret in X-Anotoki-Origin too - for the visitors\' limit and the library\'s alike', function (): void {
     fresh();
-    // The owner meant a secret, and the file holds one - but PHP prints the byte-order mark before its <?php: the app
-    // reads no secret from it, and believes no CF-Connecting-IP from the proxy it trusts (127.0.0.1, standing for an
-    // edge of Cloudflare's) - never "no secret", which would believe anybody's Worker there (the IAM's rule).
+    // The owner meant a secret, and the file holds one - but it starts with a byte-order mark, before a
+    // declare(strict_types=1): compiled, a fatal error no handler catches, every request a 500. The app never compiles
+    // it, reads no secret from it, and believes no CF-Connecting-IP from the proxy it trusts (127.0.0.1, standing for
+    // an edge of Cloudflare's) - never "no secret", which would believe anybody's Worker there (the IAM's rule).
     $secret = 'origin-' . bin2hex(random_bytes(20));
     $broken = start_app($GLOBALS['auth'], [], ['visitors' => BEHIND_A_PROXY + ['visitors' => ['new_per_hour_per_address' => 2]]]);
-    file_put_contents($broken['config'] . '/cloudflare.local.php', "\xEF\xBB\xBF<?php\n\nreturn " . var_export(['origin_secret' => $secret], true) . ";\n");
+    file_put_contents($broken['config'] . '/cloudflare.local.php', "\xEF\xBB\xBF<?php declare(strict_types=1);\n\nreturn " . var_export(['origin_secret' => $secret], true) . ";\n");
     touch(sweep_marker($broken)); // no sweep in this test
     try {
         $save = static fn (string $address): array => visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from($address), "X-Anotoki-Origin: $secret"], $broken);
@@ -531,9 +532,10 @@ test('a config/cloudflare.local.php that cannot be read cleanly - saved with a b
         assert_same([429, 'too_many'], [$report('203.0.113.21')['status'], $report('203.0.113.22')['body']['code'] ?? null], 'the 21st and 22nd, from addresses never seen: the proxy\'s budget is spent');
 
         $log = (string) file_get_contents($broken['log']);
-        assert_true(str_contains($log, '[config] config/cloudflare.local.php prints 3 bytes of its own') && str_contains($log, 'no request carries its secret'), 'said in the server\'s log: ' . $log);
-        assert_same(1, substr_count($log, '[config] config/cloudflare.local.php prints 3 bytes of its own'), 'once, though the file is read on every request');
+        assert_true(str_contains($log, '[config] config/cloudflare.local.php does not start with <?php') && str_contains($log, 'no request carries its secret'), 'said in the server\'s log: ' . $log);
+        assert_same(1, substr_count($log, '[config] config/cloudflare.local.php does not start with <?php'), 'once, though the file is read on every request');
         assert_false(str_contains($log, $secret), 'never the secret');
+        assert_false(str_contains($log, 'strict_types'), 'never compiled: no fatal error');
         $status = visit('GET', '/api/site-status', null, [], $broken);
         assert_same([200, 'ready'], [$status['status'], $status['body']['state'] ?? null], 'the site runs: the file is optional, never "not set up"');
         assert_same([], server_problems($broken), 'its server said nothing it should not have');

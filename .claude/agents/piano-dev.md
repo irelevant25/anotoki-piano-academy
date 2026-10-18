@@ -139,9 +139,12 @@ Working conventions specific to this repo:
   `SESSION_MODES` (`api/store.php`) and `SessionInput`.
 - Settings are only `backend/config/*.local.php` (gitignored, written by
   `setup.php`); nothing committed stands in for them. Every `*.local.php` is
-  read cleanly or not at all (`settingsFileReadCleanly()`: what a file prints -
-  a byte-order mark, no `<?php` line, the password with it - is caught and never
-  sent; never log `$e->getMessage()` of one, it may quote the file). Setup's Save,
+  read cleanly or not at all (`settingsFileReadCleanly()`: one that does not
+  start with `<?php` - a byte-order mark, a blank line, no `<?php` line, the
+  password with it - is never compiled (after a byte-order mark or a blank
+  line a `declare(strict_types=1)` is a fatal error nothing catches, every
+  request a 500), what one prints is caught and never sent; never log
+  `$e->getMessage()` of one, it may quote the file). Setup's Save,
   `php migration.php`, an administrator's Apply on the Migrations page and
   the tests' builders take one lock (`DATABASE_UPDATE_LOCK`,
   `api/migrations.php`).
@@ -170,7 +173,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.6.1, both halves): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.6.2, both halves): in the browser `@anotoki/lib/auth`, wired in
   `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -193,7 +196,7 @@ Working conventions specific to this repo:
   request carries, said once a day by its fault, never its text); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.6.1, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.6.2, wired in
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in

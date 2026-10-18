@@ -319,6 +319,25 @@ once the list is loaded); the library's translations 005 to 010 (257
 `anotoki.*` words now) run after it in the same Apply. In What's new's
 0.4.0: Terms, Privacy and Contact at the foot of every page.
 
+**2026-10-18, later: a settings file is never compiled unless it starts
+with `<?php`, and `anotoki-lib` 0.6.2** (both halves; Japanese Academy's
+review found it, the family's rule since - `docs/decisions.md`). A
+`*.local.php` saved with a byte-order mark or a blank line before
+`<?php declare(strict_types=1);` is a compile-time fatal error that no
+handler and no output buffer catches: every request, the site's status
+too, was a 500 instead of "not set up", and a broken `cloudflare.local.php`
+never failed closed. `settingsFileReadCleanly()` now reads a file's first
+five bytes and passes it over, uncompiled, unless they are `<?php` (any
+case) - "does not start with <?php", said by that fault alone, never the
+text (`tests/unit/config.test.php` and `unit/visitors.test.php` write both
+starts for each kind of file; through the server `api/site.test.php` the
+database's and `api/visitors.test.php` Cloudflare's). The library's 0.6.2
+rewords three Privacy sentences (its translations 011, which keeps a
+site's own words - Piano words two of the three itself, the backups and
+the sign-in's storage; 011 runs after 012 in the same Apply, 005 to 011
+now). No line in What's new (0.4.0 already has the legal pages); no
+migration of Piano's.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -478,11 +497,16 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   other key is passed over, so an old file with `mode` / `local_user_id`
   still works (and signs in through the IAM). **Every `*.local.php` is read
   cleanly or not at all** (`settingsFileReadCleanly()` in
-  `config/config.php`; the IAM's rule): what a file prints as PHP reads it -
-  a byte-order mark, no `<?php` line, text after a closing tag: the password
-  with it - is caught and never sent, and a file that prints, or that PHP
-  cannot parse, run or open, is passed over - said once a day by its kind and
-  line or its bytes, never its text. **Where the site stands is the
+  `config/config.php`; the IAM's rule): a file that does not start with
+  `<?php` - a byte-order mark, a blank line or a space before it, no `<?php`
+  line (the password with it) - is passed over before PHP ever compiles it,
+  its first five bytes read alone (with `declare(strict_types=1)` after such
+  a start PHP could not even compile it: a fatal error nothing catches,
+  every request a 500); what one that does start so prints as PHP reads it -
+  text after a closing tag - is caught and never sent, and a file that
+  prints, or that PHP cannot parse, run or open, is passed over - said once
+  a day by its kind and line, its start or its bytes, never its text.
+  **Where the site stands is the
   family's** (`anotoki/lib`; `siteState()` in `api/migrations.php`, the
   `SiteGate` in front of every route, `GET /api/site-status` for the pages -
   always 200 `{state, installed}`, to anybody: nothing may stand in front of
@@ -652,9 +676,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.6.1 - PHP `anotoki/lib` (`^0.6.0`, Composer's VCS repository on GitHub,
+  0.6.2 - PHP `anotoki/lib` (`^0.6.0`, Composer's VCS repository on GitHub,
   committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.6.1 tarball, in both lock files). Never
+  v0.6.2 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry

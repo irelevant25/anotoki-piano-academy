@@ -37,10 +37,11 @@ declare(strict_types=1);
  *
  * There is nothing to fall back on. Without both files, or with one that does
  * not say what it must - or that cannot be read cleanly (a slip in an editor:
- * PHP cannot parse, run or open it, or it prints anything as PHP reads it - a
- * byte-order mark or a line before its <?php, no <?php line at all, text after
- * a closing tag; what it prints, the password with it, is caught and never
- * sent: settingsFileReadCleanly()) - the
+ * it does not start with <?php - a byte-order mark or a line before it, no
+ * <?php line at all - and is never compiled; it prints anything as PHP reads
+ * it - text after a closing tag - and what it prints, the password with it, is
+ * caught and never sent; or PHP cannot parse, run or open it:
+ * settingsFileReadCleanly()) - the
  * API answers every request but GET /api/site-status 503 {code: "not_set_up"}
  * (pointing at /setup.php while the site was never installed: the anotoki
  * family's gate, api/index.php), and the frontend shows the family's status
@@ -149,11 +150,13 @@ function localSettings(bool $reload = false): array
 
     // A file that cannot be read cleanly is no setting - said, rather than a
     // 500 on every path (the site's status too, which the pages read to know
-    // what to say). It is read through settingsFileReadCleanly(): whatever it
-    // prints as PHP reads it - all of it, the password too, from a file
-    // without its <?php line - is caught and never sent; what PHP said is not
-    // repeated (it may quote the file, password and all), only its kind and
-    // line, or how many bytes the file printed.
+    // what to say). It is read through settingsFileReadCleanly(): one that
+    // does not start with <?php - required, a file without that line would
+    // print all of it, the password too - is never compiled, and whatever one
+    // that does prints as PHP reads it is caught and never sent; what PHP said
+    // is not repeated (it may quote the file, password and all), only its kind
+    // and line, that it does not start with <?php, or how many bytes the file
+    // printed.
     $unreadable = null;
     $read = static function (string $name) use (&$unreadable): ?array {
         $file = localConfigFile($name);
@@ -310,9 +313,10 @@ const CLIENT_ADDRESS_TRUSTED_PROXIES = [
 /**
  * The optional visitors.local.php (see the top of this file): the array it
  * returns, or [] when there is none or it cannot be read cleanly - then every
- * default holds (settingsFileReadCleanly(): nothing it prints is sent, and
- * its fault is said once a day by its kind and line or its bytes, never what
- * PHP said, which may quote it). Read once per request, again with $reload.
+ * default holds (settingsFileReadCleanly(): one that does not start with
+ * <?php is never compiled, nothing it prints is sent, and its fault is said
+ * once a day by its kind and line, its start or its bytes, never what PHP
+ * said, which may quote it). Read once per request, again with $reload.
  * What each value may be is checked where it is used (visitorLimit(),
  * clientAddressTrustedProxies()).
  */
@@ -375,9 +379,10 @@ function originSecret(bool $reload = false): ?string
  *     that string, trimmed (a header's value never starts or ends with a space);
  *   - a file read cleanly that names no secret - blank, missing, no string, no
  *     array returned: null, no secret, as the IAM reads it;
- *   - a file that is there but cannot be read cleanly - it prints anything (no
- *     <?php line, a byte-order mark or a line before it, text after a closing
- *     tag), PHP cannot parse or run it, or may not open it: a secret no request
+ *   - a file that is there but cannot be read cleanly - it does not start with
+ *     <?php (a byte-order mark or a line before it, no <?php line: never
+ *     compiled), it prints anything (text after a closing tag), PHP cannot
+ *     parse or run it, or may not open it: a secret no request
  *     carries (originSecretNobodyCarries()), so every request from Cloudflare's
  *     ranges counts as the edge it came from until the file is mended. Its
  *     owner meant a secret, and believing CF-Connecting-IP from Cloudflare's
@@ -387,9 +392,9 @@ function originSecret(bool $reload = false): ?string
  *     up".
  *
  * Each fault is said in PHP's error log at most once a day (settingsSaid()),
- * by the kind of error and its line, or the bytes the file printed - never its
- * text: a parse error's message can quote the file, and the secret is never
- * printed or logged.
+ * by the kind of error and its line, that it does not start with <?php, or
+ * the bytes the file printed - never its text: a parse error's message can
+ * quote the file, and the secret is never printed or logged.
  */
 function originSecretFile(): ?string
 {
@@ -430,19 +435,30 @@ function originSecretNobodyCarries(): string
 
 /**
  * Requires a *.local.php - every one is read this way: database, auth,
- * visitors, cloudflare - in a closure of its own, so it sees none of the
- * caller's variables, with whatever it prints caught. A file
- * without its <?php line, with a byte-order mark or a line before it, or with
- * text after a closing tag prints what is outside its PHP when PHP requires it
- * (all of it, the password or the secret too, where the line is missing) ahead
- * of the answer:
- * caught here, it goes nowhere, and the file is read as no file - its problem
- * the number of bytes it printed. One PHP cannot parse or run (a ParseError, an
- * Error, a warning api/bootstrap.php's handler throws), or may not open, is no
- * file either, said by the kind of error and its line alone. What each caller
- * makes of no file is its own: the database's or the auth's leaves the site
- * not set up (localSettings()), the visitors' the defaults, the cloudflare's
- * a secret no request carries.
+ * visitors, cloudflare - read cleanly, or not at all.
+ *
+ * A file that does not start with <?php - saved with a byte-order mark, a
+ * blank line or a space before it, or without that line at all - is passed
+ * over before PHP ever compiles it: required, it would print what comes before
+ * (all of it, the password or the secret too, where the line is missing), and
+ * one with declare(strict_types=1) after such a start is a compile-time fatal
+ * error ("strict_types declaration must be the very first statement") that no
+ * try, no handler and no output buffer catches - every request, the site's
+ * status too, would be a 500 instead of "not set up", and a
+ * cloudflare.local.php would never fail closed (Japanese Academy's review of
+ * 2026-10-18, the family's rule since). Its first five bytes are read alone,
+ * never the rest, and its problem is that it does not start with <?php.
+ *
+ * A file that does start with it is required in a closure of its own, so it
+ * sees none of the caller's variables, with whatever it prints all the same -
+ * text after a closing tag, an echo, a buffer of its own left open - caught:
+ * it goes nowhere, and the file is read as no file, its problem the number of
+ * bytes it printed. One PHP cannot parse or run (a ParseError, an Error, a
+ * warning api/bootstrap.php's handler throws), or may not open, is no file
+ * either, said by the kind of error and its line alone. What each caller makes
+ * of no file is its own: the database's or the auth's leaves the site not set
+ * up (localSettings()), the visitors' the defaults, the cloudflare's a secret
+ * no request carries.
  *
  * @return array{value: mixed, problem: ?string}
  */
@@ -450,6 +466,13 @@ function settingsFileReadCleanly(string $file): array
 {
     if (!is_readable($file)) {
         return ['value' => null, 'problem' => 'could not be read (PHP may not open it)'];
+    }
+    $head = @file_get_contents($file, false, null, 0, 5);
+    if ($head === false) {
+        return ['value' => null, 'problem' => 'could not be read (PHP may not open it)'];
+    }
+    if (strtolower($head) !== '<?php') {
+        return ['value' => null, 'problem' => 'does not start with <?php (a byte-order mark, a blank line or a space before it, or no <?php line at all)'];
     }
 
     $level = ob_get_level();
@@ -476,7 +499,7 @@ function settingsFileReadCleanly(string $file): array
         return ['value' => null, 'problem' => $failure];
     }
     if ($printed > 0) {
-        return ['value' => null, 'problem' => "prints {$printed} bytes of its own (no <?php line, a byte-order mark or a line before it, or text after its closing tag)"];
+        return ['value' => null, 'problem' => "prints {$printed} bytes of its own (text after its closing tag, or something it echoes)"];
     }
 
     return ['value' => $value, 'problem' => null];

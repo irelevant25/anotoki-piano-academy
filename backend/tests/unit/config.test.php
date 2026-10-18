@@ -131,25 +131,33 @@ test('a settings file PHP cannot run is no setting: the problem names the file, 
     assert_false(str_contains((string) with_config_dir($dir, 'settingsProblem'), 'sesame'), 'nothing of the file in the sentence');
 });
 
-test('a settings file that prints as PHP reads it - no <?php line, a byte-order mark or a line before it, text after a closing tag - is no setting: nothing of it is printed, the password least of all, and the problem says how many bytes, never what', function (): void {
+test('a settings file that does not start with <?php - no <?php line, a byte-order mark or a line before it, before declare(strict_types=1) too, which PHP cannot even compile - or that prints as PHP reads it (text after a closing tag) is no setting: never compiled or nothing of it printed, the password least of all, and the problem says its start or how many bytes, never what', function (): void {
     $password = 'sesame-' . bin2hex(random_bytes(8));
     $database = var_export(['password' => $password] + good_database(), true);
+    $start = 'does not start with <?php';
     foreach ([
-        'no <?php line' => "return {$database};\n",
-        'a byte-order mark' => "\xEF\xBB\xBF<?php return {$database};\n",
-        'a byte-order mark and no <?php line' => "\xEF\xBB\xBFreturn {$database};\n",
-        'a line before its <?php' => "\n<?php return {$database};\n",
-        'text after a closing tag' => "<?php \$kept = 1; ?>\n{$password}\n<?php return {$database};\n",
-    ] as $case => $contents) {
+        // Required, these would print what comes before their <?php - all of it, the password too, where the line
+        // is missing - so none is compiled: a file that does not start with <?php is passed over unread.
+        'no <?php line' => ["return {$database};\n", $start],
+        'a byte-order mark' => ["\xEF\xBB\xBF<?php return {$database};\n", $start],
+        'a byte-order mark and no <?php line' => ["\xEF\xBB\xBFreturn {$database};\n", $start],
+        'a line before its <?php' => ["\n<?php return {$database};\n", $start],
+        // Compiled, either is a fatal error no try, no handler and no buffer catches ("strict_types declaration must
+        // be the very first statement"): this process would end here - and a request, a 500.
+        'a byte-order mark before <?php declare(strict_types=1)' => ["\xEF\xBB\xBF<?php declare(strict_types=1);\n\nreturn {$database};\n", $start],
+        'a blank line before <?php declare(strict_types=1)' => ["\n<?php declare(strict_types=1);\n\nreturn {$database};\n", $start],
+        // A file that does start with <?php and prints all the same: caught.
+        'text after a closing tag' => ["<?php \$kept = 1; ?>\n{$password}\n<?php return {$database};\n", 'prints ' . (strlen($password) + 1) . ' bytes of its own'],
+    ] as $case => [$contents, $fault]) {
         $dir = test_temp_dir('printing-config');
         file_put_contents("$dir/database.local.php", $contents);
         file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
         $level = ob_get_level();
         ob_start();
         try {
-            $log = config_log_of(static function () use ($dir, $case): void {
-                assert_match('/^config\/database\.local\.php prints \d+ bytes of its own \(/', (string) with_config_dir($dir, 'settingsProblem'), $case);
-                assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/^config\/database\.local\.php prints \d+ bytes/');
+            $log = config_log_of(static function () use ($dir, $case, $fault): void {
+                assert_true(str_starts_with((string) with_config_dir($dir, 'settingsProblem'), "config/database.local.php $fault ("), "$case: " . with_config_dir($dir, 'settingsProblem'));
+                assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/^config\/database\.local\.php ' . preg_quote($fault, '/') . '/');
             });
         } finally {
             $printed = (string) ob_get_clean();
@@ -157,21 +165,23 @@ test('a settings file that prints as PHP reads it - no <?php line, a byte-order 
         assert_same('', $printed, "$case: nothing of the file printed");
         assert_same($level, ob_get_level(), "$case: no buffer left open");
         assert_false(str_contains((string) with_config_dir($dir, 'settingsProblem'), $password), "$case: nothing of the file in the sentence");
-        assert_true(str_contains($log, '[config] config/database.local.php prints '), "$case: said in the log by its bytes - " . $log);
-        assert_false(str_contains($log, $password), "$case: never the password in the log");
+        assert_true(str_contains($log, "[config] config/database.local.php $fault"), "$case: said in the log by its start or its bytes - " . $log);
+        assert_false(str_contains($log, $password) || str_contains($log, 'strict_types'), "$case: never the password in the log, nor what PHP said");
     }
 
-    // The sign-in's file the same: not set up, nothing printed.
-    $dir = test_temp_dir('printing-auth');
-    file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
-    file_put_contents("$dir/auth.local.php", "\xEF\xBB\xBF<?php return " . var_export(test_auth_settings(), true) . ';');
-    ob_start();
-    try {
-        $problem = (string) with_config_dir($dir, 'settingsProblem');
-    } finally {
-        $printed = (string) ob_get_clean();
+    // The sign-in's file the same: not set up, nothing printed - a byte-order mark, and one before declare(strict_types=1).
+    foreach (["\xEF\xBB\xBF<?php return ", "\xEF\xBB\xBF<?php declare(strict_types=1);\nreturn "] as $begins) {
+        $dir = test_temp_dir('printing-auth');
+        file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+        file_put_contents("$dir/auth.local.php", $begins . var_export(test_auth_settings(), true) . ';');
+        ob_start();
+        try {
+            $problem = (string) with_config_dir($dir, 'settingsProblem');
+        } finally {
+            $printed = (string) ob_get_clean();
+        }
+        assert_same(['config/auth.local.php does not start with <?php (a byte-order mark, a blank line or a space before it, or no <?php line at all).', ''], [$problem, $printed]);
     }
-    assert_same(['config/auth.local.php prints 3 bytes of its own (no <?php line, a byte-order mark or a line before it, or text after its closing tag).', ''], [$problem, $printed]);
 });
 
 test('nothing committed stands in for the settings: config/ holds the loader and nothing else', function (): void {

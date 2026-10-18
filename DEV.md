@@ -24,7 +24,7 @@ from GitHub, never from a folder next door: the PHP package `anotoki/lib`
 (`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.6.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.1/anotoki-lib-0.6.1.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.2/anotoki-lib-0.6.2.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -36,11 +36,12 @@ and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*); the
 legal pages (below, *Terms, Privacy and Contact*). Both
-halves are at 0.6.1 (0.6.0 added the legal pages - Terms, Privacy, Contact
+halves are at 0.6.2 (0.6.0 added the legal pages - Terms, Privacy, Contact
 and the footer's links - and the kit's chips, stat tiles and step dots, the
 highlighted card and the select's own entry point; 0.6.1 made the Privacy
-page's sentences on the backups true; 0.5.1 and 0.5.2 changed only
-the PHP half: 0.5.1 a restore's sequences that count down, 0.5.2 the origin
+page's sentences on the backups true, and 0.6.2 three more of its
+sentences - its translations 011, which keeps a site's own words; 0.5.1 and
+0.5.2 changed only the PHP half: 0.5.1 a restore's sequences that count down, 0.5.2 the origin
 secret - below, *The library's PHP 0.5.2*; 0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
 site is open; 0.2.0 marked that template - `anotokiSitePages` - gave the
@@ -598,20 +599,22 @@ secret; any other request from Cloudflare counts as its edge (coarser, never
 looser). Without the file the app believes CF-Connecting-IP from the trusted
 proxies alone, as before; a file read cleanly that names no secret is none,
 the same. **A file that is there but cannot be read cleanly fails closed**
-(since 2026-10-18, the IAM's rule): one that prints anything when PHP reads
-it (no `<?php` line, a byte-order mark or a line before it, text after a
-closing tag) or that PHP cannot parse, run or open stands for a secret no
+(since 2026-10-18, the IAM's rule): one that does not start with `<?php`
+(no `<?php` line, a byte-order mark or a line before it - never compiled, so
+not even a `declare(strict_types=1)` after such a start stops the site),
+one that prints anything when PHP reads it (text after a closing tag) or
+that PHP cannot parse, run or open stands for a secret no
 request carries, so every request from Cloudflare counts as its edge until
 the file is mended - its owner meant a secret, and a slip of the editor
 never switches the check off. The site runs on, and PHP's error log says so
 at most once a day (a stamp in `storage/cache`), by the fault alone -
-`[config] config/cloudflare.local.php prints 3 bytes of its own (...)` or
+`[config] config/cloudflare.local.php does not start with <?php (...)` or
 `... could not be read (ParseError on line 2)` - never the file's text. To
 change the secret, change the rule first, then the file (between the two,
 visitors count as their edge). The secret is never printed or logged.
 
 **Terms, Privacy and Contact (migration 012, 2026-10-18, not applied
-anywhere yet; the library's 0.6.1)**: the build carries `anotoki-lib` 0.6.1 -
+anywhere yet; the library's 0.6.2)**: the build carries `anotoki-lib` 0.6.2 -
 both halves: the family's legal pages on `/terms`, `/privacy` and `/contact`
 (anybody's, signed in or not), Terms · Privacy · Contact under every page,
 and the kit's chips, stat tiles, step dots and highlighted card in place of
@@ -623,8 +626,11 @@ description and deletes `whatsNew.notLoaded` (no page can show it any
 more); its gate fails loudly if a key lacks its English or its Slovak, the
 deleted key is still there, or `brand.area`'s description does not tell of
 the legal pages. The library's `anotoki_translations/005_legal_words.sql`
-to `010_backups_where_words.sql` run right after it in the same Apply (the
-legal pages' own words and the kit pieces' - 257 `anotoki.*` keys in all).
+to `011_privacy_words_made_true.sql` run right after it in the same Apply
+(the legal pages' own words and the kit pieces' - 257 `anotoki.*` keys in
+all; 011 rewords three Privacy sentences, each only while it is still the
+library's first wording - Piano words two of them itself, the backups and
+the sign-in's storage).
 It all goes with 005 to 011 at the hand-over - one Apply. Before the site is
 public the owner names the hosting company (the Privacy page says "to be
 named" until then: `{ preset: 'hosting' }` in
@@ -651,7 +657,7 @@ of the new id first, if there is one).
 
 | Symptom | Likely cause |
 | --- | --- |
-| "This site is not set up yet" (or, once installed, "The site is not available right now"); the API answers 503 `not_set_up` | The setup page has not run, or a `config/*.local.php` is missing - or it cannot be read cleanly (edited by hand? the PHP error log says once a day `[config] config/....local.php could not be read (ParseError on line N)`, or `... prints N bytes of its own` for a byte-order mark, a missing `<?php` line or text after a closing tag - what it printed is never sent; save it again as UTF-8 without a BOM, or Save on the setup page). On a host the setup page is offered only while `storage/installed.lock` is not there. |
+| "This site is not set up yet" (or, once installed, "The site is not available right now"); the API answers 503 `not_set_up` | The setup page has not run, or a `config/*.local.php` is missing - or it cannot be read cleanly (edited by hand? the PHP error log says once a day `[config] config/....local.php could not be read (ParseError on line N)`, or `... does not start with <?php (...)` for a byte-order mark, a blank line or a missing `<?php` line - never compiled, so never a 500 -, or `... prints N bytes of its own` for text after a closing tag - what it printed is never sent; save it again as UTF-8 without a BOM, or Save on the setup page). On a host the setup page is offered only while `storage/installed.lock` is not there. |
 | "The site is being updated"; the API answers 503 `update_pending` | A migration waits: an ADMIN applies it on the admin panel's Migrations page (sign in from that page), or `php migration.php`, or the setup page. The sign-in, the words and `/api/health` answer meanwhile. |
 | "The site is not available right now", and it does not come back | The database cannot be reached (`GET /api/site-status` says `unavailable`): is PostgreSQL running, do the settings name it? |
 | The visitors' limits trip early, every visitor counted as one; PHP's error log says `[config] config/cloudflare.local.php ...: no request carries its secret` | The origin secret's file cannot be read cleanly (a byte-order mark, a line before `<?php`, a typo PHP cannot parse): it fails closed, so every request from Cloudflare counts as its edge. Mend the file (*The library's PHP 0.5.2*). |

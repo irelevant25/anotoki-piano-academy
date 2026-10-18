@@ -211,17 +211,23 @@ the header is no setting. See `backend/config/config.php`.
 by setup, never a reason for "not set up"): the origin secret, below.
 
 Every one of these files is read cleanly or not at all
-(`settingsFileReadCleanly()`, as the IAM reads its own): a file edited by
-hand that prints as PHP reads it - a byte-order mark or a line before its
-`<?php`, no `<?php` line at all (then all of it, the database password
-too), text after a closing tag - has what it prints caught, never sent, and
-is passed over, like one PHP cannot parse, run or open. A database or auth
-file read so leaves the site not set up (never a 500, never its text; the
-setup page on this computer names the file and its fault), the visitors'
-file the defaults, the origin secret's file a secret no request carries.
-Each fault is said in PHP's error log at most once a day (`settingsSaid()`),
-by its kind and line or the bytes printed - never what PHP said, which may
-quote the file.
+(`settingsFileReadCleanly()`, as the IAM reads its own). A file edited by
+hand that does not start with `<?php` - a byte-order mark, a blank line or
+a space before it, or no `<?php` line at all (required, all of it would
+print, the database password too) - is passed over before PHP ever
+compiles it: its first five bytes are read alone. (Compiled, one with
+`declare(strict_types=1)` after such a start is a fatal error no handler
+catches - every request, the status included, a 500 instead of "not set
+up", and the origin secret's file never failing closed: Japanese Academy's
+review of 2026-10-18.) One that does start so but prints as PHP reads it -
+text after a closing tag, an echo - has what it prints caught, never sent,
+and is passed over, like one PHP cannot parse, run or open. A database or
+auth file read so leaves the site not set up (never a 500, never its text;
+the setup page on this computer names the file and its fault), the
+visitors' file the defaults, the origin secret's file a secret no request
+carries. Each fault is said in PHP's error log at most once a day
+(`settingsSaid()`), by its kind and line, its start or the bytes printed -
+never what PHP said, which may quote the file.
 
 **Where a request comes from** is one rule, the family's (`anotoki-lib`
 0.5.0's `Support\ClientAddress`, `api/client_address.php`): REMOTE_ADDR, or -
@@ -238,7 +244,8 @@ to every request: anybody's Cloudflare Worker can connect from Cloudflare's
 ranges, and any other request from them counts as its edge - coarser, never
 looser; without the file, as before, and the same for a file read cleanly
 that names no secret. A file that is there but cannot be read cleanly - it
-prints anything, PHP cannot parse, run or open it - fails closed (since
+does not start with `<?php`, it prints anything, PHP cannot parse, run or
+open it - fails closed (since
 2026-10-18, the IAM's rule: `settingsFileReadCleanly()`): a secret no request
 carries, so every request from Cloudflare's ranges counts as its edge until
 the file is mended, said in PHP's error log at most once a day by the fault
@@ -485,7 +492,7 @@ on the pages the code's - the anotoki account's Privacy and account pages
 at the IAM's address (`AnotokiAuth.issuer()`, `accountUrl()`) -, never a
 string's.
 
-**The family's kit** (`@anotoki/lib` 0.6.1, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.6.2, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are

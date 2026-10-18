@@ -214,7 +214,7 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   form and the legal pages), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
-- **Terms, Privacy and Contact (2026-10-18).** `anotoki-lib` 0.6.1, both
+- **Terms, Privacy and Contact (2026-10-18).** `anotoki-lib` 0.6.2, both
   halves: the anotoki family's legal pages, at the foot of every page and
   open to anybody (no sign-in), filled in with what this app keeps and for
   how long - written in the code, true of it. The kit's newer pieces in
@@ -225,9 +225,11 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   until it is mended. No settings file edited by hand can print itself any
   more - a database file saved with a byte-order mark or without its first
   line would have sent its password ahead of every answer: what it prints is
-  caught, and the site says it is not set up until the file is mended.
-  Migration 012 (the pages' words; a word no page could
-  show any more goes) and the library's words 005 to 010 go in one Apply. In
+  caught, and the site says it is not set up until the file is mended - and
+  a file that does not start with `<?php` is never even compiled (a
+  byte-order mark or a blank line before its `declare(strict_types=1)` made
+  every page a 500). Migration 012 (the pages' words; a word no page could
+  show any more goes) and the library's words 005 to 011 go in one Apply. In
   What's new's 0.4.0 (not released yet).
 - **The origin secret (2026-10-13).** `anotoki-lib` PHP 0.5.2, Angular 0.5.0:
   given the secret the owner's Cloudflare zone adds to every request

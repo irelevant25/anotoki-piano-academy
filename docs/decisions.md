@@ -2,6 +2,45 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-18, later - a settings file is never compiled unless it starts with `<?php`, and `anotoki-lib` 0.6.2
+
+- **The guard reads a file's first five bytes before it requires it**
+  (Japanese Academy's review found it, the family's rule since - the IAM's
+  `readLocalConfigFile()` and the survey's guard alike). The output buffer
+  below catches what a file prints, but not a file PHP cannot compile: a
+  `*.local.php` saved with a byte-order mark or a blank line before
+  `<?php declare(strict_types=1);` is a compile-time fatal error
+  ("strict_types declaration must be the very first statement", exit 255)
+  that no `try`, no error handler and no output buffer catches - every
+  request, `/api/site-status` included, answered 500 instead of "not set
+  up", and a `cloudflare.local.php` saved so never failed closed.
+  `settingsFileReadCleanly()` now reads the first five bytes and, unless
+  they are `<?php` (in any case), passes the file over without requiring it:
+  its problem is that it "does not start with <?php", said by that fault
+  alone, never its text; what passing over means stays each caller's (not
+  set up, the defaults, a secret no request carries). Nothing a good file
+  needs is lost: every file setup writes starts with `<?php`, and one whose
+  `<?php` comes after anything else would print that ahead of every answer
+  anyway - so a byte-order mark, a line before it or no `<?php` line at all
+  is now said this way instead of by the bytes it printed. The tests:
+  `tests/unit/config.test.php` and `tests/unit/visitors.test.php` write both
+  starts before `declare(strict_types=1)` for each kind of file (with the
+  check taken out, the test process ends at the require),
+  `tests/api/site.test.php` the database's through the real server (not set
+  up, never a 500, nothing of it in any answer or the log), and
+  `tests/api/visitors.test.php` Cloudflare's (with the check taken out the
+  first answer is a 500; with it, made-up CF-Connecting-IP addresses through
+  the trusted proxy - the file's own secret beside them - are the edge).
+- **The library's 0.6.2, both halves**: three of the Privacy page's
+  sentences made true on every site (its translations 011, which rewords
+  each only while it is still the library's first wording and nobody saved
+  it). Piano words two of them itself - the backups' keeping
+  (`legal.backups.kept`) and the sign-in's storage
+  (`legal.storage.signIn.purpose`) -, and its own words stay; the third, the
+  account's record, now says a feedback message's reply address is kept,
+  which is Piano's case. 011 runs after 012 in the same Apply; no migration
+  of Piano's, no line in What's new.
+
 ## 2026-10-18 - Terms, Privacy and Contact, the kit's newer pieces, and a broken origin-secret file that fails closed (`anotoki-lib` 0.6.1)
 
 The round-3 pass of every anotoki site (the IAM's and the survey's went

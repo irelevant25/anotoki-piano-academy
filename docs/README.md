@@ -118,14 +118,16 @@ only on a request that carries the secret the owner's Cloudflare zone adds
 (`X-Anotoki-Origin`); any other request from Cloudflare counts as its edge -
 `architecture.md` ("Where a request comes from"), `api.md`; `decisions.md`.
 No words, no migration.
-Then (2026-10-18) the library's 0.6.1, both halves: the family's Terms,
+Then (2026-10-18) the library's 0.6.2, both halves: the family's Terms,
 Privacy and Contact on routes of their own, open to anybody, filled in with
 Piano's facts - true of the code as it is, every address the code's -, the
 footer's links to them, the kit's chips, stat tiles, step dots and
 highlighted card in place of Piano's own, What's new loaded when it opens,
-and a `config/cloudflare.local.php` that cannot be read cleanly failing
-closed - `architecture.md` ("The legal pages", "The family's kit", "Where a
+a `config/cloudflare.local.php` that cannot be read cleanly failing
+closed, and a settings file that does not start with `<?php` never
+compiled (one with a byte-order mark before `declare(strict_types=1)` made
+every request a 500) - `architecture.md` ("The legal pages", "The family's kit", "Where a
 request comes from"); `decisions.md` (with the facts for the owner to
 confirm). Migration 012 (words only: the pages' 43 keys, a word no page
 can show any more gone) goes with 005 to 011 at the hand-over, the library's
-words 005 to 010 after it in the same Apply.
+words 005 to 011 after it in the same Apply.

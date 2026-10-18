@@ -225,7 +225,8 @@ test('an empty database gets every migration, recorded once, under the app\'s on
     assert_same([
         '001_languages_and_strings.sql', '002_library_words.sql', '003_sign_in_words.sql', '004_feedback_words.sql', '005_legal_words.sql',
         '006_top_bar_words.sql', '007_kit_piece_words.sql', '008_tab_words.sql', '009_input_words.sql', '010_backups_where_words.sql',
-    ], library_migration_files(), 'the library\'s words, as vendor/ has them (anotoki-lib 0.6.1)');
+        '011_privacy_words_made_true.sql',
+    ], library_migration_files(), 'the library\'s words, as vendor/ has them (anotoki-lib 0.6.2)');
     assert_same(['001_audit_log.sql', '002_feedback.sql'], library_migration_files(\Anotoki\Lib\Admin\Schema::migrationSet()), 'its admin tools\'');
     assert_same(['001_people.sql'], library_migration_files(\Anotoki\Lib\People\Schema::migrationSet()), 'its people\'s');
     assert_same(every_migration(), $migrator->applicable(), 'all of them waiting, in the order of the sets...');
@@ -243,7 +244,7 @@ test('an empty database gets every migration, recorded once, under the app\'s on
     assert_same(['id', 'filename', 'applied_at'], $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'migrations' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN));
     assert_same(array_map('migrationLabel', every_migration()), $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
     assert_same(['anotoki_admin/001_audit_log.sql', 'anotoki_admin/002_feedback.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 0, 2));
-    assert_same(['anotoki_translations/010_backups_where_words.sql', 'anotoki_people/001_people.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -2));
+    assert_same(['anotoki_translations/011_privacy_words_made_true.sql', 'anotoki_people/001_people.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -2));
     assert_same(0, advisory_locks($pdo), 'the lock was let go');
 
     // Somebody else updating (setup.php's Save, php migration.php, an Apply): busy, and nothing done.
