@@ -770,6 +770,7 @@ php tools/build.php                       # the upload -> ../dist/ (builds the f
 npm ci && npm start                       # ng serve on :4500
 npm test                                  # Vitest unit tests
 npm run build                             # production -> dist/piano-academy/browser/
+cd .. && bun run format:check             # Prettier on every file of both halves, at the root (bun install there first)
 
 # The app in a browser, signed in through the stand-in IAM (from the root; PHP=<8.2+ binary>)
 node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure]

@@ -167,7 +167,7 @@ Working conventions specific to this repo:
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 - Before reporting done: `php tests/run.php` in `backend/` (it must pass on
   PHP 8.5; the hosting runs 8.2, so use nothing 8.2 lacks), `npm test` and `npm run build` in
-  `frontend/`, and the skill's review checklist. The key scan in
+  `frontend/`, `bun run format:check` at the root, and the skill's review checklist. The key scan in
   `tests/unit/translations.test.php` fails on a key no migration wrote and on
   a key nothing asks for (`php tools/translations.php --status` runs it
   against the configured database). After

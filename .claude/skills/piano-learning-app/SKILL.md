@@ -1635,7 +1635,7 @@ pill instead of crashing, which is what to check.
 - Note names, song titles and device names are never translated.
 - A new shell string is also in `kept-english.ts`; a key put together at run time has its prefix and tails in `dynamic-keys.ts`.
 - The top bar's words are keys (in kept-english.ts too) but for the admin panel's own (English literals); a word the family's kit says is the library's key (`anotoki.*`, worded in the database - a new site wording of one goes in a migration as 009 did, never a mapping in code); a change to its row is measured again (`run.mjs --measure`) and PHONE_BAR_MAX changed in `top-bar.component.ts` (the bar's `phoneMax`; no .scss copy); the browser check passes and its screenshots are looked at.
-- `php tests/run.php` (PHP 8.5), `npm test`, `npm run build` pass; interactive changes checked in a browser on a throwaway database; `setup.php` still parses under PHP 7.4.
+- `php tests/run.php` (PHP 8.5), `npm test`, `npm run build` and `bun run format:check` (at the root) pass; interactive changes checked in a browser on a throwaway database; `setup.php` still parses under PHP 7.4.
 
 ## Extending the curriculum
 

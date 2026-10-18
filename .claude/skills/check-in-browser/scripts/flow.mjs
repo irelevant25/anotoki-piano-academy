@@ -101,7 +101,10 @@ const MIGRATIONS = 'anotoki-migrations-page';
  * The migration sets as the engine records them - the library's files named with their set, the app's one set's by
  * their names alone - each with its files on disk, in its own order: the check follows the files.
  */
-const sqlFiles = (folder) => readdirSync(join(repo, folder)).filter((name) => /^\d{3}_.+\.sql$/.test(name)).sort();
+const sqlFiles = (folder) =>
+  readdirSync(join(repo, folder))
+    .filter((name) => /^\d{3}_.+\.sql$/.test(name))
+    .sort();
 const MIGRATION_SETS = [
   ['anotoki_admin/', sqlFiles('backend/vendor/anotoki/lib/php/migrations/admin')],
   ['', sqlFiles('backend/migrations/piano_academy')],
@@ -135,11 +138,14 @@ const FRAME = ['app-top-bar', 'anotoki-top-bar', 'nav', '.notes', '#view-root', 
 
 /** The status page alone: nothing of the frame round it, the gate's own <main> its one landmark. */
 const standsAlone = (page) =>
-  page.evaluate((frame) => ({
-    status: !!document.querySelector('anotoki-site-gate > main.anotoki-site-gate__status anotoki-site-status'),
-    frame: frame.filter((selector) => document.querySelector(selector) !== null),
-    mains: document.querySelectorAll('main').length,
-  }), FRAME);
+  page.evaluate(
+    (frame) => ({
+      status: !!document.querySelector('anotoki-site-gate > main.anotoki-site-gate__status anotoki-site-status'),
+      frame: frame.filter((selector) => document.querySelector(selector) !== null),
+      mains: document.querySelectorAll('main').length,
+    }),
+    FRAME,
+  );
 
 /** An ADMIN's sections in the admin panel (layouts/top-bar's ADMIN_LINKS): the family's admin tools among them. */
 const ADMIN_SECTIONS = 'Translations|Languages|People|Feedback|Error log|Audit log|Backups|Migrations';
@@ -245,7 +251,9 @@ async function barRow(page) {
       if (element.tagName.includes('-')) return element.tagName.toLowerCase();
       return ['person-button', 'menu-button', 'sign-in', 'nav'].find((part) => element.classList.contains(`anotoki-top-bar__${part}`)) ?? element.tagName.toLowerCase();
     };
-    const things = [...document.querySelectorAll('.anotoki-top-bar__row > *, .anotoki-top-bar__actions > *')].filter((element) => !element.classList.contains('anotoki-top-bar__actions') && element.tagName !== 'ANOTOKI-MENU');
+    const things = [...document.querySelectorAll('.anotoki-top-bar__row > *, .anotoki-top-bar__actions > *')].filter(
+      (element) => !element.classList.contains('anotoki-top-bar__actions') && element.tagName !== 'ANOTOKI-MENU',
+    );
     return things
       .map((element) => {
         const box = element.getBoundingClientRect();
@@ -267,10 +275,22 @@ async function checkBar(page, label, width) {
   const expected = phone
     ? ['anotoki-brand', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'menu-button']
     : ['anotoki-brand', 'nav', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'person-button'];
-  check(JSON.stringify(order) === JSON.stringify(expected), `${label}: the row in the family's order (${phone ? 'a phone\'s' : 'a desktop\'s'})`, order);
-  check(row.every((thing) => thing.left >= 0 && thing.right <= width), `${label}: everything inside the screen`, row);
-  check(row.every((thing) => thing.top >= bar.top - 1 && thing.bottom <= bar.bottom + 1), `${label}: one row, inside the bar's height`, row);
-  check(row.every((thing, i) => i === 0 || row[i - 1].right <= thing.left + 1), `${label}: nothing on top of anything`, row);
+  check(JSON.stringify(order) === JSON.stringify(expected), `${label}: the row in the family's order (${phone ? "a phone's" : "a desktop's"})`, order);
+  check(
+    row.every((thing) => thing.left >= 0 && thing.right <= width),
+    `${label}: everything inside the screen`,
+    row,
+  );
+  check(
+    row.every((thing) => thing.top >= bar.top - 1 && thing.bottom <= bar.bottom + 1),
+    `${label}: one row, inside the bar's height`,
+    row,
+  );
+  check(
+    row.every((thing, i) => i === 0 || row[i - 1].right <= thing.left + 1),
+    `${label}: nothing on top of anything`,
+    row,
+  );
   check(bar.scroll <= bar.screen, `${label}: no sideways scroll`, bar);
   if (!phone) {
     const nameShown = await page.evaluate((selector) => getComputedStyle(document.querySelector(selector)).display !== 'none', BAR.name);
@@ -297,9 +317,21 @@ async function checkAdminBar(page, label, width) {
   const order = row.map((thing) => thing.what);
   const expected = phone ? ['anotoki-brand', 'anotoki-theme-toggle', 'menu-button'] : ['anotoki-brand', 'nav', 'anotoki-theme-toggle', 'person-button'];
   check(JSON.stringify(order) === JSON.stringify(expected), `${label}: the admin panel's row (${phone ? 'folded' : 'whole'})`, order);
-  check(row.every((thing) => thing.left >= 0 && thing.right <= width), `${label}: everything inside the screen`, row);
-  check(row.every((thing) => thing.top >= bar.top - 1 && thing.bottom <= bar.bottom + 1), `${label}: one row, inside the bar's height`, row);
-  check(row.every((thing, i) => i === 0 || row[i - 1].right <= thing.left + 1), `${label}: nothing on top of anything`, row);
+  check(
+    row.every((thing) => thing.left >= 0 && thing.right <= width),
+    `${label}: everything inside the screen`,
+    row,
+  );
+  check(
+    row.every((thing) => thing.top >= bar.top - 1 && thing.bottom <= bar.bottom + 1),
+    `${label}: one row, inside the bar's height`,
+    row,
+  );
+  check(
+    row.every((thing, i) => i === 0 || row[i - 1].right <= thing.left + 1),
+    `${label}: nothing on top of anything`,
+    row,
+  );
   check(bar.scroll <= bar.screen, `${label}: no sideways scroll`, bar);
   const brand = await page.evaluate(() => [...document.querySelectorAll('.anotoki-brand__wordmark > span')].filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
   check(JSON.stringify(brand) === JSON.stringify(['Piano', 'admin panel']), `${label}: the brand short at every width - "Piano", "admin panel" under it`, brand);
@@ -343,7 +375,13 @@ async function onTop(page, selector, label) {
   const covered = await page.evaluate((sel) => {
     const element = document.querySelector(sel);
     const box = element.getBoundingClientRect();
-    const points = [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]].map(([x, y]) => [box.left + box.width * x, box.top + box.height * y]);
+    const points = [
+      [0.5, 0.5],
+      [0.2, 0.2],
+      [0.8, 0.2],
+      [0.2, 0.8],
+      [0.8, 0.8],
+    ].map(([x, y]) => [box.left + box.width * x, box.top + box.height * y]);
     return points.filter(([x, y]) => !element.contains(document.elementFromPoint(x, y))).map(([x, y]) => [Math.round(x), Math.round(y), document.elementFromPoint(x, y)?.tagName]);
   }, selector);
   check(covered.length === 0, `${label}: on top of the page, nothing of it covered`, covered);
@@ -386,7 +424,10 @@ if (MEASURE) {
   onTheDatabase("INSERT INTO anotoki_feedback (kind, message) SELECT 'idea', 'A message to measure the bar by, ' || n FROM generate_series(1, 12) AS n");
   const results = [];
   for (const language of ['en', 'sk']) {
-    for (const [who, user] of [['a learner', MIA], ['an ADMIN', ADA]]) {
+    for (const [who, user] of [
+      ['a learner', MIA],
+      ['an ADMIN', ADA],
+    ]) {
       for (const area of ['/stats', '/admin/translations']) {
         if (area.startsWith('/admin') && user === MIA) continue;
         const admin = area.startsWith('/admin');
@@ -448,7 +489,7 @@ try {
     // Every call to the app's API, and where the browser was going at the time: nothing of a learner's page before the IAM.
     const calls = [];
     page.on('request', (request) => {
-      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) seen.push(request.url().split("?")[0]);
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) seen.push(request.url().split('?')[0]);
       else if (request.url().startsWith(`${APP}/api/`)) calls.push({ api: request.url().slice(APP.length).split('?')[0], afterCallback: seen.some((url) => url.endsWith('/auth/callback')) });
     });
     await page.goto(`${APP}/stats?from=deep`);
@@ -456,8 +497,16 @@ try {
     check(seen.some((url) => url.startsWith(IAM)) && seen.some((url) => url.endsWith('/auth/callback')), 'the browser went to the IAM, and came back through /auth/callback', seen);
     const before = calls.filter((call) => !call.afterCallback).map((call) => call.api);
     const learnerCalls = before.filter((api) => !/^\/api\/(site-status|auth\/config|translations\/[a-z-]+|health)$/.test(api));
-    check(learnerCalls.length === 0, 'before the trip to the IAM: no call for a learner\'s data (/api/state, saves, /api/me) - only where the site stands, the sign-in\'s settings and the words', before);
-    check(calls.some((call) => call.afterCallback && call.api === '/api/state'), 'the progress loaded only after the way back', calls);
+    check(
+      learnerCalls.length === 0,
+      "before the trip to the IAM: no call for a learner's data (/api/state, saves, /api/me) - only where the site stands, the sign-in's settings and the words",
+      before,
+    );
+    check(
+      calls.some((call) => call.afterCallback && call.api === '/api/state'),
+      'the progress loaded only after the way back',
+      calls,
+    );
     check(new URL(page.url()).pathname === '/stats' && new URL(page.url()).search === '?from=deep', 'and came back to /stats?from=deep', page.url());
     check((await page.textContent(BAR.name)) === 'mia', 'signed in as the learner, named in the bar');
     check((await page.textContent(FOOTER.version))?.trim() === `Version ${VERSION}`, `the footer says the version (${VERSION}) - the changelog's first entry`);
@@ -483,7 +532,7 @@ try {
     }
   }
 
-  step('The phone\'s menu: what is in it, the keys, a real Tab');
+  step("The phone's menu: what is in it, the keys, a real Tab");
   {
     const context = await newContext({ width: 360 });
     const page = await signedIn(context, ED, '/songs');
@@ -491,8 +540,12 @@ try {
     await page.click(BAR.phoneButton);
     await page.waitForSelector(BAR.menu);
     const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
-    check(JSON.stringify(items) === JSON.stringify(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Admin panel', 'Sign out']), 'the sections, then the person\'s items', items);
-    check((await page.$$eval(`${BAR.menu} [role="menuitem"].anotoki-menu-item--active`, (all) => all.map((item) => item.textContent.trim()))).join() === 'Songs', 'the page\'s section stands out');
+    check(
+      JSON.stringify(items) === JSON.stringify(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Admin panel', 'Sign out']),
+      "the sections, then the person's items",
+      items,
+    );
+    check((await page.$$eval(`${BAR.menu} [role="menuitem"].anotoki-menu-item--active`, (all) => all.map((item) => item.textContent.trim()))).join() === 'Songs', "the page's section stands out");
     check((await page.textContent(`${BAR.menu} .anotoki-top-bar__menu-role`))?.trim() === 'Editor', 'an EDITOR is named so');
     await onTop(page, BAR.menu, "the phone's menu");
     const box = await page.$eval(BAR.menu, (menu) => menu.getBoundingClientRect().toJSON());
@@ -520,7 +573,7 @@ try {
     await context.close();
   }
 
-  step('The person\'s menu on a desktop: a real Tab from its last item');
+  step("The person's menu on a desktop: a real Tab from its last item");
   {
     const context = await newContext();
     const page = await signedIn(context, MIA, '/');
@@ -531,11 +584,14 @@ try {
     await page.keyboard.press('End');
     await page.keyboard.press('Tab');
     await page.waitForTimeout(150);
-    check(!(await page.$(BAR.menu)) && (await page.evaluate((selector) => document.activeElement === document.querySelector(selector), BAR.person)), 'Tab from Sign out: closed, the focus on the person\'s button');
+    check(
+      !(await page.$(BAR.menu)) && (await page.evaluate((selector) => document.activeElement === document.querySelector(selector), BAR.person)),
+      "Tab from Sign out: closed, the focus on the person's button",
+    );
     await context.close();
   }
 
-  step('The piano\'s box (the family\'s popover): inside the screen at 360 px, Escape and the focus back');
+  step("The piano's box (the family's popover): inside the screen at 360 px, Escape and the focus back");
   for (const width of [360, DESKTOP]) {
     const context = await newContext({ width });
     const page = await signedIn(context, MIA, '/');
@@ -574,7 +630,7 @@ try {
     check(described === 'Not saved yet', 'its words for a screen reader, tied to the button', described);
     await page.click(BAR.phoneButton);
     await page.waitForSelector(BAR.menu);
-    check((await page.textContent(`${BAR.menu} .anotoki-top-bar__menu-note strong`).catch(() => null)) === 'Not saved yet', 'and the menu\'s first line says it');
+    check((await page.textContent(`${BAR.menu} .anotoki-top-bar__menu-note strong`).catch(() => null)) === 'Not saved yet', "and the menu's first line says it");
     await onTop(page, BAR.menu, 'that menu');
     await page.screenshot({ path: join(shots, 'unsaved-360-menu.png') });
     await checkBar(page, 'unsaved 360', 360);
@@ -589,7 +645,7 @@ try {
     const [download] = await Promise.all([a.waitForEvent('download'), a.click('#own-download')]);
     const file = join(WORK, 'mine.json');
     await download.saveAs(file);
-    check(/^piano-academy-progress-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()), 'the download has the server\'s name', download.suggestedFilename());
+    check(/^piano-academy-progress-\d{4}-\d{2}-\d{2}\.json$/.test(download.suggestedFilename()), "the download has the server's name", download.suggestedFilename());
     const exported = JSON.parse(readFileSync(file, 'utf8'));
     check(exported.format === 'piano-academy-export', 'and is a progress file');
     const note = (midi) => ({ midi, status: 'review', repetitions: 1, intervalHours: 4, easeFactor: 2.5, totalAttempts: 3, correctAttempts: 3, updatedAt: '2026-10-04T10:00:00.000Z' });
@@ -620,7 +676,7 @@ try {
     await a.waitForSelector('#own-replaces');
     await a.click('#own-bring-in');
     await a.waitForSelector(QUESTION);
-    check((await a.textContent(`${QUESTION} .anotoki-dialog__title`))?.trim() === 'Replace your progress?', 'over progress: a question first (the family\'s)');
+    check((await a.textContent(`${QUESTION} .anotoki-dialog__title`))?.trim() === 'Replace your progress?', "over progress: a question first (the family's)");
     check((await a.evaluate(() => document.activeElement?.getAttribute('data-answer'))) === 'no', 'the focus on the safe answer');
     await a.waitForTimeout(250);
     await a.screenshot({ path: join(shots, 'replace-question.png') });
@@ -641,14 +697,17 @@ try {
     await playShown(t);
     const tSaved = await tSave;
     const tBody = JSON.parse(tSaved.request().postData() ?? '{}');
-    check(tSaved.status() === 204 && IMPORTED.every((midi) => midi in tBody), 'its next note is saved over nothing: the five imported notes go with it', { status: tSaved.status(), notes: Object.keys(tBody) });
+    check(tSaved.status() === 204 && IMPORTED.every((midi) => midi in tBody), 'its next note is saved over nothing: the five imported notes go with it', {
+      status: tSaved.status(),
+      notes: Object.keys(tBody),
+    });
     await t.screenshot({ path: join(shots, 'stale-trainer.png'), fullPage: true });
 
     // The Note Trainer in the other browser heard nothing: its next save names the old generation and is refused (409);
     // it loads the progress, says so, and the note after that is saved into the five notes.
     const oRefused = o.waitForResponse((response) => response.url().endsWith('/api/progress') && response.request().method() === 'PUT', { timeout: 10000 });
     await playShown(o);
-    check((await oRefused).status() === 409, 'another browser\'s Note Trainer: its next save is refused (409 progress_changed)', (await oRefused).status());
+    check((await oRefused).status() === 409, "another browser's Note Trainer: its next save is refused (409 progress_changed)", (await oRefused).status());
     await o.waitForSelector('#progress-changed', { timeout: 10000 }).catch(() => undefined);
     check(!!(await o.$('#progress-changed')), 'and it says the progress changed elsewhere');
     await o.waitForTimeout(1000); // the trainer's pause before the next prompt
@@ -656,14 +715,21 @@ try {
     await playShown(o);
     const oSaved = await oSave;
     const oBody = JSON.parse(oSaved.request().postData() ?? '{}');
-    check(oSaved.status() === 204 && IMPORTED.every((midi) => midi in oBody), 'the note after that is saved into the five imported notes - none of the round\'s old copy', { status: oSaved.status(), notes: Object.keys(oBody) });
+    check(oSaved.status() === 204 && IMPORTED.every((midi) => midi in oBody), "the note after that is saved into the five imported notes - none of the round's old copy", {
+      status: oSaved.status(),
+      notes: Object.keys(oBody),
+    });
 
     // What the server holds now: the file the person downloads has every imported note.
     const [after] = await Promise.all([a.waitForEvent('download'), a.click('#own-download')]);
     const afterFile = join(WORK, 'after.json');
     await after.saveAs(afterFile);
     const kept = Object.keys(JSON.parse(readFileSync(afterFile, 'utf8')).progress);
-    check(IMPORTED.every((midi) => kept.includes(midi)), 'on the server: the imported notes survived both stale tabs', kept);
+    check(
+      IMPORTED.every((midi) => kept.includes(midi)),
+      'on the server: the imported notes survived both stale tabs',
+      kept,
+    );
     await otherContext.close();
     await context.close();
   }
@@ -680,7 +746,7 @@ try {
     await page.click(`${BAR.menu} a[href="/admin"]`);
     await page.waitForSelector(`${BAR.nav} a[href="/admin/translations"]`);
     check(new URL(page.url()).pathname === '/admin/translations', 'into the admin panel, on Translations');
-    check((await sections(page)).join('|') === 'Translations', 'an EDITOR\'s section: Translations alone');
+    check((await sections(page)).join('|') === 'Translations', "an EDITOR's section: Translations alone");
     check((await page.getAttribute('html', 'lang')) === 'en', '<html lang="en"> in the admin panel');
     // The admin panel's brand is short at every width (eight sections for an ADMIN leave the whole wordmark no room):
     // "Piano" with "admin panel" under it - the whole "anotoki Piano Academy · admin panel" in the link's name.
@@ -689,11 +755,11 @@ try {
     check((await page.getAttribute('.anotoki-brand__brand', 'aria-label')) === 'anotoki Piano Academy · admin panel', 'the brand link\'s name: the family\'s "anotoki Piano Academy · admin panel"');
     check((await page.title()) === 'Translations · Admin panel · Piano Academy', 'the title names the admin panel', await page.title());
     check(!(await page.$('anotoki-language-switcher')) && !(await page.$('app-midi-panel')), 'no language chooser, no piano');
-    check((await page.getAttribute(BAR.person, 'aria-label')) === 'Your menu: ed', 'the bar\'s words in English');
+    check((await page.getAttribute(BAR.person, 'aria-label')) === 'Your menu: ed', "the bar's words in English");
     await page.click(BAR.person);
     await page.waitForSelector(BAR.menu);
     const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
-    check(JSON.stringify(items) === JSON.stringify(['Your anotoki account', 'Back to Piano Academy', 'Sign out']), 'the person\'s menu in English, with the way back', items);
+    check(JSON.stringify(items) === JSON.stringify(['Your anotoki account', 'Back to Piano Academy', 'Sign out']), "the person's menu in English, with the way back", items);
     check(!(await page.$('#admin-nav')), 'the admin layout draws no section nav of its own');
     await page.waitForTimeout(250);
     await page.screenshot({ path: join(shots, 'admin-editor.png'), clip: { x: 0, y: 0, width: DESKTOP, height: 400 } });
@@ -710,16 +776,18 @@ try {
     const adminContext = await newContext();
     const admin = await signedIn(adminContext, ADA, '/admin/people');
     await admin.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
-    check((await sections(admin)).join('|') === ADMIN_SECTIONS, 'an ADMIN\'s sections: the family\'s admin tools among them', await sections(admin));
+    check((await sections(admin)).join('|') === ADMIN_SECTIONS, "an ADMIN's sections: the family's admin tools among them", await sections(admin));
     check((await admin.$$eval(`${BAR.nav} a[aria-current="page"]`, (all) => all.map((a) => a.textContent.trim()))).join() === 'People', 'People is the page');
     await admin.screenshot({ path: join(shots, 'admin-people.png'), fullPage: true });
     // Migrations: the anotoki family's page (@anotoki/lib/migrations/page), in the admin panel's frame.
     await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-pending]`);
-    check((await admin.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'Migrations (the family\'s page): nothing pending');
+    check((await admin.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), "Migrations (the family's page): nothing pending");
     check(await admin.isDisabled(`${MIGRATIONS} [data-apply]`), 'Apply pending is off with nothing pending');
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
-    const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) => all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.anotoki-migrations-page__when')?.textContent.trim() ?? '']));
+    const applied = await admin.$$eval(`${MIGRATIONS} [data-applied] li`, (all) =>
+      all.map((li) => [li.querySelector('code').textContent.trim(), li.querySelector('.anotoki-migrations-page__when')?.textContent.trim() ?? '']),
+    );
     // Four sets: the library's admin tools' first, the app's own, then the library's words' and people's - the
     // library's files named with their set, the app's one set's by their names alone (as the engine records them).
     // Listed in the order they were applied: a database made at once has the app's 012 before the library's words,
@@ -742,7 +810,7 @@ try {
     const sql = `${MIGRATIONS} anotoki-dialog[data-sql] dialog[open]`;
     await admin.locator(`${MIGRATIONS} [data-applied] li`, { hasText: '009_strings_through_the_library.sql' }).locator('button').click();
     await admin.waitForSelector(`${sql} pre.anotoki-migrations-page__sql`, { timeout: 10000 });
-    check((await admin.textContent(`${sql} pre.anotoki-migrations-page__sql`)).includes("'anotoki.topbar.signIn'"), 'View: 009\'s SQL from the server', (await admin.textContent(sql)).slice(0, 200));
+    check((await admin.textContent(`${sql} pre.anotoki-migrations-page__sql`)).includes("'anotoki.topbar.signIn'"), "View: 009's SQL from the server", (await admin.textContent(sql)).slice(0, 200));
     check((await admin.evaluate(() => document.activeElement?.hasAttribute('data-close'))) === true, 'the focus on Close');
     await admin.waitForTimeout(250);
     await admin.screenshot({ path: join(shots, `admin-migrations-sql-${DESKTOP}.png`) });
@@ -767,7 +835,11 @@ try {
     const learnerContext = await newContext();
     const learner = await signedIn(learnerContext, MIA, '/admin/people');
     await learner.waitForSelector(`${BAR.nav} a[href="/stats"]`, { timeout: 20000 });
-    check(new URL(learner.url()).pathname === '/' && !(await learner.$(`${BAR.nav} a[href="/admin/translations"]`)), 'a learner on the admin panel\'s address: the start page, none of its sections', learner.url());
+    check(
+      new URL(learner.url()).pathname === '/' && !(await learner.$(`${BAR.nav} a[href="/admin/translations"]`)),
+      "a learner on the admin panel's address: the start page, none of its sections",
+      learner.url(),
+    );
     await learnerContext.close();
   }
 
@@ -783,11 +855,14 @@ try {
         await page.goto(`${APP}/stats`);
         await page.waitForSelector(`${FAILURE} [role="alert"]`, { timeout: 20000 });
         check(new URL(page.url()).pathname === '/sign-in-failed', `${label}: the guard sent the browser to /sign-in-failed`, page.url());
-        const said = await page.evaluate((screen) => ({
-          title: document.querySelector(`${screen} h1`)?.textContent.trim(),
-          message: document.querySelector(`${screen} [role="alert"]`)?.textContent.trim(),
-          buttons: [...document.querySelectorAll(`${screen} button`)].map((button) => button.textContent.trim()),
-        }), FAILURE);
+        const said = await page.evaluate(
+          (screen) => ({
+            title: document.querySelector(`${screen} h1`)?.textContent.trim(),
+            message: document.querySelector(`${screen} [role="alert"]`)?.textContent.trim(),
+            buttons: [...document.querySelectorAll(`${screen} button`)].map((button) => button.textContent.trim()),
+          }),
+          FAILURE,
+        );
         check(
           said.title === 'Signing in did not work' &&
             said.message === 'Signing in was not completed. If you did not stop it yourself, this account may not have access to Piano Academy.' &&
@@ -831,7 +906,10 @@ try {
           return { left: rect.left, right: rect.right, screen: document.documentElement.clientWidth };
         });
         check(box.left >= 0 && box.right <= box.screen, `${label}: the dialog inside the screen`, box);
-        check(!!(await page.$('anotoki-feedback-form [data-anonymous]')) && !!(await page.$('anotoki-feedback-form [data-section]')), `${label}: a learner's form - this app's places, "without my name"`);
+        check(
+          !!(await page.$('anotoki-feedback-form [data-anonymous]')) && !!(await page.$('anotoki-feedback-form [data-section]')),
+          `${label}: a learner's form - this app's places, "without my name"`,
+        );
         check((await keysOnPage(page)).length === 0, `${label}: no key in it`, await keysOnPage(page));
         await page.screenshot({ path: join(shots, `feedback-form-${scheme}-${width}.png`) });
         if (scheme === 'light') {
@@ -851,10 +929,16 @@ try {
       }
     }
     const kept = fromTheDatabase(`SELECT user_id, page, kind, message FROM anotoki_feedback ORDER BY id OFFSET ${before}`);
-    check(kept.length === 2 && kept.every((row) => Number(row.user_id) === 7 && row.page === '/stats' && row.kind === 'bug'), 'the server kept both, by mia, from /stats - and nothing of where they came from', kept);
+    check(
+      kept.length === 2 && kept.every((row) => Number(row.user_id) === 7 && row.page === '/stats' && row.kind === 'bug'),
+      'the server kept both, by mia, from /stats - and nothing of where they came from',
+      kept,
+    );
   }
 
-  step(`Terms, Privacy and Contact (the family's pages, @anotoki/lib/legal/pages) with nobody signed in and a sign-in required - never a trip to the IAM: 1280 and 390, light and dark, English and Slovak; the footer's links; signed in, from Stats`);
+  step(
+    `Terms, Privacy and Contact (the family's pages, @anotoki/lib/legal/pages) with nobody signed in and a sign-in required - never a trip to the IAM: 1280 and 390, light and dark, English and Slovak; the footer's links; signed in, from Stats`,
+  );
   {
     // Each page's heading is the library's words (its translations' 005) and the tab's title too (migration 012's
     // title.*); the footer's links are the library's words (anotoki.legalLinks.*).
@@ -865,7 +949,16 @@ try {
     // Every address a legal page of Piano Academy's may link to: the anotoki account's pages at the IAM the app signs in
     // with, its own Contact page, the family's address and operator, the authority, the hosting company (WebSupport,
     // named by the owner on 2026-10-18) and Cloudflare (core/legal/legal-facts.ts).
-    const ADDRESSES = [`${IAM}/account`, `${IAM}/privacy`, '/contact', 'mailto:support@anotoki.eu', 'https://codehero.sk', 'https://dataprotection.gov.sk/', 'https://www.websupport.sk', 'https://www.cloudflare.com/privacypolicy/'];
+    const ADDRESSES = [
+      `${IAM}/account`,
+      `${IAM}/privacy`,
+      '/contact',
+      'mailto:support@anotoki.eu',
+      'https://codehero.sk',
+      'https://dataprotection.gov.sk/',
+      'https://www.websupport.sk',
+      'https://www.cloudflare.com/privacypolicy/',
+    ];
     const attribute = (page, selector, name) => page.getAttribute(selector, name, { timeout: 5000 }).catch(() => null);
     for (const language of ['en', 'sk']) {
       for (const scheme of ['light', 'dark']) {
@@ -896,28 +989,55 @@ try {
             check(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${where}: no sideways scroll`);
             const footer = await page.$$eval(`${LEGAL_LINKS} a`, (all) => all.map((a) => [a.textContent.trim(), a.getAttribute('href'), a.getAttribute('aria-current')]));
             check(
-              JSON.stringify(footer.map(([text]) => text)) === JSON.stringify(words.links) && JSON.stringify(footer.filter(([, , current]) => current === 'page').map(([, href]) => href)) === JSON.stringify([address]),
+              JSON.stringify(footer.map(([text]) => text)) === JSON.stringify(words.links) &&
+                JSON.stringify(footer.filter(([, , current]) => current === 'page').map(([, href]) => href)) === JSON.stringify([address]),
               `${where}: the footer's links in the library's words, this page's marked`,
               footer,
             );
             if (address === '/terms') {
-              check(!!(await page.textContent('[data-about]', { timeout: 5000 }).catch(() => ''))?.trim() && !(await page.$('[data-fan]')), `${where}: what Piano Academy is (012's words) first, no fan clause`);
+              check(
+                !!(await page.textContent('[data-about]', { timeout: 5000 }).catch(() => ''))?.trim() && !(await page.$('[data-fan]')),
+                `${where}: what Piano Academy is (012's words) first, no fan clause`,
+              );
             }
             if (address === '/privacy') {
-              check((await attribute(page, '[data-account-privacy]', 'href')) === `${IAM}/privacy` && (await attribute(page, '[data-account-page]', 'href')) === `${IAM}/account`, `${where}: the anotoki account's Privacy page and account page, at the IAM the app signs in with`, [await attribute(page, '[data-account-privacy]', 'href'), await attribute(page, '[data-account-page]', 'href')]);
+              check(
+                (await attribute(page, '[data-account-privacy]', 'href')) === `${IAM}/privacy` && (await attribute(page, '[data-account-page]', 'href')) === `${IAM}/account`,
+                `${where}: the anotoki account's Privacy page and account page, at the IAM the app signs in with`,
+                [await attribute(page, '[data-account-privacy]', 'href'), await attribute(page, '[data-account-page]', 'href')],
+              );
               const kept = await page.$$eval('[data-kept]', (all) => all.map((part) => part.getAttribute('data-kept')));
-              check(JSON.stringify(kept) === JSON.stringify(['data-0', 'data-1', 'data-2', 'data-3', 'visitors', 'feedback', 'error-log', 'audit-log', 'backups']), `${where}: what is kept - the app's four parts, the visitors, feedback, the error log, the audit log, the backups`, kept);
+              check(
+                JSON.stringify(kept) === JSON.stringify(['data-0', 'data-1', 'data-2', 'data-3', 'visitors', 'feedback', 'error-log', 'audit-log', 'backups']),
+                `${where}: what is kept - the app's four parts, the visitors, feedback, the error log, the audit log, the backups`,
+                kept,
+              );
               const stored = await page.$$eval('[data-stored] code', (all) => all.map((code) => code.textContent.trim()));
-              check(stored.length === 11 && stored[0] === 'anotoki-auth:piano-academy' && stored.includes('anotoki_signed_in') && stored.includes('piano-academy:visitor'), `${where}: this browser's storage by name - the sign-in's under the app's client id`, stored);
+              check(
+                stored.length === 11 && stored[0] === 'anotoki-auth:piano-academy' && stored.includes('anotoki_signed_in') && stored.includes('piano-academy:visitor'),
+                `${where}: this browser's storage by name - the sign-in's under the app's client id`,
+                stored,
+              );
               const links = await page.$$eval('anotoki-privacy-page a[href]', (all) => all.map((a) => a.getAttribute('href')));
-              check(links.every((href) => href.startsWith('#') || ADDRESSES.includes(href)), `${where}: every link where the code says`, links);
+              check(
+                links.every((href) => href.startsWith('#') || ADDRESSES.includes(href)),
+                `${where}: every link where the code says`,
+                links,
+              );
               if (language === 'en') {
                 const recipients = await page.$$eval('[data-recipient] .anotoki-legal-page__item-name', (all) => all.map((name) => name.textContent.trim()));
-                check(JSON.stringify(recipients) === JSON.stringify(['WebSupport s.r.o.', 'Cloudflare, Inc.']), `${where}: who else handles data - the hosting company (WebSupport s.r.o.), Cloudflare`, recipients);
+                check(
+                  JSON.stringify(recipients) === JSON.stringify(['WebSupport s.r.o.', 'Cloudflare, Inc.']),
+                  `${where}: who else handles data - the hosting company (WebSupport s.r.o.), Cloudflare`,
+                  recipients,
+                );
               }
             }
             if (address === '/contact') {
-              check((await attribute(page, '[data-section="email"] a', 'href')) === 'mailto:support@anotoki.eu' && (await attribute(page, '[data-account-page]', 'href')) === `${IAM}/account`, `${where}: the family's address, and the anotoki account's page to delete the account`);
+              check(
+                (await attribute(page, '[data-section="email"] a', 'href')) === 'mailto:support@anotoki.eu' && (await attribute(page, '[data-account-page]', 'href')) === `${IAM}/account`,
+                `${where}: the family's address, and the anotoki account's page to delete the account`,
+              );
               check(!!(await page.$('[data-section="feedback"] [data-open-feedback]')), `${where}: the feedback form offered first`);
             }
             await page.screenshot({ path: join(shots, `legal-${language}-${scheme}-${width}${address.replace('/', '-')}.png`), fullPage: true });
@@ -962,7 +1082,11 @@ try {
             const sent = page.waitForResponse((response) => response.url().endsWith('/api/feedback') && response.request().method() === 'POST', { timeout: 10000 });
             await page.click(`${form} [data-send]`);
             const answer = await sent;
-            check(answer.status() === 201 && !answer.request().headers()['authorization'], `${label}: nobody signed in sends a message from the footer's Feedback - kept (201), no token with it`, answer.status());
+            check(
+              answer.status() === 201 && !answer.request().headers()['authorization'],
+              `${label}: nobody signed in sends a message from the footer's Feedback - kept (201), no token with it`,
+              answer.status(),
+            );
             await page.waitForSelector(`${form} [data-thanks]`, { timeout: 10000 }).catch(() => undefined);
             check(!!(await page.$(`${form} [data-thanks]`)) && new URL(page.url()).pathname === '/contact', `${label}: thanked, on the same page - nobody sent to sign in`, page.url());
             await page.screenshot({ path: join(shots, `legal-${language}-${width}-footer-feedback-sent.png`) });
@@ -989,9 +1113,13 @@ try {
     });
     await page.click(`${LEGAL_LINKS} a[href="/privacy"]`);
     await page.waitForFunction(() => document.querySelector('#view-root h1')?.textContent.trim() === 'Privacy policy', null, { timeout: 20000 }).catch(() => undefined);
-    check(new URL(page.url()).pathname === '/privacy' && trips.length === 0, 'signed in: the footer\'s Privacy opens in the app - no page load, nothing to the IAM', [page.url(), trips]);
+    check(new URL(page.url()).pathname === '/privacy' && trips.length === 0, "signed in: the footer's Privacy opens in the app - no page load, nothing to the IAM", [page.url(), trips]);
     const sections = await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => [a.textContent.trim(), a.getAttribute('aria-current')]));
-    check((await page.textContent(BAR.name)) === 'mia' && sections.length === 5 && sections.every(([, current]) => current === null), 'the person\'s bar and the learner\'s sections - none of them this page', sections);
+    check(
+      (await page.textContent(BAR.name)) === 'mia' && sections.length === 5 && sections.every(([, current]) => current === null),
+      "the person's bar and the learner's sections - none of them this page",
+      sections,
+    );
     await page.screenshot({ path: join(shots, `legal-signed-in-privacy-${DESKTOP}.png`), fullPage: true });
     await page.goto(`${APP}/no-such-page`);
     await page.waitForFunction(() => location.pathname === '/' && !!document.querySelector('#view-root app-home-page'), null, { timeout: 20000 }).catch(() => undefined);
@@ -1003,7 +1131,7 @@ try {
   {
     // The library's words for it (anotoki.footer.*, its translations 012) and the legal links' (anotoki.legalLinks.*).
     const WORDS = {
-      en: { row: [`Version ${VERSION}`, '·', 'What\'s new', '·', 'Feedback'], links: ['Terms', 'Privacy', 'Contact'] },
+      en: { row: [`Version ${VERSION}`, '·', "What's new", '·', 'Feedback'], links: ['Terms', 'Privacy', 'Contact'] },
       sk: { row: [`Verzia ${VERSION}`, '·', 'Čo je nové', '·', 'Spätná väzba'], links: ['Podmienky', 'Súkromie', 'Kontakt'] },
     };
     /** How the footer is drawn - the build analyzer's look: a line on top, 1.25rem 1rem 1.5rem round it, 13 px, centred, as wide as the window, under the page. */
@@ -1023,7 +1151,8 @@ try {
           scroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
         };
       }, FOOTER.footer);
-    const asTheBuildAnalyzer = (seen) => seen.border === '1px solid' && seen.padding === '20px 16px 24px 16px' && seen.size === '13px' && seen.align === 'center' && seen.wide && seen.under && seen.scroll;
+    const asTheBuildAnalyzer = (seen) =>
+      seen.border === '1px solid' && seen.padding === '20px 16px 24px 16px' && seen.size === '13px' && seen.align === 'center' && seen.wide && seen.under && seen.scroll;
     for (const language of ['en', 'sk']) {
       for (const scheme of ['light', 'dark']) {
         for (const width of [1280, 390]) {
@@ -1043,10 +1172,10 @@ try {
             // What's new: the app's own dialog, opened by the footer's What's new - and the focus back on it once it closes.
             await page.click(FOOTER.whatsNew);
             await page.waitForSelector('app-changelog-dialog dialog[open] .release', { timeout: 20000 });
-            check((await page.textContent('app-changelog-dialog .anotoki-dialog__title'))?.trim() === 'What\'s new', 'the footer\'s What\'s new opens the app\'s list of changes');
+            check((await page.textContent('app-changelog-dialog .anotoki-dialog__title'))?.trim() === "What's new", "the footer's What's new opens the app's list of changes");
             await page.keyboard.press('Escape');
             await page.waitForSelector('app-changelog-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
-            check(await page.evaluate((button) => document.activeElement === document.querySelector(button), FOOTER.whatsNew), 'Escape closes it, the focus back on What\'s new');
+            check(await page.evaluate((button) => document.activeElement === document.querySelector(button), FOOTER.whatsNew), "Escape closes it, the focus back on What's new");
           }
           await context.close();
         }
@@ -1122,17 +1251,33 @@ try {
     check((await page.textContent('[data-viewer]'))?.includes('lovely'), 'a message opened: its words, as text', (await page.textContent('[data-viewer]'))?.slice(0, 200));
     await page.screenshot({ path: join(shots, `admin-feedback-message-${DESKTOP}.png`) });
     await page.keyboard.press('Escape');
-    await page.waitForFunction(([nav, expected]) => (document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? '0') === expected, [BAR.nav, String(unread - 1)], { timeout: 5000 }).catch(() => undefined);
-    check(((await badge()) ?? '0') === String(unread - 1), 'opened: read - the bar\'s number one less', await badge());
+    await page
+      .waitForFunction(
+        ([nav, expected]) => (document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? '0') === expected,
+        [BAR.nav, String(unread - 1)],
+        { timeout: 5000 },
+      )
+      .catch(() => undefined);
+    check(((await badge()) ?? '0') === String(unread - 1), "opened: read - the bar's number one less", await badge());
 
     // A page's own error (anotoki-lib 0.5.0's reporter, core/error-report.ts): thrown outside Angular's own code, it
     // goes to the console and - through the app's HttpClient, so with ada's token - into the error log. Thrown on
     // purpose, so it is taken off the list of the page errors this check otherwise allows none of.
     const thrown = 'The browser check threw this on purpose';
     const reportSent = page.waitForResponse((response) => response.url().endsWith('/api/client-errors') && response.request().method() === 'POST', { timeout: 10000 }).catch(() => null);
-    await page.evaluate((words) => setTimeout(() => { throw new Error(`${words} (token=abc123secretvalue456)`); }, 0), thrown);
+    await page.evaluate(
+      (words) =>
+        setTimeout(() => {
+          throw new Error(`${words} (token=abc123secretvalue456)`);
+        }, 0),
+      thrown,
+    );
     const report = await reportSent;
-    check(report?.status() === 204 && ((await report?.request().headerValue('authorization')) ?? '').startsWith('Bearer '), 'a page\'s own error: reported to the error log (204), with her token', report?.status());
+    check(
+      report?.status() === 204 && ((await report?.request().headerValue('authorization')) ?? '').startsWith('Bearer '),
+      "a page's own error: reported to the error log (204), with her token",
+      report?.status(),
+    );
     await page.waitForTimeout(300);
     errors.splice(0, errors.length, ...errors.filter((message) => !message.includes(thrown)));
 
@@ -1140,17 +1285,17 @@ try {
     await page.waitForSelector('[data-groups]', { timeout: 20000 });
     const errorLog = await page.textContent('[data-groups]');
     check(errorLog.includes('/api/no-such-thing') && !errorLog.includes('secret-in-the-query'), 'the error log: the 404 by its path - never its query', errorLog.slice(0, 300));
-    check(errorLog.includes(thrown) && !errorLog.includes('abc123secretvalue456'), 'the error log: the page\'s own error, the secret in it gone', errorLog.slice(0, 400));
+    check(errorLog.includes(thrown) && !errorLog.includes('abc123secretvalue456'), "the error log: the page's own error, the secret in it gone", errorLog.slice(0, 400));
     await page.screenshot({ path: join(shots, `admin-errors-client-${DESKTOP}.png`), fullPage: true });
 
     await page.goto(`${APP}/admin/people`);
     await page.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
-    check(!!(await page.$('[data-person="1"] [data-you]')), 'People: the reader\'s own row says so');
-    check(!!(await page.$('[data-sync]')) && !!(await page.$('[data-visitors]')), 'People: where the scrub of the IAM\'s deleted accounts stands, and the visitors\' line');
+    check(!!(await page.$('[data-person="1"] [data-you]')), "People: the reader's own row says so");
+    check(!!(await page.$('[data-sync]')) && !!(await page.$('[data-visitors]')), "People: where the scrub of the IAM's deleted accounts stands, and the visitors' line");
 
     await page.goto(`${APP}/admin/backups`);
     await page.waitForSelector('[data-backups] [data-backup]', { timeout: 20000 });
-    check(!!(await page.$('[data-backups] [data-backup*="-daily-"]')), 'Backups: the daily one, made after the day\'s first answer');
+    check(!!(await page.$('[data-backups] [data-backup*="-daily-"]')), "Backups: the daily one, made after the day's first answer");
     const manual = () => page.$$('[data-backups] [data-backup*="-manual-"]');
     const already = (await manual()).length;
     await page.click('[data-create]');
@@ -1160,7 +1305,11 @@ try {
     await page.waitForFunction((count) => document.querySelectorAll('[data-backups] [data-backup*="-manual-"]').length > count, already, { timeout: 20000 }).catch(() => undefined);
     check((await manual()).length === already + 1, 'Back up now (a sign-in of the last ten minutes): a backup made, in the list');
     const madeRows = await Promise.all((await manual()).map((row) => row.textContent()));
-    check(madeRows.some((text) => (text ?? '').includes('ada')), 'the backup made by hand: "By" ada - the name this app keeps of her', madeRows.map((text) => text?.slice(0, 160)));
+    check(
+      madeRows.some((text) => (text ?? '').includes('ada')),
+      'the backup made by hand: "By" ada - the name this app keeps of her',
+      madeRows.map((text) => text?.slice(0, 160)),
+    );
     await page.screenshot({ path: join(shots, `admin-backups-made-${DESKTOP}.png`), fullPage: true });
 
     await page.goto(`${APP}/admin/audit`);
@@ -1191,8 +1340,18 @@ try {
         // Languages: the two released ones, each under its own name (native_name).
         await page.goto(`${APP}/admin/languages`);
         await page.waitForSelector('anotoki-languages-page li[data-language]', { timeout: 20000 });
-        const languages = await page.$$eval('anotoki-languages-page li[data-language]', (all) => all.map((li) => [li.getAttribute('data-language'), li.querySelector('.anotoki-languages-page__native')?.textContent.trim()]));
-        check(JSON.stringify(languages) === JSON.stringify([['en', 'English'], ['sk', 'Slovenčina']]), `${label}: Languages - English and Slovak, each under its own name`, languages);
+        const languages = await page.$$eval('anotoki-languages-page li[data-language]', (all) =>
+          all.map((li) => [li.getAttribute('data-language'), li.querySelector('.anotoki-languages-page__native')?.textContent.trim()]),
+        );
+        check(
+          JSON.stringify(languages) ===
+            JSON.stringify([
+              ['en', 'English'],
+              ['sk', 'Slovenčina'],
+            ]),
+          `${label}: Languages - English and Slovak, each under its own name`,
+          languages,
+        );
         check(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${label}: Languages - no sideways scroll`);
         await page.waitForTimeout(250);
         await page.screenshot({ path: join(shots, `words-languages-${scheme}-${width}.png`), fullPage: true });
@@ -1202,7 +1361,11 @@ try {
         await page.waitForSelector(`${BAR.nav} a[href="/stats"], ${BAR.phoneButton}`, { timeout: 20000 });
         check((await keysOnPage(page)).length === 0, `${label}: Learn in Slovak - no key on the page`, await keysOnPage(page));
         const themes = await page.$$eval(BAR.theme, (all) => all.map((choice) => choice.getAttribute('aria-label')));
-        check(JSON.stringify(themes) === JSON.stringify(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']), `${label}: the theme switch in this app's Slovak (the library's keys, 009's copy)`, themes);
+        check(
+          JSON.stringify(themes) === JSON.stringify(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']),
+          `${label}: the theme switch in this app's Slovak (the library's keys, 009's copy)`,
+          themes,
+        );
         await page.waitForTimeout(250);
         await page.screenshot({ path: join(shots, `words-slovak-learn-${scheme}-${width}.png`) });
         await context.close();
@@ -1243,7 +1406,7 @@ try {
     await page.waitForSelector(QUESTION, { state: 'detached', timeout: 3000 }).catch(() => undefined);
     await page.click(BAR.phoneButton);
     await page.waitForSelector(BAR.menu);
-    check((await keysOnPage(page)).length === 0, 'the phone\'s menu in Slovak: no key');
+    check((await keysOnPage(page)).length === 0, "the phone's menu in Slovak: no key");
     check((await page.textContent(`${BAR.menu} a[href="/"]`))?.trim() === 'Učenie', 'its sections in Slovak');
     await onTop(page, BAR.menu, 'the Slovak menu');
     await page.screenshot({ path: join(shots, 'sk-390-menu.png') });
@@ -1261,9 +1424,13 @@ try {
     await d.waitForSelector(`${FAILURE} [role="alert"]`, { timeout: 20000 });
     await d.waitForTimeout(800);
     check(trips === 1, 'a refused sign-in: one trip to the IAM, no loop', trips);
-    check(new URL(d.url()).pathname === '/sign-in-failed', 'on the failure\'s screen (/sign-in-failed), under the bar', d.url());
+    check(new URL(d.url()).pathname === '/sign-in-failed', "on the failure's screen (/sign-in-failed), under the bar", d.url());
     check((await keysOnPage(d)).length === 0, 'the screen in Slovak: no key');
-    check((await d.getAttribute(`${FAILURE} section`, 'lang')) === 'sk' && (await d.textContent(`${FAILURE} [role="alert"]`))?.trim().startsWith('Prihlásenie'), 'and in Slovak - this app\'s own sentence (011\'s copy under the library\'s key)', await d.textContent(`${FAILURE} [role="alert"]`));
+    check(
+      (await d.getAttribute(`${FAILURE} section`, 'lang')) === 'sk' && (await d.textContent(`${FAILURE} [role="alert"]`))?.trim().startsWith('Prihlásenie'),
+      "and in Slovak - this app's own sentence (011's copy under the library's key)",
+      await d.textContent(`${FAILURE} [role="alert"]`),
+    );
     await d.screenshot({ path: join(shots, 'sk-sign-in-refused.png') });
     // Narrow: nobody signed in and the app not running - the bar has no menu button, whose menu would be empty.
     await d.setViewportSize({ width: 390, height: 800 });
@@ -1275,7 +1442,7 @@ try {
     await iamAs(MIA);
   }
 
-  step('Without signing in (the IAM says sign-in is not required): a visitor practises, signs in, and the progress is the person\'s');
+  step("Without signing in (the IAM says sign-in is not required): a visitor practises, signs in, and the progress is the person's");
   {
     // The stand-in IAM says Piano Academy does not require a sign-in; the app keeps that answer one second (run.mjs's --application-ttl=1).
     await switchSignIn(false);
@@ -1303,7 +1470,11 @@ try {
     await page.goto(`${APP}/`);
     await page.waitForSelector('#visitor-notice', { timeout: 20000 });
     check(!navigations.some((url) => url.startsWith(IAM)), 'the Learn page opens without the IAM', navigations);
-    check((await page.textContent('#visitor-notice span'))?.trim() === 'You are practising without signing in. Your progress is kept for this browser for 30 days after your last visit. Sign in to keep it in your account.', 'the notice says how long this browser keeps the progress');
+    check(
+      (await page.textContent('#visitor-notice span'))?.trim() ===
+        'You are practising without signing in. Your progress is kept for this browser for 30 days after your last visit. Sign in to keep it in your account.',
+      'the notice says how long this browser keeps the progress',
+    );
     check(!!(await page.$('#visitor-notice-sign-in')) && !!(await page.$(BAR.signIn)) && !(await page.$('#signed-out-banner')), 'Sign in beside it and in the bar; no "signed out" banner');
     check((await page.evaluate(() => localStorage.getItem('piano-academy:visitor'))) === null && visitorIds().length === 0, 'looking makes nobody: no key, no visitor row');
     await page.screenshot({ path: join(shots, `visitor-learn-${DESKTOP}.png`), fullPage: true });
@@ -1319,27 +1490,40 @@ try {
     await playUntil(page, '#dr-notation', '#ls-next, #ls-retry');
     await page.waitForTimeout(800);
     const before = saves.map((save) => save.what);
-    check(saves.length === 1 && saves[0].key === null && visitorIds().length === 0, 'while the first save is on its way, nothing else goes: one maker out, the drill\'s notes, path and round wait', before);
+    check(
+      saves.length === 1 && saves[0].key === null && visitorIds().length === 0,
+      "while the first save is on its way, nothing else goes: one maker out, the drill's notes, path and round wait",
+      before,
+    );
     release();
     await page.waitForFunction(() => /^[A-Za-z0-9_-]{43}$/.test(localStorage.getItem('piano-academy:visitor') ?? ''), null, { timeout: 10000 });
     await waitFor(() => saves.some((save) => save.what === 'POST /api/sessions') && saves.some((save, i) => i > 0 && save.what === 'PUT /api/path'), 10000);
     await page.waitForTimeout(800);
     const keyless = saves.filter((save) => save.key === null).map((save) => save.what);
-    check(keyless.length === 1 && keyless[0] === 'PUT /api/path', 'exactly one save without a key (the maker); the rest carried the key it brought', saves.map((save) => `${save.what}${save.key ? ' +key' : ''}`));
+    check(
+      keyless.length === 1 && keyless[0] === 'PUT /api/path',
+      'exactly one save without a key (the maker); the rest carried the key it brought',
+      saves.map((save) => `${save.what}${save.key ? ' +key' : ''}`),
+    );
     const visitors = visitorIds();
-    check(visitors.length === 1, 'exactly ONE visitor row in the database, after the round\'s three kinds of save', visitors);
+    check(visitors.length === 1, "exactly ONE visitor row in the database, after the round's three kinds of save", visitors);
     const visitor = visitors[0];
-    const kept = fromTheDatabase(`SELECT (SELECT count(*) FROM sessions WHERE user_id = ${visitor}) AS sessions, (SELECT count(*) FROM jsonb_object_keys((SELECT notes FROM progress WHERE user_id = ${visitor}))) AS notes, (SELECT jsonb_exists(data->'steps', 'rh-1/meet') AND jsonb_exists(data->'steps', 'rh-1/drill') FROM path_progress WHERE user_id = ${visitor}) AS steps`)[0];
-    check(Number(kept.sessions) === 1 && Number(kept.notes) >= 3 && kept.steps === true, 'the visitor\'s row holds the round, the notes and both steps', kept);
+    const kept = fromTheDatabase(
+      `SELECT (SELECT count(*) FROM sessions WHERE user_id = ${visitor}) AS sessions, (SELECT count(*) FROM jsonb_object_keys((SELECT notes FROM progress WHERE user_id = ${visitor}))) AS notes, (SELECT jsonb_exists(data->'steps', 'rh-1/meet') AND jsonb_exists(data->'steps', 'rh-1/drill') FROM path_progress WHERE user_id = ${visitor}) AS steps`,
+    )[0];
+    check(Number(kept.sessions) === 1 && Number(kept.notes) >= 3 && kept.steps === true, "the visitor's row holds the round, the notes and both steps", kept);
     await page.unroute(/\/api\/(progress|path|sessions)$/);
 
     // A reload keeps it; Stats has the line in place of the progress file's card.
     await page.goto(`${APP}/stats`);
     await page.waitForSelector('#own-progress-visitor');
-    check(!(await page.$('#own-progress')) && (await page.textContent('#own-progress-visitor p'))?.trim() === 'Sign in to save your progress to a file, or to bring it back from one.', 'Stats: no progress file for a visitor - the sign-in line in its place');
+    check(
+      !(await page.$('#own-progress')) && (await page.textContent('#own-progress-visitor p'))?.trim() === 'Sign in to save your progress to a file, or to bring it back from one.',
+      'Stats: no progress file for a visitor - the sign-in line in its place',
+    );
     check(!!(await page.$('#visitor-notice')), 'Stats: the notice');
     const tiles = await page.$$eval(TILE, (all) => all.map((tile) => tile.textContent.trim()));
-    check(tiles[4] === '1', 'a reload keeps the visitor\'s progress (its round)', tiles);
+    check(tiles[4] === '1', "a reload keeps the visitor's progress (its round)", tiles);
     await page.screenshot({ path: join(shots, `visitor-stats-${DESKTOP}.png`), fullPage: true });
 
     // Another browser starts empty, and the admin panel is never a visitor's: it goes to the IAM.
@@ -1355,24 +1539,37 @@ try {
     check(oTiles[4] === '0', 'another browser starts empty', oTiles);
     await o.goto(`${APP}/admin`);
     await o.waitForSelector(BAR.signedIn, { timeout: 20000 });
-    check(oNavigations.some((url) => url.startsWith(IAM)), '/admin goes to the IAM, never to a visitor', oNavigations);
+    check(
+      oNavigations.some((url) => url.startsWith(IAM)),
+      '/admin goes to the IAM, never to a visitor',
+      oNavigations,
+    );
     await other.close();
 
     // The sign-in: MIA already has note 60 (her imported progress). Her note stays as it was, the visitor's steps and round come.
-    const mine = () => fromTheDatabase("SELECT notes->'60' AS c, (SELECT count(*) FROM sessions WHERE user_id = 7) AS sessions, (SELECT data->'steps' FROM path_progress WHERE user_id = 7) AS steps FROM progress WHERE user_id = 7")[0];
+    const mine = () =>
+      fromTheDatabase(
+        "SELECT notes->'60' AS c, (SELECT count(*) FROM sessions WHERE user_id = 7) AS sessions, (SELECT data->'steps' FROM path_progress WHERE user_id = 7) AS steps FROM progress WHERE user_id = 7",
+      )[0];
     const mia = mine();
     await iamAs(MIA);
     await page.click('#visitor-notice-sign-in');
     await page.waitForSelector('#visitor-moved', { timeout: 20000 });
-    check((await page.textContent('#visitor-moved span'))?.trim() === 'Your progress from practising without signing in is now in your account.', 'signed in: the progress of this browser is in the account, and the page says so');
+    check(
+      (await page.textContent('#visitor-moved span'))?.trim() === 'Your progress from practising without signing in is now in your account.',
+      'signed in: the progress of this browser is in the account, and the page says so',
+    );
     check((await page.textContent('#visitor-kept'))?.trim() === 'Where your account already had progress, it was kept.', 'and that the account kept its own where it had some (C, D, E)');
-    check((await page.textContent(BAR.name)) === 'mia' && !!(await page.$('#own-progress')) && !(await page.$('#visitor-notice')), 'mia\'s page now: her progress file, no notice');
+    check((await page.textContent(BAR.name)) === 'mia' && !!(await page.$('#own-progress')) && !(await page.$('#visitor-notice')), "mia's page now: her progress file, no notice");
     check((await page.evaluate(() => localStorage.getItem('piano-academy:visitor'))) === null, 'the key is gone from the browser');
     const after = mine();
     check(visitorIds().length === 0, 'and the visitor from the database', visitorIds());
     check(after.c === mia.c, 'her note C is byte for byte what it was', { before: mia.c, after: after.c });
     const steps = JSON.parse(after.steps ?? '{}');
-    check(Number(after.sessions) === Number(mia.sessions) + 1 && 'rh-1/meet' in steps && 'rh-1/drill' in steps, 'the visitor\'s round and both steps are hers', { sessions: [mia.sessions, after.sessions], steps: Object.keys(steps) });
+    check(Number(after.sessions) === Number(mia.sessions) + 1 && 'rh-1/meet' in steps && 'rh-1/drill' in steps, "the visitor's round and both steps are hers", {
+      sessions: [mia.sessions, after.sessions],
+      steps: Object.keys(steps),
+    });
     await page.screenshot({ path: join(shots, `visitor-moved-${DESKTOP}.png`), fullPage: true });
     await page.click('#visitor-moved-close');
     await page.waitForSelector('#visitor-moved', { state: 'detached', timeout: 5000 }).catch(() => undefined);
@@ -1400,8 +1597,8 @@ try {
         await page.click(BAR.phoneButton);
         await page.waitForSelector(BAR.menu);
         const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
-        check(items.at(-1) === 'Prihlásiť sa' && (await keysOnPage(page)).length === 0, 'the phone\'s menu: the sections, then Sign in', items);
-        await onTop(page, BAR.menu, 'the visitor\'s phone menu');
+        check(items.at(-1) === 'Prihlásiť sa' && (await keysOnPage(page)).length === 0, "the phone's menu: the sections, then Sign in", items);
+        await onTop(page, BAR.menu, "the visitor's phone menu");
         await page.screenshot({ path: join(shots, 'visitor-sk-390-menu.png') });
         await page.keyboard.press('Escape');
       }
@@ -1411,7 +1608,9 @@ try {
         await playShown(page);
         await page.waitForFunction(() => !!localStorage.getItem('piano-academy:visitor'), null, { timeout: 10000 });
         const [gone] = visitorIds();
-        onTheDatabase(`DELETE FROM sessions WHERE user_id = ${gone}; DELETE FROM path_progress WHERE user_id = ${gone}; DELETE FROM progress WHERE user_id = ${gone}; DELETE FROM users WHERE id = ${gone}`);
+        onTheDatabase(
+          `DELETE FROM sessions WHERE user_id = ${gone}; DELETE FROM path_progress WHERE user_id = ${gone}; DELETE FROM progress WHERE user_id = ${gone}; DELETE FROM users WHERE id = ${gone}`,
+        );
         await page.waitForTimeout(1000);
         // The note's save goes with the key nobody has now: 401 visitor_unknown - the family's interceptor forgets the key
         // and sends the save once more as nobody's, with the old generation: refused (409), nobody's progress loaded, and
@@ -1425,7 +1624,11 @@ try {
         await page.waitForSelector('#visitor-lost', { timeout: 10000 });
         await page.waitForTimeout(800);
         page.off('response', heard);
-        check(answers[0] === 401 && answers.includes(409) && !answers.includes(204), 'the save with the lost key: 401, then once more as nobody\'s with the old generation - refused (409), nothing saved', answers);
+        check(
+          answers[0] === 401 && answers.includes(409) && !answers.includes(204),
+          "the save with the lost key: 401, then once more as nobody's with the old generation - refused (409), nothing saved",
+          answers,
+        );
         check((await page.evaluate(() => localStorage.getItem('piano-academy:visitor'))) === null, 'a key the server no longer knows is forgotten');
         check(!!(await page.$('#visitor-lost')) && (await keysOnPage(page)).length === 0, 'and the page says the progress kept here has ended - in Slovak, no key');
         check(!(await page.$('#progress-changed')), 'no "changed elsewhere" over it - the lost note says it');
@@ -1459,7 +1662,10 @@ try {
     await page.waitForSelector('#visitor-sign-in-now', { timeout: 10000 });
     check((await page.evaluate(() => localStorage.getItem('piano-academy:visitor'))) === key, 'the save refused (401 sign_in_required): the key is KEPT');
     check(visitorIds().length === visitorsThen.length, 'and the visitor stays in the database', visitorIds());
-    check((await keysOnPage(page)).length === 0 && (await page.textContent('#visitor-sign-in-now span'))?.trim().startsWith('Piano Academy teraz vyžaduje prihlásenie'), 'the page says a sign-in is required now - in Slovak');
+    check(
+      (await keysOnPage(page)).length === 0 && (await page.textContent('#visitor-sign-in-now span'))?.trim().startsWith('Piano Academy teraz vyžaduje prihlásenie'),
+      'the page says a sign-in is required now - in Slovak',
+    );
     await page.screenshot({ path: join(shots, 'visitor-sk-390-sign-in-now.png'), fullPage: true });
 
     // A browser with nothing of a visitor's: straight to the IAM, as before.
@@ -1481,7 +1687,11 @@ try {
     await admin.waitForSelector('[data-visitors]', { timeout: 20000 });
     const line = (await admin.textContent('[data-visitors]'))?.replace(/\s+/g, ' ').trim();
     const count = visitorIds().length;
-    check(line?.startsWith(`${count} visitor${count === 1 ? '' : 's'} practising without signing in, with `) && !(await admin.$('[data-people] [data-person^="-"]')), 'People (the family\'s page) counts the visitors in a line of this app\'s, and lists none', line);
+    check(
+      line?.startsWith(`${count} visitor${count === 1 ? '' : 's'} practising without signing in, with `) && !(await admin.$('[data-people] [data-person^="-"]')),
+      "People (the family's page) counts the visitors in a line of this app's, and lists none",
+      line,
+    );
     await admin.screenshot({ path: join(shots, 'admin-people-visitors.png'), fullPage: true });
     await adminContext.close();
 
@@ -1530,11 +1740,17 @@ try {
     check((await theme(page)) === 'dark' && (await shown(page)) === 'Theme: dark', 'signed in: the account’s dark, over this browser’s light', [await theme(page), await shown(page)]);
     check((await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === 'dark', 'kept for the next first paint (theme-boot.js)');
     const whens = await page.$$eval('#view-root tbody tr td:first-child', (cells) => cells.map((cell) => cell.textContent.trim()));
-    check(whens.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [ap]m$/.test(when)), 'Stats: when each round was played, in the account’s order and on its clock', whens);
+    check(
+      whens.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [ap]m$/.test(when)),
+      'Stats: when each round was played, in the account’s order and on its clock',
+      whens,
+    );
     // What's new: its code loaded only once the footer's What's new is pressed (the dialog drawn when it arrives).
     await page.click(FOOTER.whatsNew);
     await page.waitForSelector('.release-date', { timeout: 20000 });
-    const [year, month, day] = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0].date.split('-').map(Number);
+    const [year, month, day] = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0]
+      .date.split('-')
+      .map(Number);
     check((await page.textContent('.release-date'))?.trim() === `${day}.${month}.${year}`, 'What’s new: the release day in the account’s order', await page.textContent('.release-date'));
     await page.screenshot({ path: join(shots, `account-dark-whats-new-${DESKTOP}.png`) });
     await page.keyboard.press('Escape');
@@ -1542,14 +1758,18 @@ try {
     // The bar's switch: automatic, saved to the account - and another tab of the site follows the next choice at once.
     await choose(page, 'auto');
     check(await until(async () => (await iamState()).user?.preferences?.theme === 'auto'), 'the switch saved "automatic" to the account', (await iamState()).user?.preferences);
-    check((await theme(page)) === 'light' && (await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === null, 'automatic: the system’s light, nothing kept for the first paint', await theme(page));
+    check(
+      (await theme(page)) === 'light' && (await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === null,
+      'automatic: the system’s light, nothing kept for the first paint',
+      await theme(page),
+    );
     const other = await context.newPage();
     await other.goto(`${APP}/`);
     await other.waitForSelector(BAR.signedIn, { timeout: 20000 });
     await choose(page, 'light');
     check(await until(async () => (await iamState()).user?.preferences?.theme === 'light'), 'light saved to the account');
     await until(async () => (await shown(other)) === 'Theme: light');
-    check((await shown(other)) === 'Theme: light', 'the other tab shows it too (the family\'s client tells every tab)', await shown(other));
+    check((await shown(other)) === 'Theme: light', "the other tab shows it too (the family's client tells every tab)", await shown(other));
     await other.close();
 
     // The account would not take it: the account's theme back, and a note under the switch - on a phone too.
@@ -1558,14 +1778,27 @@ try {
     await page.waitForTimeout(150);
     await choose(page, 'dark');
     await page.waitForSelector(BAR.themeNote, { timeout: 5000 }).catch(() => undefined);
-    check((await page.textContent(BAR.themeNote))?.trim() === 'The theme could not be saved to your anotoki account.', 'refused: said under the switch, promising nothing', await page.textContent(BAR.themeNote).catch(() => null));
-    check((await shown(page)) === 'Theme: light' && (await theme(page)) === 'light' && (await iamState()).user?.preferences?.theme === 'light', 'refused: the account’s light on the screen again', [await shown(page), await theme(page)]);
+    check(
+      (await page.textContent(BAR.themeNote))?.trim() === 'The theme could not be saved to your anotoki account.',
+      'refused: said under the switch, promising nothing',
+      await page.textContent(BAR.themeNote).catch(() => null),
+    );
+    check((await shown(page)) === 'Theme: light' && (await theme(page)) === 'light' && (await iamState()).user?.preferences?.theme === 'light', 'refused: the account’s light on the screen again', [
+      await shown(page),
+      await theme(page),
+    ]);
     await page.waitForTimeout(150);
     const note = await page.evaluate((selector) => {
       const element = document.querySelector(selector);
       const box = element.getBoundingClientRect();
       const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-      return { left: Math.round(box.left), right: Math.round(box.right), screen: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, onTop: !!hit && element.contains(hit) };
+      return {
+        left: Math.round(box.left),
+        right: Math.round(box.right),
+        screen: document.documentElement.clientWidth,
+        scroll: document.documentElement.scrollWidth,
+        onTop: !!hit && element.contains(hit),
+      };
     }, BAR.themeNote);
     check(note.left >= 0 && note.right <= note.screen && note.scroll <= note.screen && note.onTop, 'the note at 390: inside the screen, on top of the page, no sideways scroll', note);
     await page.screenshot({ path: join(shots, 'account-theme-refused-390.png') });
@@ -1589,7 +1822,11 @@ try {
     check((await twin.getAttribute('html', 'lang')) === 'sk', 'the other tab follows the account’s new language', await twin.getAttribute('html', 'lang'));
     await twin.close();
     const slovak = await page.$$eval('#view-root tbody tr td:first-child', (cells) => cells.map((cell) => cell.textContent.trim()));
-    check(slovak.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [AP]M$/.test(when)), 'in Slovak: the same order and clock', slovak);
+    check(
+      slovak.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [AP]M$/.test(when)),
+      'in Slovak: the same order and clock',
+      slovak,
+    );
     check((await keysOnPage(page)).length === 0, 'no key on the page', await keysOnPage(page));
     await page.screenshot({ path: join(shots, 'account-sk-390.png'), fullPage: true });
     await context.close();
@@ -1614,18 +1851,28 @@ try {
     await until(async () => (await theme(admin)) === 'dark');
     check((await theme(admin)) === 'dark', 'the admin panel: the account’s dark too', await theme(admin));
     const seen = await admin.$$eval('[data-people] [data-person] .anotoki-people-page__time', (cells) => cells.map((cell) => cell.textContent.trim()).filter((text) => text !== ''));
-    check(seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'People (the family\'s page): first and last seen in the account’s order, on its 24-hour clock', seen);
+    check(
+      seen.length > 0 && seen.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)),
+      "People (the family's page): first and last seen in the account’s order, on its 24-hour clock",
+      seen,
+    );
     await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
     const ran = await admin.$$eval(`${MIGRATIONS} [data-applied] .anotoki-migrations-page__when`, (all) => all.map((when) => when.textContent.trim()));
-    check(ran.length > 0 && ran.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)), 'Migrations (the family’s page, the app’s way of writing dates): when each ran, in the account’s order', ran);
+    check(
+      ran.length > 0 && ran.every((when) => /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(when)),
+      'Migrations (the family’s page, the app’s way of writing dates): when each ran, in the account’s order',
+      ran,
+    );
     await admin.screenshot({ path: join(shots, 'account-admin-migrations-dark.png'), fullPage: true });
     await adminContext.close();
     // An IAM that keeps no preferences again, for what follows.
     await iamAs(MIA);
   }
 
-  step('A database behind the code: everybody else reads that the site is being updated, an ADMIN signs in from that page and applies it on the Migrations page - one Apply failing with what PostgreSQL said - and the pages come back');
+  step(
+    'A database behind the code: everybody else reads that the site is being updated, an ADMIN signs in from that page and applies it on the Migrations page - one Apply failing with what PostgreSQL said - and the pages come back',
+  );
   {
     // 005 - a schema part of its own (006 to 012 and the library's files stay applied) - taken off the record: the
     // code is ahead of the database, and the site's gate (anotoki/lib's SiteGate) answers 503 update_pending but on its
@@ -1654,21 +1901,33 @@ try {
     await learner.goto(`${APP}/stats`);
     await learner.waitForSelector('anotoki-site-status section', { timeout: 20000 });
     let shown = await siteStatus(learner);
-    check(shown.title === 'The site is being updated' && shown.text === 'It will be back in a few minutes. This page reloads by itself.' && shown.lang === 'en', 'signed out: "The site is being updated" (the family\'s page), in English', shown);
+    check(
+      shown.title === 'The site is being updated' && shown.text === 'It will be back in a few minutes. This page reloads by itself.' && shown.lang === 'en',
+      'signed out: "The site is being updated" (the family\'s page), in English',
+      shown,
+    );
     check(JSON.stringify(shown.controls) === JSON.stringify(['Sign in']) && shown.links.length === 0, 'nothing to press but a quiet Sign in: no setup page, no Migrations, no error', shown);
     check(!learnerSeen.navigations.some((url) => url.startsWith(IAM)), 'nobody is sent to the IAM while the site is being updated', learnerSeen.navigations);
-    check(learnerSeen.answers.every((answer) => answer.startsWith('200 ') || answer.startsWith('304 ')), 'and nothing the page asked failed (where the site stands, the sign-in\'s settings, the words)', learnerSeen.answers);
-    check(!(await learner.$(`app-load-error, ${FAILURE}, #signed-out-banner`)), 'no error card, no failure\'s screen, no banner');
+    check(
+      learnerSeen.answers.every((answer) => answer.startsWith('200 ') || answer.startsWith('304 ')),
+      "and nothing the page asked failed (where the site stands, the sign-in's settings, the words)",
+      learnerSeen.answers,
+    );
+    check(!(await learner.$(`app-load-error, ${FAILURE}, #signed-out-banner`)), "no error card, no failure's screen, no banner");
     const alone = await standsAlone(learner);
-    check(alone.status && alone.frame.length === 0 && alone.mains === 1, 'the status page alone: no bar, no section, no footer - the gate\'s own <main> its one landmark', alone);
+    check(alone.status && alone.frame.length === 0 && alone.mains === 1, "the status page alone: no bar, no section, no footer - the gate's own <main> its one landmark", alone);
     await learner.screenshot({ path: join(shots, `behind-signed-out-${DESKTOP}.png`), fullPage: true });
 
     // Signing in works meanwhile: to the IAM and back to the page it started from - still being updated, now with
     // nothing to press (and still no bar to name anybody in: the session is the family's client's, in this browser).
     await learner.click('anotoki-site-status button');
-    await learner.waitForFunction(() => location.pathname === '/stats' && !!document.querySelector('anotoki-site-status section') && !document.querySelector('anotoki-site-status section button'), null, { timeout: 20000 }).catch(() => undefined);
+    await learner
+      .waitForFunction(() => location.pathname === '/stats' && !!document.querySelector('anotoki-site-status section') && !document.querySelector('anotoki-site-status section button'), null, {
+        timeout: 20000,
+      })
+      .catch(() => undefined);
     check(learnerSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(learner.url()).pathname === '/stats', 'its Sign in: to the IAM and back to /stats', learnerSeen.navigations);
-    check(await learner.evaluate(() => !!localStorage.getItem('anotoki-auth:piano-academy')), 'signed in as the learner (the family\'s session in this browser)');
+    check(await learner.evaluate(() => !!localStorage.getItem('anotoki-auth:piano-academy')), "signed in as the learner (the family's session in this browser)");
     shown = await siteStatus(learner);
     check(shown?.title === 'The site is being updated' && shown.controls.length === 0, 'a learner signed in: still being updated, nothing to press', shown);
     check((await standsAlone(learner)).frame.length === 0, 'signed in too: no bar, no footer', await standsAlone(learner));
@@ -1676,7 +1935,11 @@ try {
     // The Migrations page is not a learner's: the same status page on its address, and nothing of it drawn.
     await learner.goto(`${APP}/admin/migrations`);
     await learner.waitForSelector('anotoki-site-status section', { timeout: 20000 });
-    check((await siteStatus(learner))?.title === 'The site is being updated' && !(await learner.$(MIGRATIONS)), 'a learner on /admin/migrations: the same page, no Migrations', await siteStatus(learner));
+    check(
+      (await siteStatus(learner))?.title === 'The site is being updated' && !(await learner.$(MIGRATIONS)),
+      'a learner on /admin/migrations: the same page, no Migrations',
+      await siteStatus(learner),
+    );
     check(!learnerSeen.answers.some((answer) => answer.includes('/api/admin/')), 'and nothing of the admin panel asked for', learnerSeen.answers);
     // Back to Stats, where the page waits - it is to come back by itself once the update is applied (below).
     await learner.goto(`${APP}/stats`);
@@ -1690,8 +1953,16 @@ try {
     await slovak.waitForSelector('anotoki-site-status section', { timeout: 20000 });
     await slovak.waitForFunction(() => document.documentElement.lang === 'sk', null, { timeout: 10000 }).catch(() => undefined);
     shown = await siteStatus(slovak);
-    check(shown.title === 'Stránku práve aktualizujeme' && shown.lang === 'sk' && JSON.stringify(shown.controls) === JSON.stringify(['Prihlásiť sa']), 'in Slovak: "Stránku práve aktualizujeme", its Sign in in Slovak', shown);
-    check((await keysOnPage(slovak)).length === 0 && (await slovak.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)), 'at 390: no key, no sideways scroll', await keysOnPage(slovak));
+    check(
+      shown.title === 'Stránku práve aktualizujeme' && shown.lang === 'sk' && JSON.stringify(shown.controls) === JSON.stringify(['Prihlásiť sa']),
+      'in Slovak: "Stránku práve aktualizujeme", its Sign in in Slovak',
+      shown,
+    );
+    check(
+      (await keysOnPage(slovak)).length === 0 && (await slovak.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)),
+      'at 390: no key, no sideways scroll',
+      await keysOnPage(slovak),
+    );
     await slovak.screenshot({ path: join(shots, 'behind-sk-390.png'), fullPage: true });
     await slovakContext.close();
 
@@ -1709,7 +1980,11 @@ try {
           const seen = await standsAlone(look);
           check(seen.status && seen.frame.length === 0 && seen.mains === 1, `${label}: alone - no bar, no footer, one <main>`, seen);
           check((await siteStatus(look))?.title === (language === 'en' ? 'The site is being updated' : 'Stránku práve aktualizujeme'), `${label}: in its language`, await siteStatus(look));
-          check((await keysOnPage(look)).length === 0 && (await look.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)), `${label}: no key, no sideways scroll`, await keysOnPage(look));
+          check(
+            (await keysOnPage(look)).length === 0 && (await look.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)),
+            `${label}: no key, no sideways scroll`,
+            await keysOnPage(look),
+          );
           await look.screenshot({ path: join(shots, `status-alone-${language}-${scheme}-${width}.png`), fullPage: true });
           await lookContext.close();
         }
@@ -1729,13 +2004,19 @@ try {
     await page.waitForFunction(() => document.querySelector('anotoki-site-status h1')?.textContent.trim() === 'A database update is waiting', null, { timeout: 20000 }).catch(() => undefined);
     shown = await siteStatus(page);
     check(adminSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(page.url()).pathname === '/', 'its Sign in: to the IAM and back to the same page', adminSeen.navigations);
-    check(shown?.title === 'A database update is waiting' && shown.lang === 'en' && JSON.stringify(shown.controls) === JSON.stringify(['Open Migrations']), 'signed in, the site\'s ADMIN: "A database update is waiting", in English, with "Open Migrations"', shown);
-    check((await standsAlone(page)).frame.length === 0, 'the ADMIN\'s status page alone too: no bar, no footer', await standsAlone(page));
+    check(
+      shown?.title === 'A database update is waiting' && shown.lang === 'en' && JSON.stringify(shown.controls) === JSON.stringify(['Open Migrations']),
+      'signed in, the site\'s ADMIN: "A database update is waiting", in English, with "Open Migrations"',
+      shown,
+    );
+    check((await standsAlone(page)).frame.length === 0, "the ADMIN's status page alone too: no bar, no footer", await standsAlone(page));
     await page.screenshot({ path: join(shots, `behind-admin-${DESKTOP}.png`), fullPage: true });
     await page.click('anotoki-site-status a');
     await page.waitForSelector(`${MIGRATIONS} [data-pending] li`, { timeout: 20000 });
     check(new URL(page.url()).pathname === '/admin/migrations', 'on the Migrations page', page.url());
-    const pending = await page.$$eval(`${MIGRATIONS} [data-pending] li`, (all) => all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('anotoki-badge').textContent.trim()}`));
+    const pending = await page.$$eval(`${MIGRATIONS} [data-pending] li`, (all) =>
+      all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('anotoki-badge').textContent.trim()}`),
+    );
     check(JSON.stringify(pending) === JSON.stringify(['005_visitors.sql pending']), 'Pending: 005', pending);
     check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Migrations', 'the bar: Migrations alone while the database is behind');
     check(!!(await page.$(FOOTER.footer)) && (await page.$$('main')).length === 1, 'the one page that runs meanwhile is in the frame: the bar and the footer, one <main>');
@@ -1751,19 +2032,31 @@ try {
     const result = `${MIGRATIONS} [data-result]`;
     // The family's page names the site's one set's files by their names alone, the library's sets' with the set.
     check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Stopped at 005_visitors.sql', 'a failed Apply: Stopped at 005', await page.textContent(result));
-    check((await page.textContent(`${result} .anotoki-migrations-page__result-text`)).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.', 'nothing applied, rolled back whole', await page.textContent(result));
+    check(
+      (await page.textContent(`${result} .anotoki-migrations-page__result-text`)).replace(/\s+/g, ' ').trim() === 'Nothing was applied. The failed file was rolled back as a whole.',
+      'nothing applied, rolled back whole',
+      await page.textContent(result),
+    );
     const said = (await page.textContent(`${result} pre.anotoki-migrations-page__error`)) ?? '';
-    check(said.includes('users.visitor_key_hash is not a char(64) that may be null') && /^statement \d+ of \d+: SQLSTATE\[P0001\]/.test(said), 'what PostgreSQL said, word for word, on the page', said);
+    check(
+      said.includes('users.visitor_key_hash is not a char(64) that may be null') && /^statement \d+ of \d+: SQLSTATE\[P0001\]/.test(said),
+      'what PostgreSQL said, word for word, on the page',
+      said,
+    );
     await page.waitForFunction((apply) => document.querySelector(apply)?.disabled === false, `${MIGRATIONS} [data-apply]`, { timeout: 10000 }).catch(() => undefined);
     check(!(await page.isDisabled(`${MIGRATIONS} [data-apply]`)) && (await page.$$(`${MIGRATIONS} [data-pending] li`)).length === 1, 'still pending: Apply pending is on again');
-    check((await siteStatus(learner))?.title === 'The site is being updated', 'meanwhile the learner\'s page still says the site is being updated');
+    check((await siteStatus(learner))?.title === 'The site is being updated', "meanwhile the learner's page still says the site is being updated");
     await page.screenshot({ path: join(shots, `migrations-failed-${DESKTOP}.png`), fullPage: true });
     await page.setViewportSize({ width: 360, height: 800 });
     await page.waitForTimeout(150);
     const wider = await page.evaluate(() => {
       const screen = document.documentElement.clientWidth;
       const over = [...document.querySelectorAll('body *')].filter((el) => el.getBoundingClientRect().right > screen + 0.5 && !el.closest('pre.anotoki-migrations-page__error'));
-      return { scroll: document.documentElement.scrollWidth, screen, over: over.slice(0, 5).map((el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${[...el.classList].join('.')} ${Math.round(el.getBoundingClientRect().right)}`) };
+      return {
+        scroll: document.documentElement.scrollWidth,
+        screen,
+        over: over.slice(0, 5).map((el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${[...el.classList].join('.')} ${Math.round(el.getBoundingClientRect().right)}`),
+      };
     });
     check(wider.scroll <= wider.screen, 'the error at 360: no sideways scroll', wider);
     await page.screenshot({ path: join(shots, 'migrations-failed-360.png'), fullPage: true });
@@ -1780,7 +2073,10 @@ try {
     check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
     check((await page.textContent(`${result} .anotoki-migrations-page__result-text`))?.trim() === 'Applied: 005_visitors.sql.', 'Applied: 005', await page.textContent(result));
     await page.waitForSelector(`${BAR.nav} a[href="/admin/people"]`, { timeout: 20000 });
-    check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === ADMIN_SECTIONS, 'the app started where it stands: every section, the result still on the page');
+    check(
+      (await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === ADMIN_SECTIONS,
+      'the app started where it stands: every section, the result still on the page',
+    );
     check((await page.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'nothing pending now');
     await page.screenshot({ path: join(shots, `migrations-applied-${DESKTOP}.png`), fullPage: true });
     await page.click(BAR.person);
@@ -1800,7 +2096,7 @@ try {
 
     // The learner's page came back by itself: it asks again every 30 seconds, and loads the page afresh once the site is ready.
     await learner.waitForSelector('#own-progress', { timeout: 45000 }).catch(() => undefined);
-    check(!!(await learner.$('#own-progress')) && !(await siteStatus(learner)), 'the learner\'s page came back by itself: Stats, the learner\'s own', await siteStatus(learner));
+    check(!!(await learner.$('#own-progress')) && !(await siteStatus(learner)), "the learner's page came back by itself: Stats, the learner's own", await siteStatus(learner));
     check((await learner.evaluate(() => window.beforeTheUpdate)) === undefined && new URL(learner.url()).pathname === '/stats', 'loaded afresh, on the same address', learner.url());
     await learner.screenshot({ path: join(shots, `behind-learner-back-${DESKTOP}.png`), fullPage: true });
     await learnerContext.close();
@@ -1824,8 +2120,18 @@ try {
       await page.goto(`${APP}/stats`);
       await page.waitForSelector('anotoki-site-status section', { timeout: 20000 });
       const never = await siteStatus(page);
-      check(never.title === 'This site is not set up yet' && JSON.stringify(never.controls) === JSON.stringify(['Open the setup page', 'Try again']) && JSON.stringify(never.links) === JSON.stringify(['/setup.php']), 'never installed: "This site is not set up yet", the setup page and Try again', never);
-      check(!navigations.some((url) => url.startsWith(IAM)) && (await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)), 'nobody sent to the IAM; at 390 no sideways scroll', navigations);
+      check(
+        never.title === 'This site is not set up yet' &&
+          JSON.stringify(never.controls) === JSON.stringify(['Open the setup page', 'Try again']) &&
+          JSON.stringify(never.links) === JSON.stringify(['/setup.php']),
+        'never installed: "This site is not set up yet", the setup page and Try again',
+        never,
+      );
+      check(
+        !navigations.some((url) => url.startsWith(IAM)) && (await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)),
+        'nobody sent to the IAM; at 390 no sideways scroll',
+        navigations,
+      );
       const alone = await standsAlone(page);
       check(alone.status && alone.frame.length === 0 && alone.mains === 1, 'not set up: the status page alone - no bar, no footer', alone);
       await page.screenshot({ path: join(shots, 'not-set-up-390.png'), fullPage: true });
@@ -1836,7 +2142,11 @@ try {
       await page.reload();
       await page.waitForSelector('anotoki-site-status section', { timeout: 20000 });
       const installed = await siteStatus(page);
-      check(installed.title === 'The site is not available right now' && JSON.stringify(installed.controls) === JSON.stringify(['Try again']) && installed.links.length === 0, 'installed once: "The site is not available right now" and Try again - never the setup page', installed);
+      check(
+        installed.title === 'The site is not available right now' && JSON.stringify(installed.controls) === JSON.stringify(['Try again']) && installed.links.length === 0,
+        'installed once: "The site is not available right now" and Try again - never the setup page',
+        installed,
+      );
       check(!(await page.$('a[href*="setup.php"]')), 'no way to the setup page anywhere on the page');
       await page.screenshot({ path: join(shots, 'not-available-390.png'), fullPage: true });
     } finally {

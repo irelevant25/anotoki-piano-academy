@@ -118,9 +118,15 @@ try {
   // The stand-in's key (key.json, as the library's TestIam writes it) in a folder of its own, where it keeps its state too.
   const iamDir = join(work, 'stand-in-iam');
   mkdirSync(iamDir, { recursive: true });
-  run(php, ['-r', 'require "vendor/autoload.php"; \\Anotoki\\Lib\\Auth\\Testing\\TestIam::create($argv[1], $argv[2], "piano-academy", "browser-check");', iamDir, `http://127.0.0.1:${IAM}`], { cwd: backend });
+  run(php, ['-r', 'require "vendor/autoload.php"; \\Anotoki\\Lib\\Auth\\Testing\\TestIam::create($argv[1], $argv[2], "piano-academy", "browser-check");', iamDir, `http://127.0.0.1:${IAM}`], {
+    cwd: backend,
+  });
 
-  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/php/testing/stand-in-iam.php'], { name: 'stand-in-iam', cwd: backend, env: { ...process.env, STAND_IN_DIR: iamDir, STAND_IN_ISSUER: `http://127.0.0.1:${IAM}` } });
+  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/php/testing/stand-in-iam.php'], {
+    name: 'stand-in-iam',
+    cwd: backend,
+    env: { ...process.env, STAND_IN_DIR: iamDir, STAND_IN_ISSUER: `http://127.0.0.1:${IAM}` },
+  });
   start(php, ['-S', `127.0.0.1:${SITE}`, 'router.php'], { name: 'site', cwd: backend, env: { ...process.env, PIANO_TEST_CONFIG: config } });
   await waitForUrl(`http://127.0.0.1:${IAM}/.well-known/openid-configuration`, 'The stand-in IAM');
   await waitForUrl(`http://127.0.0.1:${SITE}/api/health`, 'The app');
