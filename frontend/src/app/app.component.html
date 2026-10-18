@@ -1,105 +1,105 @@
-<app-top-bar />
+<!-- The family's gate (@anotoki/lib/migrations) is the outermost of what the app draws. While the site is ready - or an ADMIN is on the Migrations page while an update waits - it draws its marked template (anotokiSitePages): the whole frame, the bar, the notes, the page and the footer. While it is not (an update waits, it is not set up, its database is out of reach) it draws its status page alone, in a <main> of its own: no bar, no note, no footer round it (the owner's rule of 2026-10-18). The template is made only while the gate shows it, so no page runs behind the status page. -->
+<anotoki-site-gate>
+    <ng-template anotokiSitePages>
+        <app-top-bar />
 
-<!-- While the site is not ready (an update waits, it is not set up, its database is out of reach) its status page alone speaks: no note waits under the bar meanwhile. -->
-@if (!site.blocked()) {
-    <!-- The notes that cannot be missed, above the page: the family's alerts (@anotoki/lib/ui/alert) - the ones that come of what just happened are said at once (role alert or status). -->
-    <div class="notes">
-        @if (signedOutBanner()) {
-            <anotoki-alert id="signed-out-banner" tone="warning" announce>
-                <span>{{ 'account.signedOutBanner' | translate }}</span>
-                @if (signInWhy()) {
-                    <span class="note-more" id="signed-out-why">{{ signInWhy() }}</span>
+        <!-- While an ADMIN applies an update on the Migrations page the site is not ready yet: no note waits under the bar meanwhile. -->
+        @if (!site.blocked()) {
+            <!-- The notes that cannot be missed, above the page: the family's alerts (@anotoki/lib/ui/alert) - the ones that come of what just happened are said at once (role alert or status). -->
+            <div class="notes">
+                @if (signedOutBanner()) {
+                    <anotoki-alert id="signed-out-banner" tone="warning" announce>
+                        <span>{{ 'account.signedOutBanner' | translate }}</span>
+                        @if (signInWhy()) {
+                            <span class="note-more" id="signed-out-why">{{ signInWhy() }}</span>
+                        }
+                        <div alertActions>
+                            <button anotokiButton variant="primary" size="sm" id="signed-out-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                        </div>
+                    </anotoki-alert>
                 }
-                <div alertActions>
-                    <button anotokiButton variant="primary" size="sm" id="signed-out-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
-                </div>
-            </anotoki-alert>
-        }
 
-        <!-- A visitor's notes (practising without signing in: core/i18n/visitor-words.ts), then the notes after a sign-in that moved a visitor's progress. -->
-        @if (visitorSignInNow()) {
-            <anotoki-alert id="visitor-sign-in-now" tone="warning" announce>
-                <span>{{ words.signInNow | translate }}</span>
-                <div alertActions>
-                    <button anotokiButton variant="primary" size="sm" id="visitor-sign-in-now-button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
-                </div>
-            </anotoki-alert>
-        }
-
-        @if (visitorSignInWhy()) {
-            <anotoki-alert id="visitor-sign-in-why" tone="warning" announce>
-                <span>{{ visitorSignInWhy() }}</span>
-                <div alertActions>
-                    <button anotokiButton size="sm" id="visitor-sign-in-why-close" (click)="closeVisitorSignInWhy()">{{ words.close | translate }}</button>
-                </div>
-            </anotoki-alert>
-        }
-
-        @if (visitorRefusal(); as refusal) {
-            <anotoki-alert id="visitor-refused" tone="warning" announce>
-                <span>{{ refusal | translate }}</span>
-                @if (!visitorSignInNow()) {
-                    <div alertActions>
-                        <button anotokiButton variant="primary" size="sm" id="visitor-refused-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
-                    </div>
+                <!-- A visitor's notes (practising without signing in: core/i18n/visitor-words.ts), then the notes after a sign-in that moved a visitor's progress. -->
+                @if (visitorSignInNow()) {
+                    <anotoki-alert id="visitor-sign-in-now" tone="warning" announce>
+                        <span>{{ words.signInNow | translate }}</span>
+                        <div alertActions>
+                            <button anotokiButton variant="primary" size="sm" id="visitor-sign-in-now-button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                        </div>
+                    </anotoki-alert>
                 }
-            </anotoki-alert>
-        }
 
-        @if (visitorLost()) {
-            <anotoki-alert id="visitor-lost" tone="info" announce="polite">
-                <span>{{ words.lost | translate: { days: keepDays } }}</span>
-                <div alertActions>
-                    <button anotokiButton size="sm" id="visitor-lost-close" (click)="visitorKey.lost.set(false)">{{ words.close | translate }}</button>
-                </div>
-            </anotoki-alert>
-        }
-
-        @if (boot.visitorMoved(); as moved) {
-            <anotoki-alert id="visitor-moved" tone="success" announce="polite">
-                <span>{{ words.moved | translate }}</span>
-                @if (moved.kept) {
-                    <span class="note-more" id="visitor-kept">{{ words.kept | translate }}</span>
+                @if (visitorSignInWhy()) {
+                    <anotoki-alert id="visitor-sign-in-why" tone="warning" announce>
+                        <span>{{ visitorSignInWhy() }}</span>
+                        <div alertActions>
+                            <button anotokiButton size="sm" id="visitor-sign-in-why-close" (click)="closeVisitorSignInWhy()">{{ words.close | translate }}</button>
+                        </div>
+                    </anotoki-alert>
                 }
-                <div alertActions>
-                    <button anotokiButton size="sm" id="visitor-moved-close" (click)="boot.visitorMoved.set(null)">{{ words.close | translate }}</button>
-                </div>
-            </anotoki-alert>
+
+                @if (visitorRefusal(); as refusal) {
+                    <anotoki-alert id="visitor-refused" tone="warning" announce>
+                        <span>{{ refusal | translate }}</span>
+                        @if (!visitorSignInNow()) {
+                            <div alertActions>
+                                <button anotokiButton variant="primary" size="sm" id="visitor-refused-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                            </div>
+                        }
+                    </anotoki-alert>
+                }
+
+                @if (visitorLost()) {
+                    <anotoki-alert id="visitor-lost" tone="info" announce="polite">
+                        <span>{{ words.lost | translate: { days: keepDays } }}</span>
+                        <div alertActions>
+                            <button anotokiButton size="sm" id="visitor-lost-close" (click)="visitorKey.lost.set(false)">{{ words.close | translate }}</button>
+                        </div>
+                    </anotoki-alert>
+                }
+
+                @if (boot.visitorMoved(); as moved) {
+                    <anotoki-alert id="visitor-moved" tone="success" announce="polite">
+                        <span>{{ words.moved | translate }}</span>
+                        @if (moved.kept) {
+                            <span class="note-more" id="visitor-kept">{{ words.kept | translate }}</span>
+                        }
+                        <div alertActions>
+                            <button anotokiButton size="sm" id="visitor-moved-close" (click)="boot.visitorMoved.set(null)">{{ words.close | translate }}</button>
+                        </div>
+                    </anotoki-alert>
+                }
+
+                @if (boot.visitorNotMoved()) {
+                    <anotoki-alert id="visitor-not-moved" tone="warning" announce="polite">
+                        <span>{{ words.notMoved | translate }}</span>
+                        <div alertActions>
+                            <button anotokiButton size="sm" id="visitor-not-moved-close" (click)="boot.visitorNotMoved.set(false)">{{ words.close | translate }}</button>
+                        </div>
+                    </anotoki-alert>
+                }
+
+                @if (store.changedElsewhere()) {
+                    <anotoki-alert id="progress-changed" tone="info" announce="polite">
+                        <span>{{ 'progressChanged.text' | translate }}</span>
+                        <div alertActions>
+                            <button anotokiButton size="sm" id="progress-changed-close" (click)="store.changedElsewhere.set(false)">{{ 'progressChanged.close' | translate }}</button>
+                        </div>
+                    </anotoki-alert>
+                }
+
+                @if (visitorNotice()) {
+                    <anotoki-alert id="visitor-notice" tone="info">
+                        <span>{{ words.notice | translate: { days: keepDays } }}</span>
+                        <div alertActions>
+                            <button anotokiButton variant="primary" size="sm" id="visitor-notice-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                        </div>
+                    </anotoki-alert>
+                }
+            </div>
         }
 
-        @if (boot.visitorNotMoved()) {
-            <anotoki-alert id="visitor-not-moved" tone="warning" announce="polite">
-                <span>{{ words.notMoved | translate }}</span>
-                <div alertActions>
-                    <button anotokiButton size="sm" id="visitor-not-moved-close" (click)="boot.visitorNotMoved.set(false)">{{ words.close | translate }}</button>
-                </div>
-            </anotoki-alert>
-        }
-
-        @if (store.changedElsewhere()) {
-            <anotoki-alert id="progress-changed" tone="info" announce="polite">
-                <span>{{ 'progressChanged.text' | translate }}</span>
-                <div alertActions>
-                    <button anotokiButton size="sm" id="progress-changed-close" (click)="store.changedElsewhere.set(false)">{{ 'progressChanged.close' | translate }}</button>
-                </div>
-            </anotoki-alert>
-        }
-
-        @if (visitorNotice()) {
-            <anotoki-alert id="visitor-notice" tone="info">
-                <span>{{ words.notice | translate: { days: keepDays } }}</span>
-                <div alertActions>
-                    <button anotokiButton variant="primary" size="sm" id="visitor-notice-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
-                </div>
-            </anotoki-alert>
-        }
-    </div>
-}
-
-<main id="view-root" class="view-root">
-    <!-- The family's gate (@anotoki/lib/migrations): the view - or, while the site is not ready, its status page in the view's place (an ADMIN still has the Migrations page). The view is the gate's marked template (anotokiSitePages): made only while the gate shows it, so no page runs behind the status page. -->
-    <anotoki-site-gate>
-        <ng-template anotokiSitePages>
+        <main id="view-root" class="view-root">
             @if (pageShown()) {
                 <!-- One outlet for both: the Migrations page an ADMIN applies from while an update waits stays as the app starts. -->
                 <router-outlet />
@@ -114,35 +114,19 @@
                     }
                 }
             }
-        </ng-template>
-    </anotoki-site-gate>
-</main>
+        </main>
 
-<footer class="app-footer">
-    <div class="footer-actions">
-        <!-- The family's feedback form, for everybody (core/site-admin.ts): its words are the library's (anotoki.feedback.*). -->
-        <button anotokiButton variant="ghost" size="sm" id="feedback-open" (click)="feedbackOpen.set(true)">{{ 'anotoki.feedback.title' | translate }}</button>
-        @if (changelog.version(); as version) {
-            <button anotokiButton variant="ghost" size="sm" id="app-version" [title]="'footer.whatsNew' | translate" (click)="whatsNewOpen.set(true)">Piano Academy v{{ version }}</button>
+        <!-- The family's footer (@anotoki/lib/footer), the anotoki sites' one: "Version X · What's new · Feedback" - the version and What's new once the list of changes came (one source, changelog.json), Feedback the family's form in the kit's dialog, loaded with the press - then Terms · Privacy · Contact. In the library's words (anotoki.footer.*, anotoki.legalLinks.*). -->
+        <anotoki-site-footer [version]="changelog.version()" [whatsNew]="changelog.version() !== null" (whatsNew)="whatsNewOpen.set(true)" feedback />
+
+        <!-- What's new: its code (the family's dialog with the releases) loaded only once it is opened, from the footer's What's new. -->
+        @if (whatsNewOpen()) {
+            @defer (on immediate) {
+                <app-changelog-dialog (closed)="whatsNewOpen.set(false)" />
+            }
         }
-    </div>
-    <!-- Terms · Privacy · Contact: the family's links (@anotoki/lib/legal) to the legal pages' own paths - their words the library's (anotoki.legalLinks.*), the open page's marked. -->
-    <anotoki-legal-links class="footer-legal" id="footer-legal" />
-</footer>
+    </ng-template>
+</anotoki-site-gate>
 
-<!-- What's new: its code (the family's dialog with the releases) loaded only once it is opened, from the footer's version. -->
-@if (whatsNewOpen()) {
-    @defer (on immediate) {
-        <app-changelog-dialog (closed)="whatsNewOpen.set(false)" />
-    }
-}
-
-<!-- The feedback form's dialog: its code (and the family's form) loaded only once it is opened. -->
-@if (feedbackOpen()) {
-    @defer (on immediate) {
-        <app-feedback-dialog (closed)="feedbackOpen.set(false)" />
-    }
-}
-
-<!-- The family's "Are you sure?" (@anotoki/lib/ui/dialog's ConfirmService): signing out with progress not saved, bringing back a progress file over the one there, the admin panel's questions. -->
+<!-- The family's "Are you sure?" (@anotoki/lib/ui/dialog's ConfirmService): signing out with progress not saved, bringing back a progress file over the one there, the admin panel's questions - outside the gate, for the pages and the status page alike. -->
 <anotoki-confirm-host />

@@ -16,7 +16,8 @@ export interface ChangelogEntry {
 /**
  * What changed, release by release: public/changelog.json, the same format as
  * the genshin site's. The newest entry's version is the app's version, shown
- * in the footer; pressing it opens the list.
+ * in the family's footer ("Version 0.4.0"), whose What's new opens the list -
+ * both there only once the list came.
  */
 @Injectable({ providedIn: 'root' })
 export class ChangelogService {
@@ -30,7 +31,7 @@ export class ChangelogService {
       const entries = await firstValueFrom(this.http.get<ChangelogEntry[]>('changelog.json'));
       this.entries.set(Array.isArray(entries) ? entries : []);
     } catch {
-      // No changelog is no reason to stop anybody practising: the footer just shows no version.
+      // No changelog is no reason to stop anybody practising: the footer just shows no version, and no What's new.
       this.entries.set([]);
     }
   }

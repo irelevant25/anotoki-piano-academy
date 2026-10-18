@@ -2,6 +2,91 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-18, after the deploy - the anotoki sites' one footer, the status page alone, a Cloudflare file without a usable secret failing closed, and the host check (`anotoki-lib` 0.6.3)
+
+- **One footer for every anotoki site, the build analyzer's** (the owner,
+  after the deploy: "I like the footer of builder the most. The order, texts
+  and the top border."). The library's `<anotoki-site-footer>`
+  (`@anotoki/lib/footer`, 0.6.3) takes the place of Piano's own, under every
+  page and in the admin panel: a top border, then "Version 0.4.0 · What's new
+  · Feedback", then Terms · Privacy · Contact. The version is the newest
+  entry of `changelog.json` (one source - `package.json` says the same, a
+  spec holds them equal); the version and What's new show once the list
+  came, so the dialog What's new opens - the app's own, on the footer's
+  `(whatsNew)` - is never empty (012 deleted its sentence for a list that
+  did not come). Feedback is the family's form in the kit's dialog, which the
+  footer itself opens and loads with the press - `ui/feedback-dialog` is
+  gone, and the button says the library's "Feedback" where Piano's said
+  "Send feedback" (the build analyzer's word). The footer's words are the
+  library's (`anotoki.footer.*`, its translations 012); the old footer's one
+  word, `footer.whatsNew` (its version button's tooltip), goes by migration
+  013, which also tells `whatsNew.title`'s description where the dialog
+  opens from now. The footer's own code puts the first load at 558.1 kB
+  (549.4 before; 163.1 kB transferred, 160.8 before), over angular.json's
+  550 kB warning: raising the budget, or loading more of the first page
+  lazily (Learn itself, say), is the owner's call.
+- **Feedback says whom its message is for** (found by the survey's pass,
+  2026-10-18). The library's form posts to `/api/feedback` without saying
+  whom the message is for, and the family's interceptor then takes it for
+  the person's whenever the sign-in is set up (`AnotokiAuth.caller()`),
+  signed in or not: while Piano Academy requires a sign-in, the footer's
+  Feedback and Contact's form - anybody's, on the legal pages too - never
+  sent a message of somebody signed out, said "Sign in to send a message",
+  and the page followed a session that had never been, what they typed
+  lost. Piano's server takes anybody's message (`FeedbackRoutes::public`:
+  nobody's and a visitor's too, counted by address), so the message now
+  says it: `feedbackSenderInterceptor` (`core/site-admin.ts`, before the
+  family's interceptor in `SITE_INTERCEPTORS`, `app.config.ts` - the
+  survey's way) marks it the person's while somebody is signed in (the
+  token goes with it) and nobody's otherwise (neither a token nor a key);
+  a request that says already is left alone. Feedback stays offered to
+  everybody. `core/site-admin.spec.ts` holds each case and the order
+  (mutation-checked); the browser check sends one from the footer signed
+  out (201, thanked on the same page, kept by nobody).
+- **The status page alone** (the owner: "I prefer nor header nor footer to
+  be there"). While an update waits, the database is out of reach or the site
+  is not set up, the family's status page is a page of its own: the gate is
+  now the outermost of what `AppComponent` draws, and the whole frame - the
+  bar, the notes under it, the page's `<main>`, the footer - is its marked
+  template, so none of it is made while the gate draws the status page (in
+  a `<main>` of its own, the library's 0.6.3). Piano's `<main>` round the
+  gate went with it. The one page that runs meanwhile, an ADMIN's Migrations
+  page, has the frame (the bar with Migrations alone, the footer; no note).
+  The status page's own Sign in is the way in meanwhile; the bar's theme
+  switch and language chooser are not there while it shows.
+  `app.component.spec.ts` holds every closed state with nothing of the frame
+  and one landmark, and the frame back with the site (with the bar put back
+  outside the gate, four of its tests fail).
+- **A present `config/cloudflare.local.php` without a usable secret fails
+  closed** (the owner's "do as you think is the best" of 2026-10-18, asked
+  whether to tighten the rule after the deploy; the build analyzer and the
+  survey did it the same day). Until now a file read cleanly that named no
+  secret - blank, no array, another key - was "no secret", as without the
+  file; now it is a secret no request carries, as a broken one is: each is a
+  slip in the file, and "no secret" believes `CF-Connecting-IP` from every
+  Cloudflare customer's Worker. Deleting the file is the one way to switch
+  the secret off; anything in its place, a folder too, counts as the file.
+  Said in PHP's error log once a day by the file's name, never its value.
+  `tests/unit/visitors.test.php` runs the attack on every case - an empty
+  value, only spaces, a number, a list, null, true, a misspelt key, the key
+  in capitals, another key, no array, nothing returned, the first line alone,
+  null returned, a folder (a Worker's forged address from Cloudflare's ranges,
+  with the file's own value too, is the edge, for this app's limits and the
+  library's alike) - and the file deleted; `tests/api/visitors.test.php`
+  runs it through the real server with the secret under a misspelt key.
+- **The host check may run on the host.** The web root's `.htaccess` let a
+  visitor run `setup.php` alone, so the family's host check
+  (`tools/host-check.php`) answered 403 there. It may run too now, by its
+  exact name - inert while the file is not there: it is never part of a
+  build, is uploaded by hand with a token written into it, answers 404
+  without that token, and is deleted again. `tests/api/hosting.test.php`
+  reads the `.htaccess` as Apache reads it; the README's hosting checklist
+  says so.
+- **The library's 0.6.3, both halves**: the footer, the status page in a
+  `<main>` of its own, and lists compared as sets (nothing of Piano's
+  changes). Its translations 012 writes the footer's four words (261
+  `anotoki.*` keys in all) right after 013, in the same Apply.
+
 ## 2026-10-18, later - a settings file is never compiled unless it starts with `<?php`, and `anotoki-lib` 0.6.2
 
 - **The guard reads a file's first five bytes before it requires it**

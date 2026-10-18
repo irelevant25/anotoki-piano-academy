@@ -25,7 +25,10 @@
 // scrub: one column, nothing else, no row changed) and 011 (the sign-in
 // card's failure words under the library's keys, the card's own gone) - on
 // databases shaped as the owner's are, before this update and after the
-// last, again and again, a refusal rolled back whole.
+// last, again and again, a refusal rolled back whole. And 012 (the legal
+// pages' words) and 013 (the old footer's own word, gone with it - the
+// family's footer took its place - and What's new's heading told of the
+// new one).
 
 declare(strict_types=1);
 
@@ -43,6 +46,7 @@ const LIBRARY_WORDS_MIGRATION = '009_strings_through_the_library.sql';
 const PEOPLE_MIGRATION = '010_people.sql';
 const SIGN_IN_WORDS_MIGRATION = '011_sign_in_failure_words.sql';
 const LEGAL_PAGES_MIGRATION = '012_legal_pages.sql';
+const FOOTER_WORDS_MIGRATION = '013_family_footer_words.sql';
 
 /** The sign-in card's failure words 011 takes under the library's keys: this app's key => the library's. */
 const SIGN_IN_WORDS = [
@@ -62,6 +66,15 @@ const SIGN_IN_CARD_KEYS = ['signIn.title', 'signIn.text'];
 function written_by_012(string $key): bool
 {
     return str_starts_with($key, 'legal.') || in_array($key, ['title.terms', 'title.privacy', 'title.contact', 'lesson.steps', 'whatsNew.notLoaded'], true);
+}
+
+/** The old footer's own word, which 013 takes away with the footer (the family's took its place). */
+const FOOTER_KEYS = ['footer.whatsNew'];
+
+/** Whether a key is 013's work - the old footer's word it takes away: left out of earlier files' "every other string as it was", as 012's. */
+function written_by_013(string $key): bool
+{
+    return in_array($key, FOOTER_KEYS, true);
 }
 
 /**
@@ -225,8 +238,8 @@ test('an empty database gets every migration, recorded once, under the app\'s on
     assert_same([
         '001_languages_and_strings.sql', '002_library_words.sql', '003_sign_in_words.sql', '004_feedback_words.sql', '005_legal_words.sql',
         '006_top_bar_words.sql', '007_kit_piece_words.sql', '008_tab_words.sql', '009_input_words.sql', '010_backups_where_words.sql',
-        '011_privacy_words_made_true.sql',
-    ], library_migration_files(), 'the library\'s words, as vendor/ has them (anotoki-lib 0.6.2)');
+        '011_privacy_words_made_true.sql', '012_footer_words.sql',
+    ], library_migration_files(), 'the library\'s words, as vendor/ has them (anotoki-lib 0.6.3)');
     assert_same(['001_audit_log.sql', '002_feedback.sql'], library_migration_files(\Anotoki\Lib\Admin\Schema::migrationSet()), 'its admin tools\'');
     assert_same(['001_people.sql'], library_migration_files(\Anotoki\Lib\People\Schema::migrationSet()), 'its people\'s');
     assert_same(every_migration(), $migrator->applicable(), 'all of them waiting, in the order of the sets...');
@@ -244,7 +257,7 @@ test('an empty database gets every migration, recorded once, under the app\'s on
     assert_same(['id', 'filename', 'applied_at'], $pdo->query("SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'migrations' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN));
     assert_same(array_map('migrationLabel', every_migration()), $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
     assert_same(['anotoki_admin/001_audit_log.sql', 'anotoki_admin/002_feedback.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 0, 2));
-    assert_same(['anotoki_translations/011_privacy_words_made_true.sql', 'anotoki_people/001_people.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -2));
+    assert_same(['anotoki_translations/012_footer_words.sql', 'anotoki_people/001_people.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -2));
     assert_same(0, advisory_locks($pdo), 'the lock was let go');
 
     // Somebody else updating (setup.php's Save, php migration.php, an Apply): busy, and nothing done.
@@ -689,9 +702,9 @@ test('009 on a database as its owner left it: every string the kit said goes und
     assert_same(['Prihlásiť', '2026-10-09 08:30:00+00', 1], $after['signIn.button']['sk']);
     assert_match('/anotoki\.topbar\.signIn/', (string) $pdo->query("SELECT description FROM translation_keys WHERE name = 'signIn.button'")->fetchColumn(), 'and told of the bar\'s own Sign in');
 
-    // Every other string of this app's as it was - the owner's own wording of one too. (011 and 012, which ran after it,
-    // took the sign-in card's words and wrote the legal pages': their own tests below.)
-    $others = static fn (array $strings): array => array_diff_key($strings, array_flip($moved), array_flip([...array_keys(SIGN_IN_WORDS), ...SIGN_IN_CARD_KEYS]), array_flip(array_filter(array_keys($strings), static fn (string $key): bool => str_starts_with($key, 'anotoki.') || written_by_012($key))));
+    // Every other string of this app's as it was - the owner's own wording of one too. (011, 012 and 013, which ran after
+    // it, took the sign-in card's words, wrote the legal pages' and took the old footer's: their own tests below.)
+    $others = static fn (array $strings): array => array_diff_key($strings, array_flip($moved), array_flip([...array_keys(SIGN_IN_WORDS), ...SIGN_IN_CARD_KEYS]), array_flip(array_filter(array_keys($strings), static fn (string $key): bool => str_starts_with($key, 'anotoki.') || written_by_012($key) || written_by_013($key))));
     assert_same($others($before), $others($after), 'no other string of this app\'s changed');
     assert_same(['Moje cvičenie', '2026-10-09 08:30:00+00', 1], $after['nav.learn']['sk']);
 
@@ -793,9 +806,9 @@ test('010 says it is finished and how the owner applies it, and adds users.anony
     $newerWords = array_values(array_filter(library_files_of('anotoki_translations'), static fn (array $file): bool => !in_array($file['name'], ['001_languages_and_strings.sql', '002_library_words.sql'], true)));
     assert_same(
         [[...library_files_of('anotoki_admin'), ['set' => MIGRATIONS_SET, 'name' => PEOPLE_MIGRATION], ['set' => MIGRATIONS_SET, 'name' => SIGN_IN_WORDS_MIGRATION],
-            ['set' => MIGRATIONS_SET, 'name' => LEGAL_PAGES_MIGRATION], ...$newerWords, ...library_files_of('anotoki_people')], null],
+            ['set' => MIGRATIONS_SET, 'name' => LEGAL_PAGES_MIGRATION], ['set' => MIGRATIONS_SET, 'name' => FOOTER_WORDS_MIGRATION], ...$newerWords, ...library_files_of('anotoki_people')], null],
         [$result['applied'], $result['failed']],
-        'the library\'s admin tools\' set, 010 to 012, the library\'s newer words and its people - in that order' . (string) $result['error']
+        'the library\'s admin tools\' set, 010 to 013, the library\'s newer words and its people - in that order' . (string) $result['error']
     );
     assert_same('003_sign_in_words.sql', $newerWords[0]['name'] ?? null, 'the library\'s words from its 003 on');
     $after = tables_of_001($pdo);
@@ -893,8 +906,9 @@ test('011 on a database as the owner\'s is: the failure words under the library\
     assert_true(isset($after['anotoki.signIn.retry']['en']), 'the screen\'s other words: there');
     assert_same([LibraryWords::all()['anotoki.signIn.retry']['en'], null], [$after['anotoki.signIn.retry']['en'][0], $after['anotoki.signIn.retry']['en'][2]], 'the screen\'s other words: the library\'s, by nobody');
 
-    // Every other string of this app's as it was (but 012's, which ran after it: its own test); nobody's progress touched.
-    $others = static fn (array $strings): array => array_diff_key($strings, array_flip([...array_keys(SIGN_IN_WORDS), ...SIGN_IN_CARD_KEYS]), array_flip(array_filter(array_keys($strings), static fn (string $key): bool => str_starts_with($key, 'anotoki.') || written_by_012($key))));
+    // Every other string of this app's as it was (but 012's and 013's, which ran after it: their own tests); nobody's
+    // progress touched.
+    $others = static fn (array $strings): array => array_diff_key($strings, array_flip([...array_keys(SIGN_IN_WORDS), ...SIGN_IN_CARD_KEYS]), array_flip(array_filter(array_keys($strings), static fn (string $key): bool => str_starts_with($key, 'anotoki.') || written_by_012($key) || written_by_013($key))));
     assert_same($others($before), $others($after), 'no other string of this app\'s changed');
     assert_same(without_anonymized_at($tablesBefore), without_anonymized_at(tables_of_001($pdo)), 'nobody\'s progress touched (010 ran with it)');
 
@@ -996,5 +1010,68 @@ test('012 says it is finished and how the owner applies it, and is words only: t
     assert_same(LEGAL_PAGES_MIGRATION, $refused['failed']['name'] ?? null);
     assert_match('/keys without an English and a Slovak string: legal\.about/', (string) $refused['error']);
     assert_same([], $pdo->query("SELECT filename FROM migrations WHERE filename = '" . LEGAL_PAGES_MIGRATION . "'")->fetchAll(), 'not recorded as applied');
+    $pdo = null;
+});
+
+test('013 says it is finished and how the owner applies it, takes the old footer\'s own word away and tells What\'s new\'s heading of the family\'s footer - nothing else, again and again', function (): void {
+    // What it may write is held by tests/unit/translations.test.php too (only the three tables of the words, nobody's progress).
+    $sql = migration_text(FOOTER_WORDS_MIGRATION);
+    assert_match('/-- Finished \(2026-10-18\)\. The owner applies it with 005 to 012 at the\s+-- hand-over \(after a pg_dump/', $sql, 'the header says it is finished, and to dump first');
+    assert_match('/\(anotoki_translations: its 012 is the family\'s footer\'s four words\)/', $sql, 'and that the library\'s footer words come right after it');
+    assert_match('/Once applied it never changes: the next change is 014\./', $sql, 'and that it is then frozen');
+    $statements = Splitter::split($sql);
+    assert_same(3, count($statements), 'the one delete, the description and the gate - nothing else');
+    assert_same("DELETE FROM translation_keys WHERE name IN ('footer.whatsNew')", $statements[0]);
+    assert_match("/^UPDATE translation_keys SET description = '[^\n]*'\s+WHERE name = 'whatsNew\.title'$/", $statements[1], 'then the description of What\'s new\'s heading');
+    assert_match('/^DO \$\$.*RAISE EXCEPTION/s', $statements[2], 'it ends with its gate');
+
+    // What it does on a database built through 012: the old footer's word goes with its strings - an owner's rewording of
+    // it too -; What's new's heading keeps every string (the owner's wording too) and is told of the family's footer; every
+    // other key, string and description, and every table of 001, as they were.
+    $pdo = database_before(FOOTER_WORDS_MIGRATION, 'before_013');
+    $pdo->exec("UPDATE translations SET value = 'News', updated_by = 7 WHERE key_name = 'footer.whatsNew' AND language_code = 'en'");
+    $pdo->exec("UPDATE translations SET value = 'What changed', updated_by = 1 WHERE key_name = 'whatsNew.title' AND language_code = 'en'");
+    $keys = static fn (): array => $pdo->query('SELECT name FROM translation_keys ORDER BY name COLLATE "C"')->fetchAll(PDO::FETCH_COLUMN);
+    $descriptions = static fn (): array => $pdo->query('SELECT name, description FROM translation_keys ORDER BY name COLLATE "C"')->fetchAll(PDO::FETCH_KEY_PAIR);
+    $keysBefore = $keys();
+    $stringsBefore = strings_of($pdo);
+    $descriptionsBefore = $descriptions();
+    $tablesBefore = tables_of_001($pdo);
+    assert_same(FOOTER_KEYS, array_values(array_intersect($keysBefore, FOOTER_KEYS)), 'the old footer\'s word, there before');
+    assert_true(str_contains($descriptionsBefore['whatsNew.title'], 'opened from the version in the footer'), 'What\'s new\'s heading told of the old footer before');
+    assert_same([FOOTER_WORDS_MIGRATION], names_of(array_values(array_filter(test_migrate($pdo, FOOTER_WORDS_MIGRATION)['applied'], static fn (array $file): bool => $file['set'] === MIGRATIONS_SET))));
+    assert_same(array_values(array_diff($keysBefore, FOOTER_KEYS)), $keys(), 'the one key gone, no other');
+    assert_same(array_diff_key($stringsBefore, array_flip(FOOTER_KEYS)), strings_of($pdo), 'its strings with it - every other string as it was, who wrote it and when, the owner\'s wording too');
+    assert_same(['What changed', 1], [strings_of($pdo)['whatsNew.title']['en'][0], strings_of($pdo)['whatsNew.title']['en'][2]], 'What\'s new\'s heading: the owner\'s words, by the owner');
+    $after = $descriptions();
+    assert_true(str_contains($after['whatsNew.title'], 'opened from "What\'s new" in the footer') && !str_contains($after['whatsNew.title'], 'the version in the footer'), 'What\'s new\'s heading: told of the family\'s footer - ' . $after['whatsNew.title']);
+    $others = static fn (array $all): array => array_diff_key($all, array_flip(['whatsNew.title', ...FOOTER_KEYS]));
+    assert_same($others($descriptionsBefore), $others($after), 'every other description as it was');
+    assert_same($tablesBefore, tables_of_001($pdo), 'nobody\'s progress touched');
+
+    // Taken off the record and applied again: its gate holds over a database without the old footer's word.
+    $pdo->exec("DELETE FROM migrations WHERE filename = '" . FOOTER_WORDS_MIGRATION . "'");
+    assert_same([FOOTER_WORDS_MIGRATION], names_of(test_migrate($pdo, FOOTER_WORDS_MIGRATION)['applied']));
+    assert_same($after, $descriptions(), 'and changes nothing more');
+
+    // The old footer's word that comes back somehow (only a migration could make one): the gate refuses, and nothing of 013 stays.
+    $pdo->exec("DELETE FROM migrations WHERE filename = '" . FOOTER_WORDS_MIGRATION . "'");
+    $pdo->exec("CREATE FUNCTION keep_footer() RETURNS trigger LANGUAGE plpgsql AS \$\$ BEGIN RETURN NULL; END \$\$");
+    $pdo->exec("INSERT INTO translation_keys (name) VALUES ('footer.whatsNew')");
+    $pdo->exec('CREATE TRIGGER keep_footer BEFORE DELETE ON translation_keys FOR EACH ROW EXECUTE FUNCTION keep_footer()');
+    $pdo->exec("UPDATE translation_keys SET description = 'opened from the version in the footer' WHERE name = 'whatsNew.title'");
+    $refused = test_migrate($pdo, FOOTER_WORDS_MIGRATION);
+    assert_same(FOOTER_WORDS_MIGRATION, $refused['failed']['name'] ?? null);
+    assert_match('/a key or a string of Piano Academy\'s own footer is still there/', (string) $refused['error']);
+    assert_same([], $pdo->query("SELECT filename FROM migrations WHERE filename = '" . FOOTER_WORDS_MIGRATION . "'")->fetchAll(), 'not recorded as applied');
+    assert_same('opened from the version in the footer', $pdo->query("SELECT description FROM translation_keys WHERE name = 'whatsNew.title'")->fetchColumn(), 'its description rolled back with it');
+
+    // And a description that does not tell of the family's footer (the update taken out): refused too.
+    $pdo->exec('DROP TRIGGER keep_footer ON translation_keys');
+    $pdo->exec('CREATE TRIGGER keep_footer BEFORE UPDATE ON translation_keys FOR EACH ROW EXECUTE FUNCTION keep_footer()');
+    $refused = test_migrate($pdo, FOOTER_WORDS_MIGRATION);
+    assert_same(FOOTER_WORDS_MIGRATION, $refused['failed']['name'] ?? null);
+    assert_match('/the description of What\'s new\'s heading does not tell of the family\'s footer/', (string) $refused['error']);
+    assert_same(1, (int) $pdo->query("SELECT count(*) FROM translation_keys WHERE name = 'footer.whatsNew'")->fetchColumn(), 'the delete rolled back with it');
     $pdo = null;
 });

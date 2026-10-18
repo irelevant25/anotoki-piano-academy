@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { AnotokiAuth, SignInFailure, failureText, signInWords } from '@anotoki/lib/auth';
-import { LegalLinksComponent } from '@anotoki/lib/legal';
+import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
@@ -22,43 +22,48 @@ import { ProgressStore } from './core/state/progress-store.service';
 import { MIGRATIONS_ROUTE } from './core/state/site-migrations';
 import { TopBarComponent } from './layouts/top-bar/top-bar.component';
 import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog.component';
-import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.component';
 
 /**
  * The frame around every view: the family's top bar (layouts/top-bar: the
  * brand, the sections, the piano, the language, the theme and the person's
  * menu - the admin panel's sections under /admin), the view - or, while the
- * app cannot run yet, the card saying why - and the footer with the version,
- * which opens what is new. Also the notes that cannot be missed, under the
- * bar: signed out in the middle of practising, and the progress replaced or
- * deleted somewhere else (ProgressStore.changedElsewhere) - the family's
- * alerts, as wide as the page, the ones that come of what just happened said
- * at once (role alert, or status); the footer's two buttons and the
- * "Loading…" of the start are the family's too.
+ * app cannot run yet, the card saying why - and the family's footer. Also the
+ * notes that cannot be missed, under the bar: signed out in the middle of
+ * practising, and the progress replaced or deleted somewhere else
+ * (ProgressStore.changedElsewhere) - the family's alerts, as wide as the
+ * page, the ones that come of what just happened said at once (role alert,
+ * or status); the "Loading…" of the start is the family's too.
  *
- * While the site is not ready - an update waits, it is not set up, its
- * database is out of reach - the anotoki family's gate
- * (<anotoki-site-gate>, @anotoki/lib/migrations) draws its status page in
- * the view's place: visitors and learners read, in their language, that the
- * site is being updated (no error, no code, a quiet Sign in while nobody is
- * signed in), and it comes back by itself; the site's ADMIN reads that a
- * database update is waiting, and opens the Migrations page - the one page
- * that works then; the setup page only while the site was never installed.
- * The notes under the bar wait meanwhile: nothing but that page is said.
- * The view is the gate's marked template (<ng-template anotokiSitePages>,
- * anotoki-lib 0.2.0), made only while the gate shows it: no page runs behind
- * the status page - not at the start, and not when an update comes in the
- * middle of practising (the page goes then; the status page loads the site
- * afresh once it is back, without opening the gate first).
+ * The anotoki family's gate (<anotoki-site-gate>, @anotoki/lib/migrations) is
+ * the outermost of it all, and the whole frame - the bar, the notes, the
+ * view, the footer - is its marked template (<ng-template anotokiSitePages>):
+ * while the site is not ready - an update waits, it is not set up, its
+ * database is out of reach - the gate draws its status page alone, in a
+ * <main> of its own, with no bar and no footer round it (the owner's rule of
+ * 2026-10-18, anotoki-lib 0.6.3): visitors and learners read, in their
+ * language, that the site is being updated (no error, no code, a quiet Sign
+ * in while nobody is signed in), and it comes back by itself; the site's
+ * ADMIN reads that a database update is waiting, and opens the Migrations
+ * page - the one page that works then, in the frame (the bar with Migrations
+ * alone, the footer; no note meanwhile); the setup page only while the site
+ * was never installed. The template is made only while the gate shows it: no
+ * page runs behind the status page - not at the start, and not when an update
+ * comes in the middle of practising (the page goes then, and the frame with
+ * it; the status page loads the site afresh once it is back, without opening
+ * the gate first).
  *
  * The family's "Are you sure?" (<anotoki-confirm-host>, ConfirmService) is
- * drawn here once, for every question the app asks. The footer's "Send
- * feedback" opens the family's form in a dialog (ui/feedback-dialog), and its
- * version What's new (ui/changelog-dialog) - each loaded only when it is
- * opened: no first load carries either. Under them the family's Terms ·
- * Privacy · Contact (<anotoki-legal-links>, @anotoki/lib/legal: the legal
- * pages' own paths, the library's words `anotoki.legalLinks.*`, the open one
- * marked), on every page.
+ * drawn here once, outside the gate, for every question the app asks. The
+ * footer is the family's (<anotoki-site-footer>, @anotoki/lib/footer: the
+ * build analyzer's, the owner's choice of 2026-10-18), under every page and
+ * the admin panel's: "Version X · What's new · Feedback" - the version and
+ * What's new once the list of changes came (changelog.json, its newest entry
+ * the version: one source), What's new opening this app's own dialog
+ * (ui/changelog-dialog, loaded only when it is opened), Feedback the family's
+ * form in the kit's dialog (its code loaded with the press, configured in
+ * core/site-admin.ts) - and Terms · Privacy · Contact under them (the legal
+ * pages' own paths, the open one marked). Its words are the library's
+ * (`anotoki.footer.*`, `anotoki.legalLinks.*`): the database's, else its own.
  *
  * The sign-in's own pages - the IAM's callback and the family's screen that
  * says why a sign-in did not work - and the legal pages (Terms, Privacy,
@@ -96,7 +101,6 @@ import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.co
     TranslatePipe,
     TopBarComponent,
     ChangelogDialogComponent,
-    FeedbackDialogComponent,
     LoadErrorComponent,
     SiteGateComponent,
     SitePagesDirective,
@@ -104,7 +108,7 @@ import { FeedbackDialogComponent } from './ui/feedback-dialog/feedback-dialog.co
     AlertComponent,
     ButtonComponent,
     SpinnerComponent,
-    LegalLinksComponent,
+    SiteFooterComponent,
   ],
 })
 export class AppComponent {
@@ -208,9 +212,6 @@ export class AppComponent {
     this.whyClosed.set(this.auth.signInFailure());
   }
 
-  /** The feedback form's dialog is open (its code is loaded the first time). */
-  protected readonly feedbackOpen = signal(false);
-
-  /** What's new is open (its code is loaded the first time) - from the footer's version, there only once the list came. */
+  /** What's new is open (its code is loaded the first time) - from the footer's What's new, there only once the list came. */
   protected readonly whatsNewOpen = signal(false);
 }

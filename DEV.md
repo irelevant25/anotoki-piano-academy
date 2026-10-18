@@ -24,7 +24,7 @@ from GitHub, never from a folder next door: the PHP package `anotoki/lib`
 (`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.6.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.2/anotoki-lib-0.6.2.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.3/anotoki-lib-0.6.3.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -35,12 +35,14 @@ the theme switch, the language chooser, the menus, the questions, Manrope,
 and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*); the
-legal pages (below, *Terms, Privacy and Contact*). Both
-halves are at 0.6.2 (0.6.0 added the legal pages - Terms, Privacy, Contact
-and the footer's links - and the kit's chips, stat tiles and step dots, the
-highlighted card and the select's own entry point; 0.6.1 made the Privacy
-page's sentences on the backups true, and 0.6.2 three more of its
-sentences - its translations 011, which keeps a site's own words; 0.5.1 and
+legal pages (below, *Terms, Privacy and Contact*); the footer (below, *The
+family's footer*). Both halves are at 0.6.3 (0.6.0 added the legal pages -
+Terms, Privacy, Contact and the footer's links - and the kit's chips, stat
+tiles and step dots, the highlighted card and the select's own entry point;
+0.6.1 made the Privacy page's sentences on the backups true, and 0.6.2 three
+more of its sentences - its translations 011, which keeps a site's own
+words; 0.6.3 added the family's footer, `<anotoki-site-footer>`, and draws the
+status page in a `<main>` of its own, with no header and no footer; 0.5.1 and
 0.5.2 changed only the PHP half: 0.5.1 a restore's sequences that count down, 0.5.2 the origin
 secret - below, *The library's PHP 0.5.2*; 0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
@@ -597,21 +599,26 @@ CF-Connecting-IP it likes, a new address every time. So, in this order:
 From then on CF-Connecting-IP is believed only on a request that carries the
 secret; any other request from Cloudflare counts as its edge (coarser, never
 looser). Without the file the app believes CF-Connecting-IP from the trusted
-proxies alone, as before; a file read cleanly that names no secret is none,
-the same. **A file that is there but cannot be read cleanly fails closed**
-(since 2026-10-18, the IAM's rule): one that does not start with `<?php`
+proxies alone, as before - **deleting the file is the one way to switch the
+secret off. A file that is there but yields no usable secret fails closed**
+(since 2026-10-18, the family's rule): one that does not start with `<?php`
 (no `<?php` line, a byte-order mark or a line before it - never compiled, so
 not even a `declare(strict_types=1)` after such a start stops the site),
 one that prints anything when PHP reads it (text after a closing tag) or
-that PHP cannot parse, run or open stands for a secret no
-request carries, so every request from Cloudflare counts as its edge until
-the file is mended - its owner meant a secret, and a slip of the editor
-never switches the check off. The site runs on, and PHP's error log says so
-at most once a day (a stamp in `storage/cache`), by the fault alone -
-`[config] config/cloudflare.local.php does not start with <?php (...)` or
-`... could not be read (ParseError on line 2)` - never the file's text. To
-change the secret, change the rule first, then the file (between the two,
-visitors count as their edge). The secret is never printed or logged.
+that PHP cannot parse, run or open - and one read cleanly that names no
+secret: an empty value, only spaces, a misspelt or another key, a value
+that is not text, no array (anything in the file's place counts as the
+file, a folder too). It stands for a secret no request carries, so every
+request from Cloudflare counts as its edge until the file is mended - its
+owner meant a secret, and a slip in the file never switches the check off.
+The site runs on, and PHP's error log says so at most once a day (a stamp
+in `storage/cache`), by the fault alone - `[config]
+config/cloudflare.local.php does not start with <?php (...)`, `... could not
+be read (ParseError on line 2)` or `... holds no origin_secret (a string with
+something in it): no request carries its secret ...` - never the file's
+text. To change the secret, change the rule first, then the file (between
+the two, visitors count as their edge). The secret is never printed or
+logged.
 
 **Terms, Privacy and Contact (migration 012, 2026-10-18, not applied
 anywhere yet; the library's 0.6.2)**: the build carries `anotoki-lib` 0.6.2 -
@@ -636,6 +643,27 @@ is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
 'hosting' }` in `frontend/src/app/core/legal/legal-facts.ts`); before the site
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
+**The family's footer (migration 013, 2026-10-18, after the deploy; the
+library's 0.6.3)**: the build carries `anotoki-lib` 0.6.3 - both halves. The
+foot of every page, the admin panel's too, is the family's footer
+(`<anotoki-site-footer>`, the build analyzer's): "Version 0.4.0 · What's new ·
+Feedback" - the version and What's new once `changelog.json` came, What's
+new opening the app's own dialog, Feedback the family's form - then Terms ·
+Privacy · Contact. The app's frame - the bar, the notes under it, the page,
+the footer - is the gate's marked template, so while the site is not ready
+the family's status page stands alone in a `<main>` of its own, with no bar
+and no footer (an ADMIN's Migrations page keeps them). 013 deletes the old
+footer's one word, `footer.whatsNew` (its version button's tooltip), and
+tells `whatsNew.title`'s description where the dialog opens from now; its
+gate fails loudly if a `footer.*` key or string is left, or the description
+does not tell of the family's footer. The library's
+`anotoki_translations/012_footer_words.sql` (the footer's four words, 261
+`anotoki.*` keys in all) runs right after it in the same Apply; until then
+the footer says the library's built-in words. It all goes with 005 to 012 at
+the hand-over - one Apply. The web root's `.htaccess` lets the host check
+run too (`host-check.php`, by its exact name, while it is there - README,
+*Hosting checklist*).
+
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
 after release needs an `UPDATE` in its migration. The two databases (your
@@ -659,7 +687,8 @@ of the new id first, if there is one).
 | "This site is not set up yet" (or, once installed, "The site is not available right now"); the API answers 503 `not_set_up` | The setup page has not run, or a `config/*.local.php` is missing - or it cannot be read cleanly (edited by hand? the PHP error log says once a day `[config] config/....local.php could not be read (ParseError on line N)`, or `... does not start with <?php (...)` for a byte-order mark, a blank line or a missing `<?php` line - never compiled, so never a 500 -, or `... prints N bytes of its own` for text after a closing tag - what it printed is never sent; save it again as UTF-8 without a BOM, or Save on the setup page). On a host the setup page is offered only while `storage/installed.lock` is not there. |
 | "The site is being updated"; the API answers 503 `update_pending` | A migration waits: an ADMIN applies it on the admin panel's Migrations page (sign in from that page), or `php migration.php`, or the setup page. The sign-in, the words and `/api/health` answer meanwhile. |
 | "The site is not available right now", and it does not come back | The database cannot be reached (`GET /api/site-status` says `unavailable`): is PostgreSQL running, do the settings name it? |
-| The visitors' limits trip early, every visitor counted as one; PHP's error log says `[config] config/cloudflare.local.php ...: no request carries its secret` | The origin secret's file cannot be read cleanly (a byte-order mark, a line before `<?php`, a typo PHP cannot parse): it fails closed, so every request from Cloudflare counts as its edge. Mend the file (*The library's PHP 0.5.2*). |
+| The visitors' limits trip early, every visitor counted as one; PHP's error log says `[config] config/cloudflare.local.php ...: no request carries its secret` | The origin secret's file yields no usable secret - it cannot be read cleanly (a byte-order mark, a line before `<?php`, a typo PHP cannot parse), or it names none (an empty value, a misspelt key, a value that is not text): it fails closed, so every request from Cloudflare counts as its edge. Mend the file, or delete it to switch the secret off (*The library's PHP 0.5.2*). |
+| The host check answers 403 | The upload is from before 2026-10-18, whose `.htaccess` let `setup.php` alone run: upload this version first (README, *Hosting checklist*). |
 | The setup page asks for a token on this computer | It was not asked as `localhost` / `127.0.0.1` straight from PHP's built-in server: a LAN address, another name, or a proxy that adds forwarding headers makes it a real host's install. |
 | 403 `forbidden` on `/api/admin/...` | The account has no role of Piano Academy in the IAM (EDITOR for the words, ADMIN for languages, the people, the admin tools and the database) - or the token was issued before the role was given: sign in again. |
 | 403 `reauth_required` on a backup | A backup is made, downloaded, deleted or restored only after a sign-in of the last ten minutes: the Backups page offers "Sign in again". |

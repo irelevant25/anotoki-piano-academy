@@ -26,29 +26,15 @@
   margin-top: 0.25rem;
 }
 
+// The page between the bar and the family's footer (@anotoki/lib/footer: its own look - the top border, the row, the
+// links), which this column pushes to the foot of the window on a short page. The gate draws the status page in a
+// <main> of its own, and nothing of this frame then.
 .view-root {
   flex: 1;
   width: 100%;
   max-width: 980px;
   margin: 0 auto;
   padding: 1.5rem;
-}
-
-// The foot of every page: "Send feedback" and the version on a row, the family's Terms · Privacy · Contact under it.
-.app-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.75rem 1.25rem 1.25rem;
-}
-
-.footer-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.25rem 0.75rem;
-  flex-wrap: wrap;
 }
 
 @media (max-width: 600px) {

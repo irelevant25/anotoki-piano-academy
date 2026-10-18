@@ -1,4 +1,4 @@
-import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
+import { HttpInterceptorFn, provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { ApplicationConfig, inject, provideAppInitializer, provideBrowserGlobalErrorListeners, provideZonelessChangeDetection } from '@angular/core';
 import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { anotokiAuthInterceptor } from '@anotoki/lib/auth';
@@ -12,10 +12,19 @@ import { provideSiteErrorReport } from './core/error-report';
 import { provideFamilyKit } from './core/family-kit';
 import { provideSiteTranslations } from './core/i18n/site-translations';
 import { pianoLegalConfig } from './core/legal/legal.config';
-import { provideSiteAdmin } from './core/site-admin';
+import { feedbackSenderInterceptor, provideSiteAdmin } from './core/site-admin';
 import { BootService } from './core/state/boot.service';
 import { provideSiteMigrations } from './core/state/site-migrations';
 import { PianoTitleStrategy } from './core/title.strategy';
+
+/**
+ * The app's HttpClient interceptors, in their order. The family's outermost: an answer that says the site is being
+ * updated (or is not set up) is heard whatever request it came to, as it finally is - after the token's one retry.
+ * Then whom the feedback form's message is for (core/site-admin.ts: the person's, or nobody's - the form says
+ * nothing itself). Then the family's sign-in (@anotoki/lib/auth): a person's token, or a visitor's key, on this
+ * app's API - as each request says, or as the page is shown.
+ */
+export const SITE_INTERCEPTORS: HttpInterceptorFn[] = [siteStatusInterceptor, feedbackSenderInterceptor, anotokiAuthInterceptor];
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -26,10 +35,8 @@ export const appConfig: ApplicationConfig = {
     provideZonelessChangeDetection(),
     // Route parameters (/lesson/:unitId/:stepId, /songs/:songId) arrive as component inputs.
     provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'top' })),
-    // The family's outermost: an answer that says the site is being updated (or is not set up) is
-    // heard whatever request it came to, as it finally is - after the token's one retry. Then the
-    // family's sign-in (@anotoki/lib/auth): a person's token, or a visitor's key, on this app's API.
-    provideHttpClient(withFetch(), withInterceptors([siteStatusInterceptor, anotokiAuthInterceptor])),
+    // Where the site stands, whom the feedback form's message is for, then the family's sign-in (SITE_INTERCEPTORS).
+    provideHttpClient(withFetch(), withInterceptors(SITE_INTERCEPTORS)),
     // The anotoki family's one behaviour while the site is not ready (@anotoki/lib/migrations).
     provideSiteMigrations(),
     // The app's words through the anotoki family's translations (@anotoki/lib/translations): the language and its

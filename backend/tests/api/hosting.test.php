@@ -96,8 +96,9 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
         'migrations/piano_academy/003_site_strings.sql', 'migrations/piano_academy/004_family_shell.sql', 'migrations/piano_academy/005_visitors.sql',
         'migrations/piano_academy/006_account_preferences.sql', 'migrations/piano_academy/007_site_status_words.sql',
         'migrations/piano_academy/010_people.sql', 'migrations/piano_academy/011_sign_in_failure_words.sql', 'migrations/piano_academy/012_legal_pages.sql',
+        'migrations/piano_academy/013_family_footer_words.sql',
         'migrations/.htaccess', 'vendor/autoload.php', 'vendor/anotoki/lib/php/migrations/translations/010_backups_where_words.sql',
-        'vendor/anotoki/lib/php/migrations/translations/011_privacy_words_made_true.sql',
+        'vendor/anotoki/lib/php/migrations/translations/011_privacy_words_made_true.sql', 'vendor/anotoki/lib/php/migrations/translations/012_footer_words.sql',
         'vendor/slim/slim/Slim/App.php', 'vendor/anotoki/lib/php/src/Migrations/Migrator.php', 'vendor/anotoki/lib/php/src/Migrations/Http/SiteGate.php',
         'vendor/anotoki/lib/php/src/Auth/Http/Identify.php', 'vendor/anotoki/lib/php/src/People/Http/PeopleRoutes.php',
         'vendor/anotoki/lib/php/src/Backups/Backups.php', 'vendor/anotoki/lib/php/migrations/admin/001_audit_log.sql',
@@ -126,7 +127,7 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     assert_match('~CGIPassAuth On~', $htaccess);
     assert_match('~SetEnvIf Authorization "\(\.\+\)" HTTP_AUTHORIZATION=\$1~', $htaccess, 'the token reaches PHP under CGI too');
     assert_match("~Content-Security-Policy \"default-src 'self'; script-src 'self' https://umami\\.anotoki\\.eu;~", $htaccess, 'scripts from this origin and the family\'s visitor counter, nothing else');
-    assert_match('~<FilesMatch "\^setup\\\\\.php\$">~', $htaccess, 'setup.php may run');
+    assert_match('~<FilesMatch "\^\(setup\|host-check\)\\\\\.php\$">~', $htaccess, 'setup.php and the host check may run (the next test reads the rules as Apache does)');
     assert_match('~RewriteRule \^ index\.php \[QSA,L\]~', (string) file_get_contents("$dist/api/.htaccess"));
 
     // again over it: fine; over a folder that is not a build, or inside the repository: refused
@@ -143,6 +144,40 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     assert_false(file_exists(TEST_BACKEND . '/zz-build-test'), 'and nothing made there');
     [$code] = build(dirname(TEST_BACKEND));
     assert_same(1, $code, 'never over the repository itself');
+});
+
+test('the web root\'s .htaccess lets a visitor run two PHP files alone - the setup page and the host check, each while it is there - and refuses every other one; the host check is never part of a build', function (): void {
+    [$code, $out, $dist] = build();
+    assert_same(0, $code, $out);
+    $htaccess = (string) file_get_contents("$dist/.htaccess");
+
+    // Apache reads a <FilesMatch> as a regular expression against the file's name, a later section over an earlier one:
+    // every PHP file is refused, then the ones a visitor may run are granted. Read here as Apache reads them.
+    preg_match_all('~<FilesMatch "([^"]+)">\R\s*Require all (granted|denied)\R</FilesMatch>~', $htaccess, $sections, PREG_SET_ORDER);
+    $rules = array_map(static fn (array $section): array => [$section[1], $section[2]], $sections);
+    assert_same([['\.(php|phtml|phar)$', 'denied'], ['^(setup|host-check)\.php$', 'granted']], $rules, 'every PHP file refused, then two granted - in that order');
+    $runs = static function (string $name) use ($rules): bool {
+        $allowed = true;
+        foreach ($rules as [$pattern, $verdict]) {
+            if (preg_match('~' . $pattern . '~', $name) === 1) {
+                $allowed = $verdict === 'granted';
+            }
+        }
+
+        return $allowed && preg_match('~\.(php|phtml|phar)$~', $name) === 1;
+    };
+    assert_true($runs('setup.php'), 'the setup page - which deletes itself once a real host is installed');
+    assert_true($runs('host-check.php'), 'the host check: uploaded by hand, opened with the token written into it, and deleted again');
+    foreach (['index.php', 'bootstrap.php', 'config.php', 'migration.php', 'build.php', 'router.php', 'phpinfo.php', 'xsetup.php', 'setup.php.php',
+        'host-checks.php', 'my-host-check.php', 'host-check.phtml', 'host-check.phar', '.host-check.php', 'HOST-CHECK.php'] as $other) {
+        assert_false($runs($other), "$other: never run for a visitor");
+    }
+
+    // Inert while it is not there: no file of that name in the build, and a path that is no file is the app's route.
+    assert_false(file_exists("$dist/host-check.php"), 'the host check is never part of a build: it lives in tools/, which no build copies');
+    assert_true(is_file(dirname(TEST_BACKEND) . '/tools/host-check.php'), 'it is the repository\'s tools/host-check.php');
+    assert_match('~RewriteCond %\{REQUEST_FILENAME\} !-f\R\s*RewriteCond %\{REQUEST_FILENAME\} !-d\R\s*RewriteRule \^ index\.html \[L\]~', $htaccess, 'a path that is no file - the host check deleted - gets the app');
+    assert_match('~define\(\'HOST_CHECK_TOKEN\', \'\'\);~', (string) file_get_contents(dirname(TEST_BACKEND) . '/tools/host-check.php'), 'and its token is empty in the repository: without one written into it, it answers 404 to everybody');
 });
 
 test('the setup page on a real host: the token, the tests, the database - and then it is gone', function (): void {

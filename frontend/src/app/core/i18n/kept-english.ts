@@ -2,16 +2,18 @@
  * The English of everything the app draws while it has no strings at all.
  *
  * The app's words live in the database - and the shell (the top bar, the
- * footer, the cards that say why the app cannot run) is drawn exactly when the
- * database cannot be asked: on a fresh install, whenever the backend or its
- * database is down. The family's TranslationService (@anotoki/lib/translations,
+ * notes under it, the cards that say why the app cannot run) is drawn before
+ * any string has come, and when none can: while the start is on its way, and
+ * when the progress could not be loaded (the backend or its database gone
+ * meanwhile). The family's TranslationService (@anotoki/lib/translations,
  * core/i18n/site-translations.ts: `fallbackEnglish`) answers from this table
  * only while no bundle is in memory; with one, a key that has no string shows
  * as the key, as everywhere. (The page that says the site is being updated,
- * not set up or not available is the anotoki family's, and so are the words
- * of the family's kit - the bar's menus, the language chooser, the theme
- * switch, "Saving…" while a Sign out waits: the library's own keys,
- * anotoki.*, built into it in English and Slovak, and in the database.)
+ * not set up or not available is the anotoki family's, drawn alone, with
+ * nothing of the shell round it; and so are the words of the family's kit -
+ * the bar's menus, the language chooser, the theme switch, "Saving…" while a
+ * Sign out waits - and of its footer: the library's own keys, anotoki.*,
+ * built into it in English and Slovak, and in the database.)
  *
  * A key here is also a key in the database, with the same English: the
  * backend's test (tests/unit/translations.test.php) holds the two equal, and
@@ -77,9 +79,7 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'midi.noDevices': 'No MIDI devices found',
   'midi.connect': 'Connect',
   'midi.rescan': 'Rescan MIDI devices',
-  // The footer (app.component): the version button's hint.
-  'footer.whatsNew': 'What\'s new',
-  // The frame of the list of changes (ui/changelog-dialog); its entries are not translated.
+  // The frame of the list of changes (ui/changelog-dialog, opened from the family's footer); its entries are not translated.
   'whatsNew.title': 'What\'s new',
   'whatsNew.close': 'Close',
   'whatsNew.latest': 'Latest',

@@ -161,14 +161,19 @@ the app; the ADMIN check there reads the token alone and records nobody
 In the browser (`@anotoki/lib/migrations`, wired in
 `frontend/src/app/core/state/site-migrations.ts`): the app's initializer asks
 `GET /api/site-status` first; `siteStatusInterceptor` hears any `503
-update_pending`/`not_set_up` later; `<anotoki-site-gate>` draws the family's
-status page in the view's place while the site is not ready, and takes the
-shell's view as its marked template (`<ng-template anotokiSitePages>`, the
-library's 0.2.0) that it makes only while it shows it - so no page runs
-behind the status page, also when an update comes in the middle of
-practising: the page is destroyed, and the status page loads the site
+update_pending`/`not_set_up` later; `<anotoki-site-gate>` is the outermost of
+what the shell draws, and the shell's whole frame - the top bar, the notes
+under it, the page, the family's footer - is its marked template
+(`<ng-template anotokiSitePages>`, the library's 0.2.0), made only while the
+gate shows it. While the site is not ready the gate draws the family's
+status page alone, in a `<main>` of its own (the library's 0.6.3): no bar,
+no note, no footer round it (the owner's rule of 2026-10-18) - and no page
+runs behind it, also when an update comes in the middle of practising: the
+page is destroyed, the frame with it, and the status page loads the site
 afresh once it is back (without reopening the gate first:
-`SiteStatus.checkForReload()`). It says "The site is
+`SiteStatus.checkForReload()`). The one page that runs meanwhile, an ADMIN's
+Migrations page, is in the frame (the bar with Migrations alone, the
+footer; no note). It says "The site is
 being updated" for visitors and learners (their language, a quiet Sign in
 for nobody, a reload once the site is back), "A database update is waiting"
 with "Open Migrations" for the site's ADMIN, "This site is not set up yet"
@@ -242,14 +247,18 @@ address by its /64. With the origin secret (`config/cloudflare.local.php`,
 `X-Anotoki-Origin`, which a Transform Rule of the owner's Cloudflare zone adds
 to every request: anybody's Cloudflare Worker can connect from Cloudflare's
 ranges, and any other request from them counts as its edge - coarser, never
-looser; without the file, as before, and the same for a file read cleanly
-that names no secret. A file that is there but cannot be read cleanly - it
-does not start with `<?php`, it prints anything, PHP cannot parse, run or
-open it - fails closed (since
-2026-10-18, the IAM's rule: `settingsFileReadCleanly()`): a secret no request
-carries, so every request from Cloudflare's ranges counts as its edge until
-the file is mended, said in PHP's error log at most once a day by the fault
-alone, never the file's text; the app runs on. The library's own limits read it the same way
+looser; without the file, as before - deleting it is the one way to switch
+the secret off. A file that is there but yields no usable secret fails
+closed (since 2026-10-18, the family's rule - the build analyzer's and the
+survey's too, the owner's "do as you think is the best"): one that cannot
+be read cleanly - it does not start with `<?php`, it prints anything, PHP
+cannot parse, run or open it (`settingsFileReadCleanly()`) - and one read
+cleanly that names none (blank, no array, a misspelt or another key, a
+value that is not a string; anything in the file's place, a folder too, is
+the file). It is a secret no request carries, so every request from
+Cloudflare's ranges counts as its edge until the file is mended, said in
+PHP's error log at most once a day by the fault alone, never the file's
+text; the app runs on. The library's own limits read it the same way
 (`adminContext()` gives it the same proxies, header and secret: feedback's, the
 pages' error reports). What is kept of an address is a keyed hash, never
 the address itself - `visitor_starts` holds an HMAC of the bucket
@@ -447,8 +456,8 @@ forgotten and the start goes on as nobody. It ends in one status:
 
 | Status | Drawn | Why |
 | --- | --- | --- |
-| `not-set-up` | the family's status page (`<anotoki-site-gate>`): "This site is not set up yet" with the setup page while never installed, else "not available right now" | no settings |
-| `waiting` | the family's status page: "The site is being updated" (visitors, learners - a Sign in for nobody), "A database update is waiting" with "Open Migrations" (the site's ADMIN, who has the Migrations page itself - `BootService.onlyMigrations`; the shell draws that page in the same outlet, and after its Apply `resumeAfterUpdate()` goes on with the start and asks for the strings again, the page kept), "not available right now" (the database out of reach) | the site is not ready - SiteStatus asked at the start, or told by a 503 since |
+| `not-set-up` | the family's status page (`<anotoki-site-gate>`), alone - no bar, no footer: "This site is not set up yet" with the setup page while never installed, else "not available right now" | no settings |
+| `waiting` | the family's status page, alone: "The site is being updated" (visitors, learners - a Sign in for nobody), "A database update is waiting" with "Open Migrations" (the site's ADMIN, who has the Migrations page itself, in the frame - `BootService.onlyMigrations`; the shell draws that page in the same outlet, and after its Apply `resumeAfterUpdate()` goes on with the start and asks for the strings again, the page kept), "not available right now" (the database out of reach) | the site is not ready - SiteStatus asked at the start, or told by a 503 since |
 | `load-error` | "Could not load your progress" | the API or the IAM out of reach - the app never runs on empty progress |
 | `sign-in` | "Loading…" while the guard goes to the IAM - or, after a sign-in that came back without one or could not start, the family's screen on `/sign-in-failed` ("Signing in did not work", why, Try again, Back) | nobody signed in, and a sign-in required (also when the API said so to a visitor at the start) |
 | `ready` | the page | the progress is in memory - a person's, or a visitor's |
@@ -492,7 +501,7 @@ on the pages the code's - the anotoki account's Privacy and account pages
 at the IAM's address (`AnotokiAuth.issuer()`, `accountUrl()`) -, never a
 string's.
 
-**The family's kit** (`@anotoki/lib` 0.6.2, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.6.3, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
@@ -511,8 +520,9 @@ round on a phone, the numbers in `.cell-num`). Each is imported
 from its own entry point (`@anotoki/lib/ui/config`, `/ui/button`,
 `/ui/card`...: the first load carries only the pieces it draws; the select
 is lazy - the piano's select in the bar is a `@defer` block,
-loaded once the page is idle, and What's new loads when it opens: the first
-load is 549.4 kB, under its 550 kB warning). They draw with the family's tokens, which
+loaded once the page is idle, and What's new and the footer's feedback form
+load when they open: the first load is 558.1 kB since the family's footer
+came, over its 550 kB warning - the owner's call). They draw with the family's tokens, which
 `styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
 a site gives the colours only), with the family's corners, shadows, font
 (Manrope) and base (`anotoki.base`: type, links, the focus ring), and its
@@ -572,12 +582,25 @@ the menu, no chooser and no piano;
 `TranslationService` reads every key in English there (`effectiveLanguage`,
 the bundle's `english`), so the bar has no case of its own; its Feedback
 link carries the number of new messages (the family's `FeedbackUnread`,
-asked when an ADMIN opens the panel). The footer keeps "Send feedback" -
-the family's form in the family's dialog (`ui/feedback-dialog`, drawn in a
-`@defer`, so neither is in the first load), in the learner's language, for
-anybody - the version, which opens What's new (`ui/changelog-dialog`, a
-`@defer` too), and the family's Terms · Privacy · Contact
-(`<anotoki-legal-links>`, the open page's link marked).
+asked when an ADMIN opens the panel).
+
+**The footer** (`<anotoki-site-footer>`, `@anotoki/lib/footer`, the library's
+0.6.3 - the build analyzer's, the owner's choice of 2026-10-18), drawn by
+`AppComponent` under every page and the admin panel's, inside the gate's
+template with the bar: a line above it, then "Version 0.4.0 · What's new ·
+Feedback" - the version and What's new once `changelog.json` came (its
+newest entry is the version: one source), What's new opening the app's own
+dialog (`ui/changelog-dialog`, on the footer's `(whatsNew)`, a `@defer`),
+Feedback the family's form in the kit's dialog (the footer loads its code
+with the press; `provideAnotokiFeedback()` in `core/site-admin.ts`), for
+anybody - its message says whom it is for (`feedbackSenderInterceptor`,
+before the family's interceptor: the person's while somebody is signed in,
+with the token; nobody's otherwise, with neither a token nor a key - the
+server takes anybody's; the form says nothing itself, and the family's
+interceptor would take it for a person's and never send it for somebody
+signed out) - then the family's Terms · Privacy · Contact (the open page's
+link marked). Its words are the library's (`anotoki.footer.*`, the database's
+through `forKit()`, else its own; English in the admin panel).
 
 **The admin panel** (`/admin`, English): its sections are the top bar's links
 there - Translations (EDITOR, ADMIN); Languages, People, Feedback, Error

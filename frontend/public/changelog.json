@@ -4,11 +4,12 @@
     "date": "2026-10-07",
     "changes": {
       "added": [
-        "Send feedback, at the foot of every page: tell us about a problem or an idea - signed in or not",
+        "Feedback, at the foot of every page: tell us about a problem or an idea - signed in or not",
         "Terms, Privacy and Contact, at the foot of every page: the rules of using Piano Academy, what it keeps about you and for how long, and how to reach us - anybody may read them, signed in or not"
       ],
       "updated": [
-        "While Piano Academy is being updated, the page says so in your language instead of showing an error, and comes back by itself when the update is done",
+        "While Piano Academy is being updated, a page of its own says so in your language instead of showing an error, and the site comes back by itself when the update is done",
+        "The foot of every page is the same as on the other anotoki sites: the version, What's new and Feedback in one row, then Terms, Privacy and Contact",
         "Piano Academy now looks like the other anotoki sites: the same font and the same bar at the top. The theme switch in the bar shows its three choices side by side - light, dark, or as your device is set",
         "Every page has the same buttons, cards and messages as the other anotoki sites, and on a phone Stats shows each recent round as a small card",
         "If signing in does not work, a page of its own says why, with Try again and a way back to where you were",

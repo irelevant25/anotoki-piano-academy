@@ -1,4 +1,4 @@
-<!-- The family's dialog (@anotoki/lib/ui/dialog): drawn while the app shows it, the focus kept inside, Escape, its close button and the backdrop close it, the focus back on the version. -->
+<!-- The family's dialog (@anotoki/lib/ui/dialog): drawn while the app shows it, the focus kept inside, Escape, its close button and the backdrop close it, the focus back on the footer's What's new. -->
 <anotoki-dialog class="changelog" [heading]="'whatsNew.title' | translate" size="md" (dismiss)="closed.emit()">
     <div class="releases">
         @for (entry of changelog.entries(); track entry.version; let first = $first) {

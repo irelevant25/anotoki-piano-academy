@@ -325,6 +325,19 @@ const BAR = {
   theme: 'anotoki-theme-toggle [role="radio"]',
 } as const;
 
+/** Where the family's footer (@anotoki/lib/footer's <anotoki-site-footer>) draws what the shell's checks read: its own markers. */
+const FOOTER = {
+  footer: 'anotoki-site-footer footer',
+  row: 'anotoki-site-footer .anotoki-site-footer__row',
+  version: 'anotoki-site-footer [data-version]',
+  whatsNew: 'anotoki-site-footer [data-whats-new]',
+  feedback: 'anotoki-site-footer [data-open-feedback]',
+  legal: 'anotoki-site-footer anotoki-legal-links',
+} as const;
+
+/** Everything of the shell's frame, any one of which must not stand round the status page. */
+const FRAME = ['app-top-bar', 'anotoki-top-bar', 'nav', '.notes', '#view-root', 'anotoki-site-footer', 'footer'];
+
 /**
  * How the shell is looked at: on a phone's screen (the menu button), with a menu opened, the piano's box, the
  * sign-out question, the feedback form, What's new - or at another address than the start page (the failure's
@@ -349,6 +362,32 @@ async function settledAll(s: Shell): Promise<void> {
   }
 }
 
+/** Lets the code a press fetches come, and what it draws be drawn: until `selector` is on the page, or the rounds run out. */
+async function opened(s: Shell, selector: string): Promise<void> {
+  for (let i = 0; i < 20 && !s.host.querySelector(selector); i++) {
+    await settledAll(s);
+  }
+}
+
+/** The footer's row as it reads: each part's words and the dots between them, in their order. */
+function footerRow(s: Shell): string[] {
+  return Array.from(s.host.querySelectorAll(`${FOOTER.row} > *`)).map((part) => part.textContent?.replace(/\s+/g, ' ').trim() ?? '');
+}
+
+/** The footer's Terms · Privacy · Contact: each link's words and address. */
+function footerLinks(s: Shell): [string | undefined, string | null][] {
+  return Array.from(s.host.querySelectorAll(`${FOOTER.legal} a`)).map((link) => [link.textContent?.trim(), link.getAttribute('href')]);
+}
+
+/** The status page stands alone: nothing of the shell's frame round it - only the gate's own <main> holding it. */
+function standsAlone(s: Shell): { status: boolean; frame: string[]; mains: number } {
+  return {
+    status: !!s.host.querySelector('anotoki-site-gate > main.anotoki-site-gate__status > anotoki-site-status'),
+    frame: FRAME.filter((selector) => s.host.querySelector(selector) !== null),
+    mains: s.host.querySelectorAll('main').length,
+  };
+}
+
 async function drawn(state: (s: Shell) => void, providers: Provider[] = [], look: Look = {}): Promise<Shell> {
   screen(look.phone ?? false);
   const s = await shell(providers);
@@ -359,18 +398,18 @@ async function drawn(state: (s: Shell) => void, providers: Provider[] = [], look
     await settledAll(s);
   }
   if (look.open === 'feedback') {
-    (s.host.querySelector('#feedback-open') as HTMLButtonElement).click();
-    // Its code is loaded as it opens (a @defer): the dialog and the family's form a moment later.
-    await settledAll(s);
+    (s.host.querySelector(FOOTER.feedback) as HTMLButtonElement).click();
+    // The family's footer fetches the dialog's and the form's code with the press: the dialog a moment later.
+    await opened(s, 'anotoki-footer-feedback-dialog anotoki-dialog');
   } else if (look.open === 'piano') {
     // The device list is the family's select, drawn once the page is idle (a @defer): as it is by then.
     for (const block of await s.fixture.getDeferBlocks()) await block.render(DeferBlockState.Complete);
     (s.host.querySelector('#midi-button') as HTMLButtonElement).click();
     await s.fixture.whenStable();
   } else if (look.open === 'whats-new') {
-    // The footer's version opens the family's dialog - its code loaded as it opens (a @defer, as the feedback form's):
-    // the dialog a moment later. (With no list of changes there is no version, so nothing opens it.)
-    (s.host.querySelector('#app-version') as HTMLButtonElement).click();
+    // The footer's What's new opens this app's dialog - its code loaded as it opens (a @defer): the dialog a moment
+    // later. (With no list of changes there is neither the version nor What's new, so nothing opens it.)
+    (s.host.querySelector(FOOTER.whatsNew) as HTMLButtonElement).click();
     await settledAll(s);
   } else if (look.open) {
     (s.host.querySelector(look.open === 'phone' ? BAR.phoneButton : BAR.personButton) as HTMLButtonElement).click();
@@ -414,7 +453,7 @@ const OPENED: [string, (s: Shell) => void, Look][] = [
   ['the piano\'s box, no MIDI device found', (s) => {
     s.midi.asked.set(true);
   }, { open: 'piano' }],
-  ['What\'s new, opened from the footer\'s version', (s) => {
+  ['What\'s new, opened from the footer\'s What\'s new', (s) => {
     s.changelog.entries.set(RELEASES);
   }, { open: 'whats-new' }],
   ['the sign-out question, some progress not saved', (s) => {
@@ -465,7 +504,15 @@ describe('the shell with no bundle', () => {
 
       expect(TestBed.inject(TranslationService).ready()).toBe(false);
       const texts = said(s.host);
-      expect(texts.length).toBeGreaterThan(5);
+      if (standsAlone(s).status) {
+        // The status page alone - the family's, in its own words, marked as such: nothing of the shell's to say, and
+        // no key in the page's words either.
+        const page = statusPage(s)!;
+        expect(page.title).toBeTruthy();
+        expect(keysIn([page.title ?? '', page.text ?? '', ...page.actions])).toEqual([]);
+      } else {
+        expect(texts.length).toBeGreaterThan(5);
+      }
       expect(keysIn(texts)).toEqual([]);
       // A missing string is a warning as well as a key on the page: none of either.
       expect(warn).not.toHaveBeenCalled();
@@ -474,7 +521,7 @@ describe('the shell with no bundle', () => {
 
   it('says itself in the English kept in code: the cards, the top bar and the footer', async () => {
     const notSetUp = await drawn(STATES['not set up, never installed: the setup page offered']);
-    // The family's page in the view's place, in its own words (and marked as such).
+    // The family's page alone, in its own words (and marked as such): nothing of the shell round it.
     expect(statusPage(notSetUp)).toEqual({
       title: 'This site is not set up yet',
       text: 'Its setup page connects it to its database and to the anotoki sign-in.',
@@ -482,25 +529,31 @@ describe('the shell with no bundle', () => {
       actions: ['Open the setup page', 'Try again'],
       links: ['/setup.php'],
     });
-    // Before the app runs there is nothing to practise on: the bar has no sections yet.
-    expect(notSetUp.host.querySelector(BAR.nav)).toBeNull();
-    expect(notSetUp.host.querySelector('.anotoki-brand__brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
-    expect(notSetUp.host.querySelector('.anotoki-brand__area')?.textContent).toBe('Piano Academy');
-    expect(notSetUp.host.querySelector('#midi-label')?.textContent?.trim()).toBe('No piano');
-    expect(notSetUp.host.querySelector('#midi-button')?.getAttribute('aria-label')).toBe('No piano: Piano not connected');
-    expect(notSetUp.host.querySelector('#midi-button')?.getAttribute('title')).toBe('Piano not connected');
-    // The family's theme switch: its three choices named in this app's words (the kit's own "Theme" names the group).
-    expect(Array.from(notSetUp.host.querySelectorAll(BAR.theme)).map((choice) => choice.getAttribute('aria-label'))).toEqual(['Theme: light', 'Theme: dark', 'Theme: automatic']);
-    expect(notSetUp.host.querySelector('anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Theme');
-    // No language to choose from while there are no strings: the chooser is not there.
-    expect(notSetUp.host.querySelector('anotoki-language-switcher button')).toBeNull();
-    // The piano's box, opened: the state said whole.
-    const box = await drawn(STATES['not set up, never installed: the setup page offered'], [], { open: 'piano' });
-    expect(box.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Piano not connected');
-    expect(box.host.querySelector('#midi-box-title')?.textContent).toBe('Your piano');
+    expect(standsAlone(notSetUp).frame).toEqual([]);
 
+    // The start on its way: "Loading…", the bar and the footer - with no strings yet, in the English kept in code.
     const loading = await drawn(STATES['loading, before anything is known']);
     expect(loading.host.querySelector('.loading')?.textContent).toBe('Loading…');
+    // Before the app runs there is nothing to practise on: the bar has no sections yet.
+    expect(loading.host.querySelector(BAR.nav)).toBeNull();
+    expect(loading.host.querySelector('.anotoki-brand__brand')?.getAttribute('aria-label')).toBe('anotoki Piano Academy: Learn');
+    expect(loading.host.querySelector('.anotoki-brand__area')?.textContent).toBe('Piano Academy');
+    expect(loading.host.querySelector('#midi-label')?.textContent?.trim()).toBe('No piano');
+    expect(loading.host.querySelector('#midi-button')?.getAttribute('aria-label')).toBe('No piano: Piano not connected');
+    expect(loading.host.querySelector('#midi-button')?.getAttribute('title')).toBe('Piano not connected');
+    // The family's theme switch: its three choices named in this app's words (the kit's own "Theme" names the group).
+    expect(Array.from(loading.host.querySelectorAll(BAR.theme)).map((choice) => choice.getAttribute('aria-label'))).toEqual(['Theme: light', 'Theme: dark', 'Theme: automatic']);
+    expect(loading.host.querySelector('anotoki-theme-toggle [role="radiogroup"]')?.getAttribute('aria-label')).toBe('Theme');
+    // No language to choose from while there are no strings: the chooser is not there.
+    expect(loading.host.querySelector('anotoki-language-switcher button')).toBeNull();
+    // The family's footer, in the library's own words: no list of changes yet, so neither the version nor What's new -
+    // Feedback alone in its row, no dot beside it - then Terms · Privacy · Contact.
+    expect(footerRow(loading)).toEqual(['Feedback']);
+    expect(footerLinks(loading).map(([word]) => word)).toEqual(['Terms', 'Privacy', 'Contact']);
+    // The piano's box, opened: the state said whole.
+    const box = await drawn(STATES['loading, before anything is known'], [], { open: 'piano' });
+    expect(box.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Piano not connected');
+    expect(box.host.querySelector('#midi-box-title')?.textContent).toBe('Your piano');
 
     // The family's error state: its alert said at once, its heading and sentence this app's, its Try again too.
     const loadError = await drawn(STATES['the progress could not be loaded']);
@@ -545,10 +598,13 @@ describe('the shell with no bundle', () => {
     expect(menu.host.querySelector(BAR.signOut)?.textContent?.trim()).toBe('Sign out');
     const connected = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { open: 'piano' });
     expect(connected.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Connected: KAWAI ES120');
-    expect(running.host.querySelector('#app-version')?.textContent).toBe('Piano Academy v0.4.0');
-    expect(running.host.querySelector('#app-version')?.getAttribute('title')).toBe('What\'s new');
+    // The family's footer in the build analyzer's order: the version and What's new from the list of changes (its
+    // newest entry: one source), then Feedback - a dot between two of them, drawn and never read.
+    expect(footerRow(running)).toEqual(['Version 0.4.0', '·', 'What\'s new', '·', 'Feedback']);
+    expect(Array.from(running.host.querySelectorAll(`${FOOTER.row} .anotoki-site-footer__dot`)).map((dot) => dot.getAttribute('aria-hidden'))).toEqual(['true', 'true']);
+    expect([FOOTER.whatsNew, FOOTER.feedback].map((part) => running.host.querySelector(part)?.getAttribute('aria-haspopup'))).toEqual(['dialog', 'dialog']);
     expect(running.host.querySelector('#progress-changed')).toBeNull();
-    // What's new: the family's dialog, drawn once the version is pressed - its heading, the newest marked, each list named.
+    // What's new: the family's dialog, drawn once the footer's What's new is pressed - its heading, the newest marked, each list named.
     expect(running.host.querySelector('app-changelog-dialog anotoki-dialog')).toBeNull();
     const news = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { open: 'whats-new' });
     expect(news.host.querySelector('app-changelog-dialog .anotoki-dialog__title')?.textContent).toBe('What\'s new');
@@ -753,28 +809,30 @@ describe('the shell with no bundle', () => {
   });
 
   it('opens the family\'s feedback form from the footer - for everybody, in the library\'s words - and closes it again', async () => {
-    // Nobody signed in, nothing loaded yet: the footer has it all the same.
+    // Nobody signed in, nothing loaded yet: the family's footer has it all the same - "Feedback", the build analyzer's word.
     const nobody = await drawn(() => undefined);
-    expect(text(nobody, '#feedback-open')).toBe('Send feedback');
-    // Its code is not loaded until it is opened.
-    expect(nobody.host.querySelector('app-feedback-dialog, anotoki-feedback-form')).toBeNull();
+    expect(text(nobody, FOOTER.feedback)).toBe('Feedback');
+    // Its code is not loaded until it is pressed.
+    expect(nobody.host.querySelector('anotoki-footer-feedback-dialog, anotoki-feedback-form')).toBeNull();
 
-    const opened = await drawn(() => undefined, [], { open: 'feedback' });
-    // In the family's dialog, its heading the form's title (the form draws none of its own).
-    expect(text(opened, 'anotoki-dialog .anotoki-dialog__title')).toBe('Send feedback');
-    expect(opened.host.querySelector('anotoki-dialog anotoki-feedback-form')).not.toBeNull();
-    expect(opened.host.querySelector('anotoki-feedback-form .anotoki-feedback-form__title')).toBeNull();
-    // The places of this app it can be about, in the page's words; nobody signed in: no "without my name".
-    expect(opened.host.querySelector('anotoki-feedback-form [data-section]')).not.toBeNull();
-    expect(opened.host.querySelector('anotoki-feedback-form [data-anonymous]')).toBeNull();
-    // Cancel closes it.
-    (opened.host.querySelector('anotoki-feedback-form [data-cancel]') as HTMLButtonElement).click();
-    await settledAll(opened);
-    expect(opened.host.querySelector('anotoki-dialog')).toBeNull();
+    const form = await drawn(() => undefined, [], { open: 'feedback' });
+    // In the kit's dialog, named by the footer's words (the form draws no heading of its own), outside the footer's landmark.
+    expect(text(form, 'anotoki-dialog .anotoki-dialog__title')).toBe('Feedback');
+    expect(form.host.querySelector('anotoki-dialog anotoki-feedback-form')).not.toBeNull();
+    expect(form.host.querySelector('anotoki-feedback-form .anotoki-feedback-form__title')).toBeNull();
+    expect(form.host.querySelector('footer anotoki-dialog')).toBeNull();
+    // The places of this app it can be about, in the page's words (core/site-admin.ts); nobody signed in: no "without my name".
+    expect(form.host.querySelector('anotoki-feedback-form [data-section]')).not.toBeNull();
+    expect(form.host.querySelector('anotoki-feedback-form [data-anonymous]')).toBeNull();
+    // Cancel closes it, and the focus is back on Feedback.
+    (form.host.querySelector('anotoki-feedback-form [data-cancel]') as HTMLButtonElement).click();
+    await settledAll(form);
+    expect(form.host.querySelector('anotoki-dialog')).toBeNull();
+    expect(document.activeElement).toBe(form.host.querySelector(FOOTER.feedback));
     // And it opens again, afresh.
-    (opened.host.querySelector('#feedback-open') as HTMLButtonElement).click();
-    await settledAll(opened);
-    expect(opened.host.querySelector('anotoki-dialog anotoki-feedback-form')).not.toBeNull();
+    (form.host.querySelector(FOOTER.feedback) as HTMLButtonElement).click();
+    await opened(form, 'anotoki-dialog anotoki-feedback-form');
+    expect(form.host.querySelector('anotoki-dialog anotoki-feedback-form')).not.toBeNull();
 
     // A learner: "send it without my name" is offered.
     const learner = await drawn(OPENED.find(([name]) => name === 'the feedback form of a learner')![1], [], { open: 'feedback' });
@@ -807,10 +865,12 @@ describe('the shell with no bundle', () => {
       links: [],
     });
     expect(nobody.host.querySelector('anotoki-site-status section')?.getAttribute('role')).toBe('status');
-    // Nothing else in the view: no error, no code, no way to the setup page or the Migrations page.
-    const view = (s: Shell): string => s.host.querySelector('#view-root')?.textContent?.trim() ?? '';
-    expect(view(nobody)).toBe(['The site is being updated', 'It will be back in a few minutes. This page reloads by itself.', 'Sign in'].join(''));
+    // Nothing else on the page: no error, no code, no way to the setup page or the Migrations page - and nothing of the
+    // shell's frame round it (no bar, no note, no footer), the gate's own <main> its one landmark.
+    const page = (s: Shell): string => s.host.textContent?.trim() ?? '';
+    expect(page(nobody)).toBe(['The site is being updated', 'It will be back in a few minutes. This page reloads by itself.', 'Sign in'].join(''));
     expect(nobody.host.querySelector('[role="alert"], a[href="/setup.php"], a[href="/admin/migrations"], #stub-page')).toBeNull();
+    expect(standsAlone(nobody)).toEqual({ status: true, frame: [], mains: 1 });
     // Whatever the address: an admin panel's too.
     await go(nobody, '/admin/migrations');
     expect(statusPage(nobody)?.title).toBe('The site is being updated');
@@ -838,8 +898,8 @@ describe('the shell with no bundle', () => {
     for (const id of ['visitor-refused', 'visitor-notice', 'signed-out-banner', 'stub-page']) {
       expect(visitor.host.querySelector('#' + id), id).toBeNull();
     }
-    // The bar offers no section to go to meanwhile.
-    expect(visitor.host.querySelector(BAR.nav)).toBeNull();
+    // The frame went with the page: no bar, no footer meanwhile.
+    expect(standsAlone(visitor).frame).toEqual([]);
   });
 
   it('while an update waits the site\'s ADMIN reads that a database update is waiting, in English, and reaches the Migrations page - nothing else of the app', async () => {
@@ -985,6 +1045,46 @@ describe('the shell with no bundle', () => {
     expect(unavailable.host.querySelector('a[href="/setup.php"]')).toBeNull();
   });
 
+  it('draws the status page alone in every state the site cannot run in - no bar, no section, no note, no footer, the gate\'s own <main> its one landmark - and the frame comes back with the site', async () => {
+    const closed = [
+      'not set up, never installed: the setup page offered',
+      'not set up once installed: only "not available right now"',
+      'the database out of reach',
+      'an update waits, nobody signed in',
+      'an update waits, a learner signed in',
+      'an update waits, the site\'s ADMIN signed in',
+      'an update came in the middle of a visitor\'s practising, a save refused meanwhile',
+    ];
+    for (const name of closed) {
+      const s = await drawn(STATES[name], [anyPage]);
+      expect(standsAlone(s), name).toEqual({ status: true, frame: [], mains: 1 });
+      // On any address: an admin panel's too.
+      await go(s, '/admin/translations');
+      expect(standsAlone(s), `${name}, on an admin panel's address`).toEqual({ status: true, frame: [], mains: 1 });
+    }
+
+    // Ready again (an ADMIN's Apply marks it so; the start goes on): the frame is back round the page - the bar with
+    // its sections, the page in its <main>, the footer with its links - and the status page is gone.
+    const back = await drawn(STATES['an update waits, a learner signed in'], [anyPage]);
+    back.site.markReady();
+    back.store.loaded.set(true);
+    back.boot.status.set('ready');
+    await go(back, '/stats');
+    expect(standsAlone(back)).toEqual({ status: false, frame: FRAME, mains: 1 });
+    expect(back.host.querySelector('#view-root #stub-page')).not.toBeNull();
+    expect(Array.from(back.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+    expect(footerLinks(back).map(([, href]) => href)).toEqual(['/terms', '/privacy', '/contact']);
+
+    // The one page that runs while an update waits - the ADMIN's Migrations page - is in the frame: the bar (Migrations
+    // alone in it) and the footer, but no note meanwhile; the gate draws no <main> of its own then.
+    const admin = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+    await go(admin, '/admin/migrations');
+    expect(admin.host.querySelector('#view-root #stub-page')).not.toBeNull();
+    expect(standsAlone(admin)).toEqual({ status: false, frame: FRAME.filter((part) => part !== '.notes'), mains: 1 });
+    expect(Array.from(admin.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Migrations']);
+    expect(footerRow(admin)).toEqual(['Feedback']);
+  });
+
   it('the theme switch: its three choices named in the app\'s words, the one in force checked and kept for the next first paint', async () => {
     const modes: AnotokiThemeMode[] = ['light', 'dark', 'auto'];
     for (const mode of modes) {
@@ -1111,8 +1211,6 @@ describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
     localStorage.clear();
   });
 
-  const footerLinks = (s: Shell) => Array.from(s.host.querySelectorAll('footer anotoki-legal-links a')).map((link) => [link.textContent?.trim(), link.getAttribute('href')]);
-
   it('the footer has the family’s Terms · Privacy · Contact under every page, in the library’s words - also while the app has no strings, and in the database’s words, an owner’s rewording too', async () => {
     const onTheWay = await drawn(STATES['nobody signed in, on the way to the IAM']);
     expect(footerLinks(onTheWay)).toEqual([
@@ -1120,9 +1218,12 @@ describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
       ['Privacy', '/privacy'],
       ['Contact', '/contact'],
     ]);
-    expect(onTheWay.host.querySelector('footer anotoki-legal-links nav')?.getAttribute('aria-label')).toBe('Legal');
-    // Beside the footer's own: Send feedback and the version stay where they were.
-    expect(onTheWay.host.querySelector('footer .footer-actions #feedback-open')).not.toBeNull();
+    expect(onTheWay.host.querySelector(`${FOOTER.footer} anotoki-legal-links nav`)?.getAttribute('aria-label')).toBe('Legal');
+    // Under the footer's row, in the same <footer> landmark: the row first (Feedback alone while the list of changes is not there).
+    const parts = Array.from(onTheWay.host.querySelector(FOOTER.footer)?.children ?? []);
+    expect(parts.map((part) => part.tagName.toLowerCase())).toEqual(['div', 'anotoki-legal-links']);
+    expect(parts[0].classList.contains('anotoki-site-footer__row')).toBe(true);
+    expect(onTheWay.host.querySelectorAll('footer').length).toBe(1);
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there']);
     expect(footerLinks(running).map(([, href]) => href)).toEqual(['/terms', '/privacy', '/contact']);
@@ -1156,12 +1257,14 @@ describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
     expect(s.host.querySelector(BAR.signIn)).toBeNull();
   });
 
-  it('while the site is not ready the family’s status page stands in a legal page’s place too, as in every page’s', async () => {
+  it('while the site is not ready the family’s status page stands in a legal page’s place too, as in every page’s - alone, the footer and its links gone with the frame', async () => {
     const routes: Provider = { provide: ROUTES, multi: true, useValue: [{ path: 'terms', component: StubPageComponent }] };
     const s = await drawn(STATES['an update waits, nobody signed in'], [routes], { at: '/terms' });
     expect(s.host.querySelector('#stub-page')).toBeNull();
     expect(statusPage(s)?.title).toBe('The site is being updated');
-    // The footer's links stay: what the site keeps is said whatever it is doing.
-    expect(footerLinks(s).map(([, href]) => href)).toEqual(['/terms', '/privacy', '/contact']);
+    // A page of its own, with no header and no footer (the owner's rule of 2026-10-18): no links to the legal pages
+    // meanwhile - they are pages of the site, which is not running.
+    expect(footerLinks(s)).toEqual([]);
+    expect(standsAlone(s)).toEqual({ status: true, frame: [], mains: 1 });
   });
 });

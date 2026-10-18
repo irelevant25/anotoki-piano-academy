@@ -85,8 +85,9 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
 - **One bar at the top**, the same as on every anotoki site (and the same
   font, Manrope): the sections (Learn, Note Trainer, Sheet Practice, Songs,
   Stats), your piano, the language, the theme and your menu. On a phone or a
-  window 1320 px wide or narrower they fold into one menu button. The
-  version number at the bottom of the page shows what is new.
+  window 1320 px wide or narrower they fold into one menu button. **One
+  footer** too, the same as on every anotoki site: the version, **What's
+  new** and **Feedback** in one row, then Terms, Privacy and Contact.
 - **Light and dark**: the theme switch in the bar has three choices - light,
   dark, or as your computer is set. Signed in, the theme is your anotoki
   account's: choose it here or on any anotoki site, and every site - the
@@ -107,7 +108,7 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   progress counts (**People**), reads the **Error log**, the **Audit log**
   and the **Feedback**, keeps the **Backups** and applies database updates
   (**Migrations**).
-- **Send feedback**, at the foot of every page - signed in or not: a
+- **Feedback**, at the foot of every page - signed in or not: a
   problem or an idea, and which part of the app it is about. It is kept for
   the app's administrators (the bar counts the new ones) and mails nobody.
 - **If signing in does not work**, a page of its own says why, with **Try
@@ -165,9 +166,11 @@ What the host and Cloudflare need for this site - check it before the first uplo
 hosting:
 
 - **PHP 8.2 or newer** with `pdo_pgsql`, `openssl`, `mbstring`, `json` and `zlib` (the backups); `curl` or `allow_url_fopen` to ask the IAM. `tools/host-check.php` checks all of it on the host: write a long
-  random value into its `HOST_CHECK_TOKEN`, upload it beside `index.html`, open
-  `https://<the site>/host-check.php?token=<that value>`, and delete it afterwards (the page has a button for
-  it). It is never part of a build.
+  random value (32+ characters) into its `HOST_CHECK_TOKEN`, upload it into the web root beside `index.html`,
+  open `https://<the site>/host-check.php?token=<that value>`, and delete it afterwards (the page has a button
+  for it; check over FTP that it is gone). It is never part of a build. The web root's `.htaccess` lets a
+  visitor run it and `setup.php` alone, each only while it is there - an upload from before 2026-10-18
+  refused the host check too (403), so on a host still running one, upload this version first.
 - **Cloudflare** (the zone's settings, the same for every anotoki site):
   - SSL/TLS **Full (strict)**: the connection from Cloudflare to the host is https - the site's secure cookies
     need it end to end (the host check says which it is).
@@ -180,9 +183,12 @@ hosting:
     (`return ['origin_secret' => '...'];`, put there by hand; a long random value, 32+ characters). With it the
     site believes `CF-Connecting-IP` only on a request that carries the secret - anybody's Cloudflare Worker
     can connect from Cloudflare's ranges; without the file it believes `CF-Connecting-IP` from Cloudflare's
-    ranges alone. Set the rule first, then the file. A file that is there but cannot be read cleanly (a
-    byte-order mark, a line before `<?php`, a typo PHP cannot parse) stands for a secret no request carries:
-    every visitor then counts as Cloudflare's edge until it is mended - PHP's error log says so once a day.
+    ranges alone. Set the rule first, then the file; to switch the secret off, **delete the file** (an empty
+    value switches nothing off). A file without a usable secret - an empty value, a misspelt key, a value
+    that is not text, saved with a byte-order mark, a line before `<?php`, or a typo PHP cannot parse - fails
+    closed: the site keeps running, believes no `CF-Connecting-IP` (every visitor counts as the Cloudflare
+    edge they came through, sharing its limits) and says so once a day in PHP's error log until the file is
+    mended.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.
@@ -207,13 +213,30 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
-- English and Slovak (informal), 304 keys of the app's own words in the
-  database (migrations 002 to 012) and the anotoki library's 257 (`anotoki.*`:
+- English and Slovak (informal), 303 keys of the app's own words in the
+  database (migrations 002 to 013) and the anotoki library's 261 (`anotoki.*`:
   the words of the bar, its menus, the language chooser, the theme switch,
   the dialogs, the status page, the sign-in's failure page, the feedback
-  form and the legal pages), a language chooser, and the
+  form, the legal pages and the footer), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
+- **The anotoki sites' one footer, and the status page alone (2026-10-18,
+  after the deploy).** `anotoki-lib` 0.6.3, both halves: the foot of every
+  page - the admin panel's too - is the family's footer, the build
+  analyzer's (the owner's choice): "Version 0.4.0 · What's new · Feedback",
+  then Terms · Privacy · Contact, a line above it all; What's new opens the
+  app's own list of changes, Feedback the family's form. While the site is
+  being updated, is not set up or its database is out of reach, the page
+  that says so stands alone - no bar, no footer (the owner's rule); an
+  ADMIN's Migrations page keeps the bar and the footer. A Cloudflare
+  origin-secret file that is there but names no usable secret - empty, a
+  misspelt key, a value that is not text - no longer switches the check
+  off: no request carries its secret until it names one, and only deleting
+  the file switches it off. The host check may run on the host now (the
+  web root's `.htaccess` refused it). Migration 013 (the old footer's one
+  word goes) and the library's words 012 (the footer's) go in one Apply. In
+  What's new's 0.4.0 (not released yet). The first load is 558.1 kB, over
+  its 550 kB warning: the footer's own code - the owner's call.
 - **Terms, Privacy and Contact (2026-10-18).** `anotoki-lib` 0.6.2, both
   halves: the anotoki family's legal pages, at the foot of every page and
   open to anybody (no sign-in), filled in with what this app keeps and for

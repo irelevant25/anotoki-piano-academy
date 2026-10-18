@@ -24,8 +24,10 @@ src/
                                      buttons, selects or cards - the pages' are the kit's
   app/
     app.config.ts, app.routes.ts     providers (the browser's errors to the error log - Angular's global listeners
-                                     and provideSiteErrorReport(), core/error-report.ts; the interceptors - the
-                                     family's siteStatusInterceptor first, then its anotokiAuthInterceptor -; the
+                                     and provideSiteErrorReport(), core/error-report.ts; the interceptors,
+                                     SITE_INTERCEPTORS - the family's siteStatusInterceptor first, then whom the
+                                     feedback form's message is for (feedbackSenderInterceptor), then the family's
+                                     anotokiAuthInterceptor -; the
                                      words, provideSiteTranslations(); the sign-in,
                                      provideSiteAuth(); the family's kit and frame, provideFamilyKit(); People, the
                                      admin tools and the feedback form, provideSiteAdmin(); the legal pages' root
@@ -42,16 +44,17 @@ src/
                                      anotokiUnsavedChangesGuard), /admin/people (@anotoki/lib/people/page),
                                      /admin/errors, /audit, /feedback, /backups (@anotoki/lib/admin/*),
                                      /admin/migrations (@anotoki/lib/migrations/page)
-    app.component.*                  the frame: the top bar, the notes that cannot be missed (signed out,
+    app.component.*                  the family's <anotoki-site-gate>, outermost, with the whole frame as its
+                                     marked template (<ng-template anotokiSitePages>: made only while the gate
+                                     shows it, so nothing runs behind the status page, which stands alone - no
+                                     bar, no footer): the top bar, the notes that cannot be missed (signed out,
                                      progress changed elsewhere; a visitor's: the notice on Learn and Stats,
                                      sign-in required meanwhile, a refused sign-in, a save refused, the progress
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
-                                     ready), the family's <anotoki-site-gate> with the page or a boot card as its
-                                     marked template (<ng-template anotokiSitePages>: made only while the gate
-                                     shows it, so nothing runs behind the status page; the legal pages drawn for
-                                     anybody), the footer's "Send feedback" (ui/feedback-dialog, in a @defer),
-                                     version (What's new, ui/changelog-dialog, in a @defer) and Terms · Privacy ·
-                                     Contact (the family's <anotoki-legal-links>), the family's questions
+                                     ready), the page or a boot card in <main> (the legal pages drawn for
+                                     anybody), the family's footer (<anotoki-site-footer>: Version · What's new -
+                                     ui/changelog-dialog, in a @defer - · Feedback, the family's form; Terms ·
+                                     Privacy · Contact); the family's questions outside the gate
                                      (<anotoki-confirm-host>: ConfirmService)
     boot/                            drawn instead of the app: could not load (the family's error state). (Not set up, being
                                      updated, not available: the family's status page, @anotoki/lib/migrations; a
@@ -70,7 +73,10 @@ src/
                                      key for a visitor's on the progress routes - as ApiService issued it; no sign-in
                                      by the IAM's hint), VisitorKey (the visitor's key in localStorage)
       site-admin.ts                  provideSiteAdmin(): the family's People page (this app's counts and its
-                                     question before a delete), admin tools and feedback form wired to this app
+                                     question before a delete), admin tools and feedback form wired to this app;
+                                     feedbackSenderInterceptor: the form's message the person's while somebody is
+                                     signed in, nobody's otherwise (the server takes anybody's - left to the
+                                     family's interceptor it was a person's, never sent for somebody signed out)
       error-report.ts                provideSiteErrorReport(): the family's reporter (@anotoki/lib/error-report) on
                                      /api/client-errors - a page's own errors into the error log
       legal/                         legal.config.ts (pianoLegalConfig(): the legal pages' root configuration - the
@@ -124,8 +130,8 @@ src/
     ui/                              Piano's own: the piano's widget in the bar (midi-panel: its button Piano's,
                                      its box the family's popover, alert, buttons and select - the select in a
                                      @defer, out of the first load), the piano keyboard, the notation, What's new
-                                     (changelog-dialog: the family's dialog and badges, made when it opens),
-                                     feedback-dialog (the family's form in the family's dialog)
+                                     (changelog-dialog: the family's dialog and badges, made when it opens -
+                                     from the footer's What's new)
 public/                              changelog.json (the version shown: MAJOR.MINOR.PATCH, the newest entry's -
                                      package.json's too), anotoki.png (the family's mark), favicon.svg
 proxy.conf.json                      /api and /setup.php to the backend on :8300
@@ -133,7 +139,7 @@ proxy.conf.json                      /api and /setup.php to the backend on :8300
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.6.2): in
+half is the backend's `anotoki/lib`; one version for both - 0.6.3): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -156,11 +162,17 @@ first load - and a spec reads the kit's markup by the kit's own class names
   Note Trainer; `/ui/stepper` - a lesson's step dots; `/ui/select` - the
   kit's select (the tempo, the MIDI device), lazy: the pages that have one
   are, and the piano's box loads it in a `@defer` once the page is idle (in
-  the first load it would cost 6.4 kB of a 0.6 kB margin).
+  the first load it would cost 6.4 kB more).
+- `@anotoki/lib/footer` - the family's footer, `<anotoki-site-footer>` (the
+  build analyzer's): "Version X · What's new · Feedback" - this app's
+  version, What's new on `(whatsNew)` (its own dialog), Feedback the
+  library's form in the kit's dialog, whose code comes with the press
+  (`@anotoki/lib/footer/feedback`) - then Terms · Privacy · Contact; its
+  words `anotoki.footer.*`.
 - `@anotoki/lib/legal` - the legal pages' configuration
-  (`provideAnotokiLegal`, `ANOTOKI_LEGAL_CONFIG`, `LegalFacts`) and the
-  footer's `<anotoki-legal-links>`; `/legal/pages` - Terms, Privacy and
-  Contact, lazy (`core/legal/`, `layouts/legal-layout`).
+  (`provideAnotokiLegal`, `ANOTOKI_LEGAL_CONFIG`, `LegalFacts`), which the
+  footer's Terms · Privacy · Contact read too; `/legal/pages` - Terms,
+  Privacy and Contact, lazy (`core/legal/`, `layouts/legal-layout`).
 - `@anotoki/lib/translations` - the words: `TranslationService`, the
   `translate` and `translatePlural` pipes, `forKit()` / `forShell()`, the
   status page's words (`siteStatusWords()`), `anotokiUnsavedChangesGuard`;
@@ -170,9 +182,12 @@ first load - and a spec reads the kit's markup by the kit's own class names
   and `ThemeService`, the brand; `assets/theme-boot.js` (angular.json).
 - `@anotoki/lib/migrations` - where the site stands (`SiteStatus`,
   `siteStatusInterceptor`), the gate in front of the pages and its status
-  page. The gate takes the shell's view as its marked template (`<ng-template
-  anotokiSitePages>`, `app.component.html`) and makes it only while it shows
-  it - given as it is, the view would be made behind the status page too.
+  page. The gate is the outermost of the shell, and takes the shell's whole
+  frame - bar, notes, page, footer - as its marked template (`<ng-template
+  anotokiSitePages>`, `app.component.html`), made only while it shows it -
+  given as it is, the view would be made behind the status page too. The
+  status page it draws in a `<main>` of its own (0.6.3), with nothing of the
+  frame round it.
 - `@anotoki/lib/migrations/page` - the admin panel's Migrations page, lazy.
 - `@anotoki/lib/auth` - signing in (`AnotokiAuth`, `provideAnotokiAuth`,
   `anotokiAuthInterceptor`, `ISSUED_AS` and `CARRIES_VISITOR_KEY`, the
@@ -182,8 +197,8 @@ first load - and a spec reads the kit's markup by the kit's own class names
   `@anotoki/lib/admin` (`provideAnotokiAdmin`, `FeedbackUnread`) and
   `/admin/errors`, `/admin/audit`, `/admin/feedback`, `/admin/backups` - the
   admin tools' pages, lazy; `@anotoki/lib/feedback` and `/feedback/form` -
-  the visitors' form, in the footer's dialog (`/ui/dialog`); all wired in
-  `core/site-admin.ts`.
+  the visitors' form, which the footer opens in the kit's dialog; all wired
+  in `core/site-admin.ts`.
 - `@anotoki/lib/error-report` - the browser's errors into the error log
   (`provideAnotokiErrorReport()`, the app's ErrorHandler: each error scrubbed,
   at most five a page load, through the app's HttpClient to `POST
@@ -237,7 +252,9 @@ Sign in at `http://localhost:4500` - the address the IAM knows for
 `piano-academy`; `127.0.0.1` does not sign in. Any page you open while
 signed out sends you to the IAM first, and back - but Terms, Privacy and
 Contact, which are anybody's. The first load's budget warns at 550 kB: it is
-549.4 kB (2026-10-18), so a new piece in it needs room made first.
+558.1 kB since the family's footer (2026-10-18; 549.4 before) - the build
+warns, and the budget is the owner's call; a new piece in it needs room made
+first.
 
 ## Tests
 
@@ -251,9 +268,12 @@ the popover, `checkVisibility`) and the family's question to read and answer
 (`drawTestQuestions()`). Among them: the music
 logic; the start and every boot state; the shell drawn with no strings at all
 (no text of a key's shape, every kept English string drawn); while the site
-is not ready (the family's gate and status page): visitors and learners told
+is not ready (the family's gate and status page): the status page alone in
+every closed state - no bar, no section, no note, no footer, one landmark -
+and the frame back with the site; visitors and learners told
 it is being updated in their language with no error and no setup or
-Migrations link, an ADMIN told an update waits and on the Migrations page,
+Migrations link, an ADMIN told an update waits and on the Migrations page
+(in the frame),
 a signed-out ADMIN's Sign in coming back to the page, the setup page only
 while never installed, the start waiting and resumed after an Apply, no page
 made behind the status page (an update in the middle of practising takes the
@@ -279,8 +299,11 @@ button, the phone's menu and its dot, "Not saved yet", the admin panel in
 English with its wordmark, the way into it only while the site is ready, the
 sign-out question); the piano's widget (its box the family's popover, its
 state the family's alert, its devices in the family's select - drawn from
-its `@defer` block in the spec, `getDeferBlocks()`); What's new (the family's
-dialog, its lists named by badges, made only once the version is pressed);
+its `@defer` block in the spec, `getDeferBlocks()`); the family's footer
+(the row in the build analyzer's order - "Version 0.4.0 · What's new ·
+Feedback", Feedback alone with no list of changes, never a stray dot -, Terms
+· Privacy · Contact under it); What's new (the family's dialog, its lists
+named by badges, made only once the footer's What's new is pressed);
 the pages on the
 kit's markup (the lesson's large primary button where the one thing to do is
 try again; the path's chips and highlighted card, a lesson's step dots, the
@@ -296,11 +319,16 @@ the shell; the
 admin panel's routes (every page the family's, lazy, the ADMIN pages behind
 `adminGuard`), People and the admin tools as this app wires them
 (`core/site-admin.spec.ts`: the question before a delete, the visitors'
-line, the feedback form's sections), the browser's errors as `appConfig`
+line, the feedback form's sections; the form's message through the family's
+interceptor - nobody signed in where a sign-in is required: sent bare, the
+page not following; a visitor: bare, no key; somebody signed in: with the
+token; nothing else touched; its place in `SITE_INTERCEPTORS` - each
+mutation-checked), the browser's errors as `appConfig`
 gives them (`core/error-report.spec.ts`: the family's reporter the
 ErrorHandler, a person's report with the token, a visitor's bare, never a
 failed request's), the Feedback link's count and the
-footer's form (the shell's spec); the family's kit wired to
+footer's form (the shell's spec: the library's dialog named "Feedback", its
+code fetched by the press, the focus back on Feedback); the family's kit wired to
 this app (`core/family-kit.spec.ts`: its words the database's strings of the
 library's keys - the owner's wording -, English in the admin panel, the
 kit's own where the database has none and never a key, this app's English

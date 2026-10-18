@@ -19,7 +19,9 @@ declare(strict_types=1);
  *   index.html, *.js, *.css, media/, changelog.json ...   the app (the Angular build)
  *   .htaccess        /api/ to the API; every other path that is not a file to
  *                    index.html (the app's own routes); the backend's folders
- *                    closed; the security headers
+ *                    closed; no PHP run but setup.php and the host check
+ *                    (tools/host-check.php, uploaded by hand when needed); the
+ *                    security headers
  *   setup.php        the setup page - the first install, and later updates
  *   api/             the API: index.php (the front controller) and its code
  *   config/          config.php only - setup.php writes the *.local.php files here
@@ -259,11 +261,14 @@ AddType text/javascript .js .mjs
 </IfModule>
 
 # The only PHP a visitor may run here: the setup page, while it is still here
-# (it deletes itself when it is done). api/.htaccess lets api/index.php run.
+# (it deletes itself when it is done), and the host check (tools/host-check.php,
+# never part of a build: uploaded by hand, opened with the token written into
+# it, and deleted again - while it is not here, this lets nothing run).
+# api/.htaccess lets api/index.php run.
 <FilesMatch "\.(php|phtml|phar)$">
     Require all denied
 </FilesMatch>
-<FilesMatch "^setup\.php$">
+<FilesMatch "^(setup|host-check)\.php$">
     Require all granted
 </FilesMatch>
 

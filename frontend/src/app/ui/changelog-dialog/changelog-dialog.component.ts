@@ -7,18 +7,18 @@ import { ChangelogService } from '../../core/changelog/changelog.service';
 import { LocalDatePipe } from '../../core/i18n/local-date.pipe';
 
 /**
- * What is new, release by release (public/changelog.json) - opened from the
- * version number in the footer. The family's dialog (@anotoki/lib/ui/dialog):
- * the focus kept inside it; Escape, its close button, the Close button and
- * the backdrop say `closed`, and the focus comes back to the version. The
- * newest release says so, and each list says what it is, with the family's
- * badges. It is never empty: the version it opens from is in the footer only
- * while the list came (app.component), so there is no sentence for a list
- * that did not (migration 012 took the old one away).
+ * What is new, release by release (public/changelog.json) - opened from
+ * "What's new" in the family's footer (@anotoki/lib/footer's (whatsNew)). The
+ * family's dialog (@anotoki/lib/ui/dialog): the focus kept inside it; Escape,
+ * its close button, the Close button and the backdrop say `closed`, and the
+ * focus comes back to What's new. The newest release says so, and each list
+ * says what it is, with the family's badges. It is never empty: What's new is
+ * in the footer only while the list came (app.component), so there is no
+ * sentence for a list that did not (migration 012 took the old one away).
  *
- * The app draws this only while it is open, inside a @defer (as the feedback
- * form's dialog): it is not in the first load (anotoki-lib 0.6.1's pass, to
- * keep that load within its budget - docs/decisions.md).
+ * The app draws this only while it is open, inside a @defer: it is not in the
+ * first load (anotoki-lib 0.6.1's pass, to keep that load within its budget -
+ * docs/decisions.md).
  *
  * The frame is in the language on the page (its keys are `whatsNew.*`, and in
  * core/i18n/kept-english.ts too: the dialog opens in every state of the

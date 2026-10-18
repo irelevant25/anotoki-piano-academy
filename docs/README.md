@@ -131,3 +131,15 @@ request comes from"); `decisions.md` (with the facts for the owner to
 confirm). Migration 012 (words only: the pages' 43 keys, a word no page
 can show any more gone) goes with 005 to 011 at the hand-over, the library's
 words 005 to 011 after it in the same Apply.
+Then (2026-10-18, after the deploy) the library's 0.6.3, both halves: the
+anotoki sites' one footer (`<anotoki-site-footer>`, the build analyzer's:
+"Version · What's new · Feedback", then Terms · Privacy · Contact) under
+every page and in the admin panel, the status page alone - the gate the
+outermost, the whole frame its template: no bar, no footer while the site is
+not ready -, a `config/cloudflare.local.php` that names no usable secret
+failing closed too (only deleting it switches the secret off), and the host
+check allowed by the web root's `.htaccess` - `architecture.md` ("A
+database update", "The footer", "Where a request comes from"); `decisions.md`.
+Migration 013 (words only: the old footer's one word gone) goes with 005 to
+012 at the hand-over, the library's words 012 (the footer's) after it in the
+same Apply.
