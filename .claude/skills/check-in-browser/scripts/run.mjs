@@ -4,7 +4,7 @@
 //
 // It builds the frontend (unless --no-build), makes a throwaway database (piano_test_browser_<port>, a copy of the
 // tests' template - backend/tests/tools/testenv.php), starts the anotoki family's stand-in IAM
-// (backend/vendor/anotoki/lib/php/testing/stand-in-iam.php, its key made by the library's TestIam) on 8597 and the app on 8590 (SITE_PORT / IAM_PORT for others; router.php: the built app and the API on one origin, as on the hosting, with
+// (backend/vendor/anotoki/lib/backend/testing/stand-in-iam.php, its key made by the library's TestIam) on 8597 and the app on 8590 (SITE_PORT / IAM_PORT for others; router.php: the built app and the API on one origin, as on the hosting, with
 // PIANO_TEST_CONFIG pointing at the throwaway settings), drives headless Edge (or Chrome: BROWSER=chrome)
 // through playwright-core (flow.mjs), and then stops all of it and drops the database - also when the check
 // fails. --keep leaves the work folder (settings, logs, screenshots, the downloaded file) behind to look at;
@@ -122,7 +122,7 @@ try {
     cwd: backend,
   });
 
-  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/php/testing/stand-in-iam.php'], {
+  start(php, ['-S', `127.0.0.1:${IAM}`, 'vendor/anotoki/lib/backend/testing/stand-in-iam.php'], {
     name: 'stand-in-iam',
     cwd: backend,
     env: { ...process.env, STAND_IN_DIR: iamDir, STAND_IN_ISSUER: `http://127.0.0.1:${IAM}` },

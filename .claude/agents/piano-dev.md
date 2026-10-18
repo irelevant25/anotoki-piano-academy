@@ -175,7 +175,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.6.3, both halves): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.7.0, both halves): in the browser `@anotoki/lib/auth`, wired in
   `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -200,7 +200,7 @@ Working conventions specific to this repo:
   deleting the file switches the secret off); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.6.3, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.7.0, wired in
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
@@ -275,7 +275,7 @@ its screenshots (`--keep`). Verify other interactive changes on a throwaway copy
 `PIANO_TEST_CONFIG=storage/manual php -S 127.0.0.1:8590 router.php` (the
 built frontend is served too - `npm run build` first), and
 `php tests/tools/testdb.php drop piano_test_manual` afterwards. Sign in through
-the family's stand-in IAM (`vendor/anotoki/lib/php/testing/stand-in-iam.php`
+the family's stand-in IAM (`vendor/anotoki/lib/backend/testing/stand-in-iam.php`
 on 8597, its key from `TestIam::create()` - the browser check's `run.mjs`
 shows how), never the real IAM;
 throwaway servers on 8590-8599. Drive the

@@ -82,7 +82,7 @@ async function waitFor(test, ms) {
 }
 
 /**
- * Who the stand-in IAM (the anotoki family's, vendor/anotoki/lib/php/testing/stand-in-iam.php) signs in next - with
+ * Who the stand-in IAM (the anotoki family's, vendor/anotoki/lib/backend/testing/stand-in-iam.php) signs in next - with
  * the account's preferences as `user.preferences` - and whether it turns the sign-in away.
  */
 async function iamAs(user, more = {}) {
@@ -106,10 +106,10 @@ const sqlFiles = (folder) =>
     .filter((name) => /^\d{3}_.+\.sql$/.test(name))
     .sort();
 const MIGRATION_SETS = [
-  ['anotoki_admin/', sqlFiles('backend/vendor/anotoki/lib/php/migrations/admin')],
+  ['anotoki_admin/', sqlFiles('backend/vendor/anotoki/lib/backend/migrations/admin')],
   ['', sqlFiles('backend/migrations/piano_academy')],
-  ['anotoki_translations/', sqlFiles('backend/vendor/anotoki/lib/php/migrations/translations')],
-  ['anotoki_people/', sqlFiles('backend/vendor/anotoki/lib/php/migrations/people')],
+  ['anotoki_translations/', sqlFiles('backend/vendor/anotoki/lib/backend/migrations/translations')],
+  ['anotoki_people/', sqlFiles('backend/vendor/anotoki/lib/backend/migrations/people')],
 ].map(([set, files]) => [set, files.map((name) => `${set}${name}`)]);
 
 /** A figure on Stats and in the Note Trainer: the family's stat tile's value (@anotoki/lib/ui/stat-tiles). */

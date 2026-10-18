@@ -14,7 +14,7 @@ PHP=/path/to/php-8.2+ node .claude/skills/check-in-browser/scripts/run.mjs [--no
 - **`scripts/run.mjs`** builds the frontend (`--no-build` skips it), makes a
   throwaway database `piano_test_browser_<port>` from the tests' template
   (`backend/tests/tools/testdb.php template`, then `testenv.php`), starts the
-  family's stand-in IAM (`backend/vendor/anotoki/lib/php/testing/stand-in-iam.php`,
+  family's stand-in IAM (`backend/vendor/anotoki/lib/backend/testing/stand-in-iam.php`,
   its own key from the library's `TestIam::create()`) on **8597**
   and the built app on **8590** (`router.php`: the app and the API on one
   origin, as on the hosting; `PIANO_TEST_CONFIG` points at the throwaway
@@ -83,7 +83,7 @@ PHP=/path/to/php-8.2+ node .claude/skills/check-in-browser/scripts/run.mjs [--no
 - **Never against the owner's database**: the check makes and drops its own
   `piano_test_` database; it borrows only the PostgreSQL server and user of
   `backend/config/database.local.php` (through the tests' tools).
-- **The stand-in IAM** (the family's: `vendor/anotoki/lib/php/testing/stand-in-iam.php`,
+- **The stand-in IAM** (the family's: `vendor/anotoki/lib/backend/testing/stand-in-iam.php`,
   its header lists every route and key): `POST /_test/state` with `{user:
   {id, username, roles, preferences?}, deny}` decides who signs in next (`roles: ['MEMBER']` a learner -
   every account holds MEMBER -, `['MEMBER', 'EDITOR']`, `['MEMBER',

@@ -154,7 +154,7 @@ AnotokiAuth, its interceptor, its guards, its callback page and its screen
 for a sign-in that did not work, `/sign-in-failed`, in this app's frame) -
 the vendored IAM SDKs, `AuthService`, the interceptor, the guards, the
 sign-in card and the stand-in `tests/tools/fake-iam.php` are gone (the
-family's stand-in is `vendor/anotoki/lib/php/testing/stand-in-iam.php`). No
+family's stand-in is `vendor/anotoki/lib/backend/testing/stand-in-iam.php`). No
 sign-in by the IAM's hint here (`hint: false`: genshin's and the build
 analyzer's). The people are the library's People module (`api/people.php`:
 the table, the counts, the delete; `@anotoki/lib/people/page` on
@@ -725,9 +725,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.6.3 - PHP `anotoki/lib` (`^0.6.0`, Composer's VCS repository on GitHub,
+  0.7.0 - PHP `anotoki/lib` (`^0.7.0`, Composer's VCS repository on GitHub,
   committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.6.3 tarball, in both lock files). Never
+  v0.7.0 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry
@@ -744,7 +744,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `.vf-stavenote[data-midi]`; `window.pianoPlayer.expectedTimes` for runs in
   time. `playwright-core` with Edge (`channel: 'msedge'`) works on this
   machine; the stand-in IAM is the family's,
-  `backend/vendor/anotoki/lib/php/testing/stand-in-iam.php` (on 8597 by
+  `backend/vendor/anotoki/lib/backend/testing/stand-in-iam.php` (on 8597 by
   default, its key from the library's `TestIam`; `POST /_test/state` sets
   `user` - who signs in, their roles and `preferences`, the account's theme,
   dates and clock (none: an IAM before 015) -, `deny`, `login_required` /
