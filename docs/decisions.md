@@ -172,8 +172,8 @@ first, and set the pattern), both halves of the library on 0.6.1.
   library's translations 005 to 010 run after it in the same Apply.
 - **For the owner to confirm** (the pages say the conservative truth until
   then):
-  1. the hosting company - "to be named" on the Privacy page until it is
-     named (`{ preset: 'hosting' }` takes its name);
+  1. the hosting company - named by the owner on 2026-10-18: WebSupport
+     s.r.o. (`{ preset: 'hosting' }` takes its name and address);
   2. feedback: spam goes 30 days after it is marked, a resolved message 365
      days after - but only when the next message arrives (the library's
      prune runs then, at most daily): "with the first message sent after

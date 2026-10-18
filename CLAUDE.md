@@ -617,7 +617,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the frame `layouts/legal-layout`): each page a path of its own with the
   frame as its parent, before the catch-all, no guard. The facts are true of
   the code as it is - its tables and how long each keeps what, the storage
-  by name, Umami, the hosting company ("to be named") and Cloudflare; a
+  by name, Umami, the hosting company (WebSupport s.r.o., named by the owner
+  on 2026-10-18) and Cloudflare; a
   change to what the app keeps, or for how long, changes the `legal.*`
   strings by a migration and `PIANO_LEGAL_UPDATED`. Every address a page
   links to (the anotoki account's pages at the IAM's address, the operator,

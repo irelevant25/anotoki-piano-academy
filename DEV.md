@@ -631,11 +631,10 @@ to `011_privacy_words_made_true.sql` run right after it in the same Apply
 all; 011 rewords three Privacy sentences, each only while it is still the
 library's first wording - Piano words two of them itself, the backups and
 the sign-in's storage).
-It all goes with 005 to 011 at the hand-over - one Apply. Before the site is
-public the owner names the hosting company (the Privacy page says "to be
-named" until then: `{ preset: 'hosting' }` in
-`frontend/src/app/core/legal/legal-facts.ts` takes its name) and confirms
-the facts `docs/decisions.md` (2026-10-18) lists.
+It all goes with 005 to 011 at the hand-over - one Apply. The hosting company
+is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
+'hosting' }` in `frontend/src/app/core/legal/legal-facts.ts`); before the site
+is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code

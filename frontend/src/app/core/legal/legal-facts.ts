@@ -89,8 +89,9 @@ export function pianoLegalPagesConfig(): AnotokiLegalConfig {
  *   piano (LAST_DEVICE_KEY), the admin pages' unsaved words;
  * - counting visits: the family's Umami (src/index.html: umami.anotoki.eu, the
  *   query and the fragment left out) - the library's words;
- * - who else handles data: the hosting company ("to be named" until the owner
- *   names it) and Cloudflare.
+ * - who else handles data: the hosting company (WebSupport s.r.o., named by
+ *   the owner on 2026-10-18: the servers, the database and the mail) and
+ *   Cloudflare.
  *
  * Piano Academy takes feedback: the Contact page opens the family's form in
  * the kit's dialog (configured in core/site-admin.ts). Every address the pages
@@ -144,7 +145,7 @@ export function pianoLegalFacts(i18n: TranslationService, auth: AnotokiAuth): Le
       { name: LAST_DEVICE_KEY, kind: 'local', purpose: i18n.t('legal.storage.piano.purpose'), kept: i18n.t('legal.storage.piano.kept') },
       { name: words.drafts, kind: 'session', purpose: i18n.t('legal.storage.wordDrafts.purpose'), kept: i18n.t('legal.storage.untilTabClosed') },
     ],
-    // "To be named" until the owner names the hosting company.
-    processors: [{ preset: 'hosting' }, { preset: 'cloudflare' }],
+    // The hosting company, named by the owner on 2026-10-18: the servers, the database and the mail.
+    processors: [{ preset: 'hosting', name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' }, { preset: 'cloudflare' }],
   };
 }
