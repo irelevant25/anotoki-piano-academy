@@ -112,8 +112,34 @@ const MIGRATION_SETS = [
 /** A figure on Stats and in the Note Trainer: the family's stat tile's value (@anotoki/lib/ui/stat-tiles). */
 const TILE = 'anotoki-stat-tile .anotoki-stat-tile__value';
 
-/** Where the footer's Terms · Privacy · Contact are: the family's links (@anotoki/lib/legal's <anotoki-legal-links>). */
-const LEGAL_LINKS = '#footer-legal';
+/** Where the footer's Terms · Privacy · Contact are: the family's links (@anotoki/lib/legal's <anotoki-legal-links>), in the family's footer. */
+const LEGAL_LINKS = 'anotoki-site-footer anotoki-legal-links';
+
+/**
+ * The family's footer (@anotoki/lib/footer's <anotoki-site-footer>, the build analyzer's - anotoki-lib 0.6.3), by its
+ * own markers: its row ("Version X · What's new · Feedback"), each part, its landmark.
+ */
+const FOOTER = {
+  footer: 'anotoki-site-footer footer',
+  row: 'anotoki-site-footer .anotoki-site-footer__row',
+  version: 'anotoki-site-footer [data-version]',
+  whatsNew: 'anotoki-site-footer [data-whats-new]',
+  feedback: 'anotoki-site-footer [data-open-feedback]',
+};
+
+/** The footer's row as it reads: each part's words and the dots between them. */
+const footerRow = (page) => page.$$eval(`${FOOTER.row} > *`, (parts) => parts.map((part) => part.textContent.replace(/\s+/g, ' ').trim()));
+
+/** Everything of the app's frame, any one of which must not stand round the status page (the owner's rule of 2026-10-18). */
+const FRAME = ['app-top-bar', 'anotoki-top-bar', 'nav', '.notes', '#view-root', 'anotoki-site-footer', 'footer'];
+
+/** The status page alone: nothing of the frame round it, the gate's own <main> its one landmark. */
+const standsAlone = (page) =>
+  page.evaluate((frame) => ({
+    status: !!document.querySelector('anotoki-site-gate > main.anotoki-site-gate__status anotoki-site-status'),
+    frame: frame.filter((selector) => document.querySelector(selector) !== null),
+    mains: document.querySelectorAll('main').length,
+  }), FRAME);
 
 /** An ADMIN's sections in the admin panel (layouts/top-bar's ADMIN_LINKS): the family's admin tools among them. */
 const ADMIN_SECTIONS = 'Translations|Languages|People|Feedback|Error log|Audit log|Backups|Migrations';
@@ -434,7 +460,7 @@ try {
     check(calls.some((call) => call.afterCallback && call.api === '/api/state'), 'the progress loaded only after the way back', calls);
     check(new URL(page.url()).pathname === '/stats' && new URL(page.url()).search === '?from=deep', 'and came back to /stats?from=deep', page.url());
     check((await page.textContent(BAR.name)) === 'mia', 'signed in as the learner, named in the bar');
-    check((await page.textContent('#app-version'))?.trim() === `Piano Academy v${VERSION}`, `the footer says the version (${VERSION})`);
+    check((await page.textContent(FOOTER.version))?.trim() === `Version ${VERSION}`, `the footer says the version (${VERSION}) - the changelog's first entry`);
     await page.screenshot({ path: join(shots, `stats-${DESKTOP}-light.png`), fullPage: true });
     await context.close();
   }
@@ -787,7 +813,7 @@ try {
     await iamAs(MIA);
   }
 
-  step(`The feedback form (the family's, from the footer's "Send feedback"): light and dark, ${DESKTOP} and 390 - sent, kept, no mail`);
+  step(`The feedback form (the family's, from the family's footer's "Feedback"): light and dark, ${DESKTOP} and 390 - sent, kept, no mail`);
   {
     const before = Number(fromTheDatabase('SELECT count(*) AS n FROM anotoki_feedback')[0].n);
     for (const scheme of ['light', 'dark']) {
@@ -795,11 +821,11 @@ try {
         const label = `${scheme}, ${width}`;
         const context = await newContext({ width, scheme });
         const page = await signedIn(context, MIA, '/stats');
-        check((await page.textContent('#feedback-open'))?.trim() === 'Send feedback', `${label}: "Send feedback" at the foot of the page`);
-        await page.click('#feedback-open');
+        check((await page.textContent(FOOTER.feedback))?.trim() === 'Feedback', `${label}: "Feedback" at the foot of the page`);
+        await page.click(FOOTER.feedback);
         await page.waitForSelector('anotoki-dialog dialog[open] anotoki-feedback-form [data-send]', { timeout: 20000 });
         await page.waitForTimeout(300);
-        check((await page.textContent('anotoki-dialog dialog[open] .anotoki-dialog__title'))?.trim() === 'Send feedback', `${label}: in the family's dialog, its heading the form's title`);
+        check((await page.textContent('anotoki-dialog dialog[open] .anotoki-dialog__title'))?.trim() === 'Feedback', `${label}: in the kit's dialog, named by the footer's words`);
         const box = await page.$eval('anotoki-dialog dialog[open]', (dialog) => {
           const rect = dialog.getBoundingClientRect();
           return { left: rect.left, right: rect.right, screen: document.documentElement.clientWidth };
@@ -820,6 +846,7 @@ try {
         await page.keyboard.press('Escape');
         await page.waitForSelector('anotoki-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
         check(!(await page.$('anotoki-dialog dialog[open]')), `${label}: Escape closes it`);
+        check(await page.evaluate((button) => document.activeElement === document.querySelector(button), FOOTER.feedback), `${label}: the focus back on Feedback`);
         await context.close();
       }
     }
@@ -836,8 +863,9 @@ try {
       sk: { headings: { '/terms': 'Podmienky používania', '/privacy': 'Ochrana osobných údajov', '/contact': 'Kontakt' }, links: ['Podmienky', 'Súkromie', 'Kontakt'], signIn: 'Prihlásiť sa' },
     };
     // Every address a legal page of Piano Academy's may link to: the anotoki account's pages at the IAM the app signs in
-    // with, its own Contact page, the family's address and operator, the authority, Cloudflare (core/legal/legal-facts.ts).
-    const ADDRESSES = [`${IAM}/account`, `${IAM}/privacy`, '/contact', 'mailto:support@anotoki.eu', 'https://codehero.sk', 'https://dataprotection.gov.sk/', 'https://www.cloudflare.com/privacypolicy/'];
+    // with, its own Contact page, the family's address and operator, the authority, the hosting company (WebSupport,
+    // named by the owner on 2026-10-18) and Cloudflare (core/legal/legal-facts.ts).
+    const ADDRESSES = [`${IAM}/account`, `${IAM}/privacy`, '/contact', 'mailto:support@anotoki.eu', 'https://codehero.sk', 'https://dataprotection.gov.sk/', 'https://www.websupport.sk', 'https://www.cloudflare.com/privacypolicy/'];
     const attribute = (page, selector, name) => page.getAttribute(selector, name, { timeout: 5000 }).catch(() => null);
     for (const language of ['en', 'sk']) {
       for (const scheme of ['light', 'dark']) {
@@ -885,7 +913,7 @@ try {
               check(links.every((href) => href.startsWith('#') || ADDRESSES.includes(href)), `${where}: every link where the code says`, links);
               if (language === 'en') {
                 const recipients = await page.$$eval('[data-recipient] .anotoki-legal-page__item-name', (all) => all.map((name) => name.textContent.trim()));
-                check(JSON.stringify(recipients) === JSON.stringify(['The hosting company (to be named)', 'Cloudflare, Inc.']), `${where}: who else handles data - the hosting company (to be named), Cloudflare`, recipients);
+                check(JSON.stringify(recipients) === JSON.stringify(['WebSupport s.r.o.', 'Cloudflare, Inc.']), `${where}: who else handles data - the hosting company (WebSupport s.r.o.), Cloudflare`, recipients);
               }
             }
             if (address === '/contact') {
@@ -909,7 +937,7 @@ try {
           }
           // Contact's "Send feedback": the family's form in the kit's dialog, for anybody - nothing sent here.
           if (scheme === 'light') {
-            await page.click('[data-open-feedback]');
+            await page.click('#view-root [data-section="feedback"] [data-open-feedback]');
             await page.waitForSelector('anotoki-dialog dialog[open] anotoki-feedback-form [data-send]', { timeout: 20000 });
             await page.waitForTimeout(300);
             const box = await page.$eval('anotoki-dialog dialog[open]', (dialog) => {
@@ -922,9 +950,30 @@ try {
             await page.waitForSelector('anotoki-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
             check(!(await page.$('anotoki-dialog dialog[open]')), `${label}: Escape closes it`);
           }
+          // Nobody signed in sends a message from the footer's Feedback: the server takes anybody's, and the message
+          // says it is nobody's (core/site-admin.ts's feedbackSenderInterceptor) - sent with no token, thanked, nobody
+          // sent to sign in, the page kept. Left to the family's interceptor it was a person's, never sent.
+          if (language === 'en' && scheme === 'light' && width === 1280) {
+            const before = Number(fromTheDatabase('SELECT count(*) AS n FROM anotoki_feedback')[0].n);
+            const form = 'anotoki-dialog dialog[open] anotoki-feedback-form';
+            await page.click(FOOTER.feedback);
+            await page.waitForSelector(`${form} [data-send]`, { timeout: 20000 });
+            await page.fill(`${form} [data-message] textarea`, 'Sent from Contact by somebody not signed in.');
+            const sent = page.waitForResponse((response) => response.url().endsWith('/api/feedback') && response.request().method() === 'POST', { timeout: 10000 });
+            await page.click(`${form} [data-send]`);
+            const answer = await sent;
+            check(answer.status() === 201 && !answer.request().headers()['authorization'], `${label}: nobody signed in sends a message from the footer's Feedback - kept (201), no token with it`, answer.status());
+            await page.waitForSelector(`${form} [data-thanks]`, { timeout: 10000 }).catch(() => undefined);
+            check(!!(await page.$(`${form} [data-thanks]`)) && new URL(page.url()).pathname === '/contact', `${label}: thanked, on the same page - nobody sent to sign in`, page.url());
+            await page.screenshot({ path: join(shots, `legal-${language}-${width}-footer-feedback-sent.png`) });
+            await page.keyboard.press('Escape');
+            await page.waitForSelector('anotoki-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
+            const kept = fromTheDatabase(`SELECT user_id, page FROM anotoki_feedback ORDER BY id OFFSET ${before}`);
+            check(kept.length === 1 && kept[0].user_id === null && kept[0].page === '/contact', `${label}: the server kept it, by nobody, from /contact`, kept);
+          }
           check(trips.length === 1 && !trips.some((url) => url.startsWith(IAM)), `${label}: one page load, never a trip to the IAM`, trips);
-          const learnerCalls = calls.filter((api) => !/^\/api\/(site-status|auth\/config|translations\/[a-z-]+|health)$/.test(api));
-          check(learnerCalls.length === 0, `${label}: no call for a learner's data - only where the site stands, the sign-in's settings and the words`, calls);
+          const learnerCalls = calls.filter((api) => !/^\/api\/(site-status|auth\/config|translations\/[a-z-]+|health|feedback)$/.test(api));
+          check(learnerCalls.length === 0, `${label}: no call for a learner's data - only where the site stands, the sign-in's settings, the words (and a message sent)`, calls);
           await context.close();
         }
       }
@@ -948,6 +997,76 @@ try {
     await page.waitForFunction(() => location.pathname === '/' && !!document.querySelector('#view-root app-home-page'), null, { timeout: 20000 }).catch(() => undefined);
     check(new URL(page.url()).pathname === '/' && !!(await page.$('#view-root app-home-page')), 'an address the app does not have: Learn', page.url());
     await context.close();
+  }
+
+  step(`The family's footer (@anotoki/lib/footer, the build analyzer's): under a learner's page and in the admin panel - 1280 and 390, light and dark, English and Slovak; What's new from it`);
+  {
+    // The library's words for it (anotoki.footer.*, its translations 012) and the legal links' (anotoki.legalLinks.*).
+    const WORDS = {
+      en: { row: [`Version ${VERSION}`, '·', 'What\'s new', '·', 'Feedback'], links: ['Terms', 'Privacy', 'Contact'] },
+      sk: { row: [`Verzia ${VERSION}`, '·', 'Čo je nové', '·', 'Spätná väzba'], links: ['Podmienky', 'Súkromie', 'Kontakt'] },
+    };
+    /** How the footer is drawn - the build analyzer's look: a line on top, 1.25rem 1rem 1.5rem round it, 13 px, centred, as wide as the window, under the page. */
+    const drawnAs = (page) =>
+      page.evaluate((selector) => {
+        const footer = document.querySelector(selector);
+        const style = getComputedStyle(footer);
+        const box = footer.getBoundingClientRect();
+        const main = document.querySelector('#view-root').getBoundingClientRect();
+        return {
+          border: `${style.borderTopWidth} ${style.borderTopStyle}`,
+          padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].join(' '),
+          size: style.fontSize,
+          align: style.textAlign,
+          wide: Math.round(box.left) === 0 && Math.round(box.right) === document.documentElement.clientWidth,
+          under: box.top >= main.bottom - 1,
+          scroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        };
+      }, FOOTER.footer);
+    const asTheBuildAnalyzer = (seen) => seen.border === '1px solid' && seen.padding === '20px 16px 24px 16px' && seen.size === '13px' && seen.align === 'center' && seen.wide && seen.under && seen.scroll;
+    for (const language of ['en', 'sk']) {
+      for (const scheme of ['light', 'dark']) {
+        for (const width of [1280, 390]) {
+          const label = `a learner's page, ${language} ${scheme} ${width}`;
+          const context = await newContext({ width, scheme });
+          const page = await signedIn(context, MIA, `/stats?lang=${language}`);
+          await page.waitForFunction((lang) => document.documentElement.lang === lang, language, { timeout: 10000 }).catch(() => undefined);
+          await page.waitForSelector(FOOTER.version, { timeout: 10000 }).catch(() => undefined);
+          check(JSON.stringify(await footerRow(page)) === JSON.stringify(WORDS[language].row), `${label}: "Version · What's new · Feedback" in the library's words`, await footerRow(page));
+          const links = await page.$$eval(`${LEGAL_LINKS} a`, (all) => all.map((a) => a.textContent.trim()));
+          check(JSON.stringify(links) === JSON.stringify(WORDS[language].links), `${label}: Terms · Privacy · Contact under it`, links);
+          check(asTheBuildAnalyzer(await drawnAs(page)), `${label}: the build analyzer's look, under the page, no sideways scroll`, await drawnAs(page));
+          check((await keysOnPage(page)).length === 0, `${label}: no key on the page`, await keysOnPage(page));
+          await page.screenshot({ path: join(shots, `footer-learner-${language}-${scheme}-${width}.png`), fullPage: true });
+          await page.locator('anotoki-site-footer').screenshot({ path: join(shots, `footer-only-learner-${language}-${scheme}-${width}.png`) });
+          if (language === 'en' && scheme === 'light' && width === 1280) {
+            // What's new: the app's own dialog, opened by the footer's What's new - and the focus back on it once it closes.
+            await page.click(FOOTER.whatsNew);
+            await page.waitForSelector('app-changelog-dialog dialog[open] .release', { timeout: 20000 });
+            check((await page.textContent('app-changelog-dialog .anotoki-dialog__title'))?.trim() === 'What\'s new', 'the footer\'s What\'s new opens the app\'s list of changes');
+            await page.keyboard.press('Escape');
+            await page.waitForSelector('app-changelog-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
+            check(await page.evaluate((button) => document.activeElement === document.querySelector(button), FOOTER.whatsNew), 'Escape closes it, the focus back on What\'s new');
+          }
+          await context.close();
+        }
+      }
+    }
+    // In the admin panel: the same footer, in English as the whole panel is.
+    for (const scheme of ['light', 'dark']) {
+      for (const width of [1280, 390]) {
+        const label = `the admin panel, ${scheme} ${width}`;
+        const context = await newContext({ width, scheme });
+        const page = await signedIn(context, ADA, '/admin/people?lang=sk');
+        await page.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
+        await page.waitForSelector(FOOTER.version, { timeout: 10000 }).catch(() => undefined);
+        check(JSON.stringify(await footerRow(page)) === JSON.stringify(WORDS.en.row), `${label}: the same row, in English - Slovak chosen`, await footerRow(page));
+        check(asTheBuildAnalyzer(await drawnAs(page)), `${label}: the same look`, await drawnAs(page));
+        await page.screenshot({ path: join(shots, `footer-admin-${scheme}-${width}.png`), fullPage: true });
+        await page.locator('anotoki-site-footer').screenshot({ path: join(shots, `footer-only-admin-${scheme}-${width}.png`) });
+        await context.close();
+      }
+    }
   }
 
   step(`The family's admin pages (ADMIN, English): People, Feedback (how many are new, in the bar), Error log, Audit log, Backups - light and dark, ${DESKTOP} and 390`);
@@ -997,7 +1116,8 @@ try {
     }
     await page.setViewportSize({ width: DESKTOP, height: 900 });
     await page.waitForTimeout(150);
-    await page.click('[data-messages] [data-message]');
+    // mia's message from the feedback form's tour (the newest may be the one somebody not signed in sent from Contact).
+    await page.locator('[data-messages] [data-message]', { hasText: 'lovely' }).first().click();
     await page.waitForSelector('[data-viewer]', { timeout: 10000 });
     check((await page.textContent('[data-viewer]'))?.includes('lovely'), 'a message opened: its words, as text', (await page.textContent('[data-viewer]'))?.slice(0, 200));
     await page.screenshot({ path: join(shots, `admin-feedback-message-${DESKTOP}.png`) });
@@ -1411,8 +1531,8 @@ try {
     check((await page.evaluate(() => localStorage.getItem('piano-academy:theme'))) === 'dark', 'kept for the next first paint (theme-boot.js)');
     const whens = await page.$$eval('#view-root tbody tr td:first-child', (cells) => cells.map((cell) => cell.textContent.trim()));
     check(whens.every((when) => /^\d{1,2}\.\d{1,2}\.\d{4} \d{1,2}:\d{2} [ap]m$/.test(when)), 'Stats: when each round was played, in the account’s order and on its clock', whens);
-    // What's new: its code loaded only once the footer's version is pressed (the dialog drawn when it arrives).
-    await page.click('#app-version');
+    // What's new: its code loaded only once the footer's What's new is pressed (the dialog drawn when it arrives).
+    await page.click(FOOTER.whatsNew);
     await page.waitForSelector('.release-date', { timeout: 20000 });
     const [year, month, day] = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0].date.split('-').map(Number);
     check((await page.textContent('.release-date'))?.trim() === `${day}.${month}.${year}`, 'What’s new: the release day in the account’s order', await page.textContent('.release-date'));
@@ -1538,16 +1658,20 @@ try {
     check(JSON.stringify(shown.controls) === JSON.stringify(['Sign in']) && shown.links.length === 0, 'nothing to press but a quiet Sign in: no setup page, no Migrations, no error', shown);
     check(!learnerSeen.navigations.some((url) => url.startsWith(IAM)), 'nobody is sent to the IAM while the site is being updated', learnerSeen.navigations);
     check(learnerSeen.answers.every((answer) => answer.startsWith('200 ') || answer.startsWith('304 ')), 'and nothing the page asked failed (where the site stands, the sign-in\'s settings, the words)', learnerSeen.answers);
-    check(!(await learner.$(`app-load-error, ${FAILURE}, #signed-out-banner`)) && !(await learner.$(BAR.nav)), 'no error card, no failure\'s screen, no banner, no sections in the bar');
+    check(!(await learner.$(`app-load-error, ${FAILURE}, #signed-out-banner`)), 'no error card, no failure\'s screen, no banner');
+    const alone = await standsAlone(learner);
+    check(alone.status && alone.frame.length === 0 && alone.mains === 1, 'the status page alone: no bar, no section, no footer - the gate\'s own <main> its one landmark', alone);
     await learner.screenshot({ path: join(shots, `behind-signed-out-${DESKTOP}.png`), fullPage: true });
 
-    // Signing in works meanwhile: to the IAM and back to the page it started from - still being updated, now with nothing to press.
+    // Signing in works meanwhile: to the IAM and back to the page it started from - still being updated, now with
+    // nothing to press (and still no bar to name anybody in: the session is the family's client's, in this browser).
     await learner.click('anotoki-site-status button');
-    await learner.waitForSelector(BAR.signedIn, { timeout: 20000 });
+    await learner.waitForFunction(() => location.pathname === '/stats' && !!document.querySelector('anotoki-site-status section') && !document.querySelector('anotoki-site-status section button'), null, { timeout: 20000 }).catch(() => undefined);
     check(learnerSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(learner.url()).pathname === '/stats', 'its Sign in: to the IAM and back to /stats', learnerSeen.navigations);
-    check((await learner.textContent(BAR.name)) === 'mia', 'signed in as the learner, named in the bar');
+    check(await learner.evaluate(() => !!localStorage.getItem('anotoki-auth:piano-academy')), 'signed in as the learner (the family\'s session in this browser)');
     shown = await siteStatus(learner);
     check(shown?.title === 'The site is being updated' && shown.controls.length === 0, 'a learner signed in: still being updated, nothing to press', shown);
+    check((await standsAlone(learner)).frame.length === 0, 'signed in too: no bar, no footer', await standsAlone(learner));
     await learner.screenshot({ path: join(shots, `behind-learner-${DESKTOP}.png`), fullPage: true });
     // The Migrations page is not a learner's: the same status page on its address, and nothing of it drawn.
     await learner.goto(`${APP}/admin/migrations`);
@@ -1571,6 +1695,27 @@ try {
     await slovak.screenshot({ path: join(shots, 'behind-sk-390.png'), fullPage: true });
     await slovakContext.close();
 
+    // The status page alone (the owner's rule of 2026-10-18: no header, no footer) - at 1280 and 390, light and dark,
+    // English and Slovak.
+    for (const language of ['en', 'sk']) {
+      for (const scheme of ['light', 'dark']) {
+        for (const width of [1280, 390]) {
+          const label = `the status page, ${language} ${scheme} ${width}`;
+          const lookContext = await newContext({ width, scheme });
+          const look = await lookContext.newPage();
+          await look.goto(`${APP}/stats?lang=${language}`);
+          await look.waitForSelector('anotoki-site-status section', { timeout: 20000 });
+          await look.waitForFunction((lang) => document.documentElement.lang === lang, language, { timeout: 10000 }).catch(() => undefined);
+          const seen = await standsAlone(look);
+          check(seen.status && seen.frame.length === 0 && seen.mains === 1, `${label}: alone - no bar, no footer, one <main>`, seen);
+          check((await siteStatus(look))?.title === (language === 'en' ? 'The site is being updated' : 'Stránku práve aktualizujeme'), `${label}: in its language`, await siteStatus(look));
+          check((await keysOnPage(look)).length === 0 && (await look.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)), `${label}: no key, no sideways scroll`, await keysOnPage(look));
+          await look.screenshot({ path: join(shots, `status-alone-${language}-${scheme}-${width}.png`), fullPage: true });
+          await lookContext.close();
+        }
+      }
+    }
+
     // The site's ADMIN, not signed in yet: the same page - its Sign in, and back to the same address as the ADMIN,
     // told in English that a database update is waiting, with the way to the Migrations page.
     await iamAs(ADA);
@@ -1581,12 +1726,11 @@ try {
     await page.waitForSelector('anotoki-site-status section', { timeout: 20000 });
     check(JSON.stringify((await siteStatus(page)).controls) === JSON.stringify(['Sign in']), 'an ADMIN not signed in yet: the same page, with Sign in', await siteStatus(page));
     await page.click('anotoki-site-status button');
-    await page.waitForSelector(BAR.signedIn, { timeout: 20000 });
-    await page.waitForFunction(() => document.querySelector('anotoki-site-status h1')?.textContent.trim() === 'A database update is waiting', null, { timeout: 10000 }).catch(() => undefined);
+    await page.waitForFunction(() => document.querySelector('anotoki-site-status h1')?.textContent.trim() === 'A database update is waiting', null, { timeout: 20000 }).catch(() => undefined);
     shown = await siteStatus(page);
     check(adminSeen.navigations.some((url) => url.startsWith(IAM)) && new URL(page.url()).pathname === '/', 'its Sign in: to the IAM and back to the same page', adminSeen.navigations);
     check(shown?.title === 'A database update is waiting' && shown.lang === 'en' && JSON.stringify(shown.controls) === JSON.stringify(['Open Migrations']), 'signed in, the site\'s ADMIN: "A database update is waiting", in English, with "Open Migrations"', shown);
-    check(!(await page.$(BAR.nav)), 'the bar: no sections outside the admin panel');
+    check((await standsAlone(page)).frame.length === 0, 'the ADMIN\'s status page alone too: no bar, no footer', await standsAlone(page));
     await page.screenshot({ path: join(shots, `behind-admin-${DESKTOP}.png`), fullPage: true });
     await page.click('anotoki-site-status a');
     await page.waitForSelector(`${MIGRATIONS} [data-pending] li`, { timeout: 20000 });
@@ -1594,6 +1738,7 @@ try {
     const pending = await page.$$eval(`${MIGRATIONS} [data-pending] li`, (all) => all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('anotoki-badge').textContent.trim()}`));
     check(JSON.stringify(pending) === JSON.stringify(['005_visitors.sql pending']), 'Pending: 005', pending);
     check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Migrations', 'the bar: Migrations alone while the database is behind');
+    check(!!(await page.$(FOOTER.footer)) && (await page.$$('main')).length === 1, 'the one page that runs meanwhile is in the frame: the bar and the footer, one <main>');
     await page.screenshot({ path: join(shots, `migrations-behind-${DESKTOP}.png`), fullPage: true });
 
     // An Apply that fails: users.visitor_key_hash made a text, so 005's gate refuses - the page shows what PostgreSQL said.
@@ -1681,6 +1826,8 @@ try {
       const never = await siteStatus(page);
       check(never.title === 'This site is not set up yet' && JSON.stringify(never.controls) === JSON.stringify(['Open the setup page', 'Try again']) && JSON.stringify(never.links) === JSON.stringify(['/setup.php']), 'never installed: "This site is not set up yet", the setup page and Try again', never);
       check(!navigations.some((url) => url.startsWith(IAM)) && (await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)), 'nobody sent to the IAM; at 390 no sideways scroll', navigations);
+      const alone = await standsAlone(page);
+      check(alone.status && alone.frame.length === 0 && alone.mains === 1, 'not set up: the status page alone - no bar, no footer', alone);
       await page.screenshot({ path: join(shots, 'not-set-up-390.png'), fullPage: true });
 
       // Installed once: nobody is offered the setup page again - the site is "not available right now".

@@ -338,6 +338,40 @@ the sign-in's storage; 011 runs after 012 in the same Apply, 005 to 011
 now). No line in What's new (0.4.0 already has the legal pages); no
 migration of Piano's.
 
+**2026-10-18, after the deploy: the anotoki sites' one footer, the status
+page alone - `anotoki-lib` 0.6.3** (both halves; the owner's choices of
+2026-10-18, `docs/decisions.md`). The foot of every page, the admin panel's
+too, is the family's footer (`<anotoki-site-footer>`, `@anotoki/lib/footer`,
+the build analyzer's): a top border, "Version 0.4.0 · What's new ·
+Feedback" - the version and What's new once `changelog.json` came (its
+newest entry the version: one source), What's new opening Piano's own
+dialog on `(whatsNew)`, Feedback the family's form in the kit's dialog,
+which the footer loads with the press - then Terms · Privacy · Contact; its
+words the library's (`anotoki.footer.*`). Piano's own footer,
+`ui/feedback-dialog` and its one word (`footer.whatsNew`, migration **013**,
+which also tells `whatsNew.title`'s description of the new footer) are
+gone. **The gate is the outermost of the shell**: the bar, the notes, the
+page's `<main>` and the footer are its marked template, so while the site is
+not ready the family's status page stands alone in the gate's own `<main>` -
+no bar, no footer (the owner's rule); an ADMIN's Migrations page has the
+frame. **The feedback form's message says whom it is for**
+(`feedbackSenderInterceptor`, `core/site-admin.ts`, before the family's
+interceptor in `SITE_INTERCEPTORS`, `app.config.ts`): the person's while
+somebody is signed in, nobody's otherwise - the server takes anybody's; the
+form says nothing itself, and the family's interceptor took it for a
+person's and never sent it for somebody signed out. **A present
+`config/cloudflare.local.php` without a usable secret
+fails closed** (the owner's "do as you think is the best"; the build
+analyzer's and the survey's rule too): one read cleanly that names none -
+blank, no array, a misspelt or another key, a value that is not a string -,
+a folder in its place, as one that cannot be read cleanly: a secret no
+request carries; only deleting the file switches the secret off. The web
+root's `.htaccess` lets the host check run (`host-check.php`, by its exact
+name, while it is there). The library's translations 012 (the footer's
+words, 261 `anotoki.*` keys) runs after 013 in the same Apply. In What's
+new's 0.4.0: the footer, and "Feedback". The first load is 558.1 kB
+(549.4 before): over its 550 kB warning - the owner's call.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -405,8 +439,10 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   True-Client-IP or X-Forwarded-For - and, with the origin secret
   (`config/cloudflare.local.php`, optional, by hand), only on a request that
   carries it in `X-Anotoki-Origin` (any other from Cloudflare counts as its
-  edge; a file there that cannot be read cleanly is a secret no request
-  carries - fails closed, said once a day, never its text), an IPv6 /64 as one; `visitor_starts`
+  edge; a file there that yields no usable secret - one that cannot be read
+  cleanly, or names none - is a secret no request carries: fails closed,
+  said once a day, never its text; only deleting the file switches the
+  secret off), an IPv6 /64 as one; `visitor_starts`
   keeps a keyed hash of it, a pseudonym, never the address itself), in all
   and per visitor (`config/visitors.local.php`, optional, never written by
   setup - it may name other proxies, or none, never a catch-all); visitors
@@ -521,9 +557,12 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `TranslationsRoutes::openPath()`), `/api/health`,
   `/api/admin/migrations...` - so somebody can sign in, the pages have their
   words and an ADMIN reaches Apply. In the browser `<anotoki-site-gate>` -
-  the shell's view its marked template (`<ng-template anotokiSitePages>`),
-  made only while the gate shows it, so no page runs behind it - draws the
-  status page then: "The site is being updated" for visitors and learners
+  the outermost of the shell, its whole frame (the bar, the notes, the
+  page's `<main>`, the footer) the marked template (`<ng-template
+  anotokiSitePages>`), made only while the gate shows it, so no page runs
+  behind it - draws the status page alone then, in its own `<main>` with no
+  bar and no footer (the owner's rule of 2026-10-18; an ADMIN's Migrations
+  page keeps the frame): "The site is being updated" for visitors and learners
   (their language, a quiet Sign in for nobody, a reload once the site is
   back), "A database update is waiting" for the site's ADMIN, who has the
   admin panel's **Migrations** page (`/admin/migrations`, the family's
@@ -577,7 +616,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   highlighted one too -, an alert, a badge, a chip, a field, a select, a
   dialog, the spinner, an error state, stat tiles, step dots, the table
   styles and their number columns, the bar, a menu, a popover, a question,
-  an icon, the legal pages and links) it is the family's, as the family
+  an icon, the legal pages and links, the footer) it is the family's, as the family
   draws it - a site gives its colours, never its own look to a kit
   component; what the kit lacks and is Piano's alone (the path's phases and
   units, the practice screens, the meet step's count of plays, the keyboard,
@@ -608,10 +647,18 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   English (`TranslationService.effectiveLanguage`), with no chooser and no
   piano, and "Back to Piano Academy"; an ADMIN's "Feedback" there carries
   how many messages are new (the family's `FeedbackUnread`).
-  The footer has "Send feedback" (the family's form in a dialog, its code
-  loaded when it opens: `ui/feedback-dialog`), the version (What's new, its
-  code loaded when it opens) and the family's Terms · Privacy · Contact
-  (`<anotoki-legal-links>`, the open page's marked).
+  **One footer, the anotoki family's** (`<anotoki-site-footer>`,
+  `@anotoki/lib/footer` - the build analyzer's, the owner's choice of
+  2026-10-18), under every page and the admin panel's: a top border,
+  "Version 0.4.0 · What's new · Feedback" (the version and What's new once
+  `changelog.json` came - its newest entry the version, one source; What's
+  new opens Piano's own dialog, `ui/changelog-dialog`, on `(whatsNew)`, in a
+  `@defer`; Feedback the family's form in the kit's dialog, whose code the
+  footer loads with the press - its message the person's while somebody is
+  signed in, nobody's otherwise: `feedbackSenderInterceptor`, as the server
+  takes anybody's), then Terms · Privacy · Contact (the open
+  page's marked); its words the library's (`anotoki.footer.*`; English in the
+  admin panel). Never round the status page.
 - **Terms, Privacy and Contact are the family's pages with Piano's facts**
   (`@anotoki/lib/legal/pages`, lazy; `core/legal/legal-facts.ts`, given by
   the frame `layouts/legal-layout`): each page a path of its own with the
@@ -634,7 +681,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the staff's to write (`/api/admin/...`). `setup.php` stays parseable by
   PHP 7.4 (it must be able to say "PHP is too old"); the rest needs 8.2.
 - **The app's words live in the database** (`languages`, `translation_keys`,
-  `translations`; migrations 002 to 012, then the library's set
+  `translations`; migrations 002 to 013, then the library's set
   `anotoki_translations`) and are edited in the browser, on the admin panel's
   Translations and Languages pages (the family's, from
   `@anotoki/lib/translations/admin`; English, not translated; EDITOR rewords,
@@ -677,9 +724,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.6.2 - PHP `anotoki/lib` (`^0.6.0`, Composer's VCS repository on GitHub,
+  0.6.3 - PHP `anotoki/lib` (`^0.6.0`, Composer's VCS repository on GitHub,
   committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.6.2 tarball, in both lock files). Never
+  v0.6.3 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry
@@ -688,9 +735,10 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `@anotoki/lib/ui` barrel, which would put the whole kit in the first load),
   and a spec reads the kit's markup by the kit's own class names
   (`anotoki-<component>__<part>`, `--<state>`). Its components take this app's colours from the
-  `--anotoki-*` tokens `styles.scss` writes (`anotoki.root()`); its gate
-  takes the shell's view as the template marked `anotokiSitePages` (content
-  given as it is would be made behind the status page too).
+  `--anotoki-*` tokens `styles.scss` writes (`anotoki.root()`); its gate,
+  the outermost of the shell, takes the shell's whole frame as the template
+  marked `anotokiSitePages` (content given as it is would be made behind the
+  status page too; the frame beside the gate would stand round it).
 - No piano in dev: dispatch `noteon` on `window.pianoMIDI`; read the staff via
   `.vf-stavenote[data-midi]`; `window.pianoPlayer.expectedTimes` for runs in
   time. `playwright-core` with Edge (`channel: 'msedge'`) works on this
