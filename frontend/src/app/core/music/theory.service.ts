@@ -25,10 +25,21 @@ export class TheoryService {
    * extension point for later.
    */
   readonly curriculum: readonly number[] = [
-    60, 62, 64, 67, 65, 69, // C4 D4 E4 G4 F4 A4 - right hand, in the order the path's songs need them
-    71, 72, // B4 C5 - the right hand upwards
-    48, 50, 52, 53, 55, // C3 D3 E3 F3 G3 - left hand, five-finger position
-    57, 59, // A3 B3 - the gap below Middle C
+    60,
+    62,
+    64,
+    67,
+    65,
+    69, // C4 D4 E4 G4 F4 A4 - right hand, in the order the path's songs need them
+    71,
+    72, // B4 C5 - the right hand upwards
+    48,
+    50,
+    52,
+    53,
+    55, // C3 D3 E3 F3 G3 - left hand, five-finger position
+    57,
+    59, // A3 B3 - the gap below Middle C
   ];
 
   /** 60 -> "C4". */

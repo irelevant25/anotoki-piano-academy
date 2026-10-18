@@ -1,6 +1,6 @@
 <div class="practice">
-    <p class="lesson-instruction">{{ 'drill.instruction' | translate }}</p>
-    <p class="drill-progress" id="dr-progress">{{ 'drill.progress' | translate: { position: index() + 1, total: length, correct: correctCount() } }}</p>
+    <p class="lesson-instruction">{{ "drill.instruction" | translate }}</p>
+    <p class="drill-progress" id="dr-progress">{{ "drill.progress" | translate: { position: index() + 1, total: length, correct: correctCount() } }}</p>
     <app-notation id="dr-notation" [center]="true" />
     <p class="feedback" id="dr-feedback" [class.feedback--correct]="feedback().kind === 'correct'" [class.feedback--incorrect]="feedback().kind === 'incorrect'" role="status">
         @if (feedback().key; as key) {

@@ -128,7 +128,7 @@ class Screen {
  * whose words. The bar's own behaviour (its menus, keys and fold) is the library's, tested there; what is
  * checked of it here is that it holds with Piano's words and widgets in it.
  */
-describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
+describe("TopBarComponent: Piano Academy in the family's one bar", () => {
   let fixture: ComponentFixture<TopBarComponent>;
   let host: HTMLElement;
   let router: Router;
@@ -275,7 +275,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
   }
 
   describe('on a wide screen', () => {
-    it('is one row in the family\'s order: brand, sections, the piano, language, theme, the person', async () => {
+    it("is one row in the family's order: brand, sections, the piano, language, theme, the person", async () => {
       await bar();
       expect(row()).toEqual(['anotoki-brand', 'nav', 'app-midi-panel', 'anotoki-language-switcher', 'anotoki-theme-toggle', 'person-button']);
       expect($('.anotoki-brand__brand')?.getAttribute('href')).toBe('/');
@@ -287,7 +287,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(asked).toContain(`(max-width: ${PHONE_BAR_MAX}px)`);
     });
 
-    it('lights the section the page is in - a lesson under Learn, a song under Songs - and marks the page\'s own link', async () => {
+    it("lights the section the page is in - a lesson under Learn, a song under Songs - and marks the page's own link", async () => {
       await bar({ at: '/lesson/rh-1/drill' });
       const active = (): string[] => texts('nav a.anotoki-top-bar__link--active');
       const current = (): string[] => texts('nav a[aria-current="page"]');
@@ -324,7 +324,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect($('.anotoki-top-bar__menu-note span')?.textContent).toBe('Some of your progress is not on the server yet. The app keeps trying.');
     });
 
-    it('the person\'s menu: name, address, role; their account (a new tab), the admin panel for the staff, Sign out', async () => {
+    it("the person's menu: name, address, role; their account (a new tab), the admin panel for the staff, Sign out", async () => {
       person.set({ name: 'mia', roles: ['ADMIN'], email: 'mia@example.com' });
       await bar();
       expect($('.anotoki-top-bar__person-button')?.getAttribute('aria-label')).toBe('Your menu: mia');
@@ -358,7 +358,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       }
     });
 
-    it('the way into the admin panel only while the site is ready: an update waiting, the family\'s page links to Migrations', async () => {
+    it("the way into the admin panel only while the site is ready: an update waiting, the family's page links to Migrations", async () => {
       person.set({ name: 'mia', roles: ['ADMIN'] });
       await bar();
       TestBed.inject(SiteStatus).report('update_pending');
@@ -374,7 +374,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(texts('anotoki-menu [role="menuitem"]')).toEqual(['Your anotoki account', 'Back to Piano Academy', 'Sign out']);
     });
 
-    it('names somebody whose token names nobody in the app\'s words, and gives no e-mail that is the name itself', async () => {
+    it("names somebody whose token names nobody in the app's words, and gives no e-mail that is the name itself", async () => {
       person.set({ name: null, roles: [] });
       await bar();
       expect($('.anotoki-top-bar__person-name')?.textContent).toBe('Signed in');
@@ -421,7 +421,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
     });
   });
 
-  describe('the menus\' keys and focus (the family\'s menus, with Piano\'s items)', () => {
+  describe("the menus' keys and focus (the family's menus, with Piano's items)", () => {
     it('opens into its first item; arrows move round it; Escape closes it onto its button', async () => {
       await bar();
       const button = await open('account');
@@ -437,7 +437,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(document.activeElement).toBe(button);
     });
 
-    it('Tab and Shift+Tab from the first, a middle and the last item: the browser\'s step is stopped, the menu closed, the focus on the menu button - never <body>', async () => {
+    it("Tab and Shift+Tab from the first, a middle and the last item: the browser's step is stopped, the menu closed, the focus on the menu button - never <body>", async () => {
       person.set({ name: 'mia', roles: ['ADMIN'] });
       await bar();
       for (const shift of [false, true]) {
@@ -535,7 +535,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(texts('anotoki-menu [role="menuitem"]').slice(-1)).toEqual(['Sign out']);
     });
 
-    it('a screen turned past the fold closes the open menu, and the desktop\'s row comes', async () => {
+    it("a screen turned past the fold closes the open menu, and the desktop's row comes", async () => {
       await bar({ phone: true });
       await open('phone');
       screen.turn(false);
@@ -577,12 +577,16 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       }
     }
 
-    it('reads the learner\'s language - the family\'s words in this app\'s strings - and English in the admin panel, with its own sections, no chooser and no piano', async () => {
+    it("reads the learner's language - the family's words in this app's strings - and English in the admin panel, with its own sections, no chooser and no piano", async () => {
       await bar({ language: 'sk' });
       expect(texts('nav a')).toEqual(['Učenie', 'Tréning nôt', 'Hra z nôt', 'Skladby', 'Štatistiky']);
       expect($('.anotoki-top-bar__person-button')?.getAttribute('aria-label')).toBe('Tvoja ponuka: mia');
       expect($('.anotoki-language-switcher__switcher')?.getAttribute('aria-label')).toBe('Jazyk: Slovenčina (SK)');
-      expect(Array.from(host.querySelectorAll('anotoki-theme-toggle [role="radio"]')).map((choice) => choice.getAttribute('aria-label'))).toEqual(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']);
+      expect(Array.from(host.querySelectorAll('anotoki-theme-toggle [role="radio"]')).map((choice) => choice.getAttribute('aria-label'))).toEqual([
+        'Vzhľad: svetlý',
+        'Vzhľad: tmavý',
+        'Vzhľad: systémový',
+      ]);
       person.set({ name: 'mia', roles: ['ADMIN'] });
       await fixture.whenStable();
       await open('account');
@@ -682,7 +686,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       }
     });
 
-    it('an update that comes in the middle of practising: the sections go while the status page stands in the view\'s place - and come back with the site', async () => {
+    it("an update that comes in the middle of practising: the sections go while the status page stands in the view's place - and come back with the site", async () => {
       await bar({ at: '/trainer' });
       expect(texts('nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
       const site = TestBed.inject(SiteStatus);
@@ -694,7 +698,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(texts('nav a')).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
     });
 
-    it('the admin panel\'s sections by role: an EDITOR has Translations alone, somebody with no role none', async () => {
+    it("the admin panel's sections by role: an EDITOR has Translations alone, somebody with no role none", async () => {
       person.set({ name: 'ed', roles: ['EDITOR'] });
       await bar({ at: '/admin/translations' });
       expect(texts('nav a')).toEqual(['Translations']);
@@ -728,7 +732,7 @@ describe('TopBarComponent: Piano Academy in the family\'s one bar', () => {
       expect(boot.signOut).toHaveBeenCalledTimes(1);
     });
 
-    it('asks in the learner\'s language when progress would be lost - the safe answer first - and stays signed in on no', async () => {
+    it("asks in the learner's language when progress would be lost - the safe answer first - and stays signed in on no", async () => {
       await bar({ language: 'sk' });
       await open('account');
       signOutItem().click();

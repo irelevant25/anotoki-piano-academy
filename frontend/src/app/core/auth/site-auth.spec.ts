@@ -12,7 +12,7 @@ import { provideTestAuth } from '../testing/test-auth';
 import { CALLBACK_PATH, SIGN_IN_FAILED_ROUTE, VISITOR_PREFIXES, provideSiteAuth } from './site-auth';
 import { VisitorKey } from './visitor-key';
 
-describe('the family\'s sign-in as this app sets it up (core/auth/site-auth.ts)', () => {
+describe("the family's sign-in as this app sets it up (core/auth/site-auth.ts)", () => {
   const boot = { beforeSignIn: vi.fn(async () => true) };
 
   /** The module's configuration as the app gives it - with these words, and the start as a stand-in. */
@@ -27,14 +27,14 @@ describe('the family\'s sign-in as this app sets it up (core/auth/site-auth.ts)'
 
   beforeEach(() => boot.beforeSignIn.mockClear());
 
-  it('reads the backend\'s settings, comes back to this app\'s callback, says a failure on a route of its own - and never signs anybody in by the IAM\'s hint', () => {
+  it("reads the backend's settings, comes back to this app's callback, says a failure on a route of its own - and never signs anybody in by the IAM's hint", () => {
     const config = configured();
     expect(config.config).toBe('/api/auth/config');
     expect([config.redirectPath, config.failureRoute, config.hint]).toEqual([CALLBACK_PATH, SIGN_IN_FAILED_ROUTE, false]);
     expect([CALLBACK_PATH, SIGN_IN_FAILED_ROUTE]).toEqual(['/auth/callback', '/sign-in-failed']);
   });
 
-  it('sends a visitor\'s key on the progress routes alone - from this app\'s VisitorKey', () => {
+  it("sends a visitor's key on the progress routes alone - from this app's VisitorKey", () => {
     const config = configured();
     expect(config.api?.visitorPrefixes).toEqual(['/api/state', '/api/progress', '/api/path', '/api/sessions']);
     expect(VISITOR_PREFIXES).toEqual(config.api?.visitorPrefixes);
@@ -45,14 +45,14 @@ describe('the family\'s sign-in as this app sets it up (core/auth/site-auth.ts)'
     expect(config.makesVisitor).toBeUndefined();
   });
 
-  it('opens the IAM\'s pages in the language read here - one that came with a bundle, never the kept English nobody chose', () => {
+  it("opens the IAM's pages in the language read here - one that came with a bundle, never the kept English nobody chose", () => {
     expect(configured([provideTestTranslations({}, { language: 'sk' })]).language?.()).toBe('sk');
     expect(configured([provideTestTranslations({})]).language?.()).toBe('en');
     // No bundle at all (the backend out of reach, a database without its words): nothing to name.
     expect(configured([provideSiteTranslations()]).language?.()).toBeUndefined();
   });
 
-  it('words a failure in this app\'s own sentences while there is no bundle, and in the database\'s with one - an owner\'s rewording too', () => {
+  it("words a failure in this app's own sentences while there is no bundle, and in the database's with one - an owner's rewording too", () => {
     const bare = configured([provideSiteTranslations()]);
     expect(bare.translate?.('anotoki.signIn.notCompleted')).toBe(KEPT_LIBRARY_ENGLISH['anotoki.signIn.notCompleted']);
     const words = signInWords(bare.language?.(), bare.words, bare.translate).words;
@@ -71,7 +71,7 @@ describe('the family\'s sign-in as this app sets it up (core/auth/site-auth.ts)'
     expect(failureText('access_denied', slovak.words)).toBe('Prihlásenie sa nedokončilo - skús to znova.');
   });
 
-  it('asks the start before the browser leaves for the IAM (a visitor\'s saves arrive first) - whoever starts the sign-in', async () => {
+  it("asks the start before the browser leaves for the IAM (a visitor's saves arrive first) - whoever starts the sign-in", async () => {
     const config = configured();
     expect(await config.beforeSignIn?.()).toBe(true);
     expect(boot.beforeSignIn).toHaveBeenCalledTimes(1);

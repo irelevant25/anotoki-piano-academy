@@ -9,12 +9,12 @@
             <div class="notes">
                 @if (signedOutBanner()) {
                     <anotoki-alert id="signed-out-banner" tone="warning" announce>
-                        <span>{{ 'account.signedOutBanner' | translate }}</span>
+                        <span>{{ "account.signedOutBanner" | translate }}</span>
                         @if (signInWhy()) {
                             <span class="note-more" id="signed-out-why">{{ signInWhy() }}</span>
                         }
                         <div alertActions>
-                            <button anotokiButton variant="primary" size="sm" id="signed-out-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                            <button anotokiButton variant="primary" size="sm" id="signed-out-sign-in" (click)="boot.signIn()">{{ "signIn.button" | translate }}</button>
                         </div>
                     </anotoki-alert>
                 }
@@ -24,7 +24,7 @@
                     <anotoki-alert id="visitor-sign-in-now" tone="warning" announce>
                         <span>{{ words.signInNow | translate }}</span>
                         <div alertActions>
-                            <button anotokiButton variant="primary" size="sm" id="visitor-sign-in-now-button" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                            <button anotokiButton variant="primary" size="sm" id="visitor-sign-in-now-button" (click)="boot.signIn()">{{ "signIn.button" | translate }}</button>
                         </div>
                     </anotoki-alert>
                 }
@@ -43,7 +43,7 @@
                         <span>{{ refusal | translate }}</span>
                         @if (!visitorSignInNow()) {
                             <div alertActions>
-                                <button anotokiButton variant="primary" size="sm" id="visitor-refused-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                                <button anotokiButton variant="primary" size="sm" id="visitor-refused-sign-in" (click)="boot.signIn()">{{ "signIn.button" | translate }}</button>
                             </div>
                         }
                     </anotoki-alert>
@@ -81,9 +81,9 @@
 
                 @if (store.changedElsewhere()) {
                     <anotoki-alert id="progress-changed" tone="info" announce="polite">
-                        <span>{{ 'progressChanged.text' | translate }}</span>
+                        <span>{{ "progressChanged.text" | translate }}</span>
                         <div alertActions>
-                            <button anotokiButton size="sm" id="progress-changed-close" (click)="store.changedElsewhere.set(false)">{{ 'progressChanged.close' | translate }}</button>
+                            <button anotokiButton size="sm" id="progress-changed-close" (click)="store.changedElsewhere.set(false)">{{ "progressChanged.close" | translate }}</button>
                         </div>
                     </anotoki-alert>
                 }
@@ -92,7 +92,7 @@
                     <anotoki-alert id="visitor-notice" tone="info">
                         <span>{{ words.notice | translate: { days: keepDays } }}</span>
                         <div alertActions>
-                            <button anotokiButton variant="primary" size="sm" id="visitor-notice-sign-in" (click)="boot.signIn()">{{ 'signIn.button' | translate }}</button>
+                            <button anotokiButton variant="primary" size="sm" id="visitor-notice-sign-in" (click)="boot.signIn()">{{ "signIn.button" | translate }}</button>
                         </div>
                     </anotoki-alert>
                 }
@@ -106,7 +106,7 @@
             } @else {
                 <!-- Nobody signed in ('sign-in'): the family's guard is on its way to the IAM - or, after a sign-in that came back without one, to the screen that says why (/sign-in-failed, drawn above). -->
                 @switch (boot.status()) {
-                    @case ('load-error') {
+                    @case ("load-error") {
                         <app-load-error />
                     }
                     @default {

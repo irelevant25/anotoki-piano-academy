@@ -21,8 +21,7 @@ describe('ProgressStore', () => {
   let note: (midi: number) => NoteState;
 
   /** GET /api/state, answered with these documents and this generation. */
-  const answerState = (generation: number, progress: Record<string, NoteState> = {}): void =>
-    http.expectOne('/api/state').flush({ progress, sessions: [], path: { steps: {} }, generation });
+  const answerState = (generation: number, progress: Record<string, NoteState> = {}): void => http.expectOne('/api/state').flush({ progress, sessions: [], path: { steps: {} }, generation });
 
   beforeEach(async () => {
     vi.useFakeTimers();
@@ -92,10 +91,9 @@ describe('ProgressStore', () => {
   it('a save refused as progress_changed is never sent again: the progress is loaded again, and the store says why', async () => {
     const saving = store.updateNote(60, () => note(60)).catch(() => 'refused');
     await settle();
-    http.expectOne('/api/progress').flush(
-      { error: 'Your progress was replaced or deleted after this page loaded it.', code: 'progress_changed', generation: 2 },
-      { status: 409, statusText: 'Conflict' },
-    );
+    http
+      .expectOne('/api/progress')
+      .flush({ error: 'Your progress was replaced or deleted after this page loaded it.', code: 'progress_changed', generation: 2 }, { status: 409, statusText: 'Conflict' });
     expect(await saving).toBe('refused');
     await settle();
 
@@ -356,7 +354,6 @@ describe('ProgressStore on a visitor’s page: a refusal sending again cannot fi
     expect(store.progressFailed()).toBe(false);
     expect(api.visitorRefusal()).toBeNull();
   });
-
 
   it('a key the server no longer knows (visitor.lost): the 409 that follows loads nobody’s progress again, and says nothing of "changed elsewhere"', async () => {
     const refuse = async (): Promise<void> => {

@@ -64,19 +64,11 @@ function publicPaths(): array
 /** Who the request is (the library's Identify), for every route but publicPaths(). */
 function identify(ResponseFactoryInterface $responses): MiddlewareInterface
 {
-    $identify = new Identify(
-        accessTokens(),
-        signInRule(),
-        $responses,
-        visitor: static fn (string $key): ?SiteUser => visitorFound($key),
-        responder: authRefused(...),
-    );
+    $identify = new Identify(accessTokens(), signInRule(), $responses, visitor: static fn(string $key): ?SiteUser => visitorFound($key), responder: authRefused(...));
 
     return new class ($identify, publicPaths()) implements MiddlewareInterface {
         /** @param list<string> $public */
-        public function __construct(private readonly Identify $identify, private readonly array $public)
-        {
-        }
+        public function __construct(private readonly Identify $identify, private readonly array $public) {}
 
         public function process(Request $request, RequestHandler $handler): Response
         {
@@ -126,9 +118,12 @@ function adminByToken(): MiddlewareInterface
 /** The library's role check, refusing in this app's words. */
 function roleCheck(string ...$roles): RequireRole
 {
-    return (new RequireRole(array_values($roles)))->refusing('forbidden', in_array(ROLE_EDITOR, $roles, true)
-        ? 'This is for the people who keep Piano Academy\'s words. Ask the site\'s administrator for the editor role.'
-        : 'Only an administrator of Piano Academy may do this.');
+    return (new RequireRole(array_values($roles)))->refusing(
+        'forbidden',
+        in_array(ROLE_EDITOR, $roles, true)
+            ? 'This is for the people who keep Piano Academy\'s words. Ask the site\'s administrator for the editor role.'
+            : 'Only an administrator of Piano Academy may do this.',
+    );
 }
 
 /**
@@ -156,9 +151,7 @@ function requireOwner(string $nobody = 'refuse'): MiddlewareInterface
  */
 final class SiteOwner implements MiddlewareInterface
 {
-    public function __construct(private readonly bool $sweep = false)
-    {
-    }
+    public function __construct(private readonly bool $sweep = false) {}
 
     public function process(Request $request, RequestHandler $handler): Response
     {
@@ -207,18 +200,14 @@ function middlewares(MiddlewareInterface ...$layers): MiddlewareInterface
 {
     return new class (array_values($layers)) implements MiddlewareInterface {
         /** @param list<MiddlewareInterface> $layers */
-        public function __construct(private readonly array $layers)
-        {
-        }
+        public function __construct(private readonly array $layers) {}
 
         public function process(Request $request, RequestHandler $handler): Response
         {
             $next = $handler;
             foreach (array_reverse($this->layers) as $layer) {
                 $next = new class ($layer, $next) implements RequestHandler {
-                    public function __construct(private readonly MiddlewareInterface $layer, private readonly RequestHandler $next)
-                    {
-                    }
+                    public function __construct(private readonly MiddlewareInterface $layer, private readonly RequestHandler $next) {}
 
                     public function handle(Request $request): Response
                     {

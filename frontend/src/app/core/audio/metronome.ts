@@ -18,7 +18,7 @@ export class Metronome {
 
   private ensureContext(): AudioContext {
     if (!this.audioContext) {
-      const Context = (window.AudioContext ?? (window as unknown as { webkitAudioContext: AudioContextClass }).webkitAudioContext);
+      const Context = window.AudioContext ?? (window as unknown as { webkitAudioContext: AudioContextClass }).webkitAudioContext;
       this.audioContext = new Context();
     }
     return this.audioContext;

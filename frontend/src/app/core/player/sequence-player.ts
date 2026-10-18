@@ -173,22 +173,25 @@ export class SequencePlayer {
   private scheduleWindowEnd(): void {
     const expected = this.expectedTimes as number[];
     const closesAt = expected[this.index] + this.beatMs / 2;
-    this.windowTimer = setTimeout(() => {
-      if (!this.active) return;
-      if (this.results[this.index] === null) {
-        // Not played is no evidence about the note itself: no SRS update.
-        this.results[this.index] = 'missed';
-        this.markNote(this.index, 'is-incorrect');
-        this.options.feedback('player.missed', undefined, 'incorrect');
-      }
-      if (this.index === this.notes.length - 1) {
-        this.finish();
-        return;
-      }
-      this.index += 1;
-      this.markCurrent();
-      this.scheduleWindowEnd();
-    }, Math.max(0, closesAt - performance.now()));
+    this.windowTimer = setTimeout(
+      () => {
+        if (!this.active) return;
+        if (this.results[this.index] === null) {
+          // Not played is no evidence about the note itself: no SRS update.
+          this.results[this.index] = 'missed';
+          this.markNote(this.index, 'is-incorrect');
+          this.options.feedback('player.missed', undefined, 'incorrect');
+        }
+        if (this.index === this.notes.length - 1) {
+          this.finish();
+          return;
+        }
+        this.index += 1;
+        this.markCurrent();
+        this.scheduleWindowEnd();
+      },
+      Math.max(0, closesAt - performance.now()),
+    );
   }
 
   private handleTempo(played: number, timestamp: number): void {
@@ -274,9 +277,7 @@ export class SequencePlayer {
     }
     const total = this.notes.length;
     const accuracy = Math.round((this.correct / total) * 100);
-    const avgTimingErrorMs = this.timingErrors.length
-      ? Math.round(this.timingErrors.reduce((sum, error) => sum + Math.abs(error), 0) / this.timingErrors.length)
-      : null;
+    const avgTimingErrorMs = this.timingErrors.length ? Math.round(this.timingErrors.reduce((sum, error) => sum + Math.abs(error), 0) / this.timingErrors.length) : null;
     // Two whole sentences, not one with a clause glued on: a run in time also says how far off the clicks it was.
     const counts = { correct: this.correct, total, accuracy };
     if (avgTimingErrorMs !== null) this.options.feedback('player.doneTimed', { ...counts, ms: avgTimingErrorMs }, accuracy >= 80 ? 'correct' : null);

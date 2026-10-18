@@ -89,7 +89,13 @@ describe('PianoTitleStrategy with no strings at all', () => {
     sessionStorage.clear();
     http.get.mockReset();
     TestBed.configureTestingModule({
-      providers: [{ provide: HttpClient, useValue: http }, { provide: AnotokiAuth, useValue: auth }, provideSiteTranslations(), provideRouter(ROUTES), { provide: TitleStrategy, useClass: PianoTitleStrategy }],
+      providers: [
+        { provide: HttpClient, useValue: http },
+        { provide: AnotokiAuth, useValue: auth },
+        provideSiteTranslations(),
+        provideRouter(ROUTES),
+        { provide: TitleStrategy, useClass: PianoTitleStrategy },
+      ],
     });
   });
 

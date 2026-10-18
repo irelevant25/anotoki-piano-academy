@@ -174,31 +174,34 @@ export class ProgressStore {
   private persist(kind: 'progress' | 'path'): Promise<void> {
     const line = this.lines[kind];
     const failed = kind === 'progress' ? this.progressFailed : this.pathFailed;
-    line.chain = line.chain.catch(() => {}).then(line.send).then(
-      () => {
-        failed.set(false);
-        this.heldBack.delete(kind);
-      },
-      (error: unknown) => {
-        if (isProgressChanged(error)) {
-          // Never sent again: the progress on the server is another one now.
+    line.chain = line.chain
+      .catch(() => {})
+      .then(line.send)
+      .then(
+        () => {
           failed.set(false);
           this.heldBack.delete(kind);
-          this.progressChanged();
-        } else if (this.visitorCannotKeep(error)) {
-          // "Not saved yet" - and sent again with the next change, not every RETRY_MS for ever.
-          failed.set(true);
-          this.heldBack.add(kind);
-        } else {
-          // A 428 too: the header did not reach the server (a proxy that drops it?) - kept as "Not saved yet".
-          if (error instanceof ApiError && error.status === 428) console.error('The save reached the server without its Progress-Generation header.', error);
-          failed.set(true);
-          this.heldBack.delete(kind);
-          this.scheduleRetry(retryDelay(error));
-        }
-        throw error;
-      },
-    );
+        },
+        (error: unknown) => {
+          if (isProgressChanged(error)) {
+            // Never sent again: the progress on the server is another one now.
+            failed.set(false);
+            this.heldBack.delete(kind);
+            this.progressChanged();
+          } else if (this.visitorCannotKeep(error)) {
+            // "Not saved yet" - and sent again with the next change, not every RETRY_MS for ever.
+            failed.set(true);
+            this.heldBack.add(kind);
+          } else {
+            // A 428 too: the header did not reach the server (a proxy that drops it?) - kept as "Not saved yet".
+            if (error instanceof ApiError && error.status === 428) console.error('The save reached the server without its Progress-Generation header.', error);
+            failed.set(true);
+            this.heldBack.delete(kind);
+            this.scheduleRetry(retryDelay(error));
+          }
+          throw error;
+        },
+      );
     return line.chain;
   }
 

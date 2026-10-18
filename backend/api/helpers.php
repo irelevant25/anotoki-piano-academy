@@ -29,13 +29,8 @@ final class ApiError extends RuntimeException
      * @param array<string, string> $headers
      * @param array<string, mixed>  $extra   more fields for the answer (which key, which language)
      */
-    public function __construct(
-        public readonly int $status,
-        public readonly string $errorCode,
-        string $message,
-        public readonly array $headers = [],
-        public readonly array $extra = [],
-    ) {
+    public function __construct(public readonly int $status, public readonly string $errorCode, string $message, public readonly array $headers = [], public readonly array $extra = [])
+    {
         parent::__construct($message);
     }
 }

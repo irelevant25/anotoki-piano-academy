@@ -176,7 +176,13 @@ describe('Home page: the path in the learner’s words', () => {
     expect(all('.unit-head .unit-details')[0]).toBe('New: C4, D4, E4 · Song: Hot Cross Buns');
     expect(all('.unit-head .unit-details')[4]).toBe('New: B4, C5 · Song: Joy to the World (opening, simplified rhythm)');
     expect(all('.unit:first-child .anotoki-chip')).toEqual(['▶ Meet', 'Drill', 'Read', 'In time', 'Song']);
-    expect(Array.from(host.querySelectorAll('.unit:first-child .anotoki-chip')).map((chip) => chip.getAttribute('title'))).toEqual(['Meet the notes', 'Note drill', 'Read a melody', 'Play in time', 'Song']);
+    expect(Array.from(host.querySelectorAll('.unit:first-child .anotoki-chip')).map((chip) => chip.getAttribute('title'))).toEqual([
+      'Meet the notes',
+      'Note drill',
+      'Read a melody',
+      'Play in time',
+      'Song',
+    ]);
 
     expect(all('.phase.is-coming strong')).toEqual(['Left hand', 'Both hands', 'Left-hand chords', 'Right-hand chords', 'Melody and chords']);
     expect(all('.phase.is-coming anotoki-badge')).toEqual(['Coming soon', 'Coming soon', 'Coming soon', 'Coming soon', 'Coming soon']);
@@ -189,7 +195,13 @@ describe('Home page: the path in the learner’s words', () => {
   it('keeps what the browser checks read: the Continue button, and each chip’s step key', async () => {
     await page('sk');
     expect(host.querySelector('#continue')).not.toBeNull();
-    expect(Array.from(host.querySelectorAll('.unit:first-child [data-open]')).map((chip) => chip.getAttribute('data-open'))).toEqual(['rh-1/meet', 'rh-1/drill', 'rh-1/read', 'rh-1/tempo', 'rh-1/song']);
+    expect(Array.from(host.querySelectorAll('.unit:first-child [data-open]')).map((chip) => chip.getAttribute('data-open'))).toEqual([
+      'rh-1/meet',
+      'rh-1/drill',
+      'rh-1/read',
+      'rh-1/tempo',
+      'rh-1/song',
+    ]);
   });
 
   it('draws the path with the family’s pieces (anotoki-lib 0.6.0): the call to go on the card’s highlight, each step a chip in its state - passed green, open blue, locked off', async () => {

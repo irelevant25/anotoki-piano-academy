@@ -111,7 +111,7 @@ describe('ApiService', () => {
     http.expectNone('/api/state');
   });
 
-  it('reads the server\'s error code', async () => {
+  it("reads the server's error code", async () => {
     const state = api.fetchState();
     await settle();
     http.expectOne('/api/state').flush({ error: 'not set up', code: 'not_set_up' }, { status: 503, statusText: 'Unavailable' });

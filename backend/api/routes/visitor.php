@@ -38,9 +38,13 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 $app->post('/api/visitor/move', function (Request $request, Response $response): Response {
     $key = visitorKeyOf($request);
     if ($key === null || preg_match(VISITOR_KEY_PATTERN, $key) !== 1) {
-        throw new ApiError(422, 'invalid', $key === null
-            ? 'Send the key of the progress made without signing in: the X-Visitor-Key header.'
-            : 'The X-Visitor-Key header is not a key this server hands out.', [], ['field' => 'visitor_key']);
+        throw new ApiError(
+            422,
+            'invalid',
+            $key === null ? 'Send the key of the progress made without signing in: the X-Visitor-Key header.' : 'The X-Visitor-Key header is not a key this server hands out.',
+            [],
+            ['field' => 'visitor_key'],
+        );
     }
 
     return respondJson($response, visitorMove(currentUser($request), $key));

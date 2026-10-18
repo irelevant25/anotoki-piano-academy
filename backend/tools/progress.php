@@ -26,7 +26,7 @@ declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
-    exit;
+    exit();
 }
 
 require_once __DIR__ . '/../api/bootstrap.php';
@@ -79,17 +79,19 @@ try {
         $from = userOption($options, 'move');
         $to = userOption($options, 'to');
         $moved = transferReassign($from, $to);
-        say($moved['moved']
-            ? "Moved the progress of IAM user $from to IAM user $to: {$moved['notes']} notes, {$moved['sessions']} sessions."
-            : "Nothing to move: IAM user $from has no progress here.");
+        say(
+            $moved['moved'] ? "Moved the progress of IAM user $from to IAM user $to: {$moved['notes']} notes, {$moved['sessions']} sessions." : "Nothing to move: IAM user $from has no progress here.",
+        );
     }
 
     if (isset($options['import'])) {
         $userId = userOption($options, 'user');
         $data = transferReadFile((string) $options['import']);
         $counts = transferImport($userId, $data, isset($options['replace']));
-        say(($counts['replaced'] ? "Replaced the progress of IAM user $userId with the file's" : "Imported into IAM user $userId")
-            . ": {$counts['notes']} notes, {$counts['steps']} path steps, {$counts['sessions']} sessions.");
+        say(
+            ($counts['replaced'] ? "Replaced the progress of IAM user $userId with the file's" : "Imported into IAM user $userId") .
+                ": {$counts['notes']} notes, {$counts['steps']} path steps, {$counts['sessions']} sessions.",
+        );
         foreach ($data['problems'] as $line) {
             say("  left out: $line");
         }
@@ -106,8 +108,15 @@ try {
         if (@file_put_contents($file, json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n") === false) {
             stop("Cannot write $file");
         }
-        say("Exported IAM user $userId to $file: " . count(get_object_vars($export['progress'])) . ' notes, '
-            . count(get_object_vars($export['path']->steps)) . ' path steps, ' . count($export['sessions']) . ' sessions.');
+        say(
+            "Exported IAM user $userId to $file: " .
+                count(get_object_vars($export['progress'])) .
+                ' notes, ' .
+                count(get_object_vars($export['path']->steps)) .
+                ' path steps, ' .
+                count($export['sessions']) .
+                ' sessions.',
+        );
     }
 } catch (PDOException $e) {
     stop('Database error: ' . $e->getMessage());

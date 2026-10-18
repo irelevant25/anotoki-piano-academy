@@ -71,10 +71,12 @@ function spreadOut(notes: number[], random: Random): number[] {
     const last = out[out.length - 1];
     const left = notes.length - out.length - 1; // slots left after this pick
     const available = [...counts].filter(([midi, count]) => count > 0 && midi !== last);
-    const feasible = available.filter(([midi]) => [...counts].every(([other, count]) => {
-      const after = other === midi ? count - 1 : count;
-      return other === midi ? after <= Math.floor(left / 2) : after <= Math.ceil(left / 2);
-    }));
+    const feasible = available.filter(([midi]) =>
+      [...counts].every(([other, count]) => {
+        const after = other === midi ? count - 1 : count;
+        return other === midi ? after <= Math.floor(left / 2) : after <= Math.ceil(left / 2);
+      }),
+    );
     const options = feasible.length ? feasible : available.length ? available : [...counts].filter(([, count]) => count > 0);
     let r = random() * options.reduce((sum, [, count]) => sum + count, 0);
     const [pick] = options.find(([, count]) => (r -= count) < 0) ?? options[options.length - 1];
@@ -145,22 +147,21 @@ export class PathService {
   ]);
 
   /** Every step of the path, in the order it must be done. */
-  readonly pathSteps: readonly PathStep[] = this.phases.flatMap((phase) => phase.units.flatMap((unit) => unit.steps.map((step) => ({
-    key: this.stepKey(unit.id, step.id),
-    phase,
-    unit,
-    step,
-  }))));
+  readonly pathSteps: readonly PathStep[] = this.phases.flatMap((phase) =>
+    phase.units.flatMap((unit) =>
+      unit.steps.map((step) => ({
+        key: this.stepKey(unit.id, step.id),
+        phase,
+        unit,
+        step,
+      })),
+    ),
+  );
 
   private unit(id: string, title: string, newNoteNames: string[], songId: string): Omit<Unit, 'number' | 'phaseId'> {
     const steps: Step[] = [];
     if (newNoteNames.length) steps.push({ id: 'meet', type: 'meet' });
-    steps.push(
-      { id: 'drill', type: 'drill' },
-      { id: 'read', type: 'read' },
-      { id: 'tempo', type: 'tempo' },
-      { id: 'song', type: 'song', songId },
-    );
+    steps.push({ id: 'drill', type: 'drill' }, { id: 'read', type: 'read' }, { id: 'tempo', type: 'tempo' }, { id: 'song', type: 'song', songId });
     return { id, title, newNotes: newNoteNames.map((name) => this.theory.nameToMidi(name)), steps };
   }
 
@@ -226,7 +227,7 @@ export class PathService {
   /** The step after `key` in path order (maybe in the next unit), or null. */
   getStepAfter(key: string): PathStep | null {
     const i = this.pathSteps.findIndex((entry) => entry.key === key);
-    return i === -1 ? null : this.pathSteps[i + 1] ?? null;
+    return i === -1 ? null : (this.pathSteps[i + 1] ?? null);
   }
 
   getUnitStatus(path: PathProgress | null | undefined, unit: Unit): UnitStatus {

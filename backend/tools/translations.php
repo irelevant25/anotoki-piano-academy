@@ -36,7 +36,7 @@ use Anotoki\Lib\Translations\Translations;
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
-    exit;
+    exit();
 }
 
 require_once __DIR__ . '/../api/bootstrap.php';
@@ -53,9 +53,9 @@ if (!$help) {
 }
 
 $command = new TranslationsCommand(
-    static fn (): Translations => translations(),
+    static fn(): Translations => translations(),
     translationKeyScanner(),
-    pending: static fn (): array => array_map('migrationLabel', databaseMigrator()->applicable()),
+    pending: static fn(): array => array_map('migrationLabel', databaseMigrator()->applicable()),
     title: $help ? 'piano_academy' : 'piano_academy (' . dbName() . "): the app's own strings",
 );
 

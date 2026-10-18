@@ -103,9 +103,7 @@ declare(strict_types=1);
  */
 
 /** What is wrong with the settings: a missing or unusable file. */
-final class NotSetUp extends RuntimeException
-{
-}
+final class NotSetUp extends RuntimeException {}
 
 /** The folder the *.local.php files are read from (and setup.php writes to). */
 function configDir(): string
@@ -185,7 +183,7 @@ function localSettings(bool $reload = false): array
     } elseif ($auth === null) {
         $problem = 'config/auth.local.php is missing.';
     } else {
-        $problem = $unreadable ?? databaseSettingsProblem($database) ?? authSettingsProblem($auth);
+        $problem = $unreadable ?? (databaseSettingsProblem($database) ?? authSettingsProblem($auth));
     }
 
     if ($problem === null && usingTestConfig() && !str_starts_with((string) $database['name'], 'piano_test_')) {
@@ -410,15 +408,19 @@ function originSecretFile(): ?string
 
     $read = settingsFileReadCleanly($file);
     if ($read['problem'] !== null) {
-        settingsSaid("config/cloudflare.local.php {$read['problem']}: no request carries its secret, so every request from Cloudflare's ranges counts as the edge it came from until the file is mended.");
+        settingsSaid(
+            "config/cloudflare.local.php {$read['problem']}: no request carries its secret, so every request from Cloudflare's ranges counts as the edge it came from until the file is mended.",
+        );
 
         return originSecretNobodyCarries();
     }
 
     $values = $read['value'];
-    $secret = is_array($values) ? ($values['origin_secret'] ?? null) : null;
+    $secret = is_array($values) ? $values['origin_secret'] ?? null : null;
     if (!is_string($secret) || trim($secret) === '') {
-        settingsSaid('config/cloudflare.local.php holds no origin_secret (a string with something in it): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names one - deleting the file switches the secret off.');
+        settingsSaid(
+            'config/cloudflare.local.php holds no origin_secret (a string with something in it): no request carries its secret, so every request from Cloudflare\'s ranges counts as the edge it came from until the file names one - deleting the file switches the secret off.',
+        );
 
         return originSecretNobodyCarries();
     }
@@ -546,9 +548,10 @@ function writeLocalConfig(string $name, array $values): void
 {
     writePrivateFile(
         localConfigFile($name),
-        "<?php\n\n// Piano Academy: this installation's {$name} settings, written by setup.php.\n"
-        . "// Never commit it (git ignores it) - see config/config.php.\n\nreturn "
-        . var_export($values, true) . ";\n"
+        "<?php\n\n// Piano Academy: this installation's {$name} settings, written by setup.php.\n" .
+            "// Never commit it (git ignores it) - see config/config.php.\n\nreturn " .
+            var_export($values, true) .
+            ";\n",
     );
     localSettings(true);
 }

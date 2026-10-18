@@ -30,7 +30,10 @@ export class SongsPageComponent {
     return this.library.songs.map((song) => ({
       song,
       unlocked: this.library.isSongUnlocked(song, isKnown),
-      needs: this.library.requiredNotes(song).map((midi) => this.theory.midiToName(midi)).join(', '),
+      needs: this.library
+        .requiredNotes(song)
+        .map((midi) => this.theory.midiToName(midi))
+        .join(', '),
     }));
   });
 

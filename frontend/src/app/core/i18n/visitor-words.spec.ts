@@ -1,8 +1,4 @@
-import {
-  VISITOR_KEEP_DAYS,
-  VISITOR_WORDS,
-  visitorRefusalKey,
-} from './visitor-words';
+import { VISITOR_KEEP_DAYS, VISITOR_WORDS, visitorRefusalKey } from './visitor-words';
 
 describe('visitor-words: practising without signing in', () => {
   it('keeps a visitor for 30 days - the {days} of the notice', () => {
@@ -11,18 +7,7 @@ describe('visitor-words: practising without signing in', () => {
 
   it('names the keys migration 005 wrote', () => {
     expect(Object.values(VISITOR_WORDS).sort()).toEqual(
-      [
-        'ownProgress.visitor',
-        'visitor.busy',
-        'visitor.close',
-        'visitor.full',
-        'visitor.kept',
-        'visitor.lost',
-        'visitor.moved',
-        'visitor.notMoved',
-        'visitor.notice',
-        'visitor.signInNow',
-      ].sort(),
+      ['ownProgress.visitor', 'visitor.busy', 'visitor.close', 'visitor.full', 'visitor.kept', 'visitor.lost', 'visitor.moved', 'visitor.notMoved', 'visitor.notice', 'visitor.signInNow'].sort(),
     );
   });
 

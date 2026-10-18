@@ -107,7 +107,7 @@ function migrationLabel(array $file): string
 function migrationFiles(): array
 {
     $entries = is_dir(migrationsDir()) ? (scandir(migrationsDir()) ?: []) : [];
-    $files = array_filter($entries, static fn (string $entry): bool => $entry[0] !== '.' && str_ends_with($entry, '.sql') && is_file(migrationsDir() . '/' . $entry));
+    $files = array_filter($entries, static fn(string $entry): bool => $entry[0] !== '.' && str_ends_with($entry, '.sql') && is_file(migrationsDir() . '/' . $entry));
     natsort($files);
 
     return array_values($files);
@@ -122,19 +122,25 @@ function migrationFiles(): array
  */
 function databaseMigrator(?PDO $pdo = null, array $options = []): Migrator
 {
-    return new Migrator($pdo ?? db(), migrationSets(), $options + [
-        'lock' => DATABASE_UPDATE_LOCK,
-        'prepare' => adoptLegacyMigrationsTable(...),
-    ]);
+    return new Migrator(
+        $pdo ?? db(),
+        migrationSets(),
+        $options + [
+            'lock' => DATABASE_UPDATE_LOCK,
+            'prepare' => adoptLegacyMigrationsTable(...),
+        ],
+    );
 }
 
 /** Does `migrations` still have the column this app's first runner called `name` (and no `filename`)? */
 function legacyMigrationsTable(PDO $pdo): bool
 {
-    $columns = $pdo->query(
-        "SELECT column_name FROM information_schema.columns
-          WHERE table_schema = current_schema() AND table_name = 'migrations' AND column_name IN ('name', 'filename')"
-    )->fetchAll(PDO::FETCH_COLUMN);
+    $columns = $pdo
+        ->query(
+            "SELECT column_name FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = 'migrations' AND column_name IN ('name', 'filename')",
+        )
+        ->fetchAll(PDO::FETCH_COLUMN);
 
     return $columns === ['name'];
 }
@@ -168,8 +174,8 @@ function siteState(): SiteState
     static $state = null;
 
     return $state ??= new SiteState(
-        settingsProblem: static fn (): ?string => settingsProblem(),
-        installed: static fn (): bool => is_file(storageDir() . '/installed.lock'),
-        migrator: static fn (): Migrator => databaseMigrator(),
+        settingsProblem: static fn(): ?string => settingsProblem(),
+        installed: static fn(): bool => is_file(storageDir() . '/installed.lock'),
+        migrator: static fn(): Migrator => databaseMigrator(),
     );
 }

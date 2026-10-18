@@ -88,9 +88,13 @@ function routerSend(int $status, string $type, string $body, array $headers = []
 $dist = routerFrontendDist();
 
 if ($dist === null) {
-    return routerSend(404, 'text/plain; charset=utf-8', "The app is not built here.\n\n"
-        . "Developing? Run the frontend with `npm start` in frontend/ and open http://localhost:4500.\n"
-        . "Or build it once (`npm run build` in frontend/) to see it here.\n");
+    return routerSend(
+        404,
+        'text/plain; charset=utf-8',
+        "The app is not built here.\n\n" .
+            "Developing? Run the frontend with `npm start` in frontend/ and open http://localhost:4500.\n" .
+            "Or build it once (`npm run build` in frontend/) to see it here.\n",
+    );
 }
 
 // A file of the build is sent as it is - but never a PHP file or a dot-file,

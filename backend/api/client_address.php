@@ -68,7 +68,7 @@ const CLIENT_ADDRESS_NARROWEST_PREFIX = ['ipv4' => 8, 'ipv6' => 16];
 function clientAddressTrustedProxies(): array
 {
     $settings = visitorSettings()['client_address'] ?? [];
-    $given = is_array($settings) ? ($settings['trusted_proxies'] ?? null) : null;
+    $given = is_array($settings) ? $settings['trusted_proxies'] ?? null : null;
     $proxies = is_array($given) ? array_values($given) : CLIENT_ADDRESS_TRUSTED_PROXIES;
     if (is_array($settings) && array_key_exists('client_ip_header', $settings)) {
         clientAddressSays('client_address.client_ip_header is passed over: only CF-Connecting-IP is read, from the trusted proxies alone.');
@@ -79,8 +79,11 @@ function clientAddressTrustedProxies(): array
         if (clientAddressRangeTaken($range)) {
             $taken[] = trim($range);
         } else {
-            clientAddressSays('client_address.trusted_proxies: ' . (is_string($range) ? '"' . substr($range, 0, 60) . '"' : 'a value that is no text')
-                . ' is not believed - a range is an IPv4 address or range of /8 or narrower, or an IPv6 one of /16 or narrower.');
+            clientAddressSays(
+                'client_address.trusted_proxies: ' .
+                    (is_string($range) ? '"' . substr($range, 0, 60) . '"' : 'a value that is no text') .
+                    ' is not believed - a range is an IPv4 address or range of /8 or narrower, or an IPv6 one of /16 or narrower.',
+            );
         }
     }
 

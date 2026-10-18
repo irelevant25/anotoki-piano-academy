@@ -73,7 +73,19 @@ describe('SrsService', () => {
   });
 
   it('repairs progress saved before the once-a-day rule, once', () => {
-    const inflated = { midi: 60, status: 'mastered', repetitions: 6, easeFactor: 2.5, intervalHours: 938, dueAt: '2026-10-18T16:08:49.446Z', lastGrade: 4, totalAttempts: 22, correctAttempts: 17, avgTimingErrorMs: null, updatedAt: '2026-09-09T14:08:49.446Z' } as unknown as NoteState;
+    const inflated = {
+      midi: 60,
+      status: 'mastered',
+      repetitions: 6,
+      easeFactor: 2.5,
+      intervalHours: 938,
+      dueAt: '2026-10-18T16:08:49.446Z',
+      lastGrade: 4,
+      totalAttempts: 22,
+      correctAttempts: 17,
+      avgTimingErrorMs: null,
+      updatedAt: '2026-09-09T14:08:49.446Z',
+    } as unknown as NoteState;
     const fresh: NoteState = { ...srs.createInitialNoteState(62), status: 'learning', repetitions: 1, lastGrowthAt: '2026-09-09T14:00:00.000Z' };
     const repaired = srs.repairInflatedProgress({ 60: inflated, 62: fresh });
     expect(repaired['60']).toMatchObject({ status: 'review', repetitions: 2, intervalHours: 24, dueAt: '2026-09-10T14:08:49.446Z', lastGrowthAt: '2026-09-09T14:08:49.446Z', totalAttempts: 22 });

@@ -114,17 +114,17 @@ test('the IAM\'s SDK is gone - its rules are the family\'s library\'s - and so i
 });
 
 test('the browser\'s sign-in settings: the IAM, whatever an old file says about a mode - and the IAM\'s switch', function (): void {
-    $config = static fn (): array => AuthRoutes::configBody(signInRule(), iamClient());
+    $config = static fn(): array => AuthRoutes::configBody(signInRule(), iamClient());
     assert_same(
         ['issuer' => 'https://iam.example.test', 'client_id' => 'piano-academy', 'login_required' => true, 'sign_in_available' => true],
         with_auth(test_auth_iam(['issuer' => 'https://iam.example.test/']), $config),
-        'no trailing slash'
+        'no trailing slash',
     );
     foreach (['none', 'iam', 'off', ''] as $mode) {
         assert_same(
             ['issuer' => TEST_ISSUER, 'client_id' => 'piano-academy', 'login_required' => true, 'sign_in_available' => true],
             with_auth(['mode' => $mode, 'local_user_id' => 1] + test_auth_iam(), $config),
-            "mode = '$mode' is passed over"
+            "mode = '$mode' is passed over",
         );
     }
     $off = test_auth_iam();
@@ -142,7 +142,11 @@ test('the browser\'s sign-in settings: the IAM, whatever an old file says about 
     assert_same([1, 3], [$settings['application_ttl'], $settings['application_timeout']]);
     $plain = with_auth(['issuer' => 'http://127.0.0.1:9', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache', 'application_ttl' => '1', 'jwks_file' => ''], 'authIamSettings');
     assert_same(['cache_dir', 'client_id', 'issuer'], $keys($plain), 'a time that is no number, an empty file name: left to the library\'s defaults');
-    assert_same('http://127.0.0.1:9', with_auth(['issuer' => 'http://127.0.0.1:9', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], static fn (): string => iamClient()->issuer), 'the client follows the settings');
+    assert_same(
+        'http://127.0.0.1:9',
+        with_auth(['issuer' => 'http://127.0.0.1:9', 'client_id' => 'piano-academy', 'cache_dir' => 'storage/cache'], static fn(): string => iamClient()->issuer),
+        'the client follows the settings',
+    );
 });
 
 test('only the Bearer scheme is a sign-in: another scheme is nobody, "Bearer" without a good token a 401 - and the public routes read none', function (): void {
@@ -181,7 +185,10 @@ test('no test asks an IAM that is not on this computer whether sign-in is requir
     foreach (['http://127.0.0.1:8597', 'http://localhost:4300', 'http://[::1]:8100'] as $issuer) {
         assert_same($issuer, test_offline_auth(['issuer' => $issuer])['issuer'], "$issuer: the stand-in, on this computer");
     }
-    assert_true(is_string(test_offline_auth(['issuer' => 'https://iam.anotoki.eu', 'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file()])['application_file']), 'the answers as files');
+    assert_true(
+        is_string(test_offline_auth(['issuer' => 'https://iam.anotoki.eu', 'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file()])['application_file']),
+        'the answers as files',
+    );
     foreach ([test_auth_settings(), test_auth_iam(), test_auth_iam(['issuer' => 'https://iam.example.test'])] as $auth) {
         assert_true(is_file($auth['application_file']) && is_file($auth['anonymized_file']), 'the tests\' own settings name the answers as files');
     }

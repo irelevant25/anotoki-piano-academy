@@ -272,9 +272,7 @@ describe('Lesson steps: instructions and feedback are keys, worded on the page',
       await open(SequenceStepComponent, 'rh-1', 'song');
 
       expect(text('.lesson-instruction strong')).toBe('Hot Cross Buns');
-      expect(text('.lesson-instruction')).toBe(
-        'Hot Cross Buns – na dokončenie kroku zahraj túto skladbu s metronómom. Chceš sa ju najprv naučiť? Skús skúšobné kolo bez metronómu (nepočíta sa).',
-      );
+      expect(text('.lesson-instruction')).toBe('Hot Cross Buns – na dokončenie kroku zahraj túto skladbu s metronómom. Chceš sa ju najprv naučiť? Skús skúšobné kolo bez metronómu (nepočíta sa).');
       expect(text('[data-role="practice"]')).toBe('Skúšobné kolo (bez metronómu)');
       expect(text('[data-role="start"]')).toBe('Hrať s metronómom');
       expect(text('label')).toContain('Tempo:');
@@ -283,9 +281,7 @@ describe('Lesson steps: instructions and feedback are keys, worded on the page',
       expect(text('[data-role="feedback"]')).toBe('');
 
       await english();
-      expect(text('.lesson-instruction')).toBe(
-        "Hot Cross Buns — play it with the metronome to finish the step. Want to learn it first? Use a practice run with no clock (it doesn't count).",
-      );
+      expect(text('.lesson-instruction')).toBe("Hot Cross Buns — play it with the metronome to finish the step. Want to learn it first? Use a practice run with no clock (it doesn't count).");
       expect(options()).toEqual(['54 BPM', '72 BPM', '90 BPM (original)']);
       expect(warn).not.toHaveBeenCalled();
     });

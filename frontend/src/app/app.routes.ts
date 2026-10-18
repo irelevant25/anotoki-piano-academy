@@ -11,8 +11,7 @@ import { HomePageComponent } from './pages/home/home-page.component';
  * with these pages (a chunk of its own), not with the app's first load.
  */
 function withNotation<T>(load: () => Promise<T>): () => Promise<T> {
-  return () =>
-    Promise.all([load(), import('./core/notation/notation').then((m) => m.notationFontsReady())]).then(([component]) => component);
+  return () => Promise.all([load(), import('./core/notation/notation').then((m) => m.notationFontsReady())]).then(([component]) => component);
 }
 
 /**

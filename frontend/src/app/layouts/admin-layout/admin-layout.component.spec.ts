@@ -53,7 +53,7 @@ describe('AdminLayoutComponent: the admin panel split by role, in English', () =
     for (const roles of [[], ['MEMBER']]) {
       TestBed.resetTestingModule();
       await as({ signedIn: true, roles });
-      expect(host.querySelector('#admin-no-role h2')?.textContent).toBe('This part is for the people who keep Piano Academy\'s words');
+      expect(host.querySelector('#admin-no-role h2')?.textContent).toBe("This part is for the people who keep Piano Academy's words");
       expect(host.querySelector('router-outlet')).toBeNull();
     }
   });

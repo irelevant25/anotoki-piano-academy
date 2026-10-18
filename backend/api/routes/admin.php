@@ -127,7 +127,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 // update waits none of these runs but the Migrations page's and the error
 // log's and the backups': the site's gate answers first, before anybody is
 // looked up in a users table that might not be as the code expects yet.)
-$words = static fn (): Translations => translations();
+$words = static fn(): Translations => translations();
 $auditWords = static function (Request $request, string $action, ?string $type, ?string $id, array $details): void {
     audit($request, $action, $type, $id, $details);
 };
@@ -142,7 +142,7 @@ PeopleRoutes::admin(
     '/api/admin/people',
     people(),
     columns: peopleColumns(),
-    visitors: static fn (PDO $pdo): array => peopleVisitors(),
+    visitors: static fn(PDO $pdo): array => peopleVisitors(),
     delete: peopleDeleteHook(),
     error: authRefused(...),
     audit: auditLog(),
@@ -155,17 +155,26 @@ PeopleRoutes::admin(
 // on a host with only FTP that is where it can be read (the owner,
 // 2026-10-04) - and in the server's log as well. The entries the audit log
 // kept in a file while its table waited go in, then the update's own.
-MigrationsRoutes::admin($app, '/api/admin/migrations', static fn (): Migrator => databaseUpdater(), static function (Request $request, array $result): void {
+MigrationsRoutes::admin($app, '/api/admin/migrations', static fn(): Migrator => databaseUpdater(), static function (Request $request, array $result): void {
     if ($result['failed'] !== null) {
         error_log('[db] the migration ' . $result['failed']['name'] . ' failed: ' . $result['error']);
     }
     auditLog()->flushPending();
     if ($result['applied'] !== [] || $result['failed'] !== null || $result['error'] !== null) {
-        audit($request, 'migrations.applied', null, null, array_filter([
-            'files' => array_map('migrationLabel', $result['applied']),
-            'failed' => $result['failed'] === null ? null : migrationLabel($result['failed']),
-            'note' => $result['note'],
-        ], static fn (mixed $value): bool => $value !== null));
+        audit(
+            $request,
+            'migrations.applied',
+            null,
+            null,
+            array_filter(
+                [
+                    'files' => array_map('migrationLabel', $result['applied']),
+                    'failed' => $result['failed'] === null ? null : migrationLabel($result['failed']),
+                    'note' => $result['note'],
+                ],
+                static fn(mixed $value): bool => $value !== null,
+            ),
+        );
     }
 })->add(adminByToken());
 

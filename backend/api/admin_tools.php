@@ -104,11 +104,11 @@ function adminContext(): AdminContext
     static $context = null;
 
     return $context ??= new AdminContext(
-        actorId: static fn (Request $request): ?int => Identify::person($request)?->sub,
-        proof: AdminContext::recentSignIn(static fn (Request $request): ?int => Identify::person($request)?->authTime),
+        actorId: static fn(Request $request): ?int => Identify::person($request)?->sub,
+        proof: AdminContext::recentSignIn(static fn(Request $request): ?int => Identify::person($request)?->authTime),
         error: authRefused(...),
-        isAdmin: static fn (Request $request): bool => Identify::person($request)?->isAdmin() ?? false,
-        names: static fn (array $ids): array => peopleNames($ids),
+        isAdmin: static fn(Request $request): bool => Identify::person($request)?->isAdmin() ?? false,
+        names: static fn(array $ids): array => peopleNames($ids),
         trustedProxies: clientAddressTrustedProxies(),
         clientHeader: ClientAddress::CLOUDFLARE_HEADER,
         originSecret: originSecret(),
@@ -126,12 +126,18 @@ function errorLog(?App $app = null): ErrorLog
 {
     static $log = null;
 
-    return $log ??= new ErrorLog(storageDir() . '/logs', array_filter([
-        'root' => PIANO_BACKEND,
-        'context' => adminContext(),
-        'ignoreExceptions' => [ApiError::class],
-        'app' => $app,
-    ], static fn (mixed $value): bool => $value !== null));
+    return $log ??= new ErrorLog(
+        storageDir() . '/logs',
+        array_filter(
+            [
+                'root' => PIANO_BACKEND,
+                'context' => adminContext(),
+                'ignoreExceptions' => [ApiError::class],
+                'app' => $app,
+            ],
+            static fn(mixed $value): bool => $value !== null,
+        ),
+    );
 }
 
 /**
@@ -143,9 +149,9 @@ function auditLog(): AuditLog
 {
     static $audit = null;
 
-    return $audit ??= new AuditLog(static fn (): PDO => db(), [
+    return $audit ??= new AuditLog(static fn(): PDO => db(), [
         'pendingFile' => storageDir() . '/logs/audit-pending.jsonl',
-        'actorIds' => static fn (string $name): array => peopleIdsNamed($name),
+        'actorIds' => static fn(string $name): array => peopleIdsNamed($name),
     ]);
 }
 
@@ -160,7 +166,7 @@ function feedback(): Feedback
 {
     static $feedback = null;
 
-    return $feedback ??= new Feedback(static fn (): PDO => db(), [
+    return $feedback ??= new Feedback(static fn(): PDO => db(), [
         'storage' => storageDir(),
         'sections' => FEEDBACK_SECTIONS,
         'defer' => afterResponse(...),
@@ -191,21 +197,17 @@ function backups(?array $settings = null): Backups
 {
     static $backups = null;
 
-    $make = static fn (?array $settings): Backups => new Backups(
-        static fn (): PDO => backupsConnection($settings ?? databaseSettings()),
-        storageDir() . '/backups',
-        [
-            'site' => 'piano-academy',
-            'migrator' => static fn (PDO $pdo): Migrator => databaseMigrator($pdo),
-            'lock' => DATABASE_UPDATE_LOCK,
-            'audit' => auditLog(),
-            'defer' => afterResponse(...),
-            'onError' => static function (Throwable $e): void {
-                errorLog()->record($e);
-            },
-            ...backupsRestoreHooks(),
-        ],
-    );
+    $make = static fn(?array $settings): Backups => new Backups(static fn(): PDO => backupsConnection($settings ?? databaseSettings()), storageDir() . '/backups', [
+        'site' => 'piano-academy',
+        'migrator' => static fn(PDO $pdo): Migrator => databaseMigrator($pdo),
+        'lock' => DATABASE_UPDATE_LOCK,
+        'audit' => auditLog(),
+        'defer' => afterResponse(...),
+        'onError' => static function (Throwable $e): void {
+            errorLog()->record($e);
+        },
+        ...backupsRestoreHooks(),
+    ]);
 
     return $settings !== null ? $make($settings) : ($backups ??= $make(null));
 }

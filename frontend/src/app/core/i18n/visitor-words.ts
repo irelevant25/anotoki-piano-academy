@@ -51,14 +51,8 @@ export const VISITOR_WORDS = {
  *  - 429 too_many_visitors (too many new visitors this hour, or at once):
  *    busy - try later, or sign in.
  */
-export function visitorRefusalKey(
-  status: number,
-  code: string | undefined,
-): string | null {
-  if (
-    (status === 422 && code === 'visitor_limit') ||
-    (status === 413 && code === 'too_large')
-  ) {
+export function visitorRefusalKey(status: number, code: string | undefined): string | null {
+  if ((status === 422 && code === 'visitor_limit') || (status === 413 && code === 'too_large')) {
     return VISITOR_WORDS.full;
   }
   if (status === 429 && code === 'too_many_visitors') {

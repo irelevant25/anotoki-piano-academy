@@ -80,7 +80,7 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'midi.connect': 'Connect',
   'midi.rescan': 'Rescan MIDI devices',
   // The frame of the list of changes (ui/changelog-dialog, opened from the family's footer); its entries are not translated.
-  'whatsNew.title': 'What\'s new',
+  'whatsNew.title': "What's new",
   'whatsNew.close': 'Close',
   'whatsNew.latest': 'Latest',
   'whatsNew.added': 'Added',

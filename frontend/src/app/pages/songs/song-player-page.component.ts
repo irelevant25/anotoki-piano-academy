@@ -101,9 +101,7 @@ export class SongPlayerPageComponent implements OnInit {
       onFinish: (result) => {
         this.playing.set(false);
         // The title stored with the session is the song's own English name, as ever (Stats words a row from the song's id).
-        this.store
-          .recordSession({ mode: 'song', songId: song.id, songTitle: song.title, ...sessionFieldsFromResult(result) })
-          .catch((error) => console.error('Failed to record session', error));
+        this.store.recordSession({ mode: 'song', songId: song.id, songTitle: song.title, ...sessionFieldsFromResult(result) }).catch((error) => console.error('Failed to record session', error));
       },
     });
     this.player.load(song.notes, { timeSignature: song.timeSignature });

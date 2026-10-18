@@ -67,8 +67,8 @@ test('a settings file from before sign-in was the IAM only - a mode, an owner\'s
         assert_same(null, with_config_dir($dir, 'settingsProblem'), "mode '$mode': the owner's installation keeps working");
         assert_same(
             ['issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'login_required' => true, 'sign_in_available' => true],
-            with_config_dir($dir, static fn (): array => \Anotoki\Lib\Auth\Http\AuthRoutes::configBody(signInRule(), iamClient())),
-            "mode '$mode' signs in through the IAM"
+            with_config_dir($dir, static fn(): array => \Anotoki\Lib\Auth\Http\AuthRoutes::configBody(signInRule(), iamClient())),
+            "mode '$mode' signs in through the IAM",
         );
     }
     // ... but a mode "none" without the IAM is no setting at all - nothing would let anybody in.
@@ -81,7 +81,10 @@ test('a settings file from before sign-in was the IAM only - a mode, an owner\'s
     // (the family's library refuses one) - http only on this computer, as in development.
     $dir = test_temp_dir('plain-http');
     file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
-    foreach (['http://iam.example.test' => true, 'http://192.168.1.20:4300' => true, 'http://localhost:4300' => false, 'http://127.0.0.1:8597' => false, 'https://iam.anotoki.eu' => false] as $issuer => $refused) {
+    foreach (
+        ['http://iam.example.test' => true, 'http://192.168.1.20:4300' => true, 'http://localhost:4300' => false, 'http://127.0.0.1:8597' => false, 'https://iam.anotoki.eu' => false]
+        as $issuer => $refused
+    ) {
         file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(['issuer' => $issuer] + test_auth_settings(), true) . ';');
         $problem = with_config_dir($dir, 'settingsProblem');
         assert_same($refused, $problem !== null && str_contains($problem, 'over https'), "$issuer: " . ($problem ?? 'a setting'));
@@ -113,13 +116,19 @@ test('a settings file that does not say what it must is no setting', function ()
 test('a settings file PHP cannot run is no setting: the problem names the file, the kind of error and the line - never what PHP said, which may quote the password', function (): void {
     $dir = test_temp_dir('broken-config');
     // A quote too many in the password: PHP's own message would quote what follows it.
-    file_put_contents("$dir/database.local.php", "<?php return [\n    'host' => '127.0.0.1', 'port' => 5432, 'name' => 'piano_test_config', 'user' => 'postgres',\n    'password' => 'open'sesame-and-more',\n];\n");
+    file_put_contents(
+        "$dir/database.local.php",
+        "<?php return [\n    'host' => '127.0.0.1', 'port' => 5432, 'name' => 'piano_test_config', 'user' => 'postgres',\n    'password' => 'open'sesame-and-more',\n];\n",
+    );
     file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
     $log = config_log_of(static function () use ($dir): void {
         assert_same('config/database.local.php could not be read (ParseError on line 3).', with_config_dir($dir, 'settingsProblem'));
         assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/^config\/database\.local\.php could not be read/');
     });
-    assert_true(str_contains($log, '[config] config/database.local.php could not be read (ParseError on line 3): the site is not set up until it is mended.'), 'said in the log by its kind and line: ' . $log);
+    assert_true(
+        str_contains($log, '[config] config/database.local.php could not be read (ParseError on line 3): the site is not set up until it is mended.'),
+        'said in the log by its kind and line: ' . $log,
+    );
     assert_false(str_contains($log, 'sesame') || str_contains($log, 'unexpected'), 'never what PHP said');
 
     // The other file, cut short; and one that throws as it runs.
@@ -131,64 +140,67 @@ test('a settings file PHP cannot run is no setting: the problem names the file, 
     assert_false(str_contains((string) with_config_dir($dir, 'settingsProblem'), 'sesame'), 'nothing of the file in the sentence');
 });
 
-test('a settings file that does not start with <?php - no <?php line, a byte-order mark or a line before it, before declare(strict_types=1) too, which PHP cannot even compile - or that prints as PHP reads it (text after a closing tag) is no setting: never compiled or nothing of it printed, the password least of all, and the problem says its start or how many bytes, never what', function (): void {
-    $password = 'sesame-' . bin2hex(random_bytes(8));
-    $database = var_export(['password' => $password] + good_database(), true);
-    $start = 'does not start with <?php';
-    foreach ([
-        // Required, these would print what comes before their <?php - all of it, the password too, where the line
-        // is missing - so none is compiled: a file that does not start with <?php is passed over unread.
-        'no <?php line' => ["return {$database};\n", $start],
-        'a byte-order mark' => ["\xEF\xBB\xBF<?php return {$database};\n", $start],
-        'a byte-order mark and no <?php line' => ["\xEF\xBB\xBFreturn {$database};\n", $start],
-        'a line before its <?php' => ["\n<?php return {$database};\n", $start],
-        // Compiled, either is a fatal error no try, no handler and no buffer catches ("strict_types declaration must
-        // be the very first statement"): this process would end here - and a request, a 500.
-        'a byte-order mark before <?php declare(strict_types=1)' => ["\xEF\xBB\xBF<?php declare(strict_types=1);\n\nreturn {$database};\n", $start],
-        'a blank line before <?php declare(strict_types=1)' => ["\n<?php declare(strict_types=1);\n\nreturn {$database};\n", $start],
-        // A file that does start with <?php and prints all the same: caught.
-        'text after a closing tag' => ["<?php \$kept = 1; ?>\n{$password}\n<?php return {$database};\n", 'prints ' . (strlen($password) + 1) . ' bytes of its own'],
-    ] as $case => [$contents, $fault]) {
-        $dir = test_temp_dir('printing-config');
-        file_put_contents("$dir/database.local.php", $contents);
-        file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
-        $level = ob_get_level();
-        ob_start();
-        try {
-            $log = config_log_of(static function () use ($dir, $case, $fault): void {
-                assert_true(str_starts_with((string) with_config_dir($dir, 'settingsProblem'), "config/database.local.php $fault ("), "$case: " . with_config_dir($dir, 'settingsProblem'));
-                assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/^config\/database\.local\.php ' . preg_quote($fault, '/') . '/');
-            });
-        } finally {
-            $printed = (string) ob_get_clean();
+test(
+    'a settings file that does not start with <?php - no <?php line, a byte-order mark or a line before it, before declare(strict_types=1) too, which PHP cannot even compile - or that prints as PHP reads it (text after a closing tag) is no setting: never compiled or nothing of it printed, the password least of all, and the problem says its start or how many bytes, never what',
+    function (): void {
+        $password = 'sesame-' . bin2hex(random_bytes(8));
+        $database = var_export(['password' => $password] + good_database(), true);
+        $start = 'does not start with <?php';
+        foreach (
+            [
+                // Required, these would print what comes before their <?php - all of it, the password too, where the line
+                // is missing - so none is compiled: a file that does not start with <?php is passed over unread.
+                'no <?php line' => ["return {$database};\n", $start],
+                'a byte-order mark' => ["\xEF\xBB\xBF<?php return {$database};\n", $start],
+                'a byte-order mark and no <?php line' => ["\xEF\xBB\xBFreturn {$database};\n", $start],
+                'a line before its <?php' => ["\n<?php return {$database};\n", $start],
+                // Compiled, either is a fatal error no try, no handler and no buffer catches ("strict_types declaration must
+                // be the very first statement"): this process would end here - and a request, a 500.
+                'a byte-order mark before <?php declare(strict_types=1)' => ["\xEF\xBB\xBF<?php declare(strict_types=1);\n\nreturn {$database};\n", $start],
+                'a blank line before <?php declare(strict_types=1)' => ["\n<?php declare(strict_types=1);\n\nreturn {$database};\n", $start],
+                // A file that does start with <?php and prints all the same: caught.
+                'text after a closing tag' => ["<?php \$kept = 1; ?>\n{$password}\n<?php return {$database};\n", 'prints ' . (strlen($password) + 1) . ' bytes of its own'],
+            ]
+            as $case => [$contents, $fault]
+        ) {
+            $dir = test_temp_dir('printing-config');
+            file_put_contents("$dir/database.local.php", $contents);
+            file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
+            $level = ob_get_level();
+            ob_start();
+            try {
+                $log = config_log_of(static function () use ($dir, $case, $fault): void {
+                    assert_true(str_starts_with((string) with_config_dir($dir, 'settingsProblem'), "config/database.local.php $fault ("), "$case: " . with_config_dir($dir, 'settingsProblem'));
+                    assert_throws(static fn() => with_config_dir($dir, 'databaseSettings'), '/^config\/database\.local\.php ' . preg_quote($fault, '/') . '/');
+                });
+            } finally {
+                $printed = (string) ob_get_clean();
+            }
+            assert_same('', $printed, "$case: nothing of the file printed");
+            assert_same($level, ob_get_level(), "$case: no buffer left open");
+            assert_false(str_contains((string) with_config_dir($dir, 'settingsProblem'), $password), "$case: nothing of the file in the sentence");
+            assert_true(str_contains($log, "[config] config/database.local.php $fault"), "$case: said in the log by its start or its bytes - " . $log);
+            assert_false(str_contains($log, $password) || str_contains($log, 'strict_types'), "$case: never the password in the log, nor what PHP said");
         }
-        assert_same('', $printed, "$case: nothing of the file printed");
-        assert_same($level, ob_get_level(), "$case: no buffer left open");
-        assert_false(str_contains((string) with_config_dir($dir, 'settingsProblem'), $password), "$case: nothing of the file in the sentence");
-        assert_true(str_contains($log, "[config] config/database.local.php $fault"), "$case: said in the log by its start or its bytes - " . $log);
-        assert_false(str_contains($log, $password) || str_contains($log, 'strict_types'), "$case: never the password in the log, nor what PHP said");
-    }
 
-    // The sign-in's file the same: not set up, nothing printed - a byte-order mark, and one before declare(strict_types=1).
-    foreach (["\xEF\xBB\xBF<?php return ", "\xEF\xBB\xBF<?php declare(strict_types=1);\nreturn "] as $begins) {
-        $dir = test_temp_dir('printing-auth');
-        file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
-        file_put_contents("$dir/auth.local.php", $begins . var_export(test_auth_settings(), true) . ';');
-        ob_start();
-        try {
-            $problem = (string) with_config_dir($dir, 'settingsProblem');
-        } finally {
-            $printed = (string) ob_get_clean();
+        // The sign-in's file the same: not set up, nothing printed - a byte-order mark, and one before declare(strict_types=1).
+        foreach (["\xEF\xBB\xBF<?php return ", "\xEF\xBB\xBF<?php declare(strict_types=1);\nreturn "] as $begins) {
+            $dir = test_temp_dir('printing-auth');
+            file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+            file_put_contents("$dir/auth.local.php", $begins . var_export(test_auth_settings(), true) . ';');
+            ob_start();
+            try {
+                $problem = (string) with_config_dir($dir, 'settingsProblem');
+            } finally {
+                $printed = (string) ob_get_clean();
+            }
+            assert_same(['config/auth.local.php does not start with <?php (a byte-order mark, a blank line or a space before it, or no <?php line at all).', ''], [$problem, $printed]);
         }
-        assert_same(['config/auth.local.php does not start with <?php (a byte-order mark, a blank line or a space before it, or no <?php line at all).', ''], [$problem, $printed]);
-    }
-});
+    },
+);
 
 test('nothing committed stands in for the settings: config/ holds the loader and nothing else', function (): void {
-    $committed = array_values(array_filter(
-        array_map('basename', glob(TEST_BACKEND . '/config/*') ?: []),
-        static fn(string $name): bool => !str_ends_with($name, '.local.php')
-    ));
+    $committed = array_values(array_filter(array_map('basename', glob(TEST_BACKEND . '/config/*') ?: []), static fn(string $name): bool => !str_ends_with($name, '.local.php')));
     assert_same(['config.php'], $committed, 'no template with working values beside the loader');
     $ignored = (string) file_get_contents(dirname(TEST_BACKEND) . '/.gitignore');
     // (A checkout on Windows may have the file with CRLF line endings.)
@@ -225,10 +237,14 @@ test('the committed default of where a request comes from: Cloudflare\'s publish
     // The site is behind Cloudflare (the owner's decision of 2026-10-11): config/config.php holds its ranges, which a
     // computer or host that is not behind it overrides in visitors.local.php. They are the library's list, range for range.
     assert_same(\Anotoki\Lib\Support\ClientAddress::CLOUDFLARE, CLIENT_ADDRESS_TRUSTED_PROXIES);
-    assert_same([15, 7], [
-        count(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, static fn (string $range): bool => !str_contains($range, ':'))),
-        count(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, static fn (string $range): bool => str_contains($range, ':'))),
-    ], '15 IPv4 ranges, 7 IPv6');
+    assert_same(
+        [15, 7],
+        [
+            count(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, static fn(string $range): bool => !str_contains($range, ':'))),
+            count(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, static fn(string $range): bool => str_contains($range, ':'))),
+        ],
+        '15 IPv4 ranges, 7 IPv6',
+    );
     assert_same(CLIENT_ADDRESS_TRUSTED_PROXIES, array_values(array_filter(CLIENT_ADDRESS_TRUSTED_PROXIES, 'clientAddressRangeTaken')), 'none of them a catch-all');
     // The header is no setting: CF-Connecting-IP, pinned in code (api/client_address.php).
     assert_false(defined('CLIENT_ADDRESS_DEFAULTS'), 'no committed setting of a header');

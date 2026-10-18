@@ -39,9 +39,18 @@ function api(string $method, string $url, mixed $body = null, array $headers = [
 function note(int $midi, array $extra = []): array
 {
     return $extra + [
-        'midi' => $midi, 'status' => 'learning', 'repetitions' => 1, 'easeFactor' => 2.5, 'intervalHours' => 4,
-        'dueAt' => '2026-09-28T12:00:00.000Z', 'lastGrade' => 4, 'totalAttempts' => 3, 'correctAttempts' => 2,
-        'avgTimingErrorMs' => null, 'lastGrowthAt' => '2026-09-28T08:00:00.000Z', 'updatedAt' => '2026-09-28T08:00:00.000Z',
+        'midi' => $midi,
+        'status' => 'learning',
+        'repetitions' => 1,
+        'easeFactor' => 2.5,
+        'intervalHours' => 4,
+        'dueAt' => '2026-09-28T12:00:00.000Z',
+        'lastGrade' => 4,
+        'totalAttempts' => 3,
+        'correctAttempts' => 2,
+        'avgTimingErrorMs' => null,
+        'lastGrowthAt' => '2026-09-28T08:00:00.000Z',
+        'updatedAt' => '2026-09-28T08:00:00.000Z',
     ];
 }
 
@@ -57,8 +66,14 @@ test('health and the sign-in settings: the IAM, and nothing about a mode', funct
 
 test('nobody gets in without a token that checks out - by any name, through any proxy - and a refused one writes nothing', function (): void {
     $port = parse_url($GLOBALS['app']['base'], PHP_URL_PORT);
-    $routes = [['GET', '/api/state', null], ['PUT', '/api/progress', ['60' => note(60)]], ['PUT', '/api/path', ['steps' => new stdClass()]], ['POST', '/api/sessions', ['mode' => 'trainer', 'attempts' => 1, 'correct' => 1, 'accuracy' => 100]],
-        ['GET', '/api/me/export', null], ['POST', '/api/me/import?replace=true', ['format' => 'piano-academy-export', 'version' => 1, 'progress' => ['60' => note(60)]]]];
+    $routes = [
+        ['GET', '/api/state', null],
+        ['PUT', '/api/progress', ['60' => note(60)]],
+        ['PUT', '/api/path', ['steps' => new stdClass()]],
+        ['POST', '/api/sessions', ['mode' => 'trainer', 'attempts' => 1, 'correct' => 1, 'accuracy' => 100]],
+        ['GET', '/api/me/export', null],
+        ['POST', '/api/me/import?replace=true', ['format' => 'piano-academy-export', 'version' => 1, 'progress' => ['60' => note(60)]]],
+    ];
     $bad = [
         'no token' => [],
         'no token, from this computer by name' => ["Host: localhost:$port"],
@@ -161,10 +176,22 @@ test('POST /api/sessions: stamped with id and recordedAt, 201 with the stored se
 
 test('POST /api/sessions: only the known fields are kept; the id and time are the server\'s', function (): void {
     $answer = api('POST', '/api/sessions', [
-        'mode' => 'lesson', 'label' => 'C, D, E · Drill', 'unitId' => 'rh-1', 'stepId' => 'drill',
-        'startedAt' => '2026-09-28T08:02:00.000Z', 'endedAt' => '2026-09-28T08:03:00.000Z',
-        'attempts' => 10, 'correct' => 8, 'accuracy' => 80, 'bpm' => null, 'avgTimingErrorMs' => null,
-        'id' => 'mine', 'recordedAt' => '1999-01-01T00:00:00.000Z', 'user_id' => 2, 'isAdmin' => true, '<script>' => 1,
+        'mode' => 'lesson',
+        'label' => 'C, D, E · Drill',
+        'unitId' => 'rh-1',
+        'stepId' => 'drill',
+        'startedAt' => '2026-09-28T08:02:00.000Z',
+        'endedAt' => '2026-09-28T08:03:00.000Z',
+        'attempts' => 10,
+        'correct' => 8,
+        'accuracy' => 80,
+        'bpm' => null,
+        'avgTimingErrorMs' => null,
+        'id' => 'mine',
+        'recordedAt' => '1999-01-01T00:00:00.000Z',
+        'user_id' => 2,
+        'isAdmin' => true,
+        '<script>' => 1,
     ]);
     assert_same(201, $answer['status']);
     $session = $answer['body'];
@@ -173,7 +200,16 @@ test('POST /api/sessions: only the known fields are kept; the id and time are th
     assert_same('C, D, E · Drill', $session['label']);
     assert_true(array_key_exists('bpm', $session) && $session['bpm'] === null, 'null kept where the browser sends null');
 
-    $song = api('POST', '/api/sessions', ['mode' => 'song', 'songId' => 'ode-to-joy', 'songTitle' => 'Ode to Joy', 'attempts' => 15, 'correct' => 15, 'accuracy' => 100, 'bpm' => 80, 'avgTimingErrorMs' => 41.5]);
+    $song = api('POST', '/api/sessions', [
+        'mode' => 'song',
+        'songId' => 'ode-to-joy',
+        'songTitle' => 'Ode to Joy',
+        'attempts' => 15,
+        'correct' => 15,
+        'accuracy' => 100,
+        'bpm' => 80,
+        'avgTimingErrorMs' => 41.5,
+    ]);
     assert_same(201, $song['status']);
     assert_same(41.5, $song['body']['avgTimingErrorMs']);
 });
@@ -275,10 +311,15 @@ test('the built app beside the API: its files as they are, its own routes as ind
 });
 
 test('an app that is not set up says so - to the API and the app alike', function (): void {
-    $bare = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
-        'PIANO_TEST_CONFIG' => test_temp_dir('no-config'),
-        'PIANO_FRONTEND_DIST' => test_frontend_build(),
-    ], '/api/health');
+    $bare = test_start_server(
+        TEST_BACKEND,
+        TEST_BACKEND . '/router.php',
+        [
+            'PIANO_TEST_CONFIG' => test_temp_dir('no-config'),
+            'PIANO_FRONTEND_DIST' => test_frontend_build(),
+        ],
+        '/api/health',
+    );
     foreach (['/api/health', '/api/auth/config', '/api/state', '/api/nope'] as $url) {
         $answer = call($bare['base'], 'GET', $url);
         assert_same(503, $answer['status'], $url);
@@ -290,27 +331,45 @@ test('an app that is not set up says so - to the API and the app alike', functio
     assert_same(503, call($bare['base'], 'PUT', '/api/progress', new stdClass())['status'], 'nothing is saved');
     assert_same(200, call($bare['base'], 'GET', '/')['status'], 'the app itself loads, to show its "not set up yet" page');
     assert_match('/Set up Piano Academy/', call($bare['base'], 'GET', '/setup.php')['raw']);
-    ($bare['stop'])();
+    $bare['stop']();
 });
 
 test('a database behind the code: the app does not start on it - the site is being updated', function (): void {
     $empty = test_empty_db('behind');
-    $behind = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
-        'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam(), $empty),
-        'PIANO_FRONTEND_DIST' => test_frontend_build(),
-    ], '/api/health');
-    assert_same(array_map('migrationLabel', every_migration()), call($behind['base'], 'GET', '/api/health')['body']['pending'], 'the library\'s admin tools\' set, the app\'s own, then the library\'s words\' and people\'s - the library\'s named with their set');
+    $behind = test_start_server(
+        TEST_BACKEND,
+        TEST_BACKEND . '/router.php',
+        [
+            'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam(), $empty),
+            'PIANO_FRONTEND_DIST' => test_frontend_build(),
+        ],
+        '/api/health',
+    );
+    assert_same(
+        array_map('migrationLabel', every_migration()),
+        call($behind['base'], 'GET', '/api/health')['body']['pending'],
+        'the library\'s admin tools\' set, the app\'s own, then the library\'s words\' and people\'s - the library\'s named with their set',
+    );
     foreach (['signed in' => bearer(test_token(LEARNER)), 'nobody' => []] as $who => $headers) {
         $state = call($behind['base'], 'GET', '/api/state', null, $headers);
         assert_same([503, ['code' => 'update_pending', 'message' => 'The site is being updated. Try again in a few minutes.']], [$state['status'], $state['body']], $who);
     }
     // A tab left open while the code moved on: its saves and its own file are told the same, and nothing is written.
-    foreach ([['PUT', '/api/progress', new stdClass()], ['PUT', '/api/path', ['steps' => new stdClass()]], ['POST', '/api/sessions', ['mode' => 'trainer']], ['GET', '/api/me/export', null], ['POST', '/api/me/import', ['format' => 'piano-academy-export']]] as [$method, $url, $body]) {
+    foreach (
+        [
+            ['PUT', '/api/progress', new stdClass()],
+            ['PUT', '/api/path', ['steps' => new stdClass()]],
+            ['POST', '/api/sessions', ['mode' => 'trainer']],
+            ['GET', '/api/me/export', null],
+            ['POST', '/api/me/import', ['format' => 'piano-academy-export']],
+        ]
+        as [$method, $url, $body]
+    ) {
         $answer = call($behind['base'], $method, $url, $body, array_merge(bearer(test_token(LEARNER)), [GENERATION_HEADER . ': 1']));
         assert_same([503, 'update_pending', '60'], [$answer['status'], $answer['body']['code'] ?? null, $answer['headers']['retry-after'] ?? null], "$method $url");
     }
     assert_false((bool) dbConnect(machineDatabaseSettings(), $empty)->query("SELECT to_regclass('migrations') IS NOT NULL")->fetchColumn(), 'nothing was written to find out');
-    ($behind['stop'])();
+    $behind['stop']();
 });
 
 test('the learner\'s data sits under the learner\'s id, and the server logged no PHP problem', function (): void {

@@ -134,8 +134,7 @@ $app->post('/api/sessions', function (Request $request, Response $response): Res
 $app->get('/api/me/export', function (Request $request, Response $response): Response {
     $json = transferExportJson((int) $request->getAttribute('userId'));
 
-    return respondJsonText($response, $json)
-        ->withHeader('Content-Disposition', 'attachment; filename="piano-academy-progress-' . gmdate('Y-m-d') . '.json"');
+    return respondJsonText($response, $json)->withHeader('Content-Disposition', 'attachment; filename="piano-academy-progress-' . gmdate('Y-m-d') . '.json"');
 })->add(requireUser());
 
 $app->post('/api/me/import', function (Request $request, Response $response): Response {
@@ -170,7 +169,10 @@ $app->post('/api/me/import', function (Request $request, Response $response): Re
     // A person's progress replaced by a file is theirs to do - and worth being able to tell afterwards
     // (api/admin_tools.php's audit log): what came in, and whether it took the place of what was there.
     audit($request, 'progress.imported', 'user', $userId, [
-        'notes' => $imported['notes'], 'steps' => $imported['steps'], 'sessions' => $imported['sessions'], 'replaced' => $imported['replaced'],
+        'notes' => $imported['notes'],
+        'steps' => $imported['steps'],
+        'sessions' => $imported['sessions'],
+        'replaced' => $imported['replaced'],
     ]);
 
     return respondJson($response, $imported + ['leftOut' => $data['leftOut']]);

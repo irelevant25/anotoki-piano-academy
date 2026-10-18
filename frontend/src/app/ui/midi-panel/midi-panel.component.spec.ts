@@ -62,7 +62,11 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     expect($('#midi-label').textContent?.trim()).toBe('KAWAI ES120');
     expect($('#midi-button').getAttribute('aria-label')).toBe('KAWAI ES120: Pripojené: KAWAI ES120');
     // Label in name: the name starts with what the button shows.
-    expect($('#midi-button').getAttribute('aria-label')?.startsWith($('#midi-label').textContent?.trim() ?? '-')).toBe(true);
+    expect(
+      $('#midi-button')
+        .getAttribute('aria-label')
+        ?.startsWith($('#midi-label').textContent?.trim() ?? '-'),
+    ).toBe(true);
 
     // The browser's own reason, after the app's sentence - English, and marked so in the box.
     midi.connectedName.set(null);
@@ -81,7 +85,7 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     expect($('#midi-button').getAttribute('aria-label')).toBe('Bez klavíra: Klavír nie je pripojený');
   });
 
-  it('opens its box - the family\'s, a named group - onto the device list; Escape closes it onto the button', async () => {
+  it("opens its box - the family's, a named group - onto the device list; Escape closes it onto the button", async () => {
     const button = $<HTMLButtonElement>('#midi-button');
     expect(box()).toBeNull();
     expect(button.getAttribute('aria-expanded')).toBe('false');
@@ -146,7 +150,7 @@ describe('MidiPanelComponent: the piano in the top bar', () => {
     expect($('#midi-refresh-btn').classList).toContain('anotoki-button--icon');
   });
 
-  it('lists the devices by their own names in the family\'s select - or says there are none - and a choice picks the device', async () => {
+  it("lists the devices by their own names in the family's select - or says there are none - and a choice picks the device", async () => {
     const options = (): string[] => Array.from(host.querySelectorAll('#midi-device-select option')).map((option) => option.textContent?.trim() ?? '');
     $<HTMLButtonElement>('#midi-button').click();
     await settle();

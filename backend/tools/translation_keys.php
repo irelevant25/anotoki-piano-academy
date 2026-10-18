@@ -51,11 +51,7 @@ function translationKeysFrontendRoot(): string
 /** The family's scan of this app's frontend ($root: the tests' own small frontends). */
 function translationKeyScanner(?string $root = null): KeyScanner
 {
-    return new KeyScanner(
-        $root ?? translationKeysFrontendRoot(),
-        exclude: ['core/testing/**', TRANSLATION_KEPT_ENGLISH_FILE],
-        dynamicKeys: TRANSLATION_DYNAMIC_KEYS_FILE,
-    );
+    return new KeyScanner($root ?? translationKeysFrontendRoot(), exclude: ['core/testing/**', TRANSLATION_KEPT_ENGLISH_FILE], dynamicKeys: TRANSLATION_DYNAMIC_KEYS_FILE);
 }
 
 /**

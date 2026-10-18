@@ -47,17 +47,17 @@ const SESSION_MODES = ['trainer', 'sheet', 'song', 'lesson'];
  */
 const SESSION_FIELDS = [
     'mode' => ['mode'],
-    'label' => ['text', 200],        // lesson: "C, D, E · Drill"
-    'unitId' => ['id'],              // lesson
-    'stepId' => ['id'],              // lesson
-    'songId' => ['id'],              // song, and a lesson's song step
+    'label' => ['text', 200], // lesson: "C, D, E · Drill"
+    'unitId' => ['id'], // lesson
+    'stepId' => ['id'], // lesson
+    'songId' => ['id'], // song, and a lesson's song step
     'songTitle' => ['text', 200],
     'startedAt' => ['time'],
     'endedAt' => ['time'],
     'attempts' => ['count'],
     'correct' => ['count'],
     'accuracy' => ['number', 0, 100, false],
-    'bpm' => ['number', 1, 1000, true],               // null in 'wait' mode
+    'bpm' => ['number', 1, 1000, true], // null in 'wait' mode
     'avgTimingErrorMs' => ['number', 0, 3600000, true], // null without a clock
 ];
 
@@ -75,10 +75,12 @@ function storeStateJson(int $userId, bool $withGeneration = false): string
     $row = dbOne(
         "SELECT
             coalesce((SELECT notes::text FROM progress WHERE user_id = ?), '{}') AS progress,
-            coalesce((SELECT jsonb_agg(" . STORE_SESSION_JSON . " ORDER BY seq)::text FROM sessions WHERE user_id = ?), '[]') AS sessions,
-            coalesce((SELECT data::text FROM path_progress WHERE user_id = ?), '{\"steps\": {}}') AS path"
-            . ($withGeneration ? ', (SELECT progress_generation FROM users WHERE id = ?) AS generation' : ''),
-        $withGeneration ? [$userId, $userId, $userId, $userId] : [$userId, $userId, $userId]
+            coalesce((SELECT jsonb_agg(" .
+            STORE_SESSION_JSON .
+            " ORDER BY seq)::text FROM sessions WHERE user_id = ?), '[]') AS sessions,
+            coalesce((SELECT data::text FROM path_progress WHERE user_id = ?), '{\"steps\": {}}') AS path" .
+            ($withGeneration ? ', (SELECT progress_generation FROM users WHERE id = ?) AS generation' : ''),
+        $withGeneration ? [$userId, $userId, $userId, $userId] : [$userId, $userId, $userId],
     );
     $generation = $withGeneration ? ',"generation":' . ($row['generation'] === null ? 'null' : (string) (int) $row['generation']) : '';
 
@@ -101,7 +103,7 @@ function storeProgressCounts(int $userId, ?PDO $pdo = null): array
             (SELECT count(*) FROM path_progress pp, jsonb_object_keys(pp.data -> 'steps') WHERE pp.user_id = ?) AS steps,
             (SELECT count(*) FROM sessions WHERE user_id = ?) AS sessions",
         [$userId, $userId, $userId],
-        $pdo
+        $pdo,
     );
 
     return ['notes' => (int) $row['notes'], 'steps' => (int) $row['steps'], 'sessions' => (int) $row['sessions']];
@@ -120,7 +122,7 @@ function storeHasData(int $userId): bool
         'SELECT EXISTS (SELECT 1 FROM progress WHERE user_id = ?)
              OR EXISTS (SELECT 1 FROM path_progress WHERE user_id = ?)
              OR EXISTS (SELECT 1 FROM sessions WHERE user_id = ?)',
-        [$userId, $userId, $userId]
+        [$userId, $userId, $userId],
     );
 }
 
@@ -216,9 +218,7 @@ function storeCleanSession(mixed $body): array
                 break;
             case 'number':
                 $nullable = $rule[3];
-                $wrong = $value === null
-                    ? !$nullable
-                    : (!(is_int($value) || is_float($value)) || !is_finite((float) $value) || $value < $rule[1] || $value > $rule[2]);
+                $wrong = $value === null ? !$nullable : !(is_int($value) || is_float($value)) || !is_finite((float) $value) || $value < $rule[1] || $value > $rule[2];
                 if ($wrong) {
                     throw $bad("a number from {$rule[1]} to {$rule[2]}" . ($nullable ? ', or null' : ''));
                 }
@@ -233,8 +233,7 @@ function storeCleanSession(mixed $body): array
 /** An ISO 8601 date and time with a zone, as toISOString() writes them. */
 function storeIsIsoTime(mixed $value): bool
 {
-    if (!is_string($value) || strlen($value) > 40
-        || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})$/D', $value)) {
+    if (!is_string($value) || strlen($value) > 40 || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:?\d{2})$/D', $value)) {
         return false;
     }
     try {
@@ -348,7 +347,7 @@ function storeSaveProgress(int $userId, stdClass $notes): void
     dbExec(
         'INSERT INTO progress (user_id, notes) VALUES (?, ?::jsonb)
          ON CONFLICT (user_id) DO UPDATE SET notes = EXCLUDED.notes, updated_at = now()',
-        [$userId, jsonText($notes)]
+        [$userId, jsonText($notes)],
     );
 }
 
@@ -358,7 +357,7 @@ function storeSavePath(int $userId, stdClass $path): void
     dbExec(
         'INSERT INTO path_progress (user_id, data) VALUES (?, ?::jsonb)
          ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()',
-        [$userId, jsonText($path)]
+        [$userId, jsonText($path)],
     );
 }
 
@@ -387,8 +386,10 @@ function storeAddSession(int $userId, array $session, ?string $requestKey = null
         $json = dbValue(
             'INSERT INTO sessions (user_id, id, request_key, data) VALUES (?, ?, ?, ?::jsonb)
              ON CONFLICT (user_id, request_key) DO NOTHING
-             RETURNING ' . STORE_SESSION_JSON . '::text',
-            [$userId, storeNewSessionId(), $requestKey, jsonText($session)]
+             RETURNING ' .
+                STORE_SESSION_JSON .
+                '::text',
+            [$userId, storeNewSessionId(), $requestKey, jsonText($session)],
         );
         if ($json === null) {
             // the same key, stored by another request a moment ago

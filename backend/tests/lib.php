@@ -91,7 +91,7 @@ function test_write_config(string $dir, array $database, array $auth): string
  */
 function test_offline_auth(array $auth): array
 {
-    $file = static fn (string $key): bool => is_string($auth[$key] ?? null) && $auth[$key] !== '';
+    $file = static fn(string $key): bool => is_string($auth[$key] ?? null) && $auth[$key] !== '';
     if ($file('application_file') && $file('anonymized_file')) {
         return $auth;
     }
@@ -100,9 +100,12 @@ function test_offline_auth(array $auth): array
     if ($host === 'localhost' || $host === '::1' || preg_match('/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/D', $host)) {
         return $auth;
     }
-    throw new RuntimeException('These sign-in settings would ask the IAM at ' . ($auth['issuer'] ?? '?')
-        . ' whether sign-in is required, or which accounts it deleted: give them an application_file (test_application_file())'
-        . ' and an anonymized_file (test_anonymized_file()), or the stand-in IAM.');
+    throw new RuntimeException(
+        'These sign-in settings would ask the IAM at ' .
+            ($auth['issuer'] ?? '?') .
+            ' whether sign-in is required, or which accounts it deleted: give them an application_file (test_application_file())' .
+            ' and an anonymized_file (test_anonymized_file()), or the stand-in IAM.',
+    );
 }
 
 /**
@@ -163,8 +166,11 @@ function test_login_required(array $auth, bool $required): void
 function test_auth_settings(): array
 {
     return [
-        'issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT, 'cache_dir' => 'storage/cache',
-        'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file(),
+        'issuer' => TEST_ISSUER,
+        'client_id' => TEST_CLIENT,
+        'cache_dir' => 'storage/cache',
+        'application_file' => test_application_file(),
+        'anonymized_file' => test_anonymized_file(),
     ];
 }
 
@@ -204,9 +210,7 @@ function after(callable $fn): void
     $GLOBALS['TESTS']['after'][] = $fn;
 }
 
-final class AssertionFailed extends RuntimeException
-{
-}
+final class AssertionFailed extends RuntimeException {}
 
 function test_show(mixed $value): string
 {
@@ -422,7 +426,7 @@ function test_empty_db(string $suffix): string
  */
 function test_migrate(PDO $pdo, ?string $through = null): array
 {
-    $options = $through === null ? [] : ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => test_ready_until($set, $name, $through, true)];
+    $options = $through === null ? [] : ['ready' => static fn(\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => test_ready_until($set, $name, $through, true)];
 
     return databaseMigrator($pdo, $options)->apply();
 }
@@ -430,7 +434,7 @@ function test_migrate(PDO $pdo, ?string $through = null): array
 /** test_migrate(), up to the app's migration before $migration: a database as it stood just before that one came. */
 function test_migrate_before(PDO $pdo, string $migration): array
 {
-    return databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => test_ready_until($set, $name, $migration, false)])->apply();
+    return databaseMigrator($pdo, ['ready' => static fn(\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => test_ready_until($set, $name, $migration, false)])->apply();
 }
 
 /** The `ready` of test_migrate(): the library's admin tools' set always, the app's files up to $file, nothing after. */
@@ -462,11 +466,15 @@ function test_ready_until(\Anotoki\Lib\Migrations\MigrationSet $set, string $nam
  */
 function test_migrate_as_installed(PDO $pdo, string $through, ?string $wordsThrough = null): array
 {
-    $apply = static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $last): array => (new \Anotoki\Lib\Migrations\Migrator($pdo, [$set], [
-        'lock' => DATABASE_UPDATE_LOCK,
-        'prepare' => adoptLegacyMigrationsTable(...),
-        'ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => strnatcmp($name, $last) <= 0,
-    ]))->apply();
+    $apply = static fn(\Anotoki\Lib\Migrations\MigrationSet $set, string $last): array => (new \Anotoki\Lib\Migrations\Migrator(
+        $pdo,
+        [$set],
+        [
+            'lock' => DATABASE_UPDATE_LOCK,
+            'prepare' => adoptLegacyMigrationsTable(...),
+            'ready' => static fn(\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => strnatcmp($name, $last) <= 0,
+        ],
+    ))->apply();
     $own = $apply(migrationSet(), $through);
     if ($wordsThrough === null || $own['failed'] !== null) {
         return $own;
@@ -492,7 +500,7 @@ function names_of(array $files): array
 function library_migration_files(?\Anotoki\Lib\Migrations\MigrationSet $set = null): array
 {
     $set ??= \Anotoki\Lib\Translations\Schema::migrationSet();
-    $files = array_values(array_filter(scandir($set->directory) ?: [], static fn (string $entry): bool => $entry[0] !== '.' && str_ends_with($entry, '.sql')));
+    $files = array_values(array_filter(scandir($set->directory) ?: [], static fn(string $entry): bool => $entry[0] !== '.' && str_ends_with($entry, '.sql')));
     natsort($files);
 
     return array_values($files);
@@ -523,7 +531,7 @@ function every_migration(): array
 /** The library's admin tools' files (anotoki_admin), as a Migrator lists them: they run first. */
 function admin_migrations(): array
 {
-    return array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] === \Anotoki\Lib\Admin\Schema::SET));
+    return array_values(array_filter(every_migration(), static fn(array $file): bool => $file['set'] === \Anotoki\Lib\Admin\Schema::SET));
 }
 
 /** A new temp folder, removed at the end. */
@@ -661,7 +669,10 @@ function test_frontend_build(): string
     static $dir = null;
     if ($dir === null) {
         $dir = test_temp_dir('frontend');
-        file_put_contents("$dir/index.html", "<!doctype html><html><head><title>Piano Academy</title></head><body><app-root></app-root><script src=\"main-TEST.js\" type=\"module\"></script></body></html>\n");
+        file_put_contents(
+            "$dir/index.html",
+            "<!doctype html><html><head><title>Piano Academy</title></head><body><app-root></app-root><script src=\"main-TEST.js\" type=\"module\"></script></body></html>\n",
+        );
         file_put_contents("$dir/main-TEST.js", "console.log('piano');\n");
         file_put_contents("$dir/styles-TEST.css", "body { margin: 0; }\n");
         file_put_contents("$dir/changelog.json", '[{"version":"2.0","date":"2026-09-28","changes":{"added":["x"]}}]' . "\n");
@@ -692,10 +703,15 @@ function start_app(array $auth, array $env = [], array $settings = []): array
         }
         file_put_contents("$config/$name.local.php", '<?php return ' . var_export($values, true) . ";\n");
     }
-    $app = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', $env + [
-        'PIANO_TEST_CONFIG' => $config,
-        'PIANO_FRONTEND_DIST' => test_frontend_build(),
-    ], '/api/health');
+    $app = test_start_server(
+        TEST_BACKEND,
+        TEST_BACKEND . '/router.php',
+        $env + [
+            'PIANO_TEST_CONFIG' => $config,
+            'PIANO_FRONTEND_DIST' => test_frontend_build(),
+        ],
+        '/api/health',
+    );
     $health = call($app['base'], 'GET', '/api/health')['body'];
     if (($health['database'] ?? null) !== dbName()) {
         throw new RuntimeException('The server uses ' . ($health['database'] ?? '?') . ', not this test\'s database.');
@@ -787,8 +803,7 @@ function call_form(string $base, string $url, array $fields, array $files = [], 
         $body .= "--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value\r\n";
     }
     foreach ($files as $name => [$fileName, $contents]) {
-        $body .= "--$boundary\r\nContent-Disposition: form-data; name=\"$name\"; filename=\"$fileName\"\r\n"
-            . "Content-Type: application/json\r\n\r\n$contents\r\n";
+        $body .= "--$boundary\r\nContent-Disposition: form-data; name=\"$name\"; filename=\"$fileName\"\r\n" . "Content-Type: application/json\r\n\r\n$contents\r\n";
     }
     $body .= "--$boundary--\r\n";
 
@@ -835,11 +850,17 @@ function test_other_iam(string $kid, string $issuer = TEST_ISSUER): \Anotoki\Lib
  */
 function test_auth_iam(array $extra = []): array
 {
-    return array_filter($extra + [
-        'issuer' => TEST_ISSUER, 'client_id' => TEST_CLIENT,
-        'cache_dir' => test_temp_dir('cache'), 'jwks_file' => test_jwks_file(),
-        'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file(),
-    ], static fn($value): bool => $value !== null);
+    return array_filter(
+        $extra + [
+            'issuer' => TEST_ISSUER,
+            'client_id' => TEST_CLIENT,
+            'cache_dir' => test_temp_dir('cache'),
+            'jwks_file' => test_jwks_file(),
+            'application_file' => test_application_file(),
+            'anonymized_file' => test_anonymized_file(),
+        ],
+        static fn($value): bool => $value !== null,
+    );
 }
 
 /**
@@ -863,12 +884,7 @@ function test_token(int $userId, array $roles = [], array $extra = [], array $si
 {
     $iam = $sign['iam'] ?? test_keys();
 
-    return $iam->sign(
-        test_claims($userId, $roles, $extra),
-        $sign['typ'] ?? 'at+jwt',
-        $sign['alg'] ?? 'RS256',
-        isset($sign['kid']) ? ['kid' => $sign['kid']] : [],
-    );
+    return $iam->sign(test_claims($userId, $roles, $extra), $sign['typ'] ?? 'at+jwt', $sign['alg'] ?? 'RS256', isset($sign['kid']) ? ['kid' => $sign['kid']] : []);
 }
 
 /** A token of the stand-in IAM's issuer, signed with the tests' key (the stand-in serves that key set). */

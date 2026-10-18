@@ -131,7 +131,7 @@ function buildPianoApp(): \Slim\App
 
     // Added in this order, so they run the other way round.
     $app->add(identify($app->getResponseFactory()));
-    $app->add(new PeopleUpkeep(people(), static fn (): bool => siteState()->state() === SiteState::READY, afterResponse(...)));
+    $app->add(new PeopleUpkeep(people(), static fn(): bool => siteState()->state() === SiteState::READY, afterResponse(...)));
     // The day's backup (anotoki/lib's Backups: the first answer of a UTC day that went well, after it).
     $app->add(static function (Request $request, RequestHandler $handler): Response {
         $response = $handler->handle($request);
@@ -144,29 +144,31 @@ function buildPianoApp(): \Slim\App
     $app->add(new SiteGate(siteState(), $app->getResponseFactory(), siteOpenPaths()));
 
     $errorMiddleware = $app->addErrorMiddleware(false, false, false);
-    $errorMiddleware->setDefaultErrorHandler($errorLog->wrapHandler(function (Request $request, Throwable $exception) use ($app): Response {
-        $response = $app->getResponseFactory()->createResponse();
+    $errorMiddleware->setDefaultErrorHandler(
+        $errorLog->wrapHandler(function (Request $request, Throwable $exception) use ($app): Response {
+            $response = $app->getResponseFactory()->createResponse();
 
-        if ($exception instanceof ApiError) {
-            return respondError($response, $exception->status, $exception->errorCode, $exception->getMessage(), $exception->headers, $exception->extra);
-        }
-        if ($exception instanceof HttpNotFoundException) {
-            return respondError($response, 404, 'not_found', 'Not found');
-        }
-        if ($exception instanceof HttpMethodNotAllowedException) {
-            return respondError($response, 405, 'method_not_allowed', 'Method not allowed', ['Allow' => implode(', ', $exception->getAllowedMethods())]);
-        }
-        // (No case for NotSetUp: without the settings the gate answers before any route could ask for them.)
-        if ($exception instanceof PDOException) {
-            error_log('[db] ' . $exception->getMessage());
+            if ($exception instanceof ApiError) {
+                return respondError($response, $exception->status, $exception->errorCode, $exception->getMessage(), $exception->headers, $exception->extra);
+            }
+            if ($exception instanceof HttpNotFoundException) {
+                return respondError($response, 404, 'not_found', 'Not found');
+            }
+            if ($exception instanceof HttpMethodNotAllowedException) {
+                return respondError($response, 405, 'method_not_allowed', 'Method not allowed', ['Allow' => implode(', ', $exception->getAllowedMethods())]);
+            }
+            // (No case for NotSetUp: without the settings the gate answers before any route could ask for them.)
+            if ($exception instanceof PDOException) {
+                error_log('[db] ' . $exception->getMessage());
 
-            return respondError($response, 503, 'database_unavailable', 'The database is not reachable right now.');
-        }
+                return respondError($response, 503, 'database_unavailable', 'The database is not reachable right now.');
+            }
 
-        error_log('[server] ' . get_class($exception) . ': ' . $exception->getMessage() . ' @ ' . $exception->getFile() . ':' . $exception->getLine());
+            error_log('[server] ' . get_class($exception) . ': ' . $exception->getMessage() . ' @ ' . $exception->getFile() . ':' . $exception->getLine());
 
-        return respondError($response, 500, 'server_error', 'Something went wrong on the server.');
-    }));
+            return respondError($response, 500, 'server_error', 'Something went wrong on the server.');
+        }),
+    );
 
     $app->add(ErrorLogMiddleware::outer($errorLog));
     $app->add(securityHeaders());

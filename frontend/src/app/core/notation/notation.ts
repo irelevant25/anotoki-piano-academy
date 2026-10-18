@@ -32,7 +32,10 @@ export interface SequenceNote {
 export class Notation {
   private readonly renderer: Renderer;
 
-  constructor(private readonly container: HTMLDivElement, private readonly theory: TheoryService) {
+  constructor(
+    private readonly container: HTMLDivElement,
+    private readonly theory: TheoryService,
+  ) {
     // Renderer.Backends (plural) - VexFlow 5's name; the singular is undefined.
     // The renderer puts its <svg> into the container once, here: every redraw
     // clears it with context.clear(), never by emptying the container, which
@@ -110,7 +113,10 @@ export class Notation {
       // which ran the first measure's notes over its barline.
       new Formatter().joinVoices([voice]).formatToStave([voice], stave);
       voice.draw(context, stave);
-      this.tagMidi(staveNotes, measureNotes.map((note) => note.midi));
+      this.tagMidi(
+        staveNotes,
+        measureNotes.map((note) => note.midi),
+      );
 
       allNotes.push(...staveNotes);
       x += stave.getWidth();

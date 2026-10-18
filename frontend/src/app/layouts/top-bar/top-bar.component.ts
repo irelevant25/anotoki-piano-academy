@@ -241,9 +241,7 @@ export class TopBarComponent {
    * and back to this page, its pages in the learner's language (BootService:
    * a visitor's saves arrive first - the family's item waits for them).
    */
-  private readonly offerSignIn = computed(
-    () => !this.auth.signedIn() && (this.store.loaded() || (isLegalPage(this.here()) && this.boot.status() === 'sign-in')),
-  );
+  private readonly offerSignIn = computed(() => !this.auth.signedIn() && (this.store.loaded() || (isLegalPage(this.here()) && this.boot.status() === 'sign-in')));
   protected readonly signIn = computed(() => (this.offerSignIn() ? () => this.boot.signIn() : null));
 
   /**
@@ -278,7 +276,5 @@ export class TopBarComponent {
   protected readonly phoneMark = computed<TopBarPhoneMark | null>(() => (this.store.unsaved() ? { dot: true, description: this.i18n.t('account.notSaved') } : null));
 
   /** "Not saved yet", and what it means, heading both menus. */
-  protected readonly menuNote = computed<TopBarMenuNote | null>(() =>
-    this.store.unsaved() ? { title: this.i18n.t('account.notSaved'), text: this.i18n.t('account.notSavedHint') } : null,
-  );
+  protected readonly menuNote = computed<TopBarMenuNote | null>(() => (this.store.unsaved() ? { title: this.i18n.t('account.notSaved'), text: this.i18n.t('account.notSavedHint') } : null));
 }

@@ -36,7 +36,11 @@ describe('PathService', () => {
     // A phase is its id, its keyboard and its units: its title and description are the language's (path-words.ts).
     expect(path.phases.map((phase) => phase.id)).toEqual(['right-hand', 'left-hand', 'hands-together', 'left-hand-chords', 'right-hand-chords', 'melody-and-chords']);
     for (const phase of path.phases) {
-      expect(Object.keys(phase).sort().filter((name) => !['comingSoon', 'keyboard'].includes(name))).toEqual(['id', 'number', 'units']);
+      expect(
+        Object.keys(phase)
+          .sort()
+          .filter((name) => !['comingSoon', 'keyboard'].includes(name)),
+      ).toEqual(['id', 'number', 'units']);
     }
 
     // The hints are the notes that have one - the right hand's eight - and hold no sentence.
@@ -44,7 +48,7 @@ describe('PathService', () => {
     expect(path.noteHints).toBe(NOTE_HINTS);
   });
 
-  it('introduces the notes in the curriculum\'s order', () => {
+  it("introduces the notes in the curriculum's order", () => {
     const theory = TestBed.inject(TheoryService);
     const introduced = path.phases.flatMap((phase) => phase.units.flatMap((unit) => unit.newNotes));
     expect(introduced).toEqual(theory.curriculum.slice(0, introduced.length));
@@ -74,11 +78,7 @@ describe('PathService', () => {
     // The server's move (api/visitors.php visitorMove()) adds a visitor's steps the account lacks: the
     // account may then hold a later step passed while an earlier one is not. The path opens up to the
     // first step not passed, and no further.
-    const progress = path.recordStepResult(
-      path.recordStepResult(path.createInitialPathProgress(), 'rh-1/meet', 100),
-      'rh-2/drill',
-      95,
-    );
+    const progress = path.recordStepResult(path.recordStepResult(path.createInitialPathProgress(), 'rh-1/meet', 100), 'rh-2/drill', 95);
     expect(path.isStepPassed(progress, 'rh-2/drill')).toBe(true);
     expect(path.getNextStep(progress)?.key).toBe('rh-1/drill');
     expect(path.isStepUnlocked(progress, 'rh-1/drill')).toBe(true);
@@ -117,15 +117,21 @@ describe('PathService', () => {
     expect(path.generateMelody([60], 4)).toEqual([60, 60, 60, 60]);
   });
 
-  it('every song step names a song that uses only the unit\'s notes, and every new one', () => {
+  it("every song step names a song that uses only the unit's notes, and every new one", () => {
     const songs = TestBed.inject(SongsService);
     for (const unit of path.phases[0].units) {
       const song = path.songForStep(unit.steps.find((step) => step.type === 'song')!);
       expect(song, unit.id).not.toBeNull();
       const pool = path.notePoolForUnit(unit.id);
       const used = songs.requiredNotes(song!);
-      expect(used.every((midi) => pool.includes(midi)), `${song!.id} stays inside ${unit.id}'s notes`).toBe(true);
-      expect(unit.newNotes.every((midi) => used.includes(midi)), `${song!.id} uses every new note of ${unit.id}`).toBe(true);
+      expect(
+        used.every((midi) => pool.includes(midi)),
+        `${song!.id} stays inside ${unit.id}'s notes`,
+      ).toBe(true);
+      expect(
+        unit.newNotes.every((midi) => used.includes(midi)),
+        `${song!.id} uses every new note of ${unit.id}`,
+      ).toBe(true);
     }
   });
 });

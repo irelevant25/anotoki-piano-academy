@@ -59,7 +59,7 @@ interface PendingSave {
   refuse(code?: string): void;
 }
 
-describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () => {
+describe("the family's kit, wired to Piano Academy (core/family-kit.ts)", () => {
   let fixture: ComponentFixture<KitHostComponent>;
   let host: HTMLElement;
   /** The account: its language (the token's locale) - null: nobody signed in - and its preferences (null: an IAM that keeps none). */
@@ -152,8 +152,8 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
     delete document.documentElement.dataset['theme'];
   });
 
-  describe('the kit\'s words', () => {
-    it('are the database\'s strings of the library\'s keys - this app\'s wording, the owner\'s - and the kit\'s own informal Slovak for the rest', async () => {
+  describe("the kit's words", () => {
+    it("are the database's strings of the library's keys - this app's wording, the owner's - and the kit's own informal Slovak for the rest", async () => {
       await draw();
       const words = TestBed.inject(AnotokiWords);
       expect(words.t('topbar.account')).toBe('Tvoj účet anotoki');
@@ -167,7 +167,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       expect(words.lang()).toBe('sk');
     });
 
-    it('are English in the admin panel, whatever the app is read in - the bundle\'s English', async () => {
+    it("are English in the admin panel, whatever the app is read in - the bundle's English", async () => {
       await draw();
       TestBed.inject(TranslationService).noteAddress('/admin/translations');
       const words = TestBed.inject(AnotokiWords);
@@ -178,14 +178,14 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       expect(words.t('theme.light')).toBe('Vzhľad: svetlý');
     });
 
-    it('are never a key: a library word the database has no string for reads the kit\'s own - and warns of nothing', async () => {
+    it("are never a key: a library word the database has no string for reads the kit's own - and warns of nothing", async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       TestBed.configureTestingModule({ providers: [...provideTestTranslations({}), provideSiteTranslations(), { provide: AnotokiAuth, useValue: auth }, provideFamilyKit()] });
       expect(TestBed.inject(AnotokiWords).t('topbar.account')).toBe('Your anotoki account');
       expect(warn).not.toHaveBeenCalled();
     });
 
-    it('while there are no strings at all: this app\'s English for the theme switch (kept-english.ts), the kit\'s own English for the rest', async () => {
+    it("while there are no strings at all: this app's English for the theme switch (kept-english.ts), the kit's own English for the rest", async () => {
       settingsRead = false;
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const http = { get: vi.fn() };
@@ -201,7 +201,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       expect(warn).not.toHaveBeenCalled();
     });
 
-    it('kept in code only where this app says a library word its own way: each a library key, never the library\'s own words again', () => {
+    it("kept in code only where this app says a library word its own way: each a library key, never the library's own words again", () => {
       const library: Readonly<Record<string, string>> = LIBRARY_WORDS.en;
       for (const [key, english] of Object.entries(KEPT_LIBRARY_ENGLISH)) {
         expect(Object.hasOwn(library, key), key).toBe(true);
@@ -210,7 +210,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
     });
   });
 
-  describe('the language chooser: the family\'s, on this app\'s languages', () => {
+  describe("the language chooser: the family's, on this app's languages", () => {
     it('is one button: the code, named with the language as its speakers write it and the code it shows - and a menu of the languages, each in its own name', async () => {
       await draw();
       expect(switcher().textContent?.trim()).toBe('SK');
@@ -233,7 +233,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       expect(note('language')).toBeNull();
     });
 
-    it('says so under the button, and stays as it was, when the language could not be loaded - in the page\'s language', async () => {
+    it("says so under the button, and stays as it was, when the language could not be loaded - in the page's language", async () => {
       await draw();
       const i18n = TestBed.inject(TranslationService);
       vi.spyOn(i18n, 'setLanguage').mockResolvedValue(false);
@@ -267,7 +267,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       expect(note('language')).toBeNull();
     });
 
-    describe('for somebody signed in: the choice is the anotoki account\'s language too', () => {
+    describe("for somebody signed in: the choice is the anotoki account's language too", () => {
       beforeEach(() => {
         user.set({ locale: 'sk' });
         preferences.set({ theme: 'auto', date_format: null, time_format: null });
@@ -290,7 +290,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
         expect(sent()).toEqual([]);
       });
 
-      it('saves the language already on the page when the account has another - a link\'s, or one the site chose while it lacked the account\'s', async () => {
+      it("saves the language already on the page when the account has another - a link's, or one the site chose while it lacked the account's", async () => {
         user.set({ locale: 'en' });
         await draw();
         const fetch = vi.spyOn(TestBed.inject(TranslationService) as unknown as { fetchBundle(code: string): Promise<unknown> }, 'fetchBundle');
@@ -318,7 +318,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
         expect(note('language')).toBeNull();
       });
 
-      it('keeps a language the IAM does not offer as this site\'s own, and says nothing', async () => {
+      it("keeps a language the IAM does not offer as this site's own, and says nothing", async () => {
         await draw();
         await choose(0);
         saves[0].refuse('invalid_request');
@@ -338,7 +338,9 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
     });
 
     it('is not drawn while one language is on offer, nor while the app has no strings (the list comes with them)', async () => {
-      TestBed.configureTestingModule({ providers: [...provideTestTranslations({}, { languages: [TEST_LANGUAGES[0]] }), provideSiteTranslations(), { provide: AnotokiAuth, useValue: auth }, provideFamilyKit()] });
+      TestBed.configureTestingModule({
+        providers: [...provideTestTranslations({}, { languages: [TEST_LANGUAGES[0]] }), provideSiteTranslations(), { provide: AnotokiAuth, useValue: auth }, provideFamilyKit()],
+      });
       fixture = TestBed.createComponent(KitHostComponent);
       host = fixture.nativeElement;
       await fixture.whenStable();
@@ -350,7 +352,12 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       settingsRead = false;
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       TestBed.configureTestingModule({
-        providers: [{ provide: AnotokiAuth, useValue: auth }, { provide: HttpClient, useValue: { get: () => expect.unreachable('nothing is asked for') } }, provideSiteTranslations(), provideFamilyKit()],
+        providers: [
+          { provide: AnotokiAuth, useValue: auth },
+          { provide: HttpClient, useValue: { get: () => expect.unreachable('nothing is asked for') } },
+          provideSiteTranslations(),
+          provideFamilyKit(),
+        ],
       });
       await TestBed.inject(TranslationService).init();
       fixture = TestBed.createComponent(KitHostComponent);
@@ -362,10 +369,10 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
     });
   });
 
-  describe('the theme: the family\'s ThemeService and switch, the account\'s theme for somebody signed in', () => {
+  describe("the theme: the family's ThemeService and switch, the account's theme for somebody signed in", () => {
     const account = (theme: AnotokiTheme): AnotokiPreferences => ({ theme, date_format: null, time_format: null });
 
-    it('signed out: this device\'s theme - kept under this app\'s key for the kit\'s theme-boot.js - and nothing goes to an account', async () => {
+    it("signed out: this device's theme - kept under this app's key for the kit's theme-boot.js - and nothing goes to an account", async () => {
       localStorage.setItem(THEME_KEY, 'dark');
       await draw();
       expect(TestBed.inject(ThemeService).mode()).toBe('dark');
@@ -381,12 +388,12 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       expect(sent()).toEqual([]);
     });
 
-    it('names its three choices in this app\'s words - the database\'s, under the library\'s keys', async () => {
+    it("names its three choices in this app's words - the database's, under the library's keys", async () => {
       await draw();
       expect(themes().map((choice) => choice.getAttribute('aria-label') ?? choice.textContent?.trim())).toEqual(['Vzhľad: svetlý', 'Vzhľad: tmavý', 'Vzhľad: systémový']);
     });
 
-    it('signed in: the account\'s theme from the first moment, the browser\'s chrome in this app\'s colours - and a choice saved to the account', async () => {
+    it("signed in: the account's theme from the first moment, the browser's chrome in this app's colours - and a choice saved to the account", async () => {
       user.set({ locale: 'sk' });
       preferences.set(account('dark'));
       vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, addEventListener: () => undefined, removeEventListener: () => undefined }));
@@ -410,7 +417,7 @@ describe('the family\'s kit, wired to Piano Academy (core/family-kit.ts)', () =>
       }
     });
 
-    it('a choice the account would not take: the account\'s theme back, and the note under the switch in this app\'s words - until a click elsewhere', async () => {
+    it("a choice the account would not take: the account's theme back, and the note under the switch in this app's words - until a click elsewhere", async () => {
       user.set({ locale: 'sk' });
       preferences.set(account('light'));
       await draw();

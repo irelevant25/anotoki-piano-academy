@@ -213,12 +213,12 @@ const STATES: Record<string, (s: Shell) => void> = {
     s.site.report('update_pending');
     s.boot.status.set('waiting');
   },
-  'an update waits, the site\'s ADMIN signed in': (s) => {
+  "an update waits, the site's ADMIN signed in": (s) => {
     session(s.auth, { ...PERSON, roles: ['MEMBER', 'ADMIN'] });
     s.site.report('update_pending');
     s.boot.status.set('waiting');
   },
-  'an update came in the middle of a visitor\'s practising, a save refused meanwhile': (s) => {
+  "an update came in the middle of a visitor's practising, a save refused meanwhile": (s) => {
     visiting(s);
     s.api.visitorRefusal.set(VISITOR_WORDS.busy);
     s.site.report('update_pending');
@@ -426,64 +426,108 @@ async function drawn(state: (s: Shell) => void, providers: Provider[] = [], look
 
 /** The states the bar's menus are looked at in, opened: the person's menu and the phone's, with each role; the piano's box; the sign-out question. */
 const OPENED: [string, (s: Shell) => void, Look][] = [
-  ['the person\'s menu of an ADMIN, a save waiting', (s) => {
-    session(s.auth, { ...PERSON, roles: ['ADMIN'] });
-    vi.spyOn(s.auth, 'accountUrl').mockReturnValue('http://localhost:4300/account');
-    s.store.loaded.set(true);
-    s.store.progressFailed.set(true);
-    s.boot.status.set('ready');
-  }, { open: 'account' }],
-  ['the person\'s menu of an EDITOR', (s) => {
-    session(s.auth, { ...PERSON, roles: ['EDITOR'] });
-    vi.spyOn(s.auth, 'accountUrl').mockReturnValue('http://localhost:4300/account');
-    s.store.loaded.set(true);
-    s.boot.status.set('ready');
-  }, { open: 'account' }],
-  ['the phone\'s menu of a learner, a save waiting', (s) => {
-    session(s.auth, PERSON);
-    s.store.loaded.set(true);
-    s.store.progressFailed.set(true);
-    s.boot.status.set('ready');
-  }, { phone: true, open: 'phone' }],
-  ['the phone\'s menu, signed out in the middle of practising', (s) => {
-    session(s.auth, null);
-    s.store.loaded.set(true);
-    s.boot.status.set('ready');
-  }, { phone: true, open: 'phone' }],
-  ['the piano\'s box, no MIDI device found', (s) => {
-    s.midi.asked.set(true);
-  }, { open: 'piano' }],
-  ['What\'s new, opened from the footer\'s What\'s new', (s) => {
-    s.changelog.entries.set(RELEASES);
-  }, { open: 'whats-new' }],
-  ['the sign-out question, some progress not saved', (s) => {
-    session(s.auth, PERSON);
-    s.store.loaded.set(true);
-    s.store.progressFailed.set(true);
-    s.boot.status.set('ready');
-  }, { open: 'sign-out' }],
+  [
+    "the person's menu of an ADMIN, a save waiting",
+    (s) => {
+      session(s.auth, { ...PERSON, roles: ['ADMIN'] });
+      vi.spyOn(s.auth, 'accountUrl').mockReturnValue('http://localhost:4300/account');
+      s.store.loaded.set(true);
+      s.store.progressFailed.set(true);
+      s.boot.status.set('ready');
+    },
+    { open: 'account' },
+  ],
+  [
+    "the person's menu of an EDITOR",
+    (s) => {
+      session(s.auth, { ...PERSON, roles: ['EDITOR'] });
+      vi.spyOn(s.auth, 'accountUrl').mockReturnValue('http://localhost:4300/account');
+      s.store.loaded.set(true);
+      s.boot.status.set('ready');
+    },
+    { open: 'account' },
+  ],
+  [
+    "the phone's menu of a learner, a save waiting",
+    (s) => {
+      session(s.auth, PERSON);
+      s.store.loaded.set(true);
+      s.store.progressFailed.set(true);
+      s.boot.status.set('ready');
+    },
+    { phone: true, open: 'phone' },
+  ],
+  [
+    "the phone's menu, signed out in the middle of practising",
+    (s) => {
+      session(s.auth, null);
+      s.store.loaded.set(true);
+      s.boot.status.set('ready');
+    },
+    { phone: true, open: 'phone' },
+  ],
+  [
+    "the piano's box, no MIDI device found",
+    (s) => {
+      s.midi.asked.set(true);
+    },
+    { open: 'piano' },
+  ],
+  [
+    "What's new, opened from the footer's What's new",
+    (s) => {
+      s.changelog.entries.set(RELEASES);
+    },
+    { open: 'whats-new' },
+  ],
+  [
+    'the sign-out question, some progress not saved',
+    (s) => {
+      session(s.auth, PERSON);
+      s.store.loaded.set(true);
+      s.store.progressFailed.set(true);
+      s.boot.status.set('ready');
+    },
+    { open: 'sign-out' },
+  ],
   ['the feedback form, nobody signed in', () => undefined, { open: 'feedback' }],
-  ['the feedback form of a learner', (s) => {
-    session(s.auth, { ...PERSON, email: 'mia@example.test' });
-    s.store.loaded.set(true);
-    s.boot.status.set('ready');
-  }, { open: 'feedback' }],
+  [
+    'the feedback form of a learner',
+    (s) => {
+      session(s.auth, { ...PERSON, email: 'mia@example.test' });
+      s.store.loaded.set(true);
+      s.boot.status.set('ready');
+    },
+    { open: 'feedback' },
+  ],
   // The failure's screens - the family's, under the bar, where the guards send a sign-in that did not work.
-  ['the failure\'s screen after a sign-in the IAM turned away', (s) => {
-    session(s.auth, null);
-    s.auth.failed('access_denied');
-    s.boot.status.set('sign-in');
-  }, { at: SIGN_IN_FAILED_ROUTE }],
-  ['the failure\'s screen after a sign-in that failed', (s) => {
-    session(s.auth, null);
-    s.auth.failed('invalid_grant');
-    s.boot.status.set('sign-in');
-  }, { at: SIGN_IN_FAILED_ROUTE }],
-  ['the failure\'s screen after a sign-in that could not start', (s) => {
-    session(s.auth, null);
-    s.auth.failed('storage_unavailable');
-    s.boot.status.set('sign-in');
-  }, { at: SIGN_IN_FAILED_ROUTE }],
+  [
+    "the failure's screen after a sign-in the IAM turned away",
+    (s) => {
+      session(s.auth, null);
+      s.auth.failed('access_denied');
+      s.boot.status.set('sign-in');
+    },
+    { at: SIGN_IN_FAILED_ROUTE },
+  ],
+  [
+    "the failure's screen after a sign-in that failed",
+    (s) => {
+      session(s.auth, null);
+      s.auth.failed('invalid_grant');
+      s.boot.status.set('sign-in');
+    },
+    { at: SIGN_IN_FAILED_ROUTE },
+  ],
+  [
+    "the failure's screen after a sign-in that could not start",
+    (s) => {
+      session(s.auth, null);
+      s.auth.failed('storage_unavailable');
+      s.boot.status.set('sign-in');
+    },
+    { at: SIGN_IN_FAILED_ROUTE },
+  ],
 ];
 
 describe('the shell with no bundle', () => {
@@ -600,14 +644,14 @@ describe('the shell with no bundle', () => {
     expect(connected.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Connected: KAWAI ES120');
     // The family's footer in the build analyzer's order: the version and What's new from the list of changes (its
     // newest entry: one source), then Feedback - a dot between two of them, drawn and never read.
-    expect(footerRow(running)).toEqual(['Version 0.4.0', '·', 'What\'s new', '·', 'Feedback']);
+    expect(footerRow(running)).toEqual(['Version 0.4.0', '·', "What's new", '·', 'Feedback']);
     expect(Array.from(running.host.querySelectorAll(`${FOOTER.row} .anotoki-site-footer__dot`)).map((dot) => dot.getAttribute('aria-hidden'))).toEqual(['true', 'true']);
     expect([FOOTER.whatsNew, FOOTER.feedback].map((part) => running.host.querySelector(part)?.getAttribute('aria-haspopup'))).toEqual(['dialog', 'dialog']);
     expect(running.host.querySelector('#progress-changed')).toBeNull();
     // What's new: the family's dialog, drawn once the footer's What's new is pressed - its heading, the newest marked, each list named.
     expect(running.host.querySelector('app-changelog-dialog anotoki-dialog')).toBeNull();
     const news = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { open: 'whats-new' });
-    expect(news.host.querySelector('app-changelog-dialog .anotoki-dialog__title')?.textContent).toBe('What\'s new');
+    expect(news.host.querySelector('app-changelog-dialog .anotoki-dialog__title')?.textContent).toBe("What's new");
     expect(news.host.querySelector('app-changelog-dialog dialog')?.hasAttribute('open')).toBe(true);
     expect(news.host.querySelector('.release-date')?.textContent).toBe('28 September 2026');
     expect(news.host.querySelector('.release.is-latest anotoki-badge.latest')?.textContent?.trim()).toBe('Latest');
@@ -624,7 +668,9 @@ describe('the shell with no bundle', () => {
     expect(question.host.querySelector('anotoki-confirm-host [data-answer="yes"]')?.textContent?.trim()).toBe('Sign out anyway');
 
     const changed = await drawn(STATES['running, the progress replaced or deleted somewhere else and loaded again']);
-    expect(changed.host.querySelector('#progress-changed span')?.textContent).toBe('Your progress was replaced or deleted somewhere else - by a file brought back in another tab, or by an administrator. This page now shows what is saved.');
+    expect(changed.host.querySelector('#progress-changed span')?.textContent).toBe(
+      'Your progress was replaced or deleted somewhere else - by a file brought back in another tab, or by an administrator. This page now shows what is saved.',
+    );
     expect(changed.host.querySelector('#progress-changed-close')?.textContent).toBe('Close');
 
     const signedOut = await drawn(STATES['running, signed out in the middle of practising']);
@@ -645,7 +691,15 @@ describe('the shell with no bundle', () => {
     expect(phone.host.querySelector('.anotoki-brand__area')?.textContent).toBe('Piano');
     expect(phone.host.querySelector(BAR.phoneButton)?.getAttribute('aria-label')).toBe('Menu');
     expect(phone.host.querySelector(BAR.nav)).toBeNull();
-    expect(Array.from(phone.host.querySelectorAll(`${BAR.menu} [role="menuitem"]`)).map((item) => item.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats', 'Your anotoki account', 'Sign out']);
+    expect(Array.from(phone.host.querySelectorAll(`${BAR.menu} [role="menuitem"]`)).map((item) => item.textContent?.trim())).toEqual([
+      'Learn',
+      'Note Trainer',
+      'Sheet Practice',
+      'Songs',
+      'Stats',
+      'Your anotoki account',
+      'Sign out',
+    ]);
   });
 
   it('says a visitor’s notes in the English kept in code - the notice on Learn and Stats only, never the signed-out banner', async () => {
@@ -657,7 +711,9 @@ describe('the shell with no bundle', () => {
 
     const learn = await drawn(STATES['running as a visitor, on Learn: how long this browser keeps the progress'], [routes]);
     const signIn = vi.spyOn(learn.boot, 'signIn').mockResolvedValue(undefined);
-    expect(text(learn, '#visitor-notice span')).toBe('You are practising without signing in. Your progress is kept for this browser for 30 days after your last visit. Sign in to keep it in your account.');
+    expect(text(learn, '#visitor-notice span')).toBe(
+      'You are practising without signing in. Your progress is kept for this browser for 30 days after your last visit. Sign in to keep it in your account.',
+    );
     (learn.host.querySelector('#visitor-notice-sign-in') as HTMLButtonElement).click();
     expect(signIn).toHaveBeenCalledTimes(1);
     // Nobody's sign-in ended: no signed-out banner. The bar offers Sign in.
@@ -742,7 +798,9 @@ describe('the shell with no bundle', () => {
     expect(moved.host.querySelector('#visitor-kept')).toBeNull();
 
     const notMoved = await drawn(STATES['running, signed in, this browser’s progress could not be moved into the account this time']);
-    expect(text(notMoved, '#visitor-not-moved span')).toBe('Your progress from practising without signing in could not be moved into your account yet. Nothing is lost: it is tried again on your next visit.');
+    expect(text(notMoved, '#visitor-not-moved span')).toBe(
+      'Your progress from practising without signing in could not be moved into your account yet. Nothing is lost: it is tried again on your next visit.',
+    );
     expect(text(notMoved, '#visitor-not-moved-close')).toBe('Close');
     (notMoved.host.querySelector('#visitor-not-moved-close') as HTMLButtonElement).click();
     await notMoved.fixture.whenStable();
@@ -782,7 +840,7 @@ describe('the shell with no bundle', () => {
     expect(failed.host.querySelector('#midi-status span')).toBeNull();
   });
 
-  it('shows the staff the way to the admin panel in the person\'s menu - an EDITOR and an ADMIN, with their role, and nobody else', async () => {
+  it("shows the staff the way to the admin panel in the person's menu - an EDITOR and an ADMIN, with their role, and nobody else", async () => {
     const open = { open: 'account' } as const;
     const adminLink = (s: Shell): Element | null => s.host.querySelector(`${BAR.menu} a[href="/admin"]`);
     const role = (s: Shell): Element | null => s.host.querySelector(`${BAR.menu} .anotoki-top-bar__menu-role`);
@@ -794,21 +852,29 @@ describe('the shell with no bundle', () => {
     expect(adminLink(learner)).toBeNull();
     expect(role(learner)).toBeNull();
 
-    const admin = await drawn((s) => {
-      STATES['running, signed in, a piano connected, the list of changes there'](s);
-      s.auth.signInAs({ ...PERSON, roles: ['ADMIN'] });
-    }, [], open);
+    const admin = await drawn(
+      (s) => {
+        STATES['running, signed in, a piano connected, the list of changes there'](s);
+        s.auth.signInAs({ ...PERSON, roles: ['ADMIN'] });
+      },
+      [],
+      open,
+    );
     expect(adminLink(admin)?.textContent?.trim()).toBe('Admin panel');
     expect(role(admin)?.textContent).toBe('Administrator');
 
-    const member = await drawn((s) => {
-      STATES['running, signed in, a piano connected, the list of changes there'](s);
-      s.auth.signInAs({ ...PERSON, roles: ['MEMBER'] });
-    }, [], open);
+    const member = await drawn(
+      (s) => {
+        STATES['running, signed in, a piano connected, the list of changes there'](s);
+        s.auth.signInAs({ ...PERSON, roles: ['MEMBER'] });
+      },
+      [],
+      open,
+    );
     expect(adminLink(member)).toBeNull();
   });
 
-  it('opens the family\'s feedback form from the footer - for everybody, in the library\'s words - and closes it again', async () => {
+  it("opens the family's feedback form from the footer - for everybody, in the library's words - and closes it again", async () => {
     // Nobody signed in, nothing loaded yet: the family's footer has it all the same - "Feedback", the build analyzer's word.
     const nobody = await drawn(() => undefined);
     expect(text(nobody, FOOTER.feedback)).toBe('Feedback');
@@ -840,7 +906,14 @@ describe('the shell with no bundle', () => {
   });
 
   /** The stub page under every address - and the Migrations page's - for the gate's cases. */
-  const anyPage: Provider = { provide: ROUTES, multi: true, useValue: [{ path: 'admin/migrations', component: StubPageComponent }, { path: '**', component: StubPageComponent }] };
+  const anyPage: Provider = {
+    provide: ROUTES,
+    multi: true,
+    useValue: [
+      { path: 'admin/migrations', component: StubPageComponent },
+      { path: '**', component: StubPageComponent },
+    ],
+  };
 
   /** Lets a click's navigation, the change detection and the gate's following of the router run out. */
   async function settled(s: Shell): Promise<void> {
@@ -893,7 +966,7 @@ describe('the shell with no bundle', () => {
     });
 
     // An update that came in the middle of practising: the page goes, and no note of the shell's says anything else.
-    const visitor = await drawn(STATES['an update came in the middle of a visitor\'s practising, a save refused meanwhile'], [anyPage]);
+    const visitor = await drawn(STATES["an update came in the middle of a visitor's practising, a save refused meanwhile"], [anyPage]);
     expect(statusPage(visitor)?.title).toBe('The site is being updated');
     for (const id of ['visitor-refused', 'visitor-notice', 'signed-out-banner', 'stub-page']) {
       expect(visitor.host.querySelector('#' + id), id).toBeNull();
@@ -902,8 +975,8 @@ describe('the shell with no bundle', () => {
     expect(standsAlone(visitor).frame).toEqual([]);
   });
 
-  it('while an update waits the site\'s ADMIN reads that a database update is waiting, in English, and reaches the Migrations page - nothing else of the app', async () => {
-    const admin = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+  it("while an update waits the site's ADMIN reads that a database update is waiting, in English, and reaches the Migrations page - nothing else of the app", async () => {
+    const admin = await drawn(STATES["an update waits, the site's ADMIN signed in"], [anyPage]);
     expect(statusPage(admin)).toEqual({
       title: 'A database update is waiting',
       text: 'This site is closed to everybody else until the update is applied. Back the database up first.',
@@ -937,7 +1010,7 @@ describe('the shell with no bundle', () => {
       expect(signedOut.auth.signIn).toHaveBeenCalledTimes(1);
 
       // Back from the IAM (its callback puts the address back before the router reads it): the ADMIN is on the Migrations page.
-      const back = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+      const back = await drawn(STATES["an update waits, the site's ADMIN signed in"], [anyPage]);
       await go(back, '/admin/migrations');
       expect(back.host.querySelector('#stub-page')).not.toBeNull();
       expect(statusPage(back)).toBeNull();
@@ -946,8 +1019,8 @@ describe('the shell with no bundle', () => {
     }
   });
 
-  it('the Migrations page stays on the screen as the app starts after its Apply - and is nobody else\'s way in', async () => {
-    const admin = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+  it("the Migrations page stays on the screen as the app starts after its Apply - and is nobody else's way in", async () => {
+    const admin = await drawn(STATES["an update waits, the site's ADMIN signed in"], [anyPage]);
     await go(admin, '/admin/migrations');
     const page = admin.host.querySelector('#stub-page');
     expect(page).not.toBeNull();
@@ -961,19 +1034,25 @@ describe('the shell with no bundle', () => {
     expect(admin.host.querySelector('#stub-page')).toBe(page);
 
     // An EDITOR: the status page, whatever the address.
-    const editor = await drawn((s) => {
-      STATES['an update waits, a learner signed in'](s);
-      s.auth.signInAs({ ...PERSON, roles: ['MEMBER', 'EDITOR'] });
-    }, [anyPage]);
+    const editor = await drawn(
+      (s) => {
+        STATES['an update waits, a learner signed in'](s);
+        s.auth.signInAs({ ...PERSON, roles: ['MEMBER', 'EDITOR'] });
+      },
+      [anyPage],
+    );
     await go(editor, '/admin/migrations');
     expect(editor.host.querySelector('#stub-page')).toBeNull();
     expect(statusPage(editor)?.title).toBe('The site is being updated');
 
     // Not set up at all: nothing to apply - no Migrations page for an ADMIN either.
-    const notSetUp = await drawn((s) => {
-      STATES['not set up once installed: only "not available right now"'](s);
-      session(s.auth, { ...PERSON, roles: ['ADMIN'] });
-    }, [anyPage]);
+    const notSetUp = await drawn(
+      (s) => {
+        STATES['not set up once installed: only "not available right now"'](s);
+        session(s.auth, { ...PERSON, roles: ['ADMIN'] });
+      },
+      [anyPage],
+    );
     await go(notSetUp, '/admin/migrations');
     expect(notSetUp.host.querySelector('#stub-page')).toBeNull();
     expect(statusPage(notSetUp)?.title).toBe('The site is not available right now');
@@ -1045,15 +1124,15 @@ describe('the shell with no bundle', () => {
     expect(unavailable.host.querySelector('a[href="/setup.php"]')).toBeNull();
   });
 
-  it('draws the status page alone in every state the site cannot run in - no bar, no section, no note, no footer, the gate\'s own <main> its one landmark - and the frame comes back with the site', async () => {
+  it("draws the status page alone in every state the site cannot run in - no bar, no section, no note, no footer, the gate's own <main> its one landmark - and the frame comes back with the site", async () => {
     const closed = [
       'not set up, never installed: the setup page offered',
       'not set up once installed: only "not available right now"',
       'the database out of reach',
       'an update waits, nobody signed in',
       'an update waits, a learner signed in',
-      'an update waits, the site\'s ADMIN signed in',
-      'an update came in the middle of a visitor\'s practising, a save refused meanwhile',
+      "an update waits, the site's ADMIN signed in",
+      "an update came in the middle of a visitor's practising, a save refused meanwhile",
     ];
     for (const name of closed) {
       const s = await drawn(STATES[name], [anyPage]);
@@ -1077,7 +1156,7 @@ describe('the shell with no bundle', () => {
 
     // The one page that runs while an update waits - the ADMIN's Migrations page - is in the frame: the bar (Migrations
     // alone in it) and the footer, but no note meanwhile; the gate draws no <main> of its own then.
-    const admin = await drawn(STATES['an update waits, the site\'s ADMIN signed in'], [anyPage]);
+    const admin = await drawn(STATES["an update waits, the site's ADMIN signed in"], [anyPage]);
     await go(admin, '/admin/migrations');
     expect(admin.host.querySelector('#view-root #stub-page')).not.toBeNull();
     expect(standsAlone(admin)).toEqual({ status: false, frame: FRAME.filter((part) => part !== '.notes'), mains: 1 });
@@ -1085,7 +1164,7 @@ describe('the shell with no bundle', () => {
     expect(footerRow(admin)).toEqual(['Feedback']);
   });
 
-  it('the theme switch: its three choices named in the app\'s words, the one in force checked and kept for the next first paint', async () => {
+  it("the theme switch: its three choices named in the app's words, the one in force checked and kept for the next first paint", async () => {
     const modes: AnotokiThemeMode[] = ['light', 'dark', 'auto'];
     for (const mode of modes) {
       const s = await drawn((made) => made.theme.set(mode));
@@ -1157,12 +1236,9 @@ describe('the shell with a bundle in memory', () => {
     expect(running.host.querySelector(`${BAR.nav} a`)?.textContent?.trim()).toBe('Learn');
   });
 
-  it('words the status page in the language the page is read in - English on an address of the admin panel - and always in the database\'s words, an owner\'s rewording too', async () => {
+  it("words the status page in the language the page is read in - English on an address of the admin panel - and always in the database's words, an owner's rewording too", async () => {
     const reworded = [
-      provideTestTranslations(
-        { 'anotoki.siteStatus.updatingTitle': 'Stránka sa práve vylepšuje' },
-        { language: 'sk', english: { 'anotoki.siteStatus.updatingTitle': 'The site is being improved' } },
-      ),
+      provideTestTranslations({ 'anotoki.siteStatus.updatingTitle': 'Stránka sa práve vylepšuje' }, { language: 'sk', english: { 'anotoki.siteStatus.updatingTitle': 'The site is being improved' } }),
     ];
     const s = await drawn(STATES['an update waits, nobody signed in'], reworded);
     // A learner's address: Slovak, the owner's Slovak.
@@ -1178,12 +1254,12 @@ describe('the shell with a bundle in memory', () => {
     expect([statusPage(s)?.title, statusPage(s)?.lang]).toEqual(['Stránka sa práve vylepšuje', 'sk']);
   });
 
-  it('marks what is not the app’s own as such where the page is not: the family\'s status page, the release notes', async () => {
+  it("marks what is not the app’s own as such where the page is not: the family's status page, the release notes", async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const slovak = [provideTestTranslations({ 'whatsNew.added': 'Pridané' }, { language: 'sk' })];
     // The family's page in the page's language - and its administrator's part in English, marked so.
     expect(statusPage(await drawn(STATES['an update waits, nobody signed in'], slovak))?.lang).toBe('sk');
-    expect(statusPage(await drawn(STATES['an update waits, the site\'s ADMIN signed in'], slovak))?.lang).toBe('en');
+    expect(statusPage(await drawn(STATES["an update waits, the site's ADMIN signed in"], slovak))?.lang).toBe('en');
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], slovak, { open: 'whats-new' });
     const lists = Array.from(running.host.querySelectorAll('.release ul'));
@@ -1238,7 +1314,14 @@ describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
   });
 
   it('a legal page is drawn whatever the start says - nobody signed in where a sign-in is required: the page, not the start’s "Loading…" - and the bar offers Sign in there, back to the page', async () => {
-    const routes: Provider = { provide: ROUTES, multi: true, useValue: [{ path: 'privacy', component: StubPageComponent }, { path: '**', component: StubPageComponent }] };
+    const routes: Provider = {
+      provide: ROUTES,
+      multi: true,
+      useValue: [
+        { path: 'privacy', component: StubPageComponent },
+        { path: '**', component: StubPageComponent },
+      ],
+    };
     const s = await drawn(STATES['nobody signed in, on the way to the IAM'], [routes], { at: '/privacy' });
     expect(s.host.querySelector('#view-root #stub-page')).not.toBeNull();
     expect(s.host.querySelector('.loading')).toBeNull();

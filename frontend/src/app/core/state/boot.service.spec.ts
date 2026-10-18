@@ -80,7 +80,7 @@ describe('BootService', () => {
     expect(store.progress()['60']).toMatchObject({ status: 'review', repetitions: 2 });
   });
 
-  it('nobody signed in: no progress is asked for, and the status says so - the family\'s guard goes on from there', async () => {
+  it("nobody signed in: no progress is asked for, and the status says so - the family's guard goes on from there", async () => {
     auth.signedOut();
     await boot.start();
     expect(boot.status()).toBe('sign-in');
@@ -132,7 +132,7 @@ describe('BootService', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  it('an update that came after the site was asked: the progress\'s 503 says so - the start waits, and the site\'s status hears it', async () => {
+  it("an update that came after the site was asked: the progress's 503 says so - the start waits, and the site's status hears it", async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const started = boot.start();
     await settle();
@@ -212,7 +212,7 @@ describe('BootService', () => {
     expect(auth.signOut).toHaveBeenCalledTimes(1);
   });
 
-  it('signs in through the family\'s module - which asks beforeSignIn() first, and opens the IAM in the language read here (core/auth/site-auth.ts)', async () => {
+  it("signs in through the family's module - which asks beforeSignIn() first, and opens the IAM in the language read here (core/auth/site-auth.ts)", async () => {
     await boot.signIn();
     expect(auth.signIn.mock.calls).toEqual([[]]);
     // Could not start (the browser refuses the storage the sign-in is kept in): the page stays, and says why.
@@ -253,7 +253,7 @@ describe('BootService: where the language comes into the start', () => {
     vi.restoreAllMocks();
   });
 
-  it('gets the strings once the sign-in settings are read, and before anybody is sent to sign in: the failure\'s screen has them', async () => {
+  it("gets the strings once the sign-in settings are read, and before anybody is sent to sign in: the failure's screen has them", async () => {
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:asks']);
     // Nothing was drawn meanwhile: the screen comes after the strings.
@@ -279,7 +279,7 @@ describe('BootService: where the language comes into the start', () => {
     consoleError.mockRestore();
   });
 
-  it('while an update waits it still gets the sign-in and the strings - the status page has them - and the family\'s page signs in the same way', async () => {
+  it("while an update waits it still gets the sign-in and the strings - the status page has them - and the family's page signs in the same way", async () => {
     TestBed.inject(SiteStatus).report('update_pending');
     await boot.start();
     expect(order).toEqual(['auth', 'i18n:asks']);
@@ -675,7 +675,7 @@ describe('BootService: visitors, and the move at a sign-in', () => {
       expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
     });
 
-    it('an update that came after the site was asked: the move\'s 503 is no failure to word - the key kept, the start waits', async () => {
+    it("an update that came after the site was asked: the move's 503 is no failure to word - the key kept, the start waits", async () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const started = boot.start();
       (await theMove()).flush(UPDATE_PENDING, { status: 503, statusText: 'Service Unavailable', headers: { 'Retry-After': '60' } });

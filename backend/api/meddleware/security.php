@@ -21,8 +21,7 @@ function securityHeaders(): callable
     return function (Request $request, RequestHandler $handler): Response {
         $response = $handler->handle($request);
 
-        $ensure = static fn(Response $response, string $name, string $value): Response =>
-            $response->hasHeader($name) ? $response : $response->withHeader($name, $value);
+        $ensure = static fn(Response $response, string $name, string $value): Response => $response->hasHeader($name) ? $response : $response->withHeader($name, $value);
 
         $response = $ensure($response, 'X-Content-Type-Options', 'nosniff');
         $response = $ensure($response, 'X-Frame-Options', 'DENY');

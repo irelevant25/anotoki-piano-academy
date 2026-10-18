@@ -14,7 +14,16 @@ import { pianoLegalConfig } from './legal.config';
 const IAM = 'https://iam.anotoki.example';
 
 /** Every address a legal page of Piano Academy's may link to: the anotoki account's pages, its own Contact page, the family's address and operator, the authority, Cloudflare. */
-const ADDRESSES = [`${IAM}/account`, `${IAM}/privacy`, '/contact', 'mailto:support@anotoki.eu', 'https://codehero.sk', 'https://dataprotection.gov.sk/', 'https://www.websupport.sk', 'https://www.cloudflare.com/privacypolicy/'];
+const ADDRESSES = [
+  `${IAM}/account`,
+  `${IAM}/privacy`,
+  '/contact',
+  'mailto:support@anotoki.eu',
+  'https://codehero.sk',
+  'https://dataprotection.gov.sk/',
+  'https://www.websupport.sk',
+  'https://www.cloudflare.com/privacypolicy/',
+];
 
 /**
  * Piano Academy's own strings the facts name, as stand-ins: the words themselves are migration 012's (and the
@@ -176,7 +185,17 @@ describe('the legal pages, as Piano Academy fills them in', () => {
     const host = await draw(PrivacyFrameComponent);
 
     expect(host.querySelector('h1')?.textContent?.trim()).toBe('Privacy policy');
-    expect(Array.from(host.querySelectorAll('[data-kept]')).map((part) => part.getAttribute('data-kept'))).toEqual(['data-0', 'data-1', 'data-2', 'data-3', 'visitors', 'feedback', 'error-log', 'audit-log', 'backups']);
+    expect(Array.from(host.querySelectorAll('[data-kept]')).map((part) => part.getAttribute('data-kept'))).toEqual([
+      'data-0',
+      'data-1',
+      'data-2',
+      'data-3',
+      'visitors',
+      'feedback',
+      'error-log',
+      'audit-log',
+      'backups',
+    ]);
     // The app's words, then the library's sentence for plain backups: on the server, out of public reach - never encrypted.
     const backups = texts(host, '[data-kept="backups"] .anotoki-legal-page__text')[0] ?? '';
     expect([backups.startsWith(`${WORDS['legal.backups.what']} `), backups.includes('out of public reach'), backups.includes('encrypted')]).toEqual([true, true, false]);

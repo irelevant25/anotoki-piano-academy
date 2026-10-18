@@ -139,7 +139,7 @@ function visitorsReady(bool $reset = false): bool
         try {
             $ready = (bool) dbValue(
                 "SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                                 WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'visitor_key_hash')"
+                                 WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'visitor_key_hash')",
             );
         } catch (PDOException) {
             $ready = false;
@@ -157,7 +157,7 @@ function visitorsMustBeReady(): void
             503,
             'visitors_unavailable',
             'Practising without signing in is not ready yet: an administrator applies the waiting database update on the admin panel\'s Migrations page. Sign in to continue.',
-            ['Retry-After' => '60']
+            ['Retry-After' => '60'],
         );
     }
 }
@@ -165,7 +165,11 @@ function visitorsMustBeReady(): void
 /** 401 visitor_unknown: no visitor has this key (any more). */
 function visitorUnknown(): ApiError
 {
-    return new ApiError(401, 'visitor_unknown', 'This browser\'s progress without signing in has ended: it was not used for ' . VISITOR_KEEP_DAYS . ' days, or it was moved into an account at a sign-in.');
+    return new ApiError(
+        401,
+        'visitor_unknown',
+        'This browser\'s progress without signing in has ended: it was not used for ' . VISITOR_KEEP_DAYS . ' days, or it was moved into an account at a sign-in.',
+    );
 }
 
 /**
@@ -181,10 +185,7 @@ function visitorFound(string $key): ?SiteUser
     }
     visitorsMustBeReady();
 
-    $row = dbOne(
-        "SELECT id, last_seen_at < now() - interval '1 hour' AS stale FROM users WHERE visitor_key_hash = ? AND id < 0",
-        [visitorHash($key)]
-    );
+    $row = dbOne("SELECT id, last_seen_at < now() - interval '1 hour' AS stale FROM users WHERE visitor_key_hash = ? AND id < 0", [visitorHash($key)]);
     if ($row === null) {
         return null;
     }
@@ -222,7 +223,7 @@ function visitorMake(Request $request): array
         'SELECT (SELECT count(*) FROM users WHERE id < 0) AS visitors,
                 (SELECT count(*) FROM visitor_starts WHERE address = ?) AS here,
                 (SELECT count(*) FROM visitor_starts) AS everywhere',
-        [$address]
+        [$address],
     );
     if ((int) $counts['visitors'] >= visitorLimit('max_visitors')) {
         throw visitorTooMany('Too many people are practising without signing in just now. Sign in to continue, or try again later.');
@@ -236,10 +237,7 @@ function visitorMake(Request $request): array
 
     dbExec('INSERT INTO visitor_starts (address) VALUES (?)', [$address]);
     $key = visitorNewKey();
-    $row = dbOne(
-        "INSERT INTO users (id, visitor_key_hash) VALUES (nextval('visitor_ids'), ?) RETURNING id, progress_generation",
-        [visitorHash($key)]
-    );
+    $row = dbOne("INSERT INTO users (id, visitor_key_hash) VALUES (nextval('visitor_ids'), ?) RETURNING id, progress_generation", [visitorHash($key)]);
 
     return ['id' => (int) $row['id'], 'key' => $key, 'generation' => (int) $row['progress_generation']];
 }
@@ -321,9 +319,15 @@ function visitorSessionCheck(SiteUser $owner): ?callable
         }
         $max = visitorLimit('max_sessions');
         if ((int) dbValue('SELECT count(*) FROM sessions WHERE user_id = ?', [$owner->id]) >= $max) {
-            throw new ApiError(422, 'visitor_limit', "Without signing in, this browser keeps at most $max rounds. Sign in to keep practising with your progress saved.", [], [
-                'params' => ['limit' => 'sessions', 'max' => $max],
-            ]);
+            throw new ApiError(
+                422,
+                'visitor_limit',
+                "Without signing in, this browser keeps at most $max rounds. Sign in to keep practising with your progress saved.",
+                [],
+                [
+                    'params' => ['limit' => 'sessions', 'max' => $max],
+                ],
+            );
         }
     };
 }
@@ -367,23 +371,23 @@ function visitorAnswerMade(Response $response, ?array $made): Response
  * SRS judgement: a path step is a tally, not a schedule.
  */
 const VISITOR_STEP_MERGE = <<<'SQL'
-    v || p || jsonb_strip_nulls(jsonb_build_object(
-        'bestAccuracy', CASE
-            WHEN jsonb_typeof(p -> 'bestAccuracy') = 'number' AND jsonb_typeof(v -> 'bestAccuracy') = 'number'
-                THEN to_jsonb(greatest((p ->> 'bestAccuracy')::numeric, (v ->> 'bestAccuracy')::numeric))
-            WHEN jsonb_typeof(p -> 'bestAccuracy') IS DISTINCT FROM 'number' THEN v -> 'bestAccuracy' END,
-        'attempts', CASE
-            WHEN jsonb_typeof(p -> 'attempts') = 'number' AND jsonb_typeof(v -> 'attempts') = 'number'
-                THEN to_jsonb((p ->> 'attempts')::numeric + (v ->> 'attempts')::numeric)
-            WHEN jsonb_typeof(p -> 'attempts') IS DISTINCT FROM 'number' THEN v -> 'attempts' END,
-        'passedAt', CASE
-            WHEN jsonb_typeof(p -> 'passedAt') = 'string' AND jsonb_typeof(v -> 'passedAt') = 'string'
-                THEN to_jsonb(least((p ->> 'passedAt') COLLATE "C", (v ->> 'passedAt') COLLATE "C"))
-            WHEN jsonb_typeof(p -> 'passedAt') IS DISTINCT FROM 'string' THEN v -> 'passedAt' END,
-        'lastAccuracy', CASE WHEN newer THEN v -> 'lastAccuracy' END,
-        'updatedAt', CASE WHEN newer THEN v -> 'updatedAt' END
-    ))
-    SQL;
+v || p || jsonb_strip_nulls(jsonb_build_object(
+    'bestAccuracy', CASE
+        WHEN jsonb_typeof(p -> 'bestAccuracy') = 'number' AND jsonb_typeof(v -> 'bestAccuracy') = 'number'
+            THEN to_jsonb(greatest((p ->> 'bestAccuracy')::numeric, (v ->> 'bestAccuracy')::numeric))
+        WHEN jsonb_typeof(p -> 'bestAccuracy') IS DISTINCT FROM 'number' THEN v -> 'bestAccuracy' END,
+    'attempts', CASE
+        WHEN jsonb_typeof(p -> 'attempts') = 'number' AND jsonb_typeof(v -> 'attempts') = 'number'
+            THEN to_jsonb((p ->> 'attempts')::numeric + (v ->> 'attempts')::numeric)
+        WHEN jsonb_typeof(p -> 'attempts') IS DISTINCT FROM 'number' THEN v -> 'attempts' END,
+    'passedAt', CASE
+        WHEN jsonb_typeof(p -> 'passedAt') = 'string' AND jsonb_typeof(v -> 'passedAt') = 'string'
+            THEN to_jsonb(least((p ->> 'passedAt') COLLATE "C", (v ->> 'passedAt') COLLATE "C"))
+        WHEN jsonb_typeof(p -> 'passedAt') IS DISTINCT FROM 'string' THEN v -> 'passedAt' END,
+    'lastAccuracy', CASE WHEN newer THEN v -> 'lastAccuracy' END,
+    'updatedAt', CASE WHEN newer THEN v -> 'updatedAt' END
+))
+SQL;
 
 /**
  * At sign-in (POST /api/visitor/move, routes/visitor.php): the progress of
@@ -441,7 +445,9 @@ function visitorMove(SiteUser $person, string $key): array
             $personId = $person->id;
             $generation = storeLockGeneration($personId);
             if ($generation === null) {
-                throw new ApiError(401, 'sign_in_required', 'Your progress here was deleted a moment ago, so nothing was moved. Sign in again to continue.', ['WWW-Authenticate' => 'Bearer realm="piano-academy"']);
+                throw new ApiError(401, 'sign_in_required', 'Your progress here was deleted a moment ago, so nothing was moved. Sign in again to continue.', [
+                    'WWW-Authenticate' => 'Bearer realm="piano-academy"',
+                ]);
             }
 
             $notes = visitorMoveNotes($visitorId, $personId);
@@ -451,7 +457,7 @@ function visitorMove(SiteUser $person, string $key): array
             dbExec(
                 'DELETE FROM sessions v WHERE v.user_id = ?
                     AND EXISTS (SELECT 1 FROM sessions m WHERE m.user_id = ? AND (m.id = v.id OR m.request_key = v.request_key))',
-                [$visitorId, $personId]
+                [$visitorId, $personId],
             );
             $sessions = dbExec('UPDATE sessions SET user_id = ? WHERE user_id = ?', [$personId, $visitorId]);
 
@@ -501,7 +507,7 @@ function visitorMoveNotes(int $visitorId, int $personId): array
                 octet_length((v.notes || p.notes)::text) AS bytes
            FROM (SELECT coalesce((SELECT notes FROM progress WHERE user_id = ?), '{}'::jsonb) AS notes) AS v,
                 (SELECT coalesce((SELECT notes FROM progress WHERE user_id = ?), '{}'::jsonb) AS notes) AS p",
-        [$visitorId, $personId]
+        [$visitorId, $personId],
     );
     $moved = (int) $row['moved'];
     $kept = (int) $row['kept'];
@@ -518,7 +524,7 @@ function visitorMoveNotes(int $visitorId, int $personId): array
     dbExec(
         'INSERT INTO progress (user_id, notes) SELECT ?, notes FROM progress WHERE user_id = ?
          ON CONFLICT (user_id) DO UPDATE SET notes = EXCLUDED.notes || progress.notes, updated_at = now()',
-        [$personId, $visitorId]
+        [$personId, $visitorId],
     );
 
     return ['moved' => $moved, 'kept' => $kept, 'written' => true];
@@ -558,7 +564,9 @@ function visitorMovePath(int $visitorId, int $personId): array
                      coalesce(jsonb_object_agg(key, CASE
                          WHEN p IS NULL THEN v
                          WHEN jsonb_typeof(p) <> \'object\' OR jsonb_typeof(v) <> \'object\' THEN p
-                         ELSE ' . VISITOR_STEP_MERGE . '
+                         ELSE ' .
+            VISITOR_STEP_MERGE .
+            '
                      END), \'{}\'::jsonb) AS steps
                 FROM both_records
          ), result AS (
@@ -567,7 +575,7 @@ function visitorMovePath(int $visitorId, int $personId): array
                 FROM merged, person
          )
          SELECT moved, merged, data::text AS data, octet_length(data::text) AS bytes FROM result',
-        [$personId, $visitorId]
+        [$personId, $visitorId],
     );
     $moved = (int) $row['moved'];
     $merged = (int) $row['merged'];
@@ -583,7 +591,7 @@ function visitorMovePath(int $visitorId, int $personId): array
     dbExec(
         'INSERT INTO path_progress (user_id, data) VALUES (?, ?::jsonb)
          ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()',
-        [$personId, $row['data']]
+        [$personId, $row['data']],
     );
 
     return ['moved' => $moved, 'merged' => $merged, 'kept' => 0, 'written' => true];
@@ -612,11 +620,17 @@ function visitorSweep(): int
         $timeout = min(VISITOR_SWEEP_STATEMENT_MS, $left());
         $swept = dbTx(static function () use ($timeout): int {
             dbValue("SELECT set_config('statement_timeout', ?, true)", [$timeout . 'ms']);
-            $ids = array_map('intval', array_column(dbAll(
-                'SELECT id FROM users WHERE id < 0 AND last_seen_at < now() - make_interval(days => ?::int)
+            $ids = array_map(
+                'intval',
+                array_column(
+                    dbAll(
+                        'SELECT id FROM users WHERE id < 0 AND last_seen_at < now() - make_interval(days => ?::int)
                   ORDER BY last_seen_at LIMIT ? FOR UPDATE SKIP LOCKED',
-                [VISITOR_KEEP_DAYS, VISITOR_SWEEP_BATCH]
-            ), 'id'));
+                        [VISITOR_KEEP_DAYS, VISITOR_SWEEP_BATCH],
+                    ),
+                    'id',
+                ),
+            );
             if ($ids === []) {
                 return 0;
             }

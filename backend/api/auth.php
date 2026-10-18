@@ -75,13 +75,7 @@ final class SiteUser
      * @param bool     $visitor somebody practising without signing in (api/visitors.php): a negative id,
      *                          no name, no role - never somebody a token says
      */
-    public function __construct(
-        public readonly int $id,
-        public readonly ?string $name,
-        public readonly array $roles,
-        public readonly bool $visitor = false,
-    ) {
-    }
+    public function __construct(public readonly int $id, public readonly ?string $name, public readonly array $roles, public readonly bool $visitor = false) {}
 
     /** Has any one of $roles. */
     public function has(string ...$roles): bool
@@ -133,7 +127,8 @@ function authIamSettings(): array
  */
 function iamClient(): IamClient
 {
-    static $iam = null, $for = null;
+    static $iam = null,
+        $for = null;
 
     // Made again when the settings change (setup.php writes them; the tests switch them).
     $settings = settingsProblem() === null ? authIamSettings() : [];
@@ -147,7 +142,8 @@ function iamClient(): IamClient
 /** Whether the app requires a sign-in now: the IAM's switch (the library's SignInRule, failing closed). */
 function signInRule(): SignInRule
 {
-    static $rule = null, $for = null;
+    static $rule = null,
+        $for = null;
 
     if ($rule === null || $for !== iamClient()) {
         [$rule, $for] = [new SignInRule(iamClient()), iamClient()];
@@ -159,7 +155,8 @@ function signInRule(): SignInRule
 /** The checks of the IAM's access tokens (the library's AccessTokens). */
 function accessTokens(): AccessTokens
 {
-    static $tokens = null, $for = null;
+    static $tokens = null,
+        $for = null;
 
     if ($tokens === null || $for !== iamClient()) {
         [$tokens, $for] = [new AccessTokens(iamClient()), iamClient()];
@@ -211,8 +208,15 @@ function isLocalHostName(string $host): bool
  * IAM's setup.)
  */
 const FORWARDING_HEADERS = [
-    'HTTP_FORWARDED', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED_HOST', 'HTTP_X_FORWARDED_PROTO',
-    'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP', 'HTTP_TRUE_CLIENT_IP', 'HTTP_CF_CONNECTING_IP', 'HTTP_X_CLUSTER_CLIENT_IP',
+    'HTTP_FORWARDED',
+    'HTTP_X_FORWARDED_FOR',
+    'HTTP_X_FORWARDED_HOST',
+    'HTTP_X_FORWARDED_PROTO',
+    'HTTP_X_REAL_IP',
+    'HTTP_CLIENT_IP',
+    'HTTP_TRUE_CLIENT_IP',
+    'HTTP_CF_CONNECTING_IP',
+    'HTTP_X_CLUSTER_CLIENT_IP',
 ];
 
 /** Did a proxy relay this request? $server is $_SERVER (or a PSR-7 request's server params). */

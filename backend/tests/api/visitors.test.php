@@ -43,9 +43,21 @@ before(function (): void {
     test_login_required($GLOBALS['auth'], false);
     $GLOBALS['app'] = start_app($GLOBALS['auth'], [], ['visitors' => BEHIND_A_PROXY]);
     // Small limits, to reach them.
-    $GLOBALS['tight'] = start_app($GLOBALS['auth'], [], ['visitors' => BEHIND_A_PROXY + ['visitors' => [
-        'max_visitors' => 3, 'new_per_hour_per_address' => 2, 'new_per_hour' => 4, 'max_sessions' => 2, 'document_max_bytes' => 4096,
-    ]]]);
+    $GLOBALS['tight'] = start_app(
+        $GLOBALS['auth'],
+        [],
+        [
+            'visitors' => BEHIND_A_PROXY + [
+                'visitors' => [
+                    'max_visitors' => 3,
+                    'new_per_hour_per_address' => 2,
+                    'new_per_hour' => 4,
+                    'max_sessions' => 2,
+                    'document_max_bytes' => 4096,
+                ],
+            ],
+        ],
+    );
 });
 
 /** A request to the app (or $app), as sent: no token unless $headers bring one. */
@@ -89,9 +101,18 @@ function starts(): array
 function note(int $midi, array $extra = []): array
 {
     return $extra + [
-        'midi' => $midi, 'status' => 'learning', 'repetitions' => 1, 'easeFactor' => 2.5, 'intervalHours' => 4,
-        'dueAt' => '2026-09-28T12:00:00.000Z', 'lastGrade' => 4, 'totalAttempts' => 3, 'correctAttempts' => 2,
-        'avgTimingErrorMs' => null, 'lastGrowthAt' => '2026-09-28T08:00:00.000Z', 'updatedAt' => '2026-09-28T08:00:00.000Z',
+        'midi' => $midi,
+        'status' => 'learning',
+        'repetitions' => 1,
+        'easeFactor' => 2.5,
+        'intervalHours' => 4,
+        'dueAt' => '2026-09-28T12:00:00.000Z',
+        'lastGrade' => 4,
+        'totalAttempts' => 3,
+        'correctAttempts' => 2,
+        'avgTimingErrorMs' => null,
+        'lastGrowthAt' => '2026-09-28T08:00:00.000Z',
+        'updatedAt' => '2026-09-28T08:00:00.000Z',
     ];
 }
 
@@ -194,7 +215,10 @@ test('nobody, sign-in not required: the empty state with generation 0 - nothing 
     test_login_required($GLOBALS['auth'], true);
     $refused = visit('GET', '/api/state');
     assert_same([401, 'sign_in_required'], [$refused['status'], $refused['body']['code'] ?? null], 'sign-in required: nobody is refused, as before');
-    foreach ([['PUT', '/api/progress', ['60' => note(60)], [generation(0)]], ['PUT', '/api/path', ['steps' => new stdClass()], [generation(0)]], ['POST', '/api/sessions', round_of(), []]] as [$method, $url, $body, $headers]) {
+    foreach (
+        [['PUT', '/api/progress', ['60' => note(60)], [generation(0)]], ['PUT', '/api/path', ['steps' => new stdClass()], [generation(0)]], ['POST', '/api/sessions', round_of(), []]]
+        as [$method, $url, $body, $headers]
+    ) {
         $answer = visit($method, $url, $body, $headers);
         assert_same([401, 'sign_in_required'], [$answer['status'], $answer['body']['code'] ?? null], "$method $url");
         assert_false(isset($answer['headers']['x-visitor-key']));
@@ -276,7 +300,11 @@ test('a first save that fails makes nobody and counts nothing - ten of them from
         assert_same([0, 0], visitors_and_starts(), "$what: nobody made, nothing counted");
     }
     $changed = visit('PUT', '/api/progress', ['60' => note(60)], [generation(5)]);
-    assert_same(['progress_changed', null], [$changed['body']['code'] ?? null, array_key_exists('generation', $changed['body']) ? $changed['body']['generation'] : 'missing'], 'a save made to progress that is not nobody\'s: 409, no generation to load');
+    assert_same(
+        ['progress_changed', null],
+        [$changed['body']['code'] ?? null, array_key_exists('generation', $changed['body']) ? $changed['body']['generation'] : 'missing'],
+        'a save made to progress that is not nobody\'s: 409, no generation to load',
+    );
     new_visitor();
     assert_same([1, 1], visitors_and_starts());
 });
@@ -301,7 +329,11 @@ test('the visitor: its own documents and generation; a save to them passes, one 
     assert_same([1, $visitor['generation']], [count($state['sessions']), $state['generation']], 'ordinary saves keep the generation');
 
     $stale = visit('PUT', '/api/progress', ['64' => note(64)], array_merge($key, [generation(0)]));
-    assert_same([409, 'progress_changed', $visitor['generation']], [$stale['status'], $stale['body']['code'] ?? null, $stale['body']['generation'] ?? null], 'a tab that made no visitor yet, sending the key the first one got');
+    assert_same(
+        [409, 'progress_changed', $visitor['generation']],
+        [$stale['status'], $stale['body']['code'] ?? null, $stale['body']['generation'] ?? null],
+        'a tab that made no visitor yet, sending the key the first one got',
+    );
     assert_same(428, visit('PUT', '/api/progress', ['64' => note(64)], $key)['status'], 'no generation');
     assert_same([1, 1], visitors_and_starts(), 'one visitor all along');
 });
@@ -310,7 +342,15 @@ test('a key nobody has, or one of the wrong shape: 401 visitor_unknown on every 
     fresh();
     $unknown = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     foreach ([$unknown, 'short', str_repeat('a', 44), str_repeat('*', 43)] as $key) {
-        foreach ([['GET', '/api/state', null, []], ['PUT', '/api/progress', ['60' => note(60)], [generation(0)]], ['PUT', '/api/path', ['steps' => new stdClass()], [generation(0)]], ['POST', '/api/sessions', round_of(), []]] as [$method, $url, $body, $headers]) {
+        foreach (
+            [
+                ['GET', '/api/state', null, []],
+                ['PUT', '/api/progress', ['60' => note(60)], [generation(0)]],
+                ['PUT', '/api/path', ['steps' => new stdClass()], [generation(0)]],
+                ['POST', '/api/sessions', round_of(), []],
+            ]
+            as [$method, $url, $body, $headers]
+        ) {
             $answer = visit($method, $url, $body, array_merge($headers, with_key($key)));
             assert_same([401, 'visitor_unknown'], [$answer['status'], $answer['body']['code'] ?? null], "$method $url with $key");
             assert_false(isset($answer['headers']['x-visitor-key']), 'never a new key in its place');
@@ -343,7 +383,10 @@ test('a Bearer header is that person or a 401 - never the visitor, whose key is 
     // A member's good token with the visitor's key: the member's own data, and nothing of the visitor's.
     $member = visit('GET', '/api/state', null, array_merge(bearer(test_token(MEMBER, ['MEMBER'])), with_key($visitor['key'])));
     assert_same([200, []], [$member['status'], $member['body']['progress']]);
-    assert_same(204, visit('PUT', '/api/progress', ['70' => note(70)], array_merge(bearer(test_token(MEMBER, ['MEMBER'])), with_key($visitor['key']), [generation($member['body']['generation'])]))['status']);
+    assert_same(
+        204,
+        visit('PUT', '/api/progress', ['70' => note(70)], array_merge(bearer(test_token(MEMBER, ['MEMBER'])), with_key($visitor['key']), [generation($member['body']['generation'])]))['status'],
+    );
     assert_same(['70'], array_map('strval', array_keys(json_decode((string) dbValue('SELECT notes::text FROM progress WHERE user_id = ?', [MEMBER]), true))));
     assert_same($before, visitor_as_it_is($visitor['id']), 'still untouched');
 
@@ -373,9 +416,18 @@ test('visitors and people never see each other\'s progress: each keeps their own
 test('a visitor key never opens the own progress file, the admin panel or a role - and never with a token\'s role around it', function (): void {
     fresh();
     $visitor = new_visitor();
-    foreach ([['GET', '/api/me/export', null], ['POST', '/api/me/import', ['format' => 'piano-academy-export', 'version' => 1]],
-        ['GET', '/api/admin/people', null], ['GET', '/api/admin/translations', null], ['GET', '/api/admin/migrations', null],
-        ['POST', '/api/admin/migrations/apply', null], ['DELETE', '/api/admin/people/' . MEMBER, null]] as [$method, $url, $body]) {
+    foreach (
+        [
+            ['GET', '/api/me/export', null],
+            ['POST', '/api/me/import', ['format' => 'piano-academy-export', 'version' => 1]],
+            ['GET', '/api/admin/people', null],
+            ['GET', '/api/admin/translations', null],
+            ['GET', '/api/admin/migrations', null],
+            ['POST', '/api/admin/migrations/apply', null],
+            ['DELETE', '/api/admin/people/' . MEMBER, null],
+        ]
+        as [$method, $url, $body]
+    ) {
         $answer = visit($method, $url, $body, with_key($visitor['key']));
         assert_same([401, 'sign_in_required'], [$answer['status'], $answer['body']['code'] ?? null], "$method $url");
     }
@@ -389,7 +441,10 @@ test('sign-in required again: a valid key is 401 sign_in_required - not looked u
     $before = visitor_as_it_is($visitor['id']);
 
     test_login_required($GLOBALS['auth'], true);
-    foreach ([['GET', '/api/state', null, []], ['PUT', '/api/progress', ['61' => note(61)], [generation($visitor['generation'])]], ['POST', '/api/sessions', round_of(), []]] as [$method, $url, $body, $headers]) {
+    foreach (
+        [['GET', '/api/state', null, []], ['PUT', '/api/progress', ['61' => note(61)], [generation($visitor['generation'])]], ['POST', '/api/sessions', round_of(), []]]
+        as [$method, $url, $body, $headers]
+    ) {
         $answer = visit($method, $url, $body, array_merge($headers, with_key($visitor['key'])));
         assert_same([401, 'sign_in_required'], [$answer['status'], $answer['body']['code'] ?? null], "$method $url");
     }
@@ -418,39 +473,42 @@ test('seen: a visitor\'s last visit is written at most once an hour', function (
 
 /* ------------------------------------------------------------ the limits */
 
-test('new visitors an hour per address: a trusted proxy\'s CF-Connecting-IP, an IPv6 /64 as one, X-Forwarded-For, X-Real-IP and True-Client-IP never believed - 429 with Retry-After', function (): void {
-    fresh();
-    $tight = $GLOBALS['tight'];
-    new_visitor([from('198.51.100.7')], $tight);
-    new_visitor([from('::ffff:198.51.100.7')], $tight);
-    $third = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.7')], $tight);
-    assert_same([429, 'too_many_visitors', '3600'], [$third['status'], $third['body']['code'] ?? null, $third['headers']['retry-after'] ?? null], 'the third from one address within the hour');
-    assert_match('/Sign in/', $third['body']['error'] ?? '');
-    assert_false(isset($third['headers']['x-visitor-key']));
-    new_visitor([from('198.51.100.8')], $tight);
-    assert_same([counted_as('198.51.100.7', $tight), counted_as('198.51.100.7', $tight), counted_as('198.51.100.8', $tight)], starts(), 'an IPv4 address written as IPv6 is that address');
-
-    fresh();
-    new_visitor([from('2001:db8:1:2::1')], $tight);
-    new_visitor([from('2001:db8:1:2:ffff:ffff:ffff:fffe')], $tight);
-    assert_same(429, visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('2001:db8:1:2::abcd')], $tight)['status'], 'one /64 is one address');
-    new_visitor([from('2001:db8:1:3::1')], $tight);
-    assert_same([counted_as('2001:db8:1:2::abcd', $tight), counted_as('2001:db8:1:3::5', $tight)], array_values(array_unique(starts())), 'each /64 one hash');
-
-    // The header is pinned: from the trusted proxy too, any other is the caller's word - X-Forwarded-For, X-Real-IP,
-    // True-Client-IP (Cloudflare passes them on untouched): the connection counts.
-    foreach (['X-Forwarded-For', 'X-Real-IP', 'True-Client-IP'] as $header) {
+test(
+    'new visitors an hour per address: a trusted proxy\'s CF-Connecting-IP, an IPv6 /64 as one, X-Forwarded-For, X-Real-IP and True-Client-IP never believed - 429 with Retry-After',
+    function (): void {
         fresh();
-        new_visitor(["$header: 203.0.113.1"], $tight);
-        new_visitor(["$header: 203.0.113.2"], $tight);
-        assert_same(429, visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), "$header: 203.0.113.3"], $tight)['status'], "$header: a header the caller writes picks no new address");
-        assert_same([counted_as('127.0.0.1', $tight)], array_values(array_unique(starts())), $header);
-    }
-    // A list in the trusted proxy's header is no address: the connection's own counts (CF-Connecting-IP names one).
-    fresh();
-    new_visitor([from('203.0.113.4, 198.51.100.9')], $tight);
-    assert_same([counted_as('127.0.0.1', $tight)], starts(), 'a list is no address - the connection counts');
-});
+        $tight = $GLOBALS['tight'];
+        new_visitor([from('198.51.100.7')], $tight);
+        new_visitor([from('::ffff:198.51.100.7')], $tight);
+        $third = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.7')], $tight);
+        assert_same([429, 'too_many_visitors', '3600'], [$third['status'], $third['body']['code'] ?? null, $third['headers']['retry-after'] ?? null], 'the third from one address within the hour');
+        assert_match('/Sign in/', $third['body']['error'] ?? '');
+        assert_false(isset($third['headers']['x-visitor-key']));
+        new_visitor([from('198.51.100.8')], $tight);
+        assert_same([counted_as('198.51.100.7', $tight), counted_as('198.51.100.7', $tight), counted_as('198.51.100.8', $tight)], starts(), 'an IPv4 address written as IPv6 is that address');
+
+        fresh();
+        new_visitor([from('2001:db8:1:2::1')], $tight);
+        new_visitor([from('2001:db8:1:2:ffff:ffff:ffff:fffe')], $tight);
+        assert_same(429, visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('2001:db8:1:2::abcd')], $tight)['status'], 'one /64 is one address');
+        new_visitor([from('2001:db8:1:3::1')], $tight);
+        assert_same([counted_as('2001:db8:1:2::abcd', $tight), counted_as('2001:db8:1:3::5', $tight)], array_values(array_unique(starts())), 'each /64 one hash');
+
+        // The header is pinned: from the trusted proxy too, any other is the caller's word - X-Forwarded-For, X-Real-IP,
+        // True-Client-IP (Cloudflare passes them on untouched): the connection counts.
+        foreach (['X-Forwarded-For', 'X-Real-IP', 'True-Client-IP'] as $header) {
+            fresh();
+            new_visitor(["$header: 203.0.113.1"], $tight);
+            new_visitor(["$header: 203.0.113.2"], $tight);
+            assert_same(429, visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), "$header: 203.0.113.3"], $tight)['status'], "$header: a header the caller writes picks no new address");
+            assert_same([counted_as('127.0.0.1', $tight)], array_values(array_unique(starts())), $header);
+        }
+        // A list in the trusted proxy's header is no address: the connection's own counts (CF-Connecting-IP names one).
+        fresh();
+        new_visitor([from('203.0.113.4, 198.51.100.9')], $tight);
+        assert_same([counted_as('127.0.0.1', $tight)], starts(), 'a list is no address - the connection counts');
+    },
+);
 
 test('only a keyed hash of an address is ever kept: no address in visitor_starts (which every backup carries) - each server its own key', function (): void {
     fresh();
@@ -462,95 +520,131 @@ test('only a keyed hash of an address is ever kept: no address in visitor_starts
     foreach (['198.51.100.21', '198.51.100.22', '2001:db8', '127.0.0.1'] as $address) {
         assert_false(str_contains($kept, $address), "no $address in visitor_starts");
     }
-    assert_same(4, count(array_filter(starts(), static fn (string $row): bool => preg_match('/^[0-9a-f]{64}$/D', $row) === 1)), 'four keyed hashes');
+    assert_same(4, count(array_filter(starts(), static fn(string $row): bool => preg_match('/^[0-9a-f]{64}$/D', $row) === 1)), 'four keyed hashes');
     assert_true(counted_as('198.51.100.21', $GLOBALS['tight']) !== counted_as('198.51.100.21', $GLOBALS['app']), 'one address, two installations: two hashes - a key of each installation\'s own');
     assert_same(counted_as('198.51.100.21', $GLOBALS['app']), starts()[3]);
     assert_false(str_contains((string) file_get_contents($GLOBALS['tight']['log']), '198.51.100.21'), 'nor in the server\'s log');
 });
 
-test('with the origin secret, a Worker writing a new CF-Connecting-IP every time is one sender - the proxy it came through - for the visitors\' limit and the library\'s alike; through the zone, each visitor their own', function (): void {
-    fresh();
-    // A server of its own with config/cloudflare.local.php: the proxy this file trusts (127.0.0.1, the tests)
-    // stands for an edge of Cloudflare's, which carries anybody's requests - the owner's zone's alone with the secret.
-    $secret = 'origin-' . bin2hex(random_bytes(20));
-    $guarded = start_app($GLOBALS['auth'], [], [
-        'visitors' => BEHIND_A_PROXY + ['visitors' => ['new_per_hour_per_address' => 2]],
-        'cloudflare' => ['origin_secret' => $secret],
-    ]);
-    touch(sweep_marker($guarded)); // no sweep in this test
-    try {
-        new_visitor([from('198.51.100.31')], $guarded);
-        new_visitor([from('198.51.100.32')], $guarded);
-        $third = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.33')], $guarded);
-        assert_same([429, 'too_many_visitors'], [$third['status'], $third['body']['code'] ?? null], 'the third, from an address never seen: the proxy\'s limit is spent');
-        $wrong = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.34'), 'X-Anotoki-Origin: not the secret'], $guarded);
-        assert_same([429, 'too_many_visitors'], [$wrong['status'], $wrong['body']['code'] ?? null], 'a wrong secret: the proxy too');
-        assert_same([counted_as('127.0.0.1', $guarded), counted_as('127.0.0.1', $guarded)], starts(), 'counted as the proxy, never as the addresses claimed');
-        new_visitor([from('198.51.100.35'), "X-Anotoki-Origin: $secret"], $guarded);
-        assert_same(counted_as('198.51.100.35', $guarded), starts()[2], 'through the owner\'s zone: the visitor it names');
-
-        // The pages' own errors: the library's limit (20 an hour from one sender), by adminContext()'s reading.
-        $report = static fn (string $address, array $headers = []): array => visit('POST', '/api/client-errors', ['message' => "A page's error from $address", 'page' => '/'], array_merge([from($address)], $headers), $guarded);
-        for ($i = 1; $i <= 20; $i++) {
-            assert_same(204, $report("203.0.113.$i")['status'], "report $i, from a made-up visitor");
-        }
-        $over = $report('203.0.113.21');
-        assert_same([429, 'too_many'], [$over['status'], $over['body']['code'] ?? null], 'the 21st, from an address never seen: the proxy\'s budget is spent');
-        assert_same(204, $report('203.0.113.22', ["X-Anotoki-Origin: $secret"])['status'], 'through the zone: a visitor with a budget of their own');
-        assert_same([], server_problems($guarded), 'its server said nothing it should not have');
-    } finally {
-        $guarded['stop']();
-    }
-});
-
-test('a config/cloudflare.local.php that yields no usable secret fails closed - one saved with a byte-order mark before <?php declare(strict_types=1), a file PHP could not even compile, and one read cleanly that holds the secret under a misspelt key: never printed, the site keeps answering, and a Worker writing a new CF-Connecting-IP every time is one sender, the proxy - the file\'s own value in X-Anotoki-Origin too - for the visitors\' limit and the library\'s alike', function (): void {
-    // The owner meant a secret, and the file holds one - but it starts with a byte-order mark, before a
-    // declare(strict_types=1): compiled, a fatal error no handler catches, every request a 500; or it is read cleanly
-    // and names the value under another key (2026-10-18: no slip in the file switches the secret off - only deleting
-    // it). The app reads no secret from either, and believes no CF-Connecting-IP from the proxy it trusts (127.0.0.1,
-    // standing for an edge of Cloudflare's) - never "no secret", which would believe anybody's Worker there (the
-    // family's rule).
-    $secret = 'origin-' . bin2hex(random_bytes(20));
-    foreach ([
-        'a byte-order mark before <?php declare(strict_types=1)' => ["\xEF\xBB\xBF<?php declare(strict_types=1);\n\nreturn " . var_export(['origin_secret' => $secret], true) . ";\n", 'does not start with <?php'],
-        'the secret under a misspelt key' => ["<?php\n\nreturn " . var_export(['origin_secrets' => $secret], true) . ";\n", 'holds no origin_secret (a string with something in it)'],
-    ] as $case => [$contents, $fault]) {
+test(
+    'with the origin secret, a Worker writing a new CF-Connecting-IP every time is one sender - the proxy it came through - for the visitors\' limit and the library\'s alike; through the zone, each visitor their own',
+    function (): void {
         fresh();
-        $broken = start_app($GLOBALS['auth'], [], ['visitors' => BEHIND_A_PROXY + ['visitors' => ['new_per_hour_per_address' => 2]]]);
-        file_put_contents($broken['config'] . '/cloudflare.local.php', $contents);
-        touch(sweep_marker($broken)); // no sweep in this test
+        // A server of its own with config/cloudflare.local.php: the proxy this file trusts (127.0.0.1, the tests)
+        // stands for an edge of Cloudflare's, which carries anybody's requests - the owner's zone's alone with the secret.
+        $secret = 'origin-' . bin2hex(random_bytes(20));
+        $guarded = start_app(
+            $GLOBALS['auth'],
+            [],
+            [
+                'visitors' => BEHIND_A_PROXY + ['visitors' => ['new_per_hour_per_address' => 2]],
+                'cloudflare' => ['origin_secret' => $secret],
+            ],
+        );
+        touch(sweep_marker($guarded)); // no sweep in this test
         try {
-            $save = static fn (string $address): array => visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from($address), "X-Anotoki-Origin: $secret"], $broken);
-            foreach (['198.51.100.41', '198.51.100.42'] as $address) {
-                $made = $save($address);
-                assert_same(204, $made['status'], "$case: a made-up visitor from $address: " . $made['raw']);
-                assert_same('', $made['raw'], "$case, $address: nothing of the file printed ahead of the answer");
-            }
-            $third = $save('198.51.100.43');
-            assert_same([429, 'too_many_visitors'], [$third['status'], $third['body']['code'] ?? null], "$case: the third, from an address never seen, with the file's own value - the proxy's limit is spent");
-            assert_true(str_starts_with($third['raw'], '{') && !str_contains($third['raw'], $secret), "$case: a refusal with nothing of the file before it");
-            assert_same([counted_as('127.0.0.1', $broken), counted_as('127.0.0.1', $broken)], starts(), "$case: every one counted as the proxy, never as the address it claimed");
+            new_visitor([from('198.51.100.31')], $guarded);
+            new_visitor([from('198.51.100.32')], $guarded);
+            $third = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.33')], $guarded);
+            assert_same([429, 'too_many_visitors'], [$third['status'], $third['body']['code'] ?? null], 'the third, from an address never seen: the proxy\'s limit is spent');
+            $wrong = visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from('198.51.100.34'), 'X-Anotoki-Origin: not the secret'], $guarded);
+            assert_same([429, 'too_many_visitors'], [$wrong['status'], $wrong['body']['code'] ?? null], 'a wrong secret: the proxy too');
+            assert_same([counted_as('127.0.0.1', $guarded), counted_as('127.0.0.1', $guarded)], starts(), 'counted as the proxy, never as the addresses claimed');
+            new_visitor([from('198.51.100.35'), "X-Anotoki-Origin: $secret"], $guarded);
+            assert_same(counted_as('198.51.100.35', $guarded), starts()[2], 'through the owner\'s zone: the visitor it names');
 
-            // The pages' own errors: the library's limit (20 an hour from one sender), by adminContext()'s reading - the proxy too.
-            $report = static fn (string $address): array => visit('POST', '/api/client-errors', ['message' => "A page's error from $address", 'page' => '/'], [from($address), "X-Anotoki-Origin: $secret"], $broken);
+            // The pages' own errors: the library's limit (20 an hour from one sender), by adminContext()'s reading.
+            $report = static fn(string $address, array $headers = []): array => visit(
+                'POST',
+                '/api/client-errors',
+                ['message' => "A page's error from $address", 'page' => '/'],
+                array_merge([from($address)], $headers),
+                $guarded,
+            );
             for ($i = 1; $i <= 20; $i++) {
-                assert_same(204, $report("203.0.113.$i")['status'], "$case: report $i, from a made-up visitor");
+                assert_same(204, $report("203.0.113.$i")['status'], "report $i, from a made-up visitor");
             }
-            assert_same([429, 'too_many'], [$report('203.0.113.21')['status'], $report('203.0.113.22')['body']['code'] ?? null], "$case: the 21st and 22nd, from addresses never seen - the proxy's budget is spent");
-
-            $log = (string) file_get_contents($broken['log']);
-            assert_true(str_contains($log, "[config] config/cloudflare.local.php $fault") && str_contains($log, 'no request carries its secret'), "$case: said in the server's log: " . $log);
-            assert_same(1, substr_count($log, "[config] config/cloudflare.local.php $fault"), "$case: once, though the file is read on every request");
-            assert_false(str_contains($log, $secret), "$case: never the secret");
-            assert_false(str_contains($log, 'strict_types'), "$case: never compiled, no fatal error - nothing of what PHP said");
-            $status = visit('GET', '/api/site-status', null, [], $broken);
-            assert_same([200, 'ready'], [$status['status'], $status['body']['state'] ?? null], "$case: the site runs - the file is optional, never \"not set up\"");
-            assert_same([], server_problems($broken), "$case: its server said nothing it should not have");
+            $over = $report('203.0.113.21');
+            assert_same([429, 'too_many'], [$over['status'], $over['body']['code'] ?? null], 'the 21st, from an address never seen: the proxy\'s budget is spent');
+            assert_same(204, $report('203.0.113.22', ["X-Anotoki-Origin: $secret"])['status'], 'through the zone: a visitor with a budget of their own');
+            assert_same([], server_problems($guarded), 'its server said nothing it should not have');
         } finally {
-            $broken['stop']();
+            $guarded['stop']();
         }
-    }
-});
+    },
+);
+
+test(
+    'a config/cloudflare.local.php that yields no usable secret fails closed - one saved with a byte-order mark before <?php declare(strict_types=1), a file PHP could not even compile, and one read cleanly that holds the secret under a misspelt key: never printed, the site keeps answering, and a Worker writing a new CF-Connecting-IP every time is one sender, the proxy - the file\'s own value in X-Anotoki-Origin too - for the visitors\' limit and the library\'s alike',
+    function (): void {
+        // The owner meant a secret, and the file holds one - but it starts with a byte-order mark, before a
+        // declare(strict_types=1): compiled, a fatal error no handler catches, every request a 500; or it is read cleanly
+        // and names the value under another key (2026-10-18: no slip in the file switches the secret off - only deleting
+        // it). The app reads no secret from either, and believes no CF-Connecting-IP from the proxy it trusts (127.0.0.1,
+        // standing for an edge of Cloudflare's) - never "no secret", which would believe anybody's Worker there (the
+        // family's rule).
+        $secret = 'origin-' . bin2hex(random_bytes(20));
+        foreach (
+            [
+                'a byte-order mark before <?php declare(strict_types=1)' => [
+                    "\xEF\xBB\xBF<?php declare(strict_types=1);\n\nreturn " . var_export(['origin_secret' => $secret], true) . ";\n",
+                    'does not start with <?php',
+                ],
+                'the secret under a misspelt key' => ["<?php\n\nreturn " . var_export(['origin_secrets' => $secret], true) . ";\n", 'holds no origin_secret (a string with something in it)'],
+            ]
+            as $case => [$contents, $fault]
+        ) {
+            fresh();
+            $broken = start_app($GLOBALS['auth'], [], ['visitors' => BEHIND_A_PROXY + ['visitors' => ['new_per_hour_per_address' => 2]]]);
+            file_put_contents($broken['config'] . '/cloudflare.local.php', $contents);
+            touch(sweep_marker($broken)); // no sweep in this test
+            try {
+                $save = static fn(string $address): array => visit('PUT', '/api/progress', ['60' => note(60)], [generation(0), from($address), "X-Anotoki-Origin: $secret"], $broken);
+                foreach (['198.51.100.41', '198.51.100.42'] as $address) {
+                    $made = $save($address);
+                    assert_same(204, $made['status'], "$case: a made-up visitor from $address: " . $made['raw']);
+                    assert_same('', $made['raw'], "$case, $address: nothing of the file printed ahead of the answer");
+                }
+                $third = $save('198.51.100.43');
+                assert_same(
+                    [429, 'too_many_visitors'],
+                    [$third['status'], $third['body']['code'] ?? null],
+                    "$case: the third, from an address never seen, with the file's own value - the proxy's limit is spent",
+                );
+                assert_true(str_starts_with($third['raw'], '{') && !str_contains($third['raw'], $secret), "$case: a refusal with nothing of the file before it");
+                assert_same([counted_as('127.0.0.1', $broken), counted_as('127.0.0.1', $broken)], starts(), "$case: every one counted as the proxy, never as the address it claimed");
+
+                // The pages' own errors: the library's limit (20 an hour from one sender), by adminContext()'s reading - the proxy too.
+                $report = static fn(string $address): array => visit(
+                    'POST',
+                    '/api/client-errors',
+                    ['message' => "A page's error from $address", 'page' => '/'],
+                    [from($address), "X-Anotoki-Origin: $secret"],
+                    $broken,
+                );
+                for ($i = 1; $i <= 20; $i++) {
+                    assert_same(204, $report("203.0.113.$i")['status'], "$case: report $i, from a made-up visitor");
+                }
+                assert_same(
+                    [429, 'too_many'],
+                    [$report('203.0.113.21')['status'], $report('203.0.113.22')['body']['code'] ?? null],
+                    "$case: the 21st and 22nd, from addresses never seen - the proxy's budget is spent",
+                );
+
+                $log = (string) file_get_contents($broken['log']);
+                assert_true(str_contains($log, "[config] config/cloudflare.local.php $fault") && str_contains($log, 'no request carries its secret'), "$case: said in the server's log: " . $log);
+                assert_same(1, substr_count($log, "[config] config/cloudflare.local.php $fault"), "$case: once, though the file is read on every request");
+                assert_false(str_contains($log, $secret), "$case: never the secret");
+                assert_false(str_contains($log, 'strict_types'), "$case: never compiled, no fatal error - nothing of what PHP said");
+                $status = visit('GET', '/api/site-status', null, [], $broken);
+                assert_same([200, 'ready'], [$status['status'], $status['body']['state'] ?? null], "$case: the site runs - the file is optional, never \"not set up\"");
+                assert_same([], server_problems($broken), "$case: its server said nothing it should not have");
+            } finally {
+                $broken['stop']();
+            }
+        }
+    },
+);
 
 test('new visitors an hour in all, and visitors at once: a full site refuses new visitors only', function (): void {
     fresh();
@@ -584,7 +678,11 @@ test('a visitor\'s caps: its rounds (422 visitor_limit) and the size of its docu
     assert_same(201, visit('POST', '/api/sessions', round_of(), array_merge($key, ['Idempotency-Key: cap-2']), $tight)['status']);
     $over = visit('POST', '/api/sessions', round_of(), array_merge($key, ['Idempotency-Key: cap-3']), $tight);
     assert_same([422, 'visitor_limit', ['limit' => 'sessions', 'max' => 2]], [$over['status'], $over['body']['code'] ?? null, $over['body']['params'] ?? null]);
-    assert_same([200, $round['body']['id']], [visit('POST', '/api/sessions', round_of(), array_merge($key, ['Idempotency-Key: cap-1']), $tight)['status'], $round['body']['id']], 'a round stored already is answered as before');
+    assert_same(
+        [200, $round['body']['id']],
+        [visit('POST', '/api/sessions', round_of(), array_merge($key, ['Idempotency-Key: cap-1']), $tight)['status'], $round['body']['id']],
+        'a round stored already is answered as before',
+    );
     assert_same(2, (int) dbValue('SELECT count(*) FROM sessions WHERE user_id < 0'));
 
     $big = ['60' => note(60, ['pad' => str_repeat('x', 5000)])];
@@ -605,7 +703,13 @@ test('a whole progress and a whole path fit a visitor\'s documents with room to 
     }
     $steps = [];
     for ($i = 0; $i < 300; $i++) {
-        $steps["left-hand-chords-$i/play-in-time"] = ['attempts' => 999, 'lastAccuracy' => 87.5, 'bestAccuracy' => 100, 'passedAt' => '2026-09-28T08:00:00.000Z', 'updatedAt' => '2026-09-28T08:00:00.000Z'];
+        $steps["left-hand-chords-$i/play-in-time"] = [
+            'attempts' => 999,
+            'lastAccuracy' => 87.5,
+            'bestAccuracy' => 100,
+            'passedAt' => '2026-09-28T08:00:00.000Z',
+            'updatedAt' => '2026-09-28T08:00:00.000Z',
+        ];
     }
     // As objects: keys 0 ... 127 would otherwise go out as a JSON list.
     $notes = (object) $notes;
@@ -622,7 +726,10 @@ test('a whole progress and a whole path fit a visitor\'s documents with room to 
 /** A visitor made in the database, last seen $days ago, with a little of everything. */
 function old_visitor(int $days): int
 {
-    $id = (int) dbValue("INSERT INTO users (id, visitor_key_hash, last_seen_at) VALUES (nextval('visitor_ids'), ?, now() - make_interval(days => ?::int)) RETURNING id", [hash('sha256', random_bytes(16)), $days]);
+    $id = (int) dbValue("INSERT INTO users (id, visitor_key_hash, last_seen_at) VALUES (nextval('visitor_ids'), ?, now() - make_interval(days => ?::int)) RETURNING id", [
+        hash('sha256', random_bytes(16)),
+        $days,
+    ]);
     dbExec("INSERT INTO progress (user_id, notes) VALUES (?, '{\"60\": {}}')", [$id]);
     dbExec("INSERT INTO path_progress (user_id, data) VALUES (?, '{\"steps\": {}}')", [$id]);
     dbExec("INSERT INTO sessions (user_id, id, data) VALUES (?, ?, '{\"mode\": \"trainer\"}')", [$id, 'old-' . $id]);
@@ -712,10 +819,15 @@ test('a database without 005: every round waits at the site\'s gate - a visitor\
     $pdo = dbConnect(machineDatabaseSettings(), $name);
     assert_same(null, test_migrate_before($pdo, '005_visitors.sql')['failed']);
     $config = test_config_dir($GLOBALS['auth'], $name);
-    $behind = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
-        'PIANO_TEST_CONFIG' => $config,
-        'PIANO_FRONTEND_DIST' => test_frontend_build(),
-    ], '/api/health');
+    $behind = test_start_server(
+        TEST_BACKEND,
+        TEST_BACKEND . '/router.php',
+        [
+            'PIANO_TEST_CONFIG' => $config,
+            'PIANO_FRONTEND_DIST' => test_frontend_build(),
+        ],
+        '/api/health',
+    );
     test_login_required($GLOBALS['auth'], false);
 
     // POST /api/sessions had no schema check of its own: the gate in front of every route holds it now too.
@@ -731,9 +843,20 @@ test('a database without 005: every round waits at the site\'s gate - a visitor\
     // Should a visitor's save ever reach such a database all the same (the gate makes it unreachable through the
     // API), the check under it holds on its own: 503 visitors_unavailable, never a 500 - asked by a process of its own.
     $script = test_temp_dir('visitors-ready') . '/check.php';
-    file_put_contents($script, "<?php\nrequire " . var_export(TEST_BACKEND . '/api/bootstrap.php', true) . ";\n"
-        . "try {\n    visitorsMustBeReady();\n    echo 'ready';\n} catch (ApiError \$e) {\n    echo json_encode([\$e->status, \$e->errorCode, \$e->headers]);\n}\n");
-    $process = proc_open([PHP_BINARY, $script], [0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, TEST_BACKEND, ['PIANO_TEST_CONFIG' => $config] + getenv());
+    file_put_contents(
+        $script,
+        "<?php\nrequire " .
+            var_export(TEST_BACKEND . '/api/bootstrap.php', true) .
+            ";\n" .
+            "try {\n    visitorsMustBeReady();\n    echo 'ready';\n} catch (ApiError \$e) {\n    echo json_encode([\$e->status, \$e->errorCode, \$e->headers]);\n}\n",
+    );
+    $process = proc_open(
+        [PHP_BINARY, $script],
+        [0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]],
+        $pipes,
+        TEST_BACKEND,
+        ['PIANO_TEST_CONFIG' => $config] + getenv(),
+    );
     $out = (string) stream_get_contents($pipes[1]);
     fclose($pipes[1]);
     proc_close($process);
@@ -760,9 +883,7 @@ function who_handler(): RequestHandlerInterface
 function in_front(\Psr\Http\Server\MiddlewareInterface $middleware, RequestHandlerInterface $next): RequestHandlerInterface
 {
     return new class ($middleware, $next) implements RequestHandlerInterface {
-        public function __construct(private \Psr\Http\Server\MiddlewareInterface $middleware, private RequestHandlerInterface $next)
-        {
-        }
+        public function __construct(private \Psr\Http\Server\MiddlewareInterface $middleware, private RequestHandlerInterface $next) {}
 
         public function handle(ServerRequestInterface $request): ResponseInterface
         {
@@ -794,13 +915,15 @@ test('requireUser() and requireRole() refuse a visitor that requireOwner() let t
     test_login_required($settings, false);
     try {
         $identify = identify(new \Slim\Psr7\Factory\ResponseFactory());
-        $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/me/export')
-            ->withHeader(VISITOR_HEADER, $visitor['key']);
+        $request = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/me/export')->withHeader(VISITOR_HEADER, $visitor['key']);
 
         $owned = json_decode((string) in_front($identify, in_front(requireOwner('refuse'), who_handler()))->handle($request)->getBody(), true);
         assert_same(['id' => $visitor['id'], 'visitor' => true], $owned, 'requireOwner(): the visitor');
 
-        foreach (['requireUser()' => requireUser(), 'requireRole(ADMIN)' => requireRole(ROLE_ADMIN), 'requireRole(staff)' => requireRole(...ROLES_STAFF), 'adminByToken()' => adminByToken()] as $what => $check) {
+        foreach (
+            ['requireUser()' => requireUser(), 'requireRole(ADMIN)' => requireRole(ROLE_ADMIN), 'requireRole(staff)' => requireRole(...ROLES_STAFF), 'adminByToken()' => adminByToken()]
+            as $what => $check
+        ) {
             assert_same('401 sign_in_required', refused_code(in_front($identify, in_front(requireOwner('refuse'), in_front($check, who_handler()))), $request), "requireOwner() outside $what");
             assert_same('401 sign_in_required', refused_code(in_front($identify, in_front($check, who_handler())), $request), "$what alone");
         }
@@ -819,4 +942,3 @@ test('the servers said nothing they should not have', function (): void {
     assert_same([], server_problems($GLOBALS['app']));
     assert_same([], server_problems($GLOBALS['tight']));
 });
-

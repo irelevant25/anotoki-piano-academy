@@ -102,17 +102,7 @@ interface RecentRow {
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    PianoKeyboardComponent,
-    TranslatePipe,
-    LocalDatePipe,
-    OwnProgressComponent,
-    ButtonComponent,
-    CardComponent,
-    EmptyStateComponent,
-    StatTileComponent,
-    StatTilesComponent,
-  ],
+  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe, OwnProgressComponent, ButtonComponent, CardComponent, EmptyStateComponent, StatTileComponent, StatTilesComponent],
 })
 export class StatsPageComponent {
   private readonly store = inject(ProgressStore);
@@ -152,19 +142,22 @@ export class StatsPageComponent {
    * id. Anything else shows what was stored with the session, as it is.
    */
   protected readonly recent = computed<RecentRow[]>(() =>
-    [...this.store.sessions()].reverse().slice(0, 15).map((session) => {
-      const named = this.named(session);
-      return {
-        id: session.id,
-        when: session.startedAt || session.recordedAt,
-        mode: this.i18n.around(Object.hasOwn(MODE_KEYS, session.mode) ? MODE_KEYS[session.mode] : MODE_KEYS.trainer, 'name'),
-        name: named.name,
-        stored: named.stored,
-        score: `${session.correct ?? ''}/${session.attempts ?? ''}`,
-        accuracy: session.accuracy ?? '',
-        timingMs: session.avgTimingErrorMs ?? null,
-      };
-    }),
+    [...this.store.sessions()]
+      .reverse()
+      .slice(0, 15)
+      .map((session) => {
+        const named = this.named(session);
+        return {
+          id: session.id,
+          when: session.startedAt || session.recordedAt,
+          mode: this.i18n.around(Object.hasOwn(MODE_KEYS, session.mode) ? MODE_KEYS[session.mode] : MODE_KEYS.trainer, 'name'),
+          name: named.name,
+          stored: named.stored,
+          score: `${session.correct ?? ''}/${session.attempts ?? ''}`,
+          accuracy: session.accuracy ?? '',
+          timingMs: session.avgTimingErrorMs ?? null,
+        };
+      }),
   );
 
   constructor() {

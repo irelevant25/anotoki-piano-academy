@@ -1,18 +1,18 @@
 <div class="practice">
     @switch (type()) {
-        @case ('read') {
-            <p class="lesson-instruction">{{ 'sequence.read.instruction' | translate }}</p>
+        @case ("read") {
+            <p class="lesson-instruction">{{ "sequence.read.instruction" | translate }}</p>
         }
-        @case ('tempo') {
-            <p class="lesson-instruction">{{ 'sequence.tempo.instruction' | translate }}</p>
+        @case ("tempo") {
+            <p class="lesson-instruction">{{ "sequence.tempo.instruction" | translate }}</p>
             <div class="cluster controls">
                 <anotoki-select data-role="bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm().toString()" (valueChange)="chooseTempo($event)" />
                 <button anotokiButton variant="primary" data-role="start" (click)="startInTime()">
-                    {{ (started() ? 'sequence.tempo.restart' : 'sequence.tempo.start') | translate }}
+                    {{ (started() ? "sequence.tempo.restart" : "sequence.tempo.start") | translate }}
                 </button>
             </div>
         }
-        @case ('song') {
+        @case ("song") {
             <p class="lesson-instruction">
                 <span>{{ songLine()[0] }}</span>
                 @if (songLine()[2]) {
@@ -21,9 +21,9 @@
                 <span>{{ songLine()[1] }}</span>
             </p>
             <div class="cluster controls">
-                <button anotokiButton data-role="practice" (click)="startPractice()">{{ 'sequence.song.practice' | translate }}</button>
+                <button anotokiButton data-role="practice" (click)="startPractice()">{{ "sequence.song.practice" | translate }}</button>
                 <anotoki-select data-role="bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm().toString()" (valueChange)="chooseTempo($event)" />
-                <button anotokiButton variant="primary" data-role="start" (click)="startInTime()">{{ 'sequence.song.start' | translate }}</button>
+                <button anotokiButton variant="primary" data-role="start" (click)="startInTime()">{{ "sequence.song.start" | translate }}</button>
             </div>
         }
     }

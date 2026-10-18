@@ -115,8 +115,7 @@ describe('Stats: the page in the language of the reader', () => {
   const boot = { signIn: vi.fn(async () => undefined) };
 
   /** "Recent sessions", line by line: [when, mode, score, accuracy, timing] as the page reads. */
-  const rows = (): string[][] =>
-    Array.from(host.querySelectorAll('tbody tr')).map((row) => Array.from(row.querySelectorAll('td')).map((cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim()));
+  const rows = (): string[][] => Array.from(host.querySelectorAll('tbody tr')).map((row) => Array.from(row.querySelectorAll('td')).map((cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim()));
   /** The Mode cells: what each says, and the language its name is marked as (null: the page's own). */
   const modes = (): Array<[string, string | null]> =>
     Array.from(host.querySelectorAll('tbody tr')).map((row) => {

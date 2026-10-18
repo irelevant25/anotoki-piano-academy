@@ -1,2 +1,8 @@
 <!-- The family's error state (@anotoki/lib/ui/error-state): what happened, and Try again. -->
-<anotoki-error-state class="load-error" id="load-error" [heading]="'boot.loadError.title' | translate" [message]="'boot.loadError.text' | translate" [retryLabel]="'boot.loadError.tryAgain' | translate" (retry)="retry()" />
+<anotoki-error-state
+    class="load-error"
+    id="load-error"
+    [heading]="'boot.loadError.title' | translate"
+    [message]="'boot.loadError.text' | translate"
+    [retryLabel]="'boot.loadError.tryAgain' | translate"
+    (retry)="retry()" />

@@ -78,9 +78,7 @@ export class SrsService {
     next.updatedAt = now.toISOString();
 
     if (timingErrorMs !== null && timingErrorMs !== undefined) {
-      next.avgTimingErrorMs = next.avgTimingErrorMs === null
-        ? Math.abs(timingErrorMs)
-        : next.avgTimingErrorMs * 0.8 + Math.abs(timingErrorMs) * 0.2;
+      next.avgTimingErrorMs = next.avgTimingErrorMs === null ? Math.abs(timingErrorMs) : next.avgTimingErrorMs * 0.8 + Math.abs(timingErrorMs) * 0.2;
     }
 
     if (grade < 3) {
@@ -160,13 +158,9 @@ export class SrsService {
     // Mastered notes come back only when their (long) interval runs out; they
     // are never pulled in early like learning and review notes are.
     const active = withState.filter(({ state }) => state.status === 'learning' || state.status === 'review');
-    const due = withState
-      .filter(({ state }) => this.isDue(state, now))
-      .sort((a, b) => new Date(a.state.dueAt as string).getTime() - new Date(b.state.dueAt as string).getTime());
+    const due = withState.filter(({ state }) => this.isDue(state, now)).sort((a, b) => new Date(a.state.dueAt as string).getTime() - new Date(b.state.dueAt as string).getTime());
     const dueSet = new Set(due.map((x) => x.midi));
-    const notYetDue = active
-      .filter(({ midi }) => !dueSet.has(midi))
-      .sort((a, b) => new Date(a.state.dueAt ?? 0).getTime() - new Date(b.state.dueAt ?? 0).getTime());
+    const notYetDue = active.filter(({ midi }) => !dueSet.has(midi)).sort((a, b) => new Date(a.state.dueAt ?? 0).getTime() - new Date(b.state.dueAt ?? 0).getTime());
 
     const queue = [...due, ...notYetDue];
 

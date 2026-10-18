@@ -42,7 +42,7 @@ export function deleteQuestion(person: PeoplePerson): { title: string; message: 
     title: `Delete the progress of ${name}?`,
     message:
       `Everything Piano Academy keeps of ${name} goes: ${count('notes')} notes, ${count('steps')} steps of the path and ${count('sessions')} rounds, ` +
-      'and their feedback\'s reply address (its words stay). The backups made before keep it until they are deleted; restoring one deletes it again. ' +
+      "and their feedback's reply address (its words stay). The backups made before keep it until they are deleted; restoring one deletes it again. " +
       'Their anotoki account stays; if they sign in again, they start from nothing.',
     confirm: 'Delete their progress',
   };

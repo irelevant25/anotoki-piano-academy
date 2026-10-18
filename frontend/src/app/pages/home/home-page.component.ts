@@ -104,7 +104,9 @@ export class HomePageComponent {
         const details = [
           unit.newNotes.length ? this.i18n.t('home.unit.new', { notes: unit.newNotes.map((midi) => this.theory.midiToName(midi)).join(', ') }) : this.i18n.t('home.unit.review'),
           song ? this.i18n.t('home.unit.song', { title: song.title }) : null,
-        ].filter(Boolean).join(' · ');
+        ]
+          .filter(Boolean)
+          .join(' · ');
 
         const chips = unit.steps.map((step): ChipView => {
           const key = this.path.stepKey(unit.id, step.id);

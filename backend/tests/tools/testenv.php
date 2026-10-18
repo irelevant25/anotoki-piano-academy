@@ -26,7 +26,7 @@ declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
-    exit;
+    exit();
 }
 
 // By hand rather than getopt(), which stops at the folder and reads no option after it.

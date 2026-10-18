@@ -80,7 +80,7 @@ function people(): People
 
     return $people ??= new People(
         new PeopleTable(table: 'users', name: 'preferred_username', firstSeen: 'created_at', lastSeen: 'last_seen_at'),
-        static fn (): PDO => db(),
+        static fn(): PDO => db(),
         iamClient(),
         hooks: [peopleForgetCopies(...)],
     );
@@ -117,7 +117,7 @@ function peopleForgetCopies(PDO $pdo, int $sub, ?array $former): void
 function peopleColumns(): array
 {
     // Every person asked for has a count: nothing kept is 0, not "none".
-    $counts = static fn (string $sql): Closure => static function (PDO $pdo, array $subs) use ($sql): array {
+    $counts = static fn(string $sql): Closure => static function (PDO $pdo, array $subs) use ($sql): array {
         $statement = $pdo->prepare($sql);
         $statement->execute(['{' . implode(',', array_map('intval', $subs)) . '}']);
 
@@ -125,15 +125,19 @@ function peopleColumns(): array
     };
 
     return [
-        new PeopleColumn('notes', PEOPLE_COLUMNS['notes'], 'count', $counts(
-            'SELECT p.user_id, count(*) FROM progress p, jsonb_object_keys(p.notes) WHERE p.user_id = ANY (CAST(? AS bigint[])) GROUP BY p.user_id'
-        )),
-        new PeopleColumn('steps', PEOPLE_COLUMNS['steps'], 'count', $counts(
-            "SELECT pp.user_id, count(*) FROM path_progress pp, jsonb_object_keys(pp.data -> 'steps') WHERE pp.user_id = ANY (CAST(? AS bigint[])) GROUP BY pp.user_id"
-        )),
-        new PeopleColumn('sessions', PEOPLE_COLUMNS['sessions'], 'count', $counts(
-            'SELECT s.user_id, count(*) FROM sessions s WHERE s.user_id = ANY (CAST(? AS bigint[])) GROUP BY s.user_id'
-        )),
+        new PeopleColumn(
+            'notes',
+            PEOPLE_COLUMNS['notes'],
+            'count',
+            $counts('SELECT p.user_id, count(*) FROM progress p, jsonb_object_keys(p.notes) WHERE p.user_id = ANY (CAST(? AS bigint[])) GROUP BY p.user_id'),
+        ),
+        new PeopleColumn(
+            'steps',
+            PEOPLE_COLUMNS['steps'],
+            'count',
+            $counts("SELECT pp.user_id, count(*) FROM path_progress pp, jsonb_object_keys(pp.data -> 'steps') WHERE pp.user_id = ANY (CAST(? AS bigint[])) GROUP BY pp.user_id"),
+        ),
+        new PeopleColumn('sessions', PEOPLE_COLUMNS['sessions'], 'count', $counts('SELECT s.user_id, count(*) FROM sessions s WHERE s.user_id = ANY (CAST(? AS bigint[])) GROUP BY s.user_id')),
     ];
 }
 
@@ -189,7 +193,7 @@ function peopleDelete(PDO $pdo, int $id): ?array
  */
 function peopleDeleteHook(): Closure
 {
-    return static fn (PDO $pdo, int $sub, ?Request $request): ?array => peopleDelete($pdo, $sub);
+    return static fn(PDO $pdo, int $sub, ?Request $request): ?array => peopleDelete($pdo, $sub);
 }
 
 /**
@@ -202,7 +206,7 @@ function peopleVisitors(): array
 {
     $row = dbOne(
         'SELECT (SELECT count(*) FROM users WHERE id < 0) AS count,
-                (SELECT count(*) FROM sessions WHERE user_id < 0) AS sessions'
+                (SELECT count(*) FROM sessions WHERE user_id < 0) AS sessions',
     );
 
     return ['count' => (int) $row['count'], 'sessions' => (int) $row['sessions']];
@@ -218,13 +222,13 @@ function peopleVisitors(): array
  */
 function peopleNames(array $ids): array
 {
-    $ids = array_values(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0));
+    $ids = array_values(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0));
     if ($ids === []) {
         return [];
     }
     $rows = dbAll('SELECT id, preferred_username FROM users WHERE id = ANY (CAST(? AS bigint[])) AND preferred_username IS NOT NULL', ['{' . implode(',', $ids) . '}']);
 
-    return array_column(array_map(static fn (array $row): array => ['id' => (int) $row['id'], 'name' => (string) $row['preferred_username']], $rows), 'name', 'id');
+    return array_column(array_map(static fn(array $row): array => ['id' => (int) $row['id'], 'name' => (string) $row['preferred_username']], $rows), 'name', 'id');
 }
 
 /**
@@ -240,10 +244,7 @@ function peopleIdsNamed(string $name): array
         return [];
     }
 
-    return array_map('intval', array_column(dbAll(
-        'SELECT id FROM users WHERE id > 0 AND strpos(lower(preferred_username), lower(CAST(? AS text))) > 0 ORDER BY id LIMIT 100',
-        [$name]
-    ), 'id'));
+    return array_map('intval', array_column(dbAll('SELECT id FROM users WHERE id > 0 AND strpos(lower(preferred_username), lower(CAST(? AS text))) > 0 ORDER BY id LIMIT 100', [$name]), 'id'));
 }
 
 /** The person a request comes from, as the admin tools record who acted: the token's user id. */

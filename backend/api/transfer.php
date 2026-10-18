@@ -233,11 +233,7 @@ function transferImport(int $userId, array $data, bool $replace = false): array
             foreach ($chunk as $session) {
                 array_push($params, $userId, $session['id'], $session['recordedAt'], jsonText($session['data']));
             }
-            dbExec(
-                'INSERT INTO sessions (user_id, id, recorded_at, data) VALUES '
-                . implode(', ', array_fill(0, count($chunk), '(?, ?, ?::timestamptz, ?::jsonb)')),
-                $params
-            );
+            dbExec('INSERT INTO sessions (user_id, id, recorded_at, data) VALUES ' . implode(', ', array_fill(0, count($chunk), '(?, ?, ?::timestamptz, ?::jsonb)')), $params);
         }
 
         return transferCounts($data) + ['replaced' => $had, 'generation' => storeNewGeneration($userId)];
@@ -269,7 +265,13 @@ function transferExportJson(int $userId): string
 {
     $json = jsonText(transferExport($userId));
     if (strlen($json) > EXPORT_LIMIT) {
-        throw new ApiError(409, 'export_too_large', 'Your progress is too large for one file the app could bring back in. Ask the site\'s administrator to export it for you.', [], ['limit' => EXPORT_LIMIT]);
+        throw new ApiError(
+            409,
+            'export_too_large',
+            'Your progress is too large for one file the app could bring back in. Ask the site\'s administrator to export it for you.',
+            [],
+            ['limit' => EXPORT_LIMIT],
+        );
     }
 
     return $json;

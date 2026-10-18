@@ -26,7 +26,7 @@ const SLOVAK = {
 };
 const ENGLISH = { 'nav.learn': 'Learn', 'nav.trainer': 'Note Trainer', 'nav.sheet': 'Sheet Practice', 'nav.songs': 'Songs', 'nav.stats': 'Stats' };
 
-describe('the family\'s admin pages and feedback form, wired to Piano Academy (core/site-admin.ts)', () => {
+describe("the family's admin pages and feedback form, wired to Piano Academy (core/site-admin.ts)", () => {
   let auth: TestAuth;
   const store = { announceReplaced: vi.fn(), reloadFromServer: vi.fn(async () => undefined), changedElsewhere: { set: vi.fn() } };
 
@@ -76,7 +76,7 @@ describe('the family\'s admin pages and feedback form, wired to Piano Academy (c
     expect(people.delete?.question?.(person(), [])).toEqual({
       title: 'Delete the progress of ana?',
       message:
-        'Everything Piano Academy keeps of ana goes: 3 notes, 1 steps of the path and 2 rounds, and their feedback\'s reply address (its words stay). ' +
+        "Everything Piano Academy keeps of ana goes: 3 notes, 1 steps of the path and 2 rounds, and their feedback's reply address (its words stay). " +
         'The backups made before keep it until they are deleted; restoring one deletes it again. Their anotoki account stays; if they sign in again, they start from nothing.',
       confirm: 'Delete their progress',
     });
@@ -102,7 +102,7 @@ describe('the family\'s admin pages and feedback form, wired to Piano Academy (c
     expect(admin.isAdmin()).toBe(false);
   });
 
-  it('the feedback form: this app\'s places in the page\'s words, the server\'s values in English - and the account\'s address written in for somebody signed in', () => {
+  it("the feedback form: this app's places in the page's words, the server's values in English - and the account's address written in for somebody signed in", () => {
     const feedback = TestBed.inject(ANOTOKI_FEEDBACK_CONFIG);
     expect(feedback.sections?.()).toEqual([
       { value: 'Learn', label: 'Učenie' },
@@ -129,7 +129,7 @@ describe('the family\'s admin pages and feedback form, wired to Piano Academy (c
  * Whom the feedback form's message is for (feedbackSenderInterceptor, core/site-admin.ts), through the family's
  * interceptor as this app configures it: the form posts to its route and says nothing itself - as here.
  */
-describe('the feedback form\'s message says whom it is for: the person\'s while somebody is signed in, nobody\'s otherwise - the server takes anybody\'s', () => {
+describe("the feedback form's message says whom it is for: the person's while somebody is signed in, nobody's otherwise - the server takes anybody's", () => {
   const KEY = 'k'.repeat(43);
   const MESSAGE = { kind: 'bug', message: 'The C key sticks.', page: '/terms', language: 'en', website: '' };
   let auth: TestAuth;
@@ -168,7 +168,7 @@ describe('the feedback form\'s message says whom it is for: the person\'s while 
     expect(auth.token).not.toHaveBeenCalled();
   });
 
-  it('a visitor (no sign-in required): nobody\'s too - the key goes to the progress routes alone', async () => {
+  it("a visitor (no sign-in required): nobody's too - the key goes to the progress routes alone", async () => {
     auth.visiting();
     localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
     const answer = firstValueFrom(http.post(DEFAULT_FEEDBACK_ENDPOINT, MESSAGE));
@@ -190,21 +190,25 @@ describe('the feedback form\'s message says whom it is for: the person\'s while 
     await expect(answer).resolves.toEqual({ ok: true });
   });
 
-  it('nothing else is touched: a request that says whom it is for keeps it, and another route stays the page\'s - a person\'s request with nobody signed in is still never sent', async () => {
+  it("nothing else is touched: a request that says whom it is for keeps it, and another route stays the page's - a person's request with nobody signed in is still never sent", async () => {
     auth.signedOut();
     /** The status a request failed with (each refusal caught as it is made), or null for an answer. */
-    const failed = (request: Observable<unknown>): Promise<number | null> => firstValueFrom(request).then(() => null, (error: HttpErrorResponse) => error.status);
+    const failed = (request: Observable<unknown>): Promise<number | null> =>
+      firstValueFrom(request).then(
+        () => null,
+        (error: HttpErrorResponse) => error.status,
+      );
     const said = failed(http.post(DEFAULT_FEEDBACK_ENDPOINT, MESSAGE, { context: new HttpContext().set(ISSUED_AS, 'person') }));
     const save = failed(http.put('/api/progress', {}));
     const asked = failed(http.get(DEFAULT_FEEDBACK_ENDPOINT));
     await settled();
-    requests.expectNone(DEFAULT_FEEDBACK_ENDPOINT, 'the message said it was a person\'s: never sent without a token');
+    requests.expectNone(DEFAULT_FEEDBACK_ENDPOINT, "the message said it was a person's: never sent without a token");
     requests.expectNone('/api/progress');
     expect(await Promise.all([said, save, asked])).toEqual([401, 401, 401]);
     expect(auth.refused).toHaveBeenCalledTimes(3);
   });
 
-  it('is the app\'s: before the family\'s sign-in in SITE_INTERCEPTORS (app.config.ts), after where the site stands', () => {
+  it("is the app's: before the family's sign-in in SITE_INTERCEPTORS (app.config.ts), after where the site stands", () => {
     expect(SITE_INTERCEPTORS).toEqual([siteStatusInterceptor, feedbackSenderInterceptor, anotokiAuthInterceptor]);
   });
 });

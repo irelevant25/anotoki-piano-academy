@@ -51,9 +51,18 @@ function as_person(int $id = PERSON): array
 function note(int $midi, array $extra = []): array
 {
     return $extra + [
-        'midi' => $midi, 'status' => 'learning', 'repetitions' => 1, 'easeFactor' => 2.5, 'intervalHours' => 4,
-        'dueAt' => '2026-09-28T12:00:00.000Z', 'lastGrade' => 4, 'totalAttempts' => 3, 'correctAttempts' => 2,
-        'avgTimingErrorMs' => null, 'lastGrowthAt' => '2026-09-28T08:00:00.000Z', 'updatedAt' => '2026-09-28T08:00:00.000Z',
+        'midi' => $midi,
+        'status' => 'learning',
+        'repetitions' => 1,
+        'easeFactor' => 2.5,
+        'intervalHours' => 4,
+        'dueAt' => '2026-09-28T12:00:00.000Z',
+        'lastGrade' => 4,
+        'totalAttempts' => 3,
+        'correctAttempts' => 2,
+        'avgTimingErrorMs' => null,
+        'lastGrowthAt' => '2026-09-28T08:00:00.000Z',
+        'updatedAt' => '2026-09-28T08:00:00.000Z',
     ];
 }
 
@@ -147,13 +156,18 @@ test('the merge: the person\'s notes stay, the visitor\'s others come; a step bo
             'u1/s1' => step(3, 85, 90, '2026-09-25T10:00:00.000Z', '2026-09-25T10:00:00.000Z'),
             'u1/s2' => step(1, 50, 50, null, '2026-09-25T11:00:00.000Z'),
         ],
-        ['v-1', 'v-2', 'v-3']
+        ['v-1', 'v-2', 'v-3'],
     );
     $visitorRounds = dbAll('SELECT id, request_key, recorded_at::text AS at FROM sessions WHERE user_id = ? ORDER BY seq', [$visitor['id']]);
-    $old = person_with(PERSON, ['60' => note(60, ['status' => 'mastered']), '64' => note(64)], [
-        'steps' => ['u1/s1' => step(2, 60, 70, null, '2026-09-20T09:00:00.000Z')],
-        'version' => 2,
-    ], ['p-1']);
+    $old = person_with(
+        PERSON,
+        ['60' => note(60, ['status' => 'mastered']), '64' => note(64)],
+        [
+            'steps' => ['u1/s1' => step(2, 60, 70, null, '2026-09-20T09:00:00.000Z')],
+            'version' => 2,
+        ],
+        ['p-1'],
+    );
     $note60 = dbValue("SELECT notes -> '60' FROM progress WHERE user_id = ?", [PERSON]);
     person_with(OTHER, ['60' => note(60)], null, ['o-1']);
     $other = kept_of(OTHER);
@@ -173,7 +187,11 @@ test('the merge: the person\'s notes stay, the visitor\'s others come; a step bo
 
     $path = json_decode((string) dbValue('SELECT data::text FROM path_progress WHERE user_id = ?', [PERSON]), true);
     assert_same(2, $path['version'] ?? null, 'the person\'s other path fields stay');
-    assert_json_same(step(5, 85, 90, '2026-09-25T10:00:00.000Z', '2026-09-25T10:00:00.000Z'), $path['steps']['u1/s1'], 'both had u1/s1: the attempts added, the best and the pass the visitor\'s, the last the newer');
+    assert_json_same(
+        step(5, 85, 90, '2026-09-25T10:00:00.000Z', '2026-09-25T10:00:00.000Z'),
+        $path['steps']['u1/s1'],
+        'both had u1/s1: the attempts added, the best and the pass the visitor\'s, the last the newer',
+    );
     assert_json_same(step(1, 50, 50, null, '2026-09-25T11:00:00.000Z'), $path['steps']['u1/s2'], 'the visitor\'s u1/s2');
 
     $rounds = dbAll('SELECT id, request_key, recorded_at::text AS at FROM sessions WHERE user_id = ? ORDER BY seq', [PERSON]);
@@ -187,7 +205,10 @@ test('the merge: the person\'s notes stay, the visitor\'s others come; a step bo
     assert_same(['users' => null, 'progress' => null, 'path' => null, 'sessions' => null], kept_of($visitor['id']), 'the visitor is gone, with all of its rows');
     $stale = visit('PUT', '/api/progress', ['66' => note(66)], array_merge(as_person(), [generation($old)]));
     assert_same([409, 'progress_changed', $generation], [$stale['status'], $stale['body']['code'] ?? null, $stale['body']['generation'] ?? null], 'a tab of the person\'s that loaded before the move');
-    foreach ([['GET', '/api/state', null, []], ['PUT', '/api/progress', ['66' => note(66)], [generation($visitor['generation'])]], ['POST', '/api/sessions', round_of(), []]] as [$method, $url, $body, $headers]) {
+    foreach (
+        [['GET', '/api/state', null, []], ['PUT', '/api/progress', ['66' => note(66)], [generation($visitor['generation'])]], ['POST', '/api/sessions', round_of(), []]]
+        as [$method, $url, $body, $headers]
+    ) {
         $gone = visit($method, $url, $body, array_merge(with_key($visitor['key']), $headers));
         assert_same([401, 'visitor_unknown'], [$gone['status'], $gone['body']['code'] ?? null], "the old key: $method $url");
     }
@@ -196,23 +217,40 @@ test('the merge: the person\'s notes stay, the visitor\'s others come; a step bo
 
 test('a pass is never lost: the person\'s pass stays over a later failed try, and the earlier of two passes wins', function (): void {
     fresh();
-    $visitor = visitor_with([], [
-        'u1/s1' => step(4, 40, 40, null, '2026-09-26T10:00:00.000Z'),            // newer, failed
-        'u1/s2' => step(1, 95, 95, '2026-09-10T10:00:00.000Z', '2026-09-10T10:00:00.000Z'), // older, passed earlier
-        'u1/s3' => ['attempts' => 1, 'custom' => true],                          // fields the person lacks
-    ]);
-    person_with(PERSON, [], ['steps' => [
-        'u1/s1' => step(1, 92, 92, '2026-09-21T10:00:00.000Z', '2026-09-21T10:00:00.000Z'),
-        'u1/s2' => step(2, 99, 99, '2026-09-22T10:00:00.000Z', '2026-09-22T10:00:00.000Z'),
-        'u1/s3' => ['bestAccuracy' => 80, 'attempts' => 'many'],
-    ]]);
+    $visitor = visitor_with(
+        [],
+        [
+            'u1/s1' => step(4, 40, 40, null, '2026-09-26T10:00:00.000Z'), // newer, failed
+            'u1/s2' => step(1, 95, 95, '2026-09-10T10:00:00.000Z', '2026-09-10T10:00:00.000Z'), // older, passed earlier
+            'u1/s3' => ['attempts' => 1, 'custom' => true], // fields the person lacks
+        ],
+    );
+    person_with(
+        PERSON,
+        [],
+        [
+            'steps' => [
+                'u1/s1' => step(1, 92, 92, '2026-09-21T10:00:00.000Z', '2026-09-21T10:00:00.000Z'),
+                'u1/s2' => step(2, 99, 99, '2026-09-22T10:00:00.000Z', '2026-09-22T10:00:00.000Z'),
+                'u1/s3' => ['bestAccuracy' => 80, 'attempts' => 'many'],
+            ],
+        ],
+    );
 
     $moved = move($visitor['key']);
     assert_same([200, ['moved' => 0, 'merged' => 3, 'kept' => 0]], [$moved['status'], $moved['body']['steps']]);
     $steps = json_decode((string) dbValue("SELECT (data -> 'steps')::text FROM path_progress WHERE user_id = ?", [PERSON]), true);
-    assert_json_same(step(5, 40, 92, '2026-09-21T10:00:00.000Z', '2026-09-26T10:00:00.000Z'), $steps['u1/s1'], 'passed by the person, failed later by the visitor: still passed (best 92, passedAt kept), the last try the visitor\'s');
+    assert_json_same(
+        step(5, 40, 92, '2026-09-21T10:00:00.000Z', '2026-09-26T10:00:00.000Z'),
+        $steps['u1/s1'],
+        'passed by the person, failed later by the visitor: still passed (best 92, passedAt kept), the last try the visitor\'s',
+    );
     assert_json_same(step(3, 99, 99, '2026-09-10T10:00:00.000Z', '2026-09-22T10:00:00.000Z'), $steps['u1/s2'], 'both passed: the earlier pass, the larger best, the newer last');
-    assert_json_same(['bestAccuracy' => 80, 'attempts' => 1, 'custom' => true], $steps['u1/s3'], 'the person\'s best (the visitor has none); attempts that are no number take the visitor\'s; a field only the visitor has comes');
+    assert_json_same(
+        ['bestAccuracy' => 80, 'attempts' => 1, 'custom' => true],
+        $steps['u1/s3'],
+        'the person\'s best (the visitor has none); attempts that are no number take the visitor\'s; a field only the visitor has comes',
+    );
     assert_same(0, (int) dbValue('SELECT count(*) FROM users WHERE id < 0'));
 });
 
@@ -285,11 +323,14 @@ test('merged notes over BODY_LIMIT are not made: the person\'s notes stay, the v
 
 test('a merged path over BODY_LIMIT is not made: the person\'s path stays, the visitor\'s steps count as kept - the notes still come', function (): void {
     fresh();
-    $visitor = visitor_with(['62' => note(62)], [
-        'u1/s1' => step(1, 90, 90, null, '2026-09-25T10:00:00.000Z'),
-        'u1/s2' => step(1, 90, 90, null, '2026-09-25T10:00:00.000Z'),
-        'u1/s3' => step(1, 90, 90, null, '2026-09-25T10:00:00.000Z') + ['pad' => str_repeat('v', 100000)],
-    ]);
+    $visitor = visitor_with(
+        ['62' => note(62)],
+        [
+            'u1/s1' => step(1, 90, 90, null, '2026-09-25T10:00:00.000Z'),
+            'u1/s2' => step(1, 90, 90, null, '2026-09-25T10:00:00.000Z'),
+            'u1/s3' => step(1, 90, 90, null, '2026-09-25T10:00:00.000Z') + ['pad' => str_repeat('v', 100000)],
+        ],
+    );
     person_with(PERSON, [], ['steps' => ['u1/s1' => step(1, 50, 50, null, '2026-09-20T10:00:00.000Z') + ['note' => str_repeat('p', 200000)]]]);
     $path = dbValue('SELECT data::text FROM path_progress WHERE user_id = ?', [PERSON]);
 
@@ -313,7 +354,10 @@ test('the token and the key: no token 401; no key, or one that is not a key, 422
     }
     $bad = visit('POST', '/api/visitor/move', null, array_merge(['Authorization: Bearer x'], with_key($visitor['key'])));
     assert_same([401, 'invalid_token'], [$bad['status'], $bad['body']['code'] ?? null]);
-    foreach (['' => [], 'empty' => [VISITOR_HEADER . ': '], 'short' => with_key('short'), 'one too many' => with_key(str_repeat('a', 44)), 'not base64url' => with_key(str_repeat('*', 43))] as $what => $headers) {
+    foreach (
+        ['' => [], 'empty' => [VISITOR_HEADER . ': '], 'short' => with_key('short'), 'one too many' => with_key(str_repeat('a', 44)), 'not base64url' => with_key(str_repeat('*', 43))]
+        as $what => $headers
+    ) {
         $invalid = visit('POST', '/api/visitor/move', null, array_merge(as_person(), $headers));
         assert_same([422, 'invalid', 'visitor_key'], [$invalid['status'], $invalid['body']['code'] ?? null, $invalid['body']['field'] ?? null], "a key: $what");
     }
@@ -330,32 +374,35 @@ test('sign-in required does not stop the move: a key handed in with a token stil
     assert_same([200, ['moved' => 1, 'kept' => 0]], [$moved['status'], $moved['body']['notes']]);
 });
 
-test('a row another request holds longer than move_lock_timeout_ms (the visitor, or the person\'s progress): 503 visitor_move_retry with Retry-After, nothing moved - and asked again, it moves', function (): void {
-    fresh();
-    $visitor = visitor_with(['62' => note(62)], [], ['v-1']);
-    person_with(PERSON, ['60' => note(60)]);
-    $before = [kept_of($visitor['id']), kept_of(PERSON)];
+test(
+    'a row another request holds longer than move_lock_timeout_ms (the visitor, or the person\'s progress): 503 visitor_move_retry with Retry-After, nothing moved - and asked again, it moves',
+    function (): void {
+        fresh();
+        $visitor = visitor_with(['62' => note(62)], [], ['v-1']);
+        person_with(PERSON, ['60' => note(60)]);
+        $before = [kept_of($visitor['id']), kept_of(PERSON)];
 
-    // (The person's users row itself is not held here: requireUser() would wait for it before the move begins.)
-    foreach (['the visitor\'s row' => ['users', 'id', $visitor['id']], 'the person\'s progress' => ['progress', 'user_id', PERSON]] as $whose => [$table, $column, $id]) {
-        $other = dbConnect(databaseSettings());
-        $other->beginTransaction();
-        $other->prepare("SELECT 1 FROM $table WHERE $column = ? FOR UPDATE")->execute([$id]);
-        try {
-            $started = microtime(true);
-            $busy = move($visitor['key']);
-            $waited = microtime(true) - $started;
-        } finally {
-            $other->rollBack();
-            $other = null;
+        // (The person's users row itself is not held here: requireUser() would wait for it before the move begins.)
+        foreach (['the visitor\'s row' => ['users', 'id', $visitor['id']], 'the person\'s progress' => ['progress', 'user_id', PERSON]] as $whose => [$table, $column, $id]) {
+            $other = dbConnect(databaseSettings());
+            $other->beginTransaction();
+            $other->prepare("SELECT 1 FROM $table WHERE $column = ? FOR UPDATE")->execute([$id]);
+            try {
+                $started = microtime(true);
+                $busy = move($visitor['key']);
+                $waited = microtime(true) - $started;
+            } finally {
+                $other->rollBack();
+                $other = null;
+            }
+            assert_same([503, 'visitor_move_retry', '2'], [$busy['status'], $busy['body']['code'] ?? null, $busy['headers']['retry-after'] ?? null], "$whose held");
+            assert_true($waited >= LOCK_MS / 1000 && $waited < 5, "it waited move_lock_timeout_ms, not the default ($waited s)");
+            assert_same($before, [kept_of($visitor['id']), kept_of(PERSON)], "$whose held: nothing moved");
         }
-        assert_same([503, 'visitor_move_retry', '2'], [$busy['status'], $busy['body']['code'] ?? null, $busy['headers']['retry-after'] ?? null], "$whose held");
-        assert_true($waited >= LOCK_MS / 1000 && $waited < 5, "it waited move_lock_timeout_ms, not the default ($waited s)");
-        assert_same($before, [kept_of($visitor['id']), kept_of(PERSON)], "$whose held: nothing moved");
-    }
-    assert_match('/a move did not finish, to be asked again: SQLSTATE 55P03/', (string) file_get_contents($GLOBALS['app']['log']));
-    assert_same(true, move($visitor['key'])['body']['found'], 'asked again');
-});
+        assert_match('/a move did not finish, to be asked again: SQLSTATE 55P03/', (string) file_get_contents($GLOBALS['app']['log']));
+        assert_same(true, move($visitor['key'])['body']['found'], 'asked again');
+    },
+);
 
 test('the person\'s own row gone meanwhile (an administrator\'s delete): 401 sign_in_required, nothing moved', function (): void {
     fresh();

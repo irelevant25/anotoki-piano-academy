@@ -113,10 +113,9 @@ function migration_sql(string $file): string
  */
 function string_migrations(): array
 {
-    return array_values(array_filter(
-        migrationFiles(),
-        static fn(string $file): bool => !isset(COPYING_MIGRATIONS[$file]) && (bool) preg_match('/INSERT\s+INTO\s+translation_keys\b/i', migration_sql($file))
-    ));
+    return array_values(
+        array_filter(migrationFiles(), static fn(string $file): bool => !isset(COPYING_MIGRATIONS[$file]) && (bool) preg_match('/INSERT\s+INTO\s+translation_keys\b/i', migration_sql($file))),
+    );
 }
 
 /** Has a migration written the strings yet? What is marked WAITS FOR 003 is held from then on. */
@@ -134,11 +133,15 @@ function catalogue_seeded(): bool
  */
 function translation_migrations(): array
 {
-    return array_values(array_unique(array_merge(
-        array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, '002_'))),
-        string_migrations(),
-        array_values(array_filter(migrationFiles(), static fn(string $file): bool => isset(COPYING_MIGRATIONS[$file])))
-    )));
+    return array_values(
+        array_unique(
+            array_merge(
+                array_values(array_filter(migrationFiles(), static fn(string $file): bool => str_starts_with($file, '002_'))),
+                string_migrations(),
+                array_values(array_filter(migrationFiles(), static fn(string $file): bool => isset(COPYING_MIGRATIONS[$file]))),
+            ),
+        ),
+    );
 }
 
 /** @return string[] every key the database has, by name */
@@ -154,12 +157,15 @@ function keys_without(string $code): array
 {
     test_db();
 
-    return array_column(dbAll(
-        'SELECT k.name FROM translation_keys k
+    return array_column(
+        dbAll(
+            'SELECT k.name FROM translation_keys k
           WHERE NOT EXISTS (SELECT 1 FROM translations t WHERE t.key_name = k.name AND t.language_code = ?)
           ORDER BY k.name COLLATE "C"',
-        [$code]
-    ), 'name');
+            [$code],
+        ),
+        'name',
+    );
 }
 
 /** A language's own strings, by key. */
@@ -234,11 +240,7 @@ function migration_keys(string $file): array
  */
 function sql_code(string $sql): string
 {
-    return (string) preg_replace_callback(
-        "~--[^\n]*|/\\*.*?\\*/|'(?:[^']|'')*'~s",
-        static fn(array $m): string => $m[0][0] === "'" ? "''" : ' ',
-        $sql
-    );
+    return (string) preg_replace_callback("~--[^\n]*|/\\*.*?\\*/|'(?:[^']|'')*'~s", static fn(array $m): string => $m[0][0] === "'" ? "''" : ' ', $sql);
 }
 
 /**
@@ -251,14 +253,22 @@ function progress_tables_as_they_are(PDO $pdo): array
     $list = "'" . implode("', '", PROGRESS_TABLES) . "'";
     $all = static fn(string $sql): array => $pdo->query($sql)->fetchAll();
     $state = [
-        'columns' => $all("SELECT table_name, column_name, data_type, is_nullable, column_default FROM information_schema.columns
+        'columns' => $all(
+            "SELECT table_name, column_name, data_type, is_nullable, column_default FROM information_schema.columns
                             WHERE table_schema = current_schema() AND table_name IN ($list)
-                              AND NOT (table_name = 'users' AND column_name = '" . PROGRESS_GENERATION_COLUMN . "')
-                            ORDER BY table_name, ordinal_position"),
+                              AND NOT (table_name = 'users' AND column_name = '" .
+                PROGRESS_GENERATION_COLUMN .
+                "')
+                            ORDER BY table_name, ordinal_position",
+        ),
         // (PostgreSQL 18 lists a NOT NULL as a constraint: the column's own is passed over with it.)
-        'constraints' => $all("SELECT conrelid::regclass::text AS on_table, conname, pg_get_constraintdef(oid) AS definition FROM pg_constraint
+        'constraints' => $all(
+            "SELECT conrelid::regclass::text AS on_table, conname, pg_get_constraintdef(oid) AS definition FROM pg_constraint
                                 WHERE conrelid::regclass::text IN ($list)
-                                  AND pg_get_constraintdef(oid) <> 'NOT NULL " . PROGRESS_GENERATION_COLUMN . "' ORDER BY 1, 2"),
+                                  AND pg_get_constraintdef(oid) <> 'NOT NULL " .
+                PROGRESS_GENERATION_COLUMN .
+                "' ORDER BY 1, 2",
+        ),
         'indexes' => $all("SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename IN ($list) ORDER BY 1, 2"),
     ];
     foreach (PROGRESS_TABLES as $table) {
@@ -293,10 +303,13 @@ function without_visitors(array $state): array
 
 test('the two languages the app is released in, English first - and the keys, once a migration writes them', function (): void {
     test_db();
-    assert_same([
-        ['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'enabled' => true, 'sort_order' => 1],
-        ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina', 'enabled' => true, 'sort_order' => 2],
-    ], dbAll('SELECT code, name, native_name, enabled, sort_order FROM languages ORDER BY sort_order'));
+    assert_same(
+        [
+            ['code' => 'en', 'name' => 'English', 'native_name' => 'English', 'enabled' => true, 'sort_order' => 1],
+            ['code' => 'sk', 'name' => 'Slovak', 'native_name' => 'Slovenčina', 'enabled' => true, 'sort_order' => 2],
+        ],
+        dbAll('SELECT code, name, native_name, enabled, sort_order FROM languages ORDER BY sort_order'),
+    );
 
     if (!catalogue_seeded()) {
         assert_same([], database_keys(), 'no migration writes strings yet, so there are none');
@@ -308,7 +321,11 @@ test('the two languages the app is released in, English first - and the keys, on
     // the database keeps its own rules
     assert_throws(static fn() => dbExec("INSERT INTO languages (code, name, native_name) VALUES ('EN', 'x', 'x')"), '/check/i');
     assert_throws(static fn() => dbExec("INSERT INTO translations (key_name, language_code, value) VALUES ('no.such', 'en', 'x')"), '/foreign key/i');
-    assert_same('bigint', dbValue("SELECT data_type FROM information_schema.columns WHERE table_name = 'translations' AND column_name = 'updated_by'"), 'who reworded a string is an IAM user id, as users.id is');
+    assert_same(
+        'bigint',
+        dbValue("SELECT data_type FROM information_schema.columns WHERE table_name = 'translations' AND column_name = 'updated_by'"),
+        'who reworded a string is an IAM user id, as users.id is',
+    );
 });
 
 test('the library\'s set of the words comes after this app\'s own, and the library\'s keys are its own: anotoki.*, in English and Slovak', function (): void {
@@ -322,10 +339,13 @@ test('the library\'s set of the words comes after this app\'s own, and the libra
     $labels = array_map('migrationLabel', every_migration());
     assert_same(in_order($labels), in_order($recorded), 'every file recorded, once');
     foreach (array_unique(array_column(every_migration(), 'set')) as $set) {
-        $ofSet = array_map('migrationLabel', array_values(array_filter(every_migration(), static fn (array $file): bool => $file['set'] === $set)));
+        $ofSet = array_map('migrationLabel', array_values(array_filter(every_migration(), static fn(array $file): bool => $file['set'] === $set)));
         assert_same($ofSet, array_values(array_intersect($recorded, $ofSet)), "$set: in its own order");
     }
-    assert_true(array_search('002_languages_and_translations.sql', $recorded, true) < array_search('anotoki_translations/001_languages_and_strings.sql', $recorded, true), 'the library\'s words after this app\'s tables of them');
+    assert_true(
+        array_search('002_languages_and_translations.sql', $recorded, true) < array_search('anotoki_translations/001_languages_and_strings.sql', $recorded, true),
+        'the library\'s words after this app\'s tables of them',
+    );
     assert_same([], translations()->keysWithout('en'), 'every key reads in English, the library\'s too');
     $library = array_values(array_filter(database_keys(), static fn(string $key): bool => str_starts_with($key, 'anotoki.')));
     assert_same(in_order(\Anotoki\Lib\Translations\LibraryWords::keys()), $library, 'the library\'s keys, and no other key of the namespace');
@@ -461,7 +481,7 @@ test('the English the shell keeps for when it has no strings is the database\'s 
     assert_same(
         in_order(['anotoki.theme.auto', 'anotoki.theme.dark', 'anotoki.theme.light', ...array_values(SIGN_IN_FAILURE_WORDS)]),
         in_order(array_keys($library)),
-        'the theme switch\'s three choices - "Theme: light" - and the sign-in failure\'s three sentences'
+        'the theme switch\'s three choices - "Theme: light" - and the sign-in failure\'s three sentences',
     );
     foreach ($library as $key => $text) {
         assert_same($english[$key] ?? null, $text, "$key: the database's English as 009 and 011 left it");
@@ -469,25 +489,35 @@ test('the English the shell keeps for when it has no strings is the database\'s 
     }
 });
 
-test('the legal pages\' facts (012) hold no address - where a link goes is the code\'s, never a string an administrator rewords - and their Slovak speaks to the reader as ty, never formally', function (): void {
-    test_db();
-    $rows = dbAll("SELECT key_name, language_code, value FROM translations WHERE key_name LIKE 'legal.%' ORDER BY key_name COLLATE \"C\", language_code");
-    $keys = array_values(array_unique(array_column($rows, 'key_name')));
-    assert_same(in_order(migration_keys('012_legal_pages.sql')['keys']), in_order(array_merge($keys, ['lesson.steps', 'title.contact', 'title.privacy', 'title.terms'])), 'the facts 012 writes, the three tabs\' titles and the step dots\' name');
-    assert_true(count($keys) >= 39, 'the facts are there: ' . count($keys));
-    foreach ($rows as ['key_name' => $key, 'language_code' => $code, 'value' => $value]) {
-        assert_false((bool) preg_match('~https?:|://|www\.|@|\.(eu|sk|com|org)\b~i', $value), "$key ($code) holds no address: $value");
-        if ($code === 'sk') {
-            // The app's Slovak is informal: never Vy, Vás, Váš (any case) - and nothing gendered about the learner.
-            assert_false((bool) preg_match('/\b(vy|vás|vám|vami|váš|vaš[a-záéíóúý]*)\b/iu', $value), "$key: ty, never formal - $value");
-            // (A past form after "si" is the learner's, gendered - "si použil"; the site's own "stránka sa pripojila" is not.)
-            assert_false((bool) preg_match('/\b(prihlásený|prihlásená)\b|\bsi\s+(použil|použila|pripojil|pripojila|dokončil|dokončila|uložil|uložila|obnovil|obnovila|prihlásil|prihlásila)\b/iu', $value), "$key: nothing gendered about the learner - $value");
+test(
+    'the legal pages\' facts (012) hold no address - where a link goes is the code\'s, never a string an administrator rewords - and their Slovak speaks to the reader as ty, never formally',
+    function (): void {
+        test_db();
+        $rows = dbAll("SELECT key_name, language_code, value FROM translations WHERE key_name LIKE 'legal.%' ORDER BY key_name COLLATE \"C\", language_code");
+        $keys = array_values(array_unique(array_column($rows, 'key_name')));
+        assert_same(
+            in_order(migration_keys('012_legal_pages.sql')['keys']),
+            in_order(array_merge($keys, ['lesson.steps', 'title.contact', 'title.privacy', 'title.terms'])),
+            'the facts 012 writes, the three tabs\' titles and the step dots\' name',
+        );
+        assert_true(count($keys) >= 39, 'the facts are there: ' . count($keys));
+        foreach ($rows as ['key_name' => $key, 'language_code' => $code, 'value' => $value]) {
+            assert_false((bool) preg_match('~https?:|://|www\.|@|\.(eu|sk|com|org)\b~i', $value), "$key ($code) holds no address: $value");
+            if ($code === 'sk') {
+                // The app's Slovak is informal: never Vy, Vás, Váš (any case) - and nothing gendered about the learner.
+                assert_false((bool) preg_match('/\b(vy|vás|vám|vami|váš|vaš[a-záéíóúý]*)\b/iu', $value), "$key: ty, never formal - $value");
+                // (A past form after "si" is the learner's, gendered - "si použil"; the site's own "stránka sa pripojila" is not.)
+                assert_false(
+                    (bool) preg_match('/\b(prihlásený|prihlásená)\b|\bsi\s+(použil|použila|pripojil|pripojila|dokončil|dokončila|uložil|uložila|obnovil|obnovila|prihlásil|prihlásila)\b/iu', $value),
+                    "$key: nothing gendered about the learner - $value",
+                );
+            }
         }
-    }
-    // What's new's sentence for a list that did not load: gone - nothing could show it.
-    assert_false(in_array('whatsNew.notLoaded', database_keys(), true), 'whatsNew.notLoaded is gone');
-    assert_match('/legal pages/', (string) dbValue("SELECT description FROM translation_keys WHERE name = 'brand.area'"), 'the app\'s name is the legal pages\' too');
-});
+        // What's new's sentence for a list that did not load: gone - nothing could show it.
+        assert_false(in_array('whatsNew.notLoaded', database_keys(), true), 'whatsNew.notLoaded is gone');
+        assert_match('/legal pages/', (string) dbValue("SELECT description FROM translation_keys WHERE name = 'brand.area'"), 'the app\'s name is the legal pages\' too');
+    },
+);
 
 /* ------------------------------------ what the migrations touch, and do not */
 
@@ -532,7 +562,11 @@ test('the migrations of this work make and fill only their own three tables - by
         // Every table a statement names is one of the three - but for the one reference to users (id). (What a
         // foreign key does when its row changes is no statement; an INSERT's ON CONFLICT ... DO UPDATE writes the
         // table it inserts into.)
-        preg_match_all('/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|ALTER\s+TABLE(?:\s+IF\s+EXISTS)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|CREATE\s+(?:UNIQUE\s+)?INDEX\s+\w+\s+ON)\s+("?\w+"?)/i', (string) preg_replace(['/\bON\s+(?:UPDATE|DELETE)\s+(?:CASCADE|SET\s+NULL|SET\s+DEFAULT|RESTRICT|NO\s+ACTION)\b/i', '/\bDO\s+UPDATE\s+SET\b/i'], ' ', $code), $written);
+        preg_match_all(
+            '/\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|ALTER\s+TABLE(?:\s+IF\s+EXISTS)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?|CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?|CREATE\s+(?:UNIQUE\s+)?INDEX\s+\w+\s+ON)\s+("?\w+"?)/i',
+            (string) preg_replace(['/\bON\s+(?:UPDATE|DELETE)\s+(?:CASCADE|SET\s+NULL|SET\s+DEFAULT|RESTRICT|NO\s+ACTION)\b/i', '/\bDO\s+UPDATE\s+SET\b/i'], ' ', $code),
+            $written,
+        );
         $tables = array_values(array_unique(array_map(static fn(string $name): string => strtolower(trim($name, '"')), $written[1])));
         assert_same([], array_values(array_diff($tables, TRANSLATION_TABLES)), "$file writes to a table that is not one of the three");
         assert_same([], array_values(array_intersect($tables, PROGRESS_TABLES)), "$file writes to a table of 001");
@@ -563,7 +597,11 @@ test('the migrations of this work make and fill only their own three tables - by
     }
 
     $made = sql_code(migration_sql('002_languages_and_translations.sql'));
-    assert_match('/\bupdated_by\s+BIGINT\s+REFERENCES\s+users\s*\(id\)\s+ON\s+UPDATE\s+CASCADE\s+ON\s+DELETE\s+SET\s+NULL\b/i', $made, 'who reworded a string follows a person to another IAM id, and is forgotten with their users row');
+    assert_match(
+        '/\bupdated_by\s+BIGINT\s+REFERENCES\s+users\s*\(id\)\s+ON\s+UPDATE\s+CASCADE\s+ON\s+DELETE\s+SET\s+NULL\b/i',
+        $made,
+        'who reworded a string follows a person to another IAM id, and is forgotten with their users row',
+    );
     $statements = Splitter::split(migration_sql('002_languages_and_translations.sql'));
     assert_match('/^DO \$\$.*server_encoding.*UTF8/s', $statements[0], 'the first thing it does is look at the database\'s encoding');
     assert_match('/^DO \$\$.*RAISE EXCEPTION/s', $statements[count($statements) - 1], 'and the last is its gate');
@@ -581,7 +619,9 @@ test('the migrations of this work leave everybody\'s progress exactly as it was 
     $pdo->exec("INSERT INTO users (id, preferred_username) VALUES (1, 'owner'), (7, NULL)");
     $pdo->exec("INSERT INTO progress (user_id, notes) VALUES (1, '{\"60\": {\"midi\": 60, \"status\": \"review\"}}'), (7, '{}')");
     $pdo->exec("INSERT INTO path_progress (user_id, data) VALUES (1, '{\"steps\": {\"rh-1/meet\": {\"attempts\": 1}}}')");
-    $pdo->exec("INSERT INTO sessions (user_id, id, request_key, data) VALUES (1, '1788962769050-k65d2n', 'key-1', '{\"mode\": \"lesson\", \"label\": \"C, D, E · Drill\"}'), (7, 'a', NULL, '{\"mode\": \"trainer\"}')");
+    $pdo->exec(
+        "INSERT INTO sessions (user_id, id, request_key, data) VALUES (1, '1788962769050-k65d2n', 'key-1', '{\"mode\": \"lesson\", \"label\": \"C, D, E · Drill\"}'), (7, 'a', NULL, '{\"mode\": \"trainer\"}')",
+    );
     $pdo->exec("INSERT INTO imports (source, user_id, summary) VALUES ('server-data', 1, '{\"notes\": 1}')");
     $before = progress_tables_as_they_are($pdo);
     assert_same(2, count($before['rows of users']));
@@ -594,16 +634,22 @@ test('the migrations of this work leave everybody\'s progress exactly as it was 
     foreach (databaseMigrator($pdo)->applicable() as $file) {
         $was = progress_tables_as_they_are($pdo);
         $upTo = array_search(migrationLabel($file), $order, true);
-        $result = databaseMigrator($pdo, ['ready' => static fn (\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => array_search(migrationLabel(['set' => $set->name, 'name' => $name]), $order, true) <= $upTo])->apply();
+        $result = databaseMigrator($pdo, [
+            'ready' => static fn(\Anotoki\Lib\Migrations\MigrationSet $set, string $name): bool => array_search(migrationLabel(['set' => $set->name, 'name' => $name]), $order, true) <= $upTo,
+        ])->apply();
         assert_same([[$file], null], [$result['applied'], $result['failed']], migrationLabel($file) . ' applied');
         $applied[] = $file;
         if (in_array($file['name'], $held, true) || $file['set'] !== MIGRATIONS_SET) {
             // 005 makes visitors (VISITORS_STATEMENTS): everything else of 001 as it was.
             $now = progress_tables_as_they_are($pdo);
-            assert_same(str_starts_with($file['name'], '005_') ? without_visitors($was) : $was, str_starts_with($file['name'], '005_') ? without_visitors($now) : $now, migrationLabel($file) . ' changed a table of 001, or a row in one');
+            assert_same(
+                str_starts_with($file['name'], '005_') ? without_visitors($was) : $was,
+                str_starts_with($file['name'], '005_') ? without_visitors($now) : $now,
+                migrationLabel($file) . ' changed a table of 001, or a row in one',
+            );
         }
     }
-    assert_same([], array_values(array_diff($held, names_of(array_values(array_filter($applied, static fn (array $file): bool => $file['set'] === MIGRATIONS_SET))))), 'each of them was applied');
+    assert_same([], array_values(array_diff($held, names_of(array_values(array_filter($applied, static fn(array $file): bool => $file['set'] === MIGRATIONS_SET))))), 'each of them was applied');
     assert_same(every_migration(), [...$first, ...$applied], 'every one, set by set');
     foreach (TRANSLATION_TABLES as $table) {
         assert_true((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "the table $table");
@@ -611,14 +657,14 @@ test('the migrations of this work leave everybody\'s progress exactly as it was 
 
     // Who reworded a string is the one thing that points at a person: it
     // follows them to another IAM id, and their going takes no string along.
-    $pdo->exec("INSERT INTO users (id) VALUES (20), (21)");
+    $pdo->exec('INSERT INTO users (id) VALUES (20), (21)');
     $pdo->exec("INSERT INTO translation_keys (name) VALUES ('test.by')");
     $pdo->exec("INSERT INTO translations (key_name, language_code, value, updated_by) VALUES ('test.by', 'en', 'By 20', 20), ('test.by', 'sk', 'Od 21', 21)");
     $pdo->exec('UPDATE users SET id = 30 WHERE id = 20');
     $pdo->exec('DELETE FROM users WHERE id = 21');
     assert_same(
         [['language_code' => 'en', 'value' => 'By 20', 'updated_by' => 30], ['language_code' => 'sk', 'value' => 'Od 21', 'updated_by' => null]],
-        $pdo->query("SELECT language_code, value, updated_by FROM translations WHERE key_name = 'test.by' ORDER BY 1")->fetchAll()
+        $pdo->query("SELECT language_code, value, updated_by FROM translations WHERE key_name = 'test.by' ORDER BY 1")->fetchAll(),
     );
     $pdo = null;
 });
@@ -650,7 +696,11 @@ test('a database that is not UTF8 is refused by 002 with a sentence, before anyt
     foreach (TRANSLATION_TABLES as $table) {
         assert_false((bool) $pdo->query("SELECT to_regclass('$table') IS NOT NULL")->fetchColumn(), "nothing was made: $table");
     }
-    assert_same($first, array_map(static fn (array $file): array => ['set' => $file['set'], 'name' => $file['name']], databaseMigrator($pdo)->status()['applied']), 'and 002 is still to do, once the database is made again');
+    assert_same(
+        $first,
+        array_map(static fn(array $file): array => ['set' => $file['set'], 'name' => $file['name']], databaseMigrator($pdo)->status()['applied']),
+        'and 002 is still to do, once the database is made again',
+    );
     $pdo = null;
 });
 
@@ -673,7 +723,11 @@ test('a string migration\'s gate checks exactly the keys the migration writes, a
         $found = migration_keys($file);
         assert_true($found['keys'] !== [], "$file: the keys it inserts could not be read");
         assert_same($found['keys'], array_values(array_unique($found['keys'])), "$file: a key is inserted twice");
-        assert_same(in_order($found['keys']), in_order($found['gate']), "$file: the keys its gate checks are not the keys it inserts - a key left out of the gate could lack a string and nothing would say so");
+        assert_same(
+            in_order($found['keys']),
+            in_order($found['gate']),
+            "$file: the keys its gate checks are not the keys it inserts - a key left out of the gate could lack a string and nothing would say so",
+        );
         assert_same(in_order(TRANSLATION_RELEASED_LANGUAGES), in_order(array_keys($found['strings'])), "$file: one block of strings a language");
         foreach ($found['strings'] as $code => $keys) {
             assert_same(in_order($found['keys']), in_order($keys), "$file: the keys with a string in \"$code\" are not the keys it inserts");
@@ -693,7 +747,18 @@ test('the scan as this app sets it up: this app\'s sources and dynamic keys - ne
         'core/i18n/kept-english.ts' => "export const KEPT_ENGLISH: Readonly<Record<string, string>> = {\n  'home.title': 'Learn',\n  'home.onlyKept': 'Kept, and asked for by no page',\n};\n",
         'core/i18n/dynamic-keys.ts' => "export const DYNAMIC_KEYS: Record<string, readonly string[]> = {\n  'path.hint.': ['60'],\n};\n",
     ]);
-    $database = ['home.title', 'home.due.one', 'home.due.few', 'home.due.other', 'home.onlyInASpec', 'home.onlyInTesting', 'home.onlyKept', 'path.hint.60', 'anotoki.topbar.signIn', 'anotoki.ui.close'];
+    $database = [
+        'home.title',
+        'home.due.one',
+        'home.due.few',
+        'home.due.other',
+        'home.onlyInASpec',
+        'home.onlyInTesting',
+        'home.onlyKept',
+        'path.hint.60',
+        'anotoki.topbar.signIn',
+        'anotoki.ui.close',
+    ];
     $scan = translationKeyScanner($root)->scan($database);
     assert_same([], $scan['problems']);
     assert_same(['home.missing' => ['pages/home/home.component.html:3']], $scan['missing'], 'asked for, and not there');

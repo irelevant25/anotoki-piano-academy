@@ -63,7 +63,7 @@ describe('the routes: what the router makes of an address', () => {
     expect([page.path, page.component, page.title]).toEqual(['', HomePageComponent, 'title.learn']);
   });
 
-  it('an unknown address goes to Learn - and so does one that only begins like a legal page\'s', async () => {
+  it("an unknown address goes to Learn - and so does one that only begins like a legal page's", async () => {
     const harness = await RouterTestingHarness.create();
     for (const address of ['/no-such-page', '/terms-of-use', '/privacy2', '/contact/me']) {
       await harness.navigateByUrl(address);
@@ -88,7 +88,7 @@ describe('the routes: what the router makes of an address', () => {
     }
   });
 
-  it('puts the legal pages where the footer\'s links go - the library\'s paths - and before the learner\'s pages, whose "**" would take them', () => {
+  it("puts the legal pages where the footer's links go - the library's paths - and before the learner's pages, whose \"**\" would take them", () => {
     const top = routes.map((one) => one.path);
     expect(LEGAL_PAGE_PATHS).toEqual(['/terms', '/privacy', '/contact']);
     for (const path of LEGAL_PAGE_PATHS) {
@@ -102,7 +102,7 @@ describe('the routes: who may open what, and what loads when', () => {
   const admin = route('admin');
   const learner = route('');
 
-  it('the sign-in\'s own pages - the IAM\'s callback and the screen of a sign-in that did not work - are the family\'s, and never guarded', () => {
+  it("the sign-in's own pages - the IAM's callback and the screen of a sign-in that did not work - are the family's, and never guarded", () => {
     for (const [path, component] of [
       ['auth/callback', AuthCallbackComponent],
       ['sign-in-failed', SignInFailureComponent],
@@ -112,12 +112,12 @@ describe('the routes: who may open what, and what loads when', () => {
     }
   });
 
-  it('the learner\'s pages ask for a person - or a visitor, while the IAM lets visitors in - page by page', () => {
+  it("the learner's pages ask for a person - or a visitor, while the IAM lets visitors in - page by page", () => {
     expect(learner.canActivateChild).toEqual([personOrVisitorGuard]);
     expect(learner.children?.map((one) => one.path)).toEqual(['', 'lesson/:unitId/:stepId', 'trainer', 'sheet', 'songs', 'songs/:songId', 'stats', '**']);
   });
 
-  it('the admin panel is the staff\'s (EDITOR or ADMIN) - never a visitor\'s - and everything in it but Translations is ADMIN\'s alone', () => {
+  it("the admin panel is the staff's (EDITOR or ADMIN) - never a visitor's - and everything in it but Translations is ADMIN's alone", () => {
     expect(admin.canActivate).toEqual([staffGuard]);
     const pages = (admin.children ?? []).filter((one) => one.loadComponent);
     expect(pages.map((one) => [one.path, one.title, (one.canActivate ?? []).includes(adminGuard)])).toEqual([
@@ -132,7 +132,7 @@ describe('the routes: who may open what, and what loads when', () => {
     ]);
   });
 
-  it('the admin panel\'s pages are the family\'s, each from its own entry point - loaded when opened, never in the first load', async () => {
+  it("the admin panel's pages are the family's, each from its own entry point - loaded when opened, never in the first load", async () => {
     const expected: Record<string, string> = {
       translations: 'TranslationsPageComponent',
       languages: 'LanguagesPageComponent',

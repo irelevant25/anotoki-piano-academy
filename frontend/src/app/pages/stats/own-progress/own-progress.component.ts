@@ -98,11 +98,9 @@ export class OwnProgressComponent {
 
   private counted(counts: ProgressCounts | undefined): string {
     if (!counts) return '';
-    return [
-      this.i18n.plural('ownProgress.count.notes', counts.notes),
-      this.i18n.plural('ownProgress.count.steps', counts.steps),
-      this.i18n.plural('ownProgress.count.rounds', counts.sessions),
-    ].join(', ');
+    return [this.i18n.plural('ownProgress.count.notes', counts.notes), this.i18n.plural('ownProgress.count.steps', counts.steps), this.i18n.plural('ownProgress.count.rounds', counts.sessions)].join(
+      ', ',
+    );
   }
 
   private start(what: 'download' | 'look' | 'import'): void {

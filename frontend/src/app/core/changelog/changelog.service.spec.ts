@@ -25,7 +25,7 @@ describe('the list of changes the app ships (public/changelog.json)', () => {
     }
   });
 
-  it('has as its newest release the version in package.json - what the footer shows is the frontend\'s version', () => {
+  it("has as its newest release the version in package.json - what the footer shows is the frontend's version", () => {
     expect(versions[0]).toBe(manifest.version);
   });
 });
@@ -35,12 +35,15 @@ describe('ChangelogService', () => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
   });
 
-  it('takes the newest entry\'s version as it stands - and none when the list does not come', async () => {
+  it("takes the newest entry's version as it stands - and none when the list does not come", async () => {
     const changelog = TestBed.inject(ChangelogService);
     const http = TestBed.inject(HttpTestingController);
 
     const loading = changelog.load();
-    http.expectOne('changelog.json').flush([{ version: '0.4.0', date: '2026-10-07', changes: {} }, { version: '0.3.0', date: '2026-10-06', changes: {} }]);
+    http.expectOne('changelog.json').flush([
+      { version: '0.4.0', date: '2026-10-07', changes: {} },
+      { version: '0.3.0', date: '2026-10-06', changes: {} },
+    ]);
     await loading;
     expect(changelog.version()).toBe('0.4.0');
 

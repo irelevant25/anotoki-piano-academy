@@ -19,7 +19,7 @@ describe('PianoKeyboardComponent', () => {
     await fixture.whenStable();
   });
 
-  it('is named for a screen reader in the page\'s language, from a key', () => {
+  it("is named for a screen reader in the page's language, from a key", () => {
     expect(svg().getAttribute('role')).toBe('img');
     expect(svg().getAttribute('aria-label')).toBe('Klaviatúra na obrazovke');
   });

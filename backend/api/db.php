@@ -24,12 +24,7 @@ function dbName(): string
  */
 function dbConnect(array $settings, ?string $name = null, bool $persistent = false): PDO
 {
-    $dsn = sprintf(
-        'pgsql:host=%s;port=%d;dbname=%s;connect_timeout=5;application_name=piano-academy',
-        $settings['host'],
-        (int) $settings['port'],
-        $name ?? $settings['name']
-    );
+    $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s;connect_timeout=5;application_name=piano-academy', $settings['host'], (int) $settings['port'], $name ?? $settings['name']);
 
     $pdo = new PDO($dsn, (string) $settings['user'], (string) $settings['password'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,

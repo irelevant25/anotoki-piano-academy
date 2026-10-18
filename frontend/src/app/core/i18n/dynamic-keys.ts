@@ -36,18 +36,7 @@ export const DYNAMIC_KEYS: Record<string, readonly string[]> = {
     'melody-and-chords.description',
   ],
   // A step type's name in full and on a chip: <type>.title, <type>.short.
-  'path.step.': [
-    'meet.title',
-    'meet.short',
-    'drill.title',
-    'drill.short',
-    'read.title',
-    'read.short',
-    'tempo.title',
-    'tempo.short',
-    'song.title',
-    'song.short',
-  ],
+  'path.step.': ['meet.title', 'meet.short', 'drill.title', 'drill.short', 'read.title', 'read.short', 'tempo.title', 'tempo.short', 'song.title', 'song.short'],
   // Where a new note's key sits, by its MIDI number (the meet step).
   'path.hint.': ['60', '62', '64', '65', '67', '69', '71', '72'],
   // The unit titles that have ordinary words in them; a title of note letters only has no key.

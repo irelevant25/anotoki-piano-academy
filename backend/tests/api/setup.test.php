@@ -22,10 +22,15 @@ before(function (): void {
     $config = test_temp_dir('setup-config');
     $GLOBALS['config'] = $config;
     $GLOBALS['database'] = test_empty_db('setup');
-    $GLOBALS['site'] = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
-        'PIANO_TEST_CONFIG' => $config,
-        'PIANO_FRONTEND_DIST' => test_frontend_build(),
-    ], '/setup.php');
+    $GLOBALS['site'] = test_start_server(
+        TEST_BACKEND,
+        TEST_BACKEND . '/router.php',
+        [
+            'PIANO_TEST_CONFIG' => $config,
+            'PIANO_FRONTEND_DIST' => test_frontend_build(),
+        ],
+        '/setup.php',
+    );
 
     // The family's stand-in IAM (anotoki/lib's php/testing/stand-in-iam.php), on a free port of this computer.
     $GLOBALS['iam'] = stand_in_iam();
@@ -43,9 +48,13 @@ function fields(array $extra = []): array
 
     return $extra + [
         'nonce' => (string) $GLOBALS['nonce'],
-        'db_host' => (string) $server['host'], 'db_port' => (string) $server['port'], 'db_name' => (string) $GLOBALS['database'],
-        'db_user' => (string) $server['user'], 'db_password' => (string) $server['password'],
-        'issuer' => $GLOBALS['iam']->issuer, 'client_id' => 'piano-academy',
+        'db_host' => (string) $server['host'],
+        'db_port' => (string) $server['port'],
+        'db_name' => (string) $GLOBALS['database'],
+        'db_user' => (string) $server['user'],
+        'db_password' => (string) $server['password'],
+        'issuer' => $GLOBALS['iam']->issuer,
+        'client_id' => 'piano-academy',
     ];
 }
 
@@ -85,10 +94,17 @@ test('on this computer: no token, a nonce - and only the database and the IAM, w
     assert_match('/SameSite=Strict/i', $first['headers']['set-cookie'] ?? '');
     $GLOBALS['nonce'] = $m[1];
 
-    assert_same(['nonce', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password', 'issuer', 'client_id'], field_names($first['raw']), 'exactly these: no token here, no sign-in mode, no owner\'s id, no old progress, no file');
+    assert_same(
+        ['nonce', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password', 'issuer', 'client_id'],
+        field_names($first['raw']),
+        'exactly these: no token here, no sign-in mode, no owner\'s id, no old progress, no file',
+    );
     assert_no_match('/auth_mode|local_user_id|import_old|name="owner"|type="file"|enctype|server\/data|Your IAM user id/', $first['raw']);
-    assert_same(['127.0.0.1', '5432', 'anotoki_piano', 'postgres', 'http://localhost:4300', 'piano-academy'],
-        array_map(static fn(string $name): ?string => shown($first['raw'], $name), ['db_host', 'db_port', 'db_name', 'db_user', 'issuer', 'client_id']), 'the family\'s defaults');
+    assert_same(
+        ['127.0.0.1', '5432', 'anotoki_piano', 'postgres', 'http://localhost:4300', 'piano-academy'],
+        array_map(static fn(string $name): ?string => shown($first['raw'], $name), ['db_host', 'db_port', 'db_name', 'db_user', 'issuer', 'client_id']),
+        'the family\'s defaults',
+    );
     assert_match('/sign-in through the anotoki IAM/', $first['raw']);
     assert_match('/Test the database/', $first['raw']);
     assert_match('/Test the IAM/', $first['raw']);
@@ -100,9 +116,7 @@ test('on this computer: no token, a nonce - and only the database and the IAM, w
 });
 
 test('Test connection: the database and the IAM in the family\'s words, without saving anything', function (): void {
-    $test = static fn(string $what, array $extra = [], bool $cookie = true): array => call_form(
-        $GLOBALS['site']['base'], "/setup.php?test=$what", fields($extra), [], $cookie ? with_cookie() : []
-    );
+    $test = static fn(string $what, array $extra = [], bool $cookie = true): array => call_form($GLOBALS['site']['base'], "/setup.php?test=$what", fields($extra), [], $cookie ? with_cookie() : []);
 
     $good = $test('database');
     assert_same(200, $good['status']);
@@ -126,7 +140,10 @@ test('Test connection: the database and the IAM in the family\'s words, without 
 
     // The two sentences a test here cannot bring about without a login of its own: word for word in the page.
     $source = (string) file_get_contents(TEST_BACKEND . '/setup.php');
-    assert_true(str_contains($source, "'Connected to the server, but there is no database \"' . \$db['name'] . '\" and this user may not create one. Make it in the hosting panel first.'"), 'may not create one');
+    assert_true(
+        str_contains($source, "'Connected to the server, but there is no database \"' . \$db['name'] . '\" and this user may not create one. Make it in the hosting panel first.'"),
+        'may not create one',
+    );
     assert_true(str_contains($source, "'The server is there, but \"' . \$db['user'] . '\" cannot open the database \"' . \$db['name'] . '\": '"), 'cannot open it');
 
     $iam = $test('iam');
@@ -179,7 +196,10 @@ test('Save: the settings - the IAM and nothing else - and the tables; the page s
     assert_match('/<h1>Saved<\/h1>/', $answer['raw']);
     assert_no_match('/<script/', $answer['raw'], 'a finished page has nothing to script');
     assert_match('~Made the tables \(anotoki_admin/001_audit_log\.sql, anotoki_admin/002_feedback\.sql, 001_init\.sql, 002_~', $answer['raw'], 'the library\'s admin tools\' set first');
-    assert_match('/People sign in through the IAM at http:\/\/127\.0\.0\.1:\d+, where this app is &quot;piano-academy&quot;\. Who may reword its words \(EDITOR\) and administer it \(ADMIN\) is set there/', $answer['raw']);
+    assert_match(
+        '/People sign in through the IAM at http:\/\/127\.0\.0\.1:\d+, where this app is &quot;piano-academy&quot;\. Who may reword its words \(EDITOR\) and administer it \(ADMIN\) is set there/',
+        $answer['raw'],
+    );
     assert_no_match('/Sign-in is off|old progress|server\/data/', $answer['raw']);
     assert_match('~<a href="http://localhost:4500/">~', $answer['raw'], 'where sign-in works: the address the IAM knows');
 
@@ -194,11 +214,19 @@ test('Save: the settings - the IAM and nothing else - and the tables; the page s
     // answer would be kept in the saved cache_dir, backend/storage/cache - the
     // developer's own (tests/api/auth.test.php asks the stand-in, in a folder of its own) - and so would the people's
     // scrub's hour: a cache folder of the test's own.
-    file_put_contents($GLOBALS['config'] . '/auth.local.php', '<?php return ' . var_export(test_offline_auth(['cache_dir' => test_temp_dir('cache'), 'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file()] + saved('auth')), true) . ";\n");
+    file_put_contents(
+        $GLOBALS['config'] . '/auth.local.php',
+        '<?php return ' .
+            var_export(test_offline_auth(['cache_dir' => test_temp_dir('cache'), 'application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file()] + saved('auth')), true) .
+            ";\n",
+    );
     assert_same(['ok' => true, 'database' => $GLOBALS['database'], 'pending' => []], page('GET', '/api/health')['body']);
     assert_same(['issuer' => $GLOBALS['iam']->issuer, 'client_id' => 'piano-academy', 'login_required' => true, 'sign_in_available' => true], page('GET', '/api/auth/config')['body']);
     assert_same(401, page('GET', '/api/state')['status']);
-    assert_same([true, 'Connected to the database "' . $GLOBALS['database'] . '": it is up to date.'], array_values(call_form($GLOBALS['site']['base'], '/setup.php?test=database', fields(), [], with_cookie())['body']));
+    assert_same(
+        [true, 'Connected to the database "' . $GLOBALS['database'] . '": it is up to date.'],
+        array_values(call_form($GLOBALS['site']['base'], '/setup.php?test=database', fields(), [], with_cookie())['body']),
+    );
 });
 
 test('Run again: what is saved is shown, never the password - and a save over an old file drops its mode and owner', function (): void {
@@ -225,8 +253,11 @@ test('asked by another name, it is a real host: the token, not the nonce - and n
     $page = page('GET', '/setup.php', null, $host);
     assert_match('/<h1>Install Piano Academy<\/h1>/', $page['raw']);
     assert_same(['token', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password', 'issuer', 'client_id'], field_names($page['raw']));
-    assert_same(['localhost', '5432', 'anotoki_piano', '', '', 'piano-academy'],
-        array_map(static fn(string $name): ?string => shown($page['raw'], $name), ['db_host', 'db_port', 'db_name', 'db_user', 'issuer', 'client_id']), 'the defaults, never what is saved');
+    assert_same(
+        ['localhost', '5432', 'anotoki_piano', '', '', 'piano-academy'],
+        array_map(static fn(string $name): ?string => shown($page['raw'], $name), ['db_host', 'db_port', 'db_name', 'db_user', 'issuer', 'client_id']),
+        'the defaults, never what is saved',
+    );
     assert_false(str_contains($page['raw'], $GLOBALS['database']) || str_contains($page['raw'], $GLOBALS['iam']->issuer), 'the saved database and IAM are not shown to a visitor');
     assert_true(is_file($GLOBALS['config'] . '/storage/setup-token.php'), 'the token, in the test\'s own storage');
     $answer = call_form($GLOBALS['site']['base'], '/setup.php', fields(), [], array_merge($host, with_cookie()));

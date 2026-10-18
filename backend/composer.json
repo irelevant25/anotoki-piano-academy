@@ -1,33 +1,33 @@
 {
-    "name": "anotoki/piano-academy",
-    "description": "Piano Academy's API: PHP, Slim 4 and PostgreSQL.",
-    "type": "project",
-    "license": "proprietary",
-    "require": {
-        "php": ">=8.2",
-        "anotoki/lib": "^0.6.0",
-        "slim/psr7": "^1.8",
-        "slim/slim": "^4.15"
+  "name": "anotoki/piano-academy",
+  "description": "Piano Academy's API: PHP, Slim 4 and PostgreSQL.",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.2",
+    "anotoki/lib": "^0.6.0",
+    "slim/psr7": "^1.8",
+    "slim/slim": "^4.15"
+  },
+  "config": {
+    "platform": {
+      "php": "8.2.0"
     },
-    "config": {
-        "platform": {
-            "php": "8.2.0"
-        },
-        "sort-packages": true
-    },
-    "scripts": {
-        "start": [
-            "Composer\\Config::disableProcessTimeout",
-            "php -S localhost:8300 router.php"
-        ]
-    },
-    "scripts-descriptions": {
-        "start": "The API and setup.php on http://localhost:8300: PHP's built-in server, with router.php"
-    },
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/irelevant25/anotoki-lib"
-        }
+    "sort-packages": true
+  },
+  "scripts": {
+    "start": [
+      "Composer\\Config::disableProcessTimeout",
+      "php -S localhost:8300 router.php"
     ]
+  },
+  "scripts-descriptions": {
+    "start": "The API and setup.php on http://localhost:8300: PHP's built-in server, with router.php"
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/irelevant25/anotoki-lib"
+    }
+  ]
 }

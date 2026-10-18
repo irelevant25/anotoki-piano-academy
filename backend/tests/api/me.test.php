@@ -14,10 +14,10 @@ declare(strict_types=1);
 
 require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database and settings
 
-const ANNA = 1;   // learners, no role
+const ANNA = 1; // learners, no role
 const BEN = 2;
 const CILA = 3;
-const ADMIN = 9;  // an administrator
+const ADMIN = 9; // an administrator
 
 $GLOBALS['app'] = null;
 before(function (): void {
@@ -57,11 +57,38 @@ function kept(int $user): string
 function file_with(array $changes = []): array
 {
     return $changes + [
-        'format' => 'piano-academy-export', 'version' => 1, 'exportedAt' => '2026-10-04T10:00:00.000Z', 'userId' => 777,
+        'format' => 'piano-academy-export',
+        'version' => 1,
+        'exportedAt' => '2026-10-04T10:00:00.000Z',
+        'userId' => 777,
         'progress' => [
-            '60' => ['midi' => 60, 'status' => 'mastered', 'repetitions' => 6, 'easeFactor' => 2.5, 'intervalHours' => 938, 'dueAt' => '2026-10-18T16:08:49.446Z', 'updatedAt' => '2026-09-09T14:08:49.446Z'],
-            '64' => ['midi' => 64, 'status' => 'learning', 'repetitions' => 1, 'easeFactor' => 2.36, 'intervalHours' => 4, 'dueAt' => '2026-09-09T18:09:12.436Z', 'updatedAt' => '2026-09-09T14:09:12.436Z'],
-            '65' => ['midi' => 65, 'status' => 'learning', 'repetitions' => 0, 'easeFactor' => 2.5, 'intervalHours' => 0, 'dueAt' => '2026-09-09T18:09:12.436Z', 'updatedAt' => '2026-09-09T14:09:12.436Z'],
+            '60' => [
+                'midi' => 60,
+                'status' => 'mastered',
+                'repetitions' => 6,
+                'easeFactor' => 2.5,
+                'intervalHours' => 938,
+                'dueAt' => '2026-10-18T16:08:49.446Z',
+                'updatedAt' => '2026-09-09T14:08:49.446Z',
+            ],
+            '64' => [
+                'midi' => 64,
+                'status' => 'learning',
+                'repetitions' => 1,
+                'easeFactor' => 2.36,
+                'intervalHours' => 4,
+                'dueAt' => '2026-09-09T18:09:12.436Z',
+                'updatedAt' => '2026-09-09T14:09:12.436Z',
+            ],
+            '65' => [
+                'midi' => 65,
+                'status' => 'learning',
+                'repetitions' => 0,
+                'easeFactor' => 2.5,
+                'intervalHours' => 0,
+                'dueAt' => '2026-09-09T18:09:12.436Z',
+                'updatedAt' => '2026-09-09T14:09:12.436Z',
+            ],
         ],
         'path' => ['steps' => ['rh-1/meet' => ['attempts' => 1, 'bestAccuracy' => 100], 'rh-1/drill' => ['attempts' => 2, 'bestAccuracy' => 90]]],
         'sessions' => [
@@ -89,7 +116,10 @@ function send(array $app, int $user, string $method, string $url, string $body, 
     $token = test_token($user, $user === ADMIN ? [ROLE_ADMIN] : []);
     $handle = curl_init($app['base'] . $url);
     curl_setopt_array($handle, [
-        CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60, CURLOPT_POSTFIELDS => $body,
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_POSTFIELDS => $body,
         CURLOPT_HTTPHEADER => array_merge($headers, bearer($token), ['Content-Type: application/json', 'Expect:']),
     ]);
     $multi = curl_multi_init();
@@ -180,12 +210,16 @@ test('a dry run says what an import would do, and writes nothing - whatever else
     $ben = kept(BEN);
     $preview = as_user(BEN, 'POST', '/api/me/import?dryRun=true&replace=true', file_with());
     assert_same(200, $preview['status']);
-    assert_same([
-        'dryRun' => true, 'hasProgress' => true,
-        'current' => ['notes' => 1, 'steps' => 1, 'sessions' => 1],
-        'incoming' => ['notes' => 3, 'steps' => 2, 'sessions' => 2],
-        'leftOut' => 1,
-    ], $preview['body']);
+    assert_same(
+        [
+            'dryRun' => true,
+            'hasProgress' => true,
+            'current' => ['notes' => 1, 'steps' => 1, 'sessions' => 1],
+            'incoming' => ['notes' => 3, 'steps' => 2, 'sessions' => 2],
+            'leftOut' => 1,
+        ],
+        $preview['body'],
+    );
     assert_same($ben, kept(BEN), 'nothing written, the generation as it was');
 
     $fresh = as_user(CILA, 'POST', '/api/me/import?dryRun=1', file_with());
@@ -256,8 +290,18 @@ test('what is not a progress file is refused with a code and a sentence - not JS
 
 test('a save names the generation of the progress it was made to: none, or not a number, is 428 - and nothing is saved', function (): void {
     $before = kept(ANNA);
-    foreach (['none' => [], 'empty' => [GENERATION_HEADER . ': '], 'a word' => [GENERATION_HEADER . ': latest'], 'zero' => [GENERATION_HEADER . ': 0'],
-        'negative' => [GENERATION_HEADER . ': -1'], 'a fraction' => [GENERATION_HEADER . ': 1.5'], 'two' => [GENERATION_HEADER . ': 1, 2']] as $what => $headers) {
+    foreach (
+        [
+            'none' => [],
+            'empty' => [GENERATION_HEADER . ': '],
+            'a word' => [GENERATION_HEADER . ': latest'],
+            'zero' => [GENERATION_HEADER . ': 0'],
+            'negative' => [GENERATION_HEADER . ': -1'],
+            'a fraction' => [GENERATION_HEADER . ': 1.5'],
+            'two' => [GENERATION_HEADER . ': 1, 2'],
+        ]
+        as $what => $headers
+    ) {
         foreach ([['/api/progress', ['60' => ['midi' => 60]]], ['/api/path', ['steps' => new stdClass()]]] as [$url, $body]) {
             $answer = as_user(ANNA, 'PUT', $url, $body, $headers);
             assert_same([428, 'generation_required'], [$answer['status'], $answer['body']['code'] ?? null], "$url, $what");
@@ -322,10 +366,15 @@ test('a tab still open on progress an administrator deleted is refused its next 
 });
 
 test('an import holds the person\'s users row: a save made meanwhile waits, then is refused; two imports at once - one goes in, the other is told', function (): void {
-    $second = test_start_server(TEST_BACKEND, TEST_BACKEND . '/router.php', [
-        'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam()),
-        'PIANO_FRONTEND_DIST' => test_frontend_build(),
-    ], '/api/health');
+    $second = test_start_server(
+        TEST_BACKEND,
+        TEST_BACKEND . '/router.php',
+        [
+            'PIANO_TEST_CONFIG' => test_config_dir(test_auth_iam()),
+            'PIANO_FRONTEND_DIST' => test_frontend_build(),
+        ],
+        '/api/health',
+    );
     $holder = dbConnect(machineDatabaseSettings(), dbName());
     $file = jsonText(file_with());
 
@@ -366,7 +415,7 @@ test('an import holds the person\'s users row: a save made meanwhile waits, then
     assert_same(2, (int) dbValue('SELECT count(*) FROM sessions WHERE user_id = ?', [$empty]), 'the file\'s two sessions, once');
 
     assert_same([], server_problems($second), 'no database error on either side');
-    ($second['stop'])();
+    $second['stop']();
     $holder = null;
 });
 
@@ -383,7 +432,7 @@ test('the size limit: an export just under it comes back in whole; one that woul
                     jsonb_build_object('mode', 'lesson', 'label', repeat('x', 200), 'unitId', 'rh-1', 'stepId', 'drill',
                                        'attempts', 10, 'correct', 9, 'accuracy', 90, 'bpm', null)
                FROM generate_series(?::int, ?::int) g",
-            [$big, $from, $to]
+            [$big, $from, $to],
         );
     };
     $empty = $length();

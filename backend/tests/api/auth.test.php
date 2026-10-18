@@ -76,8 +76,15 @@ test('the sign-in settings the browser reads, without a token - and the IAM\'s s
         $state = anonymous('GET', '/api/state');
         assert_same([200, 0], [$state['status'], $state['body']['generation'] ?? null], 'without a token: nobody\'s empty state');
         // An answer that is not about this app, or not a yes or no, is no answer: required.
-        foreach (['another app' => ['client_id' => 'genshin', 'login_required' => false], 'a text' => ['client_id' => TEST_CLIENT, 'login_required' => 'false'],
-            'nothing' => [], 'not JSON' => '<html>proxy error</html>'] as $what => $answer) {
+        foreach (
+            [
+                'another app' => ['client_id' => 'genshin', 'login_required' => false],
+                'a text' => ['client_id' => TEST_CLIENT, 'login_required' => 'false'],
+                'nothing' => [],
+                'not JSON' => '<html>proxy error</html>',
+            ]
+            as $what => $answer
+        ) {
             file_put_contents($GLOBALS['auth']['application_file'], is_string($answer) ? $answer : json_encode($answer));
             assert_same(true, anonymous('GET', '/api/auth/config')['body']['login_required'] ?? null, $what);
         }
@@ -89,7 +96,10 @@ test('the sign-in settings the browser reads, without a token - and the IAM\'s s
 });
 
 test('without a token: 401, for reading and for every save', function (): void {
-    foreach ([['GET', '/api/state', null], ['PUT', '/api/progress', new stdClass()], ['PUT', '/api/path', ['steps' => new stdClass()]], ['POST', '/api/sessions', ['mode' => 'trainer']]] as [$method, $url, $body]) {
+    foreach (
+        [['GET', '/api/state', null], ['PUT', '/api/progress', new stdClass()], ['PUT', '/api/path', ['steps' => new stdClass()]], ['POST', '/api/sessions', ['mode' => 'trainer']]]
+        as [$method, $url, $body]
+    ) {
         $answer = anonymous($method, $url, $body);
         assert_same(401, $answer['status'], "$method $url");
         assert_same('sign_in_required', $answer['body']['code'] ?? null);
@@ -209,19 +219,40 @@ function sign_in_through(StandInIam $iam, array $user, bool $deny = false): arra
     $iam->state(['user' => $user, 'deny' => $deny]);
     $verifier = Base64Url::encode(random_bytes(32));
     $redirect = 'http://localhost:4500/auth/callback';
-    $authorize = call($iam->issuer, 'GET', '/api/oidc/authorize?' . http_build_query([
-        'client_id' => TEST_CLIENT, 'redirect_uri' => $redirect, 'response_type' => 'code', 'scope' => 'openid profile email',
-        'state' => 'st', 'nonce' => 'n', 'code_challenge' => Base64Url::encode(hash('sha256', $verifier, true)), 'code_challenge_method' => 'S256',
-    ]));
+    $authorize = call(
+        $iam->issuer,
+        'GET',
+        '/api/oidc/authorize?' .
+            http_build_query([
+                'client_id' => TEST_CLIENT,
+                'redirect_uri' => $redirect,
+                'response_type' => 'code',
+                'scope' => 'openid profile email',
+                'state' => 'st',
+                'nonce' => 'n',
+                'code_challenge' => Base64Url::encode(hash('sha256', $verifier, true)),
+                'code_challenge_method' => 'S256',
+            ]),
+    );
     assert_same(302, $authorize['status']);
     [$to, $query] = redirect_to($authorize);
     assert_same($redirect, $to, 'back to the app');
     if (isset($query['error'])) {
         return ['error' => $query['error']];
     }
-    $tokens = call($iam->issuer, 'POST', '/api/oidc/token', http_build_query([
-        'grant_type' => 'authorization_code', 'code' => $query['code'], 'redirect_uri' => $redirect, 'client_id' => TEST_CLIENT, 'code_verifier' => $verifier,
-    ]), ['Content-Type: application/x-www-form-urlencoded'])['body'];
+    $tokens = call(
+        $iam->issuer,
+        'POST',
+        '/api/oidc/token',
+        http_build_query([
+            'grant_type' => 'authorization_code',
+            'code' => $query['code'],
+            'redirect_uri' => $redirect,
+            'client_id' => TEST_CLIENT,
+            'code_verifier' => $verifier,
+        ]),
+        ['Content-Type: application/x-www-form-urlencoded'],
+    )['body'];
     assert_true(is_string($tokens['access_token'] ?? null), test_show($tokens));
 
     return $tokens;
@@ -248,13 +279,15 @@ test('a whole sign-in through the stand-in IAM (code + PKCE, as the browser does
     assert_same(200, call($app['base'], 'GET', '/api/admin/migrations', null, bearer($admin['access_token']))['status']);
 
     // A refreshed token is as good; one the IAM refused never was.
-    $refreshed = call($iam->issuer, 'POST', '/api/oidc/token', http_build_query(['grant_type' => 'refresh_token', 'refresh_token' => $learner['refresh_token'], 'client_id' => 'piano-academy']), ['Content-Type: application/x-www-form-urlencoded'])['body'];
+    $refreshed = call($iam->issuer, 'POST', '/api/oidc/token', http_build_query(['grant_type' => 'refresh_token', 'refresh_token' => $learner['refresh_token'], 'client_id' => 'piano-academy']), [
+        'Content-Type: application/x-www-form-urlencoded',
+    ])['body'];
     assert_same(200, call($app['base'], 'GET', '/api/state', null, bearer((string) ($refreshed['access_token'] ?? '')))['status'], 'after a refresh');
     assert_same(['error' => 'access_denied'], sign_in_through($iam, ['id' => 33, 'username' => 'no', 'roles' => []], true), 'the IAM said no: no token, no way in');
     assert_same(null, user_row(33));
     // The ID token is for the browser, never a way into the API.
     assert_same(401, call($app['base'], 'GET', '/api/state', null, bearer($learner['id_token']))['status']);
-    ($app['stop'])();
+    $app['stop']();
     $iam->stop();
 });
 
@@ -270,7 +303,7 @@ test('a settings file from before (a sign-in mode, an owner\'s id) opens nothing
     assert_same(200, call($old['base'], 'GET', '/api/state', null, bearer(test_token(ANNA)))['status'], 'a token is the way in');
     $owner = call($old['base'], 'GET', '/api/admin/languages', null, bearer(test_token(1)));
     assert_same([403, 'forbidden'], [$owner['status'], $owner['body']['code'] ?? null], 'the old owner\'s id is nobody\'s role');
-    ($old['stop'])();
+    $old['stop']();
 });
 
 test('the key set downloaded from the IAM and cached: verified without the IAM once cached', function (): void {
@@ -290,7 +323,7 @@ test('the key set downloaded from the IAM and cached: verified without the IAM o
     $rotated = test_other_iam('rotated-key', $issuer);
     $unknown = $rotated->sign(test_claims(ANNA, [], [], $issuer));
     assert_same(401, call($app['base'], 'GET', '/api/state', null, bearer($unknown))['status'], 'an unknown key');
-    ($app['stop'])();
+    $app['stop']();
 });
 
 /** How often the stand-in was asked whether this app requires sign-in. */
@@ -331,7 +364,9 @@ test('the account\'s preferences as the stand-in IAM keeps them (the browser che
     assert_same([200, $site], [$saved['status'], $saved['headers']['access-control-allow-origin'] ?? null], 'answered cross-origin');
     assert_same(['locale' => 'en', 'preferences' => ['theme' => 'dark', 'date_format' => 'ymd_dash', 'time_format' => null]], $saved['body']);
     assert_same('sk', $save(['language' => 'sk'], $tokens['access_token'])['body']['locale'] ?? null);
-    $refreshed = call($iam->issuer, 'POST', '/api/oidc/token', http_build_query(['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'], 'client_id' => TEST_CLIENT]), ['Content-Type: application/x-www-form-urlencoded'])['body'];
+    $refreshed = call($iam->issuer, 'POST', '/api/oidc/token', http_build_query(['grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'], 'client_id' => TEST_CLIENT]), [
+        'Content-Type: application/x-www-form-urlencoded',
+    ])['body'];
     $claims = jwt_claims((string) ($refreshed['id_token'] ?? ''));
     assert_same(['sk', 'dark'], [$claims['locale'] ?? null, $claims['preferences']['theme'] ?? null], 'the next tokens carry them');
     assert_same(400, $save(['theme' => 'pink'], $tokens['access_token'])['status'], 'what the account does not take');
@@ -381,14 +416,14 @@ test('the IAM\'s switch: read from the IAM, kept a minute, the last answer while
     $iam->state(['application_missing' => false]);
     assert_same(true, $required(), 'kept like any answer');
     assert_same(4, switch_asked($iam));
-    ($app['stop'])();
+    $app['stop']();
 
     // Nothing ever read, and the IAM out of reach: required.
     $iam->state(['down' => true]);
     $fresh = start_app(['issuer' => $iam->issuer, 'client_id' => 'piano-academy', 'cache_dir' => test_temp_dir('iam-cache')]);
     assert_same(true, call($fresh['base'], 'GET', '/api/auth/config')['body']['login_required'] ?? null, 'fails closed');
     assert_match('/\(never_read\): required/', (string) file_get_contents($fresh['log']));
-    ($fresh['stop'])();
+    $fresh['stop']();
     $iam->stop();
 });
 

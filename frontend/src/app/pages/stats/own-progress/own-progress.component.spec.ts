@@ -54,7 +54,8 @@ const SLOVAK: Record<string, string> = {
 const TEXT = '{"format":"piano-academy-export","version":1}';
 const EMPTY = { notes: 0, steps: 0, sessions: 0 };
 const preview = (more: Partial<ImportPreview> = {}): ImportPreview => ({ dryRun: true, hasProgress: false, current: EMPTY, incoming: { notes: 3, steps: 2, sessions: 5 }, leftOut: 0, ...more });
-const refused = (status: number, code: string | null, extra: Record<string, unknown> = {}) => new ApiError(`failed: ${status}`, status, code, false, code ? { error: 'The server’s own sentence.', code, ...extra } : null);
+const refused = (status: number, code: string | null, extra: Record<string, unknown> = {}) =>
+  new ApiError(`failed: ${status}`, status, code, false, code ? { error: 'The server’s own sentence.', code, ...extra } : null);
 
 describe('OwnProgressComponent: the learner’s own progress file', () => {
   let fixture: ComponentFixture<OwnProgressComponent>;

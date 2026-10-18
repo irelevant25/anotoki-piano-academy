@@ -1,9 +1,9 @@
 <anotoki-card class="own-progress" id="own-progress" [heading]="'ownProgress.title' | translate">
     <div class="stack">
-        <p>{{ 'ownProgress.text' | translate }}</p>
+        <p>{{ "ownProgress.text" | translate }}</p>
         <div class="cluster">
-            <button anotokiButton id="own-download" [disabled]="busy() !== null" (click)="download()">{{ 'ownProgress.download' | translate }}</button>
-            <button anotokiButton id="own-bring-back" [disabled]="busy() !== null" (click)="file.click()">{{ 'ownProgress.bringBack' | translate }}</button>
+            <button anotokiButton id="own-download" [disabled]="busy() !== null" (click)="download()">{{ "ownProgress.download" | translate }}</button>
+            <button anotokiButton id="own-bring-back" [disabled]="busy() !== null" (click)="file.click()">{{ "ownProgress.bringBack" | translate }}</button>
             <input #file type="file" id="own-file" class="file-input" accept=".json,application/json" tabindex="-1" aria-hidden="true" (change)="chosen($event)" />
         </div>
 
@@ -17,34 +17,34 @@
         @if (looked(); as file) {
             <!-- What the file would do: a box of its own inside the card. -->
             <div class="preview stack" id="own-preview">
-                <h3>{{ 'ownProgress.preview.title' | translate }}</h3>
+                <h3>{{ "ownProgress.preview.title" | translate }}</h3>
                 <dl class="facts">
-                    <dt>{{ 'ownProgress.preview.now' | translate }}</dt>
+                    <dt>{{ "ownProgress.preview.now" | translate }}</dt>
                     <dd id="own-now">{{ now() }}</dd>
-                    <dt>{{ 'ownProgress.preview.file' | translate }}</dt>
+                    <dt>{{ "ownProgress.preview.file" | translate }}</dt>
                     <dd id="own-incoming">{{ incoming() }}</dd>
                 </dl>
                 @if (file.preview.leftOut > 0) {
-                    <p class="left-out" id="own-left-out">{{ 'ownProgress.preview.leftOut' | translatePlural: file.preview.leftOut }}</p>
+                    <p class="left-out" id="own-left-out">{{ "ownProgress.preview.leftOut" | translatePlural: file.preview.leftOut }}</p>
                 }
                 @if (file.preview.hasProgress) {
-                    <anotoki-alert id="own-replaces" tone="warning">{{ 'ownProgress.preview.replaces' | translate }}</anotoki-alert>
+                    <anotoki-alert id="own-replaces" tone="warning">{{ "ownProgress.preview.replaces" | translate }}</anotoki-alert>
                 }
                 <div class="cluster">
                     @if (file.preview.hasProgress) {
-                        <button anotokiButton variant="danger" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ 'ownProgress.preview.replace' | translate }}</button>
+                        <button anotokiButton variant="danger" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ "ownProgress.preview.replace" | translate }}</button>
                     } @else {
-                        <button anotokiButton variant="primary" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ 'ownProgress.preview.bringIn' | translate }}</button>
+                        <button anotokiButton variant="primary" id="own-bring-in" [disabled]="busy() !== null" (click)="bringIn()">{{ "ownProgress.preview.bringIn" | translate }}</button>
                     }
-                    <button anotokiButton id="own-cancel" [disabled]="busy() !== null" (click)="cancel()">{{ 'ownProgress.cancel' | translate }}</button>
+                    <button anotokiButton id="own-cancel" [disabled]="busy() !== null" (click)="cancel()">{{ "ownProgress.cancel" | translate }}</button>
                 </div>
             </div>
         }
 
         @if (done()) {
-            <anotoki-alert id="own-done" tone="success" announce="polite">{{ 'ownProgress.done' | translate }} {{ brought() }}</anotoki-alert>
+            <anotoki-alert id="own-done" tone="success" announce="polite">{{ "ownProgress.done" | translate }} {{ brought() }}</anotoki-alert>
             @if (reloadFailed()) {
-                <anotoki-alert tone="danger" announce>{{ 'ownProgress.error.reload' | translate }}</anotoki-alert>
+                <anotoki-alert tone="danger" announce>{{ "ownProgress.error.reload" | translate }}</anotoki-alert>
             }
         }
     </div>

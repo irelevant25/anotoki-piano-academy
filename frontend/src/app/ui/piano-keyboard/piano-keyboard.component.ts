@@ -68,9 +68,6 @@ export class PianoKeyboardComponent {
     const model = this.model();
     const state = model.states().get(midi);
     const level = model.levels().get(midi);
-    return `piano-key piano-key--${kind}`
-      + (model.known().has(midi) ? ' is-known' : '')
-      + (state ? ` is-${state}` : '')
-      + (level ? ` lvl-${level}` : '');
+    return `piano-key piano-key--${kind}` + (model.known().has(midi) ? ' is-known' : '') + (state ? ` is-${state}` : '') + (level ? ` lvl-${level}` : '');
   }
 }

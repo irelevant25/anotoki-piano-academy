@@ -96,7 +96,7 @@ AuthRoutes::config($app, signInRule(), iamClient());
 // database that has not got the words' tables yet (002 among what waits) - or
 // no English string at all - has none to give: 503 translations_unavailable,
 // and the app draws its shell from the English it keeps meanwhile.
-TranslationsRoutes::bundle($app, static fn (): Translations => translations(), translationsRefused(...));
+TranslationsRoutes::bundle($app, static fn(): Translations => translations(), translationsRefused(...));
 
 // Where the site stands, for the pages (the frontend's SiteStatus): asked as
 // the app starts, and again by the page that waits for an update. The gate
