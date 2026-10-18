@@ -11,6 +11,9 @@ backend/storage/*
 # package's own dist/ folder must stay).
 /dist/
 
+# The root's Prettier (package.json: the anotoki family's one formatting setup).
+/node_modules/
+
 # The frontend's dependencies and build output.
 frontend/node_modules/
 frontend/dist/

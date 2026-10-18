@@ -240,6 +240,7 @@ php tests/run.php                  # every tests/unit and tests/api file, four a
 cd frontend
 npm test                           # the unit tests (Vitest)
 npm run build                      # the production build
+cd .. && bun run format:check      # Prettier on every file of both halves, at the root (bun install there first)
 ```
 
 The frontend's specs need no server: `HttpTestingController` answers the API,

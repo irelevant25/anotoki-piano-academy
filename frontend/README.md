@@ -246,6 +246,7 @@ npm ci
 npm start          # ng serve on http://localhost:4500, /api and /setup.php proxied to :8300
 npm test           # Vitest, once (ng test)
 npm run build      # production -> dist/piano-academy/browser/ (budgets: 6 kB warn, 12 kB error a component's styles)
+cd .. && bun run format:check   # Prettier on every file of both halves, at the root (bun install there first)
 ```
 
 Sign in at `http://localhost:4500` - the address the IAM knows for
