@@ -370,7 +370,8 @@ root's `.htaccess` lets the host check run (`host-check.php`, by its exact
 name, while it is there). The library's translations 012 (the footer's
 words, 261 `anotoki.*` keys) runs after 013 in the same Apply. In What's
 new's 0.4.0: the footer, and "Feedback". The first load is 558.1 kB
-(549.4 before): over its 550 kB warning - the owner's call.
+(549.4 before), under its warning, which the owner raised from 550 kB to
+575 kB the same day.
 
 ## Always, before any work here
 

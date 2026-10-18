@@ -522,7 +522,7 @@ from its own entry point (`@anotoki/lib/ui/config`, `/ui/button`,
 is lazy - the piano's select in the bar is a `@defer` block,
 loaded once the page is idle, and What's new and the footer's feedback form
 load when they open: the first load is 558.1 kB since the family's footer
-came, over its 550 kB warning - the owner's call). They draw with the family's tokens, which
+came, under its 575 kB warning - 550 until the owner raised it that day). They draw with the family's tokens, which
 `styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
 a site gives the colours only), with the family's corners, shadows, font
 (Manrope) and base (`anotoki.base`: type, links, the focus ring), and its

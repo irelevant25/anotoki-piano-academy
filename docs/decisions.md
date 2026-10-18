@@ -23,8 +23,10 @@ Why things are the way they are. Read the reason before undoing one.
   013, which also tells `whatsNew.title`'s description where the dialog
   opens from now. The footer's own code puts the first load at 558.1 kB
   (549.4 before; 163.1 kB transferred, 160.8 before), over angular.json's
-  550 kB warning: raising the budget, or loading more of the first page
-  lazily (Learn itself, say), is the owner's call.
+  550 kB warning - so the owner raised the warning to 575 kB the same day
+  (asked whether to raise it, as recommended: "you can do your
+  recommendation"): the footer took the place of Piano's own and its
+  feedback dialog, 2.3 kB more over the wire.
 - **Feedback says whom its message is for** (found by the survey's pass,
   2026-10-18). The library's form posts to `/api/feedback` without saying
   whom the message is for, and the family's interceptor then takes it for

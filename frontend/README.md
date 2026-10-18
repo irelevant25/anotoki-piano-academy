@@ -251,10 +251,9 @@ npm run build      # production -> dist/piano-academy/browser/ (budgets: 6 kB wa
 Sign in at `http://localhost:4500` - the address the IAM knows for
 `piano-academy`; `127.0.0.1` does not sign in. Any page you open while
 signed out sends you to the IAM first, and back - but Terms, Privacy and
-Contact, which are anybody's. The first load's budget warns at 550 kB: it is
-558.1 kB since the family's footer (2026-10-18; 549.4 before) - the build
-warns, and the budget is the owner's call; a new piece in it needs room made
-first.
+Contact, which are anybody's. The first load's budget warns at 575 kB (550
+until the family's footer, 2026-10-18: the owner's call): it is 558.1 kB; a
+new piece in it needs room made first.
 
 ## Tests
 
