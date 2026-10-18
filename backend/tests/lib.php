@@ -19,7 +19,7 @@ declare(strict_types=1);
  * library (anotoki/lib's Anotoki\Lib\Auth). The servers the tests start check
  * tokens the tests sign with their own key (the library's TestIam:
  * test_token(), test_auth_iam()), or download the key set from the family's
- * stand-in IAM (vendor/anotoki/lib/php/testing/stand-in-iam.php, started by
+ * stand-in IAM (vendor/anotoki/lib/backend/testing/stand-in-iam.php, started by
  * stand_in_iam()). A
  * token carries no role unless a test gives it one: a learner (the IAM puts
  * MEMBER in every account's token; a learner with it is the same learner).
@@ -492,7 +492,7 @@ function names_of(array $files): array
 
 /**
  * The files of one of the anotoki library's sets (in
- * vendor/anotoki/lib/php/migrations/), in the order they run: the words'
+ * vendor/anotoki/lib/backend/migrations/), in the order they run: the words'
  * (anotoki_translations) by default.
  *
  * @return list<string>

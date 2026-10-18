@@ -87,7 +87,7 @@ storage/               cache/ (the IAM's keys and answers, the limits' counts), 
                        (the library's backups; files of other names left alone), on a host the setup token and
                        lock; gitignored
 tests/                 run.php, lib.php; unit/, api/; tools/ (testdb.php, testenv.php) - the stand-in IAM is the
-                       library's (vendor/anotoki/lib/php/testing/stand-in-iam.php)
+                       library's (vendor/anotoki/lib/backend/testing/stand-in-iam.php)
 tools/                 build.php (the upload -> ../dist/), progress.php, translations.php (the library's
                        TranslationsCommand), translation_keys.php (the library's KeyScanner set up for the
                        frontend: what it reads, dynamic-keys.ts, the kept English)
@@ -96,7 +96,7 @@ vendor/                Slim and its pieces, and anotoki/lib (the anotoki family'
 ```
 
 `anotoki/lib` is the PHP half of the family's library (the Angular half is the
-frontend's `@anotoki/lib`; one version for both - 0.6.3, `^0.6.0` in
+frontend's `@anotoki/lib`; one version for both - 0.7.0, `^0.7.0` in
 `composer.json`): the
 engine and the gate; the words - `Anotoki\Lib\Translations` with its
 migration set `anotoki_translations`, run after this app's own (its 005 to
@@ -142,7 +142,7 @@ borrow only the PostgreSQL server and user of `config/database.local.php`.
 Sign-in is always the IAM's: tokens the tests sign with their own key (the
 library's `TestIam`: `test_token($id, $roles)` - no roles is a learner, and
 so is MEMBER), and the family's stand-in IAM
-(`vendor/anotoki/lib/php/testing/stand-in-iam.php`, `stand_in_iam()`) for a
+(`vendor/anotoki/lib/backend/testing/stand-in-iam.php`, `stand_in_iam()`) for a
 whole sign-in, a downloaded key set, the IAM's switch and the account's
 preferences (the claim while its state has some; `POST
 /api/oidc/preferences`, as the browser saves them). No test asks a real IAM:

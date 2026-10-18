@@ -26,7 +26,7 @@ use Anotoki\Lib\Translations\Schema as TranslationsSchema;
  * proves its shape - and the library's own words, anotoki.*); then its set
  * of the people (anotoki_people: where the scrub of the IAM's deleted
  * accounts stands - after this app's 010, which adds users.anonymized_at).
- * The library's files are in vendor/anotoki/lib/php/migrations/. Each set is
+ * The library's files are in vendor/anotoki/lib/backend/migrations/. Each set is
  * applied in natural order (100 after 99), each file in a transaction of its
  * own together with its row in the `migrations` table - all of it or none of
  * it - stopping at the first that fails, because every migration is written

@@ -4,7 +4,7 @@
 // the anotoki family's library (anotoki/lib's Anotoki\Lib\Auth): access
 // tokens the tests sign with their own key (the library's TestIam), checked
 // against a key set file - and against the family's stand-in IAM
-// (vendor/anotoki/lib/php/testing/stand-in-iam.php): a whole sign-in through
+// (vendor/anotoki/lib/backend/testing/stand-in-iam.php): a whole sign-in through
 // it, its key set downloaded and cached, and its switch - whether the app
 // requires sign-in - read, kept and relayed to the browser. Only the Bearer
 // scheme is a sign-in. A settings file from before (a sign-in mode, an

@@ -16,7 +16,7 @@ declare(strict_types=1);
  *
  * and drop it afterwards: php tests/tools/testdb.php drop piano_test_manual.
  * The IAM is --issuer: the anotoki family's stand-in,
- * vendor/anotoki/lib/php/testing/stand-in-iam.php (its header says how to run
+ * vendor/anotoki/lib/backend/testing/stand-in-iam.php (its header says how to run
  * it; its key from the library's TestIam), never the real one; --jwks gives it a key set on disk
  * instead of the one it would download. The app asks that IAM whether it
  * requires sign-in (the stand-in's `login_required`) and keeps the answer a

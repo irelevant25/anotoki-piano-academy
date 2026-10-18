@@ -72,7 +72,7 @@ class ComposerStaticInit09851567f571e848ca9184360285d102
         ),
         'Anotoki\\Lib\\' =>
         array (
-            0 => __DIR__ . '/..' . '/anotoki/lib/php/src',
+            0 => __DIR__ . '/..' . '/anotoki/lib/backend/src',
         ),
     );
 

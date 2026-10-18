@@ -260,7 +260,7 @@ test('an empty database gets every migration, recorded once, under the app\'s on
             '012_footer_words.sql',
         ],
         library_migration_files(),
-        'the library\'s words, as vendor/ has them (anotoki-lib 0.6.3)',
+        'the library\'s words, as vendor/ has them (anotoki-lib 0.7.0)',
     );
     assert_same(['001_audit_log.sql', '002_feedback.sql'], library_migration_files(\Anotoki\Lib\Admin\Schema::migrationSet()), 'its admin tools\'');
     assert_same(['001_people.sql'], library_migration_files(\Anotoki\Lib\People\Schema::migrationSet()), 'its people\'s');

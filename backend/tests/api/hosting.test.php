@@ -97,12 +97,12 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
         'migrations/piano_academy/006_account_preferences.sql', 'migrations/piano_academy/007_site_status_words.sql',
         'migrations/piano_academy/010_people.sql', 'migrations/piano_academy/011_sign_in_failure_words.sql', 'migrations/piano_academy/012_legal_pages.sql',
         'migrations/piano_academy/013_family_footer_words.sql',
-        'migrations/.htaccess', 'vendor/autoload.php', 'vendor/anotoki/lib/php/migrations/translations/010_backups_where_words.sql',
-        'vendor/anotoki/lib/php/migrations/translations/011_privacy_words_made_true.sql', 'vendor/anotoki/lib/php/migrations/translations/012_footer_words.sql',
-        'vendor/slim/slim/Slim/App.php', 'vendor/anotoki/lib/php/src/Migrations/Migrator.php', 'vendor/anotoki/lib/php/src/Migrations/Http/SiteGate.php',
-        'vendor/anotoki/lib/php/src/Auth/Http/Identify.php', 'vendor/anotoki/lib/php/src/People/Http/PeopleRoutes.php',
-        'vendor/anotoki/lib/php/src/Backups/Backups.php', 'vendor/anotoki/lib/php/migrations/admin/001_audit_log.sql',
-        'vendor/anotoki/lib/php/migrations/people/001_people.sql',
+        'migrations/.htaccess', 'vendor/autoload.php', 'vendor/anotoki/lib/backend/migrations/translations/010_backups_where_words.sql',
+        'vendor/anotoki/lib/backend/migrations/translations/011_privacy_words_made_true.sql', 'vendor/anotoki/lib/backend/migrations/translations/012_footer_words.sql',
+        'vendor/slim/slim/Slim/App.php', 'vendor/anotoki/lib/backend/src/Migrations/Migrator.php', 'vendor/anotoki/lib/backend/src/Migrations/Http/SiteGate.php',
+        'vendor/anotoki/lib/backend/src/Auth/Http/Identify.php', 'vendor/anotoki/lib/backend/src/People/Http/PeopleRoutes.php',
+        'vendor/anotoki/lib/backend/src/Backups/Backups.php', 'vendor/anotoki/lib/backend/migrations/admin/001_audit_log.sql',
+        'vendor/anotoki/lib/backend/migrations/people/001_people.sql',
         'vendor/.htaccess', 'storage/.htaccess', 'media/font-TEST.woff2'] as $file) {
         assert_true(in_array($file, $files, true), "$file is in the upload");
     }

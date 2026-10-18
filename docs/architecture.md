@@ -501,7 +501,7 @@ on the pages the code's - the anotoki account's Privacy and account pages
 at the IAM's address (`AnotokiAuth.issuer()`, `accountUrl()`) -, never a
 string's.
 
-**The family's kit** (`@anotoki/lib` 0.6.3, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.7.0, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are

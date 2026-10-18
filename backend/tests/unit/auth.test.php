@@ -110,7 +110,7 @@ test('the IAM\'s SDK is gone - its rules are the family\'s library\'s - and so i
     foreach (['requestUser', 'usersSeen', 'signedInUser', 'authIamConfig', 'authPublicConfig'] as $gone) {
         assert_false(function_exists($gone), "$gone() is the library's now");
     }
-    assert_false(is_file(PIANO_BACKEND . '/tests/tools/fake-iam.php'), 'the stand-in IAM is the family\'s one (vendor/anotoki/lib/php/testing)');
+    assert_false(is_file(PIANO_BACKEND . '/tests/tools/fake-iam.php'), 'the stand-in IAM is the family\'s one (vendor/anotoki/lib/backend/testing)');
 });
 
 test('the browser\'s sign-in settings: the IAM, whatever an old file says about a mode - and the IAM\'s switch', function (): void {

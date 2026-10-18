@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.6.0"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.7.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.6.3/anotoki-lib-0.6.3.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.7.0/anotoki-lib-0.7.0.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -36,13 +36,15 @@ and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*); the
 legal pages (below, *Terms, Privacy and Contact*); the footer (below, *The
-family's footer*). Both halves are at 0.6.3 (0.6.0 added the legal pages -
+family's footer*). Both halves are at 0.7.0 (0.6.0 added the legal pages -
 Terms, Privacy, Contact and the footer's links - and the kit's chips, stat
 tiles and step dots, the highlighted card and the select's own entry point;
 0.6.1 made the Privacy page's sentences on the backups true, and 0.6.2 three
 more of its sentences - its translations 011, which keeps a site's own
 words; 0.6.3 added the family's footer, `<anotoki-site-footer>`, and draws the
-status page in a `<main>` of its own, with no header and no footer; 0.5.1 and
+status page in a `<main>` of its own, with no header and no footer; 0.7.0
+changed nothing the app does - it renamed the library's own folders, its PHP
+half's files now in `vendor/anotoki/lib/backend/`; 0.5.1 and
 0.5.2 changed only the PHP half: 0.5.1 a restore's sequences that count down, 0.5.2 the origin
 secret - below, *The library's PHP 0.5.2*; 0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
@@ -152,7 +154,7 @@ anotoki family's engine - `anotoki/lib`'s `Migrator`, which every anotoki site
 uses (`api/migrations.php` sets it up: the folder, the app's one lock, and
 the rename of the first runner's `migrations(name)` column) - and after them
 the library's own set `anotoki_translations` (the words' tables as the
-library relies on them, and its 54 words; `vendor/anotoki/lib/php/migrations/translations/`,
+library relies on them, and its 54 words; `vendor/anotoki/lib/backend/migrations/translations/`,
 recorded in the same table as `anotoki_translations/<file>`). Each file runs
 whole or not at all, and the run stops at the first that fails. Never edit
 an applied migration; add the next number.
@@ -257,7 +259,7 @@ this machine's `config/database.local.php`, so run the setup once first. They
 never touch the owner's database. Sign-in is always the IAM's: tokens the
 tests sign with their own key (the library's `TestIam`: `test_token($id,
 $roles)`; no roles is a learner, and so is MEMBER), and the family's
-stand-in IAM (`vendor/anotoki/lib/php/testing/stand-in-iam.php`,
+stand-in IAM (`vendor/anotoki/lib/backend/testing/stand-in-iam.php`,
 `stand_in_iam()`) for a whole sign-in, the IAM's "Sign-in required" switch
 and its deleted accounts. No test asks a real IAM: the switch's answer and
 the deleted accounts are files (`application_file`, `anonymized_file`), or
@@ -281,7 +283,7 @@ PIANO_TEST_CONFIG=storage/manual php -S 127.0.0.1:8590 router.php
 (`storage/` is gitignored - the folder holds a copy of the database password.)
 
 Sign in through the family's stand-in IAM (never the real one),
-`vendor/anotoki/lib/php/testing/stand-in-iam.php`: its header says how to
+`vendor/anotoki/lib/backend/testing/stand-in-iam.php`: its header says how to
 run it on `:8597`, with a key the library's `TestIam::create()` writes (the
 browser check's `scripts/run.mjs` does both; `--issuer=` points the
 throwaway copy at another address); `POST /_test/state` with
@@ -645,7 +647,7 @@ is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
-library's 0.6.3)**: the build carries `anotoki-lib` 0.6.3 - both halves. The
+library's 0.6.3)**: the build carries `anotoki-lib` 0.7.0 - both halves. The
 foot of every page, the admin panel's too, is the family's footer
 (`<anotoki-site-footer>`, the build analyzer's): "Version 0.4.0 · What's new ·
 Feedback" - the version and What's new once `changelog.json` came, What's
