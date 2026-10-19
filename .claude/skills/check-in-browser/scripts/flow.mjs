@@ -509,7 +509,7 @@ try {
     );
     check(new URL(page.url()).pathname === '/stats' && new URL(page.url()).search === '?from=deep', 'and came back to /stats?from=deep', page.url());
     check((await page.textContent(BAR.name)) === 'mia', 'signed in as the learner, named in the bar');
-    check((await page.textContent(FOOTER.version))?.trim() === `Version ${VERSION}`, `the footer says the version (${VERSION}) - the changelog's first entry`);
+    check((await page.textContent(FOOTER.version))?.trim() === `v${VERSION}Version ${VERSION}`, `the footer says the version (${VERSION}) - the changelog's first entry`);
     await page.screenshot({ path: join(shots, `stats-${DESKTOP}-light.png`), fullPage: true });
     await context.close();
   }
@@ -1132,8 +1132,8 @@ try {
   {
     // The library's words for it (anotoki.footer.*, its translations 012) and the legal links' (anotoki.legalLinks.*).
     const WORDS = {
-      en: { row: [`Version ${VERSION}`, '·', "What's new", '·', 'Feedback'], links: ['Terms', 'Privacy', 'Contact'] },
-      sk: { row: [`Verzia ${VERSION}`, '·', 'Čo je nové', '·', 'Spätná väzba'], links: ['Podmienky', 'Súkromie', 'Kontakt'] },
+      en: { row: [`v${VERSION}Version ${VERSION}`, '·', "What's new", '·', 'Feedback'], links: ['Terms', 'Privacy', 'Contact'] },
+      sk: { row: [`v${VERSION}Verzia ${VERSION}`, '·', 'Čo je nové', '·', 'Spätná väzba'], links: ['Podmienky', 'Súkromie', 'Kontakt'] },
     };
     /** How the footer is drawn - the build analyzer's look: a line on top, 1.25rem 1rem 1.5rem round it, 13 px, centred, as wide as the window, under the page. */
     const drawnAs = (page) =>
