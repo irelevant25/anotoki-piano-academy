@@ -5,8 +5,9 @@ declare(strict_types=1);
 /**
  * config/config.php - where this installation's settings come from.
  *
- * Two files beside this one. setup.php writes both; git ignores both; and both
- * are required:
+ * Two files in the site's config/ - beside this one in a checkout, beside the
+ * release's backend/ on the host (stateRoot()). setup.php writes both; git
+ * ignores both; and both are required:
  *
  *   database.local.php   the PostgreSQL connection
  *
@@ -19,7 +20,7 @@ declare(strict_types=1);
  *           'issuer' => 'http://localhost:4300', // the anotoki IAM (https://iam.anotoki.eu on the live site)
  *           'client_id' => 'piano-academy',      // this app's name in the IAM
  *           'cache_dir' => 'storage/cache',      // the IAM's signing keys, and its answer whether this app
- *                                                // requires sign-in, are kept here (relative to backend/) -
+ *                                                // requires sign-in, are kept here (relative to stateRoot()) -
  *                                                // a folder of this app's own: that answer opens it to visitors
  *       ];
  *
@@ -105,18 +106,31 @@ declare(strict_types=1);
 /** What is wrong with the settings: a missing or unusable file. */
 final class NotSetUp extends RuntimeException {}
 
+/**
+ * The folder this installation's state is in - its config/ and storage/. On the
+ * host a release's backend/ carries release.json (anotoki-deploy) and the state
+ * is beside it, in the site's folder, never part of an upload; in a checkout it
+ * is backend/ itself.
+ */
+function stateRoot(): string
+{
+    $backend = dirname(__DIR__);
+
+    return is_file($backend . '/release.json') ? dirname($backend) : $backend;
+}
+
 /** The folder the *.local.php files are read from (and setup.php writes to). */
 function configDir(): string
 {
     $test = getenv('PIANO_TEST_CONFIG');
 
-    return is_string($test) && $test !== '' ? rtrim(str_replace('\\', '/', $test), '/') : __DIR__;
+    return is_string($test) && $test !== '' ? rtrim(str_replace('\\', '/', $test), '/') : stateRoot() . '/config';
 }
 
 /** True while the tests' own settings are in use. */
 function usingTestConfig(): bool
 {
-    return configDir() !== __DIR__;
+    return configDir() !== stateRoot() . '/config';
 }
 
 function localConfigFile(string $name): string
@@ -131,7 +145,7 @@ function localConfigFile(string $name): string
  */
 function storageDir(): string
 {
-    return usingTestConfig() ? configDir() . '/storage' : dirname(__DIR__) . '/storage';
+    return usingTestConfig() ? configDir() . '/storage' : stateRoot() . '/storage';
 }
 
 /**
@@ -546,6 +560,7 @@ function settingsSaid(string $what): void
  */
 function writeLocalConfig(string $name, array $values): void
 {
+    ensureStateFolder(configDir());
     writePrivateFile(
         localConfigFile($name),
         "<?php\n\n// Piano Academy: this installation's {$name} settings, written by setup.php.\n" .
@@ -554,6 +569,27 @@ function writeLocalConfig(string $name, array $values): void
             ";\n",
     );
     localSettings(true);
+}
+
+/**
+ * A folder of the state (config/, storage/), made if it is missing - the first
+ * setup of a site, whose release never brings them. On the host it gets a
+ * deny-all .htaccess of its own, though the site's switch never sends a
+ * request into it (in a checkout nothing is served from backend/).
+ */
+function ensureStateFolder(string $dir): void
+{
+    if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
+        throw new RuntimeException('Cannot make ' . basename($dir) . '/.');
+    }
+    if (!is_file(dirname(__DIR__) . '/release.json') || is_file($dir . '/.htaccess')) {
+        return;
+    }
+    @file_put_contents(
+        $dir . '/.htaccess',
+        "# Not for the web: only PHP reads these files.\n<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n" .
+            "<IfModule !mod_authz_core.c>\n    Order allow,deny\n    Deny from all\n</IfModule>\n",
+    );
 }
 
 /**

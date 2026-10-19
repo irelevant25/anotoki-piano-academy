@@ -1,11 +1,15 @@
 <?php
 
-// The hosted site, as far as this computer can play it: tools/build.php
-// makes the upload in a temp folder (with a stand-in for the Angular build),
-// and PHP's built-in server serves that folder with no router - so setup.php
-// runs as Apache would run it, and /api/... ends at api/index.php, the front
-// controller. Asked by a name that is not this computer's, setup.php is the
-// real host's: the token, the lock, and then it is gone.
+// The hosted site, as far as this computer can play it: anotoki-deploy (the
+// anotoki library's deploy tool) builds the release into a temp folder that
+// plays the site's folder on the host - frontend/ and backend/, with config/
+// and storage/ to come beside them (with a stand-in for the Angular build) -
+// and PHP's built-in server serves frontend/ as Apache would, through a router
+// that plays frontend/.htaccess: a file of the app as it is, every other
+// address to index.php, the front controller, which hands /api/... to the API
+// and /setup.php to the setup page. Asked by a name that is not this
+// computer's, setup.php is the real host's: the token, the lock, and then it is
+// gone.
 
 declare(strict_types=1);
 
@@ -13,14 +17,31 @@ require __DIR__ . '/../lib.php'; // before the app loads: a throwaway database a
 
 const SITE_HOST = 'piano.example.test';
 
-/** tools/build.php into a new temp folder: [exit code, output, the folder]. */
+/** anotoki-deploy: the site's dev dependency, or the library's checkout beside this repository. */
+function deploy_tool(): string
+{
+    foreach ([dirname(TEST_BACKEND) . '/frontend/node_modules/@anotoki/deploy/cli.mjs', dirname(TEST_BACKEND, 2) . '/anotoki-lib/deploy/cli.mjs'] as $cli) {
+        if (is_file($cli)) {
+            return $cli;
+        }
+    }
+    throw new RuntimeException('No anotoki-deploy: neither frontend/node_modules/@anotoki/deploy nor ../anotoki-lib/deploy.');
+}
+
+/** anotoki-deploy build into a new temp folder - the site's folder on the host: [exit code, output, the folder]. */
 function build(?string $out = null): array
 {
-    $out ??= test_temp_dir('dist') . '/dist';
-    exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(TEST_BACKEND . '/tools/build.php') . ' --out=' . escapeshellarg($out)
-        . ' --frontend=' . escapeshellarg(test_frontend_build()) . ' 2>&1', $lines, $code);
+    $out ??= test_temp_dir('site') . '/site';
+    exec('node ' . escapeshellarg(deploy_tool()) . ' build --root ' . escapeshellarg(dirname(TEST_BACKEND)) . ' --out ' . escapeshellarg($out)
+        . ' --frontend ' . escapeshellarg(test_frontend_build()) . ' 2>&1', $lines, $code);
 
     return [$code, implode("\n", $lines), $out];
+}
+
+/** frontend/.htaccess as PHP's built-in server can play it (tests/release_router.php). */
+function release_router(): string
+{
+    return dirname(__DIR__) . '/release_router.php';
 }
 
 /** Every file under $dir, relative, forward slashes. */
@@ -36,10 +57,10 @@ function tree(string $dir): array
     return $files;
 }
 
-/** The upload on PHP's built-in server, with only its own settings. */
+/** The release's frontend/ on PHP's built-in server, with only the site's own settings (config/ beside the release). */
 function serve(string $dist): array
 {
-    return test_start_server($dist, null, ['PIANO_TEST_CONFIG' => null], '/index.html');
+    return test_start_server("$dist/frontend", release_router(), ['PIANO_TEST_CONFIG' => null], '/index.html');
 }
 
 /** A request to the site by its own name - not this computer's. */
@@ -81,55 +102,54 @@ function setup_token(string $dist): string
     return $values['token'];
 }
 
-test('the build: exactly what to upload - no settings, no progress, no tools', function (): void {
+test('the build: the release - the app in frontend/, the code in backend/, nothing of the host', function (): void {
     [$code, $out, $dist] = build();
     assert_same(0, $code, $out);
     $files = tree($dist);
     $top = array_values(array_unique(array_map(static fn(string $file): string => explode('/', $file)[0], $files)));
     sort($top);
-    assert_same(['.htaccess', '.piano-academy-build', 'api', 'changelog.json', 'config', 'index.html',
-        'main-TEST.js', 'media', 'migrations', 'setup.php', 'storage', 'styles-TEST.css', 'theme-boot.js', 'vendor'], $top);
-    foreach (['api/index.php', 'api/.htaccess', 'api/bootstrap.php', 'api/admin_tools.php', 'api/routes/progress.php', 'api/routes/visitor.php', 'api/routes/public.php',
+    assert_same(['.anotoki-deploy', 'backend', 'frontend'], $top, 'a release: frontend/ and backend/ - config/ and storage/ are the host\'s, never in it');
+    foreach (['frontend/index.html', 'frontend/index.php', 'frontend/.htaccess', 'frontend/main-TEST.js', 'frontend/styles-TEST.css', 'frontend/theme-boot.js',
+        'frontend/changelog.json', 'frontend/media/font-TEST.woff2'] as $file) {
+        assert_true(in_array($file, $files, true), "$file is in the release");
+    }
+    foreach (['api/index.php', 'api/bootstrap.php', 'api/admin_tools.php', 'api/routes/progress.php', 'api/routes/visitor.php', 'api/routes/public.php',
         'api/translations.php', 'api/routes/admin.php', 'api/migrations.php', 'api/meddleware/auth.php', 'api/meddleware/security.php',
         'api/store.php', 'api/transfer.php', 'api/people.php', 'api/visitors.php', 'api/client_address.php', 'api/after_response.php',
-        'config/config.php', 'config/.htaccess', 'migrations/piano_academy/001_init.sql', 'migrations/piano_academy/002_languages_and_translations.sql',
+        'setup.php', '.htaccess', 'release.json',
+        'config/config.php', 'migrations/piano_academy/001_init.sql', 'migrations/piano_academy/002_languages_and_translations.sql',
         'migrations/piano_academy/003_site_strings.sql', 'migrations/piano_academy/004_family_shell.sql', 'migrations/piano_academy/005_visitors.sql',
         'migrations/piano_academy/006_account_preferences.sql', 'migrations/piano_academy/007_site_status_words.sql',
         'migrations/piano_academy/010_people.sql', 'migrations/piano_academy/011_sign_in_failure_words.sql', 'migrations/piano_academy/012_legal_pages.sql',
         'migrations/piano_academy/013_family_footer_words.sql',
-        'migrations/.htaccess', 'vendor/autoload.php', 'vendor/anotoki/lib/backend/migrations/translations/010_backups_where_words.sql',
+        'vendor/autoload.php', 'vendor/anotoki/lib/backend/migrations/translations/010_backups_where_words.sql',
         'vendor/anotoki/lib/backend/migrations/translations/011_privacy_words_made_true.sql', 'vendor/anotoki/lib/backend/migrations/translations/012_footer_words.sql',
         'vendor/anotoki/lib/backend/migrations/translations/013_about_and_support_words.sql',
         'vendor/slim/slim/Slim/App.php', 'vendor/anotoki/lib/backend/src/Migrations/Migrator.php', 'vendor/anotoki/lib/backend/src/Migrations/Http/SiteGate.php',
         'vendor/anotoki/lib/backend/src/Auth/Http/Identify.php', 'vendor/anotoki/lib/backend/src/People/Http/PeopleRoutes.php',
         'vendor/anotoki/lib/backend/src/Backups/Backups.php', 'vendor/anotoki/lib/backend/migrations/admin/001_audit_log.sql',
-        'vendor/anotoki/lib/backend/migrations/people/001_people.sql',
-        'vendor/.htaccess', 'storage/.htaccess', 'media/font-TEST.woff2'] as $file) {
-        assert_true(in_array($file, $files, true), "$file is in the upload");
+        'vendor/anotoki/lib/backend/migrations/people/001_people.sql'] as $file) {
+        assert_true(in_array("backend/$file", $files, true), "backend/$file is in the release");
     }
     // The family's engine took the place of the app's own; the gates it replaced are gone with it.
-    foreach (['api/migration_runner.php', 'api/database_update.php', 'api/meddleware/setup.php'] as $file) {
-        assert_false(in_array($file, $files, true), "$file is no longer in the upload");
+    foreach (['api/migration_runner.php', 'api/database_update.php', 'api/meddleware/setup.php', 'api/anotoki_iam.php'] as $file) {
+        assert_false(in_array("backend/$file", $files, true), "backend/$file is no longer in the release");
     }
-    assert_true(is_dir("$dist/storage/cache"), 'storage/cache/');
     foreach ($files as $file) {
-        assert_false((bool) preg_match('~\.local\.php$|^server|^tests/|^tools/|router\.php|migration\.php|^secret\.php|^\.htaccess.+|package\.json~', $file), "$file should not be uploaded");
+        assert_false((bool) preg_match('~\.local\.php$|^backend/(tests|tools|storage)/|^server|router\.php|migration\.php|secret\.php|^backend/api/\.htaccess|^backend/composer\.(json|lock)$|package\.json~', $file), "$file should not be in the release");
     }
-    // The IAM's tokens are checked by the family's library now (vendor/anotoki/lib, Anotoki\Lib\Auth): the SDK's copy is gone.
-    assert_false(in_array('api/anotoki_iam.php', $files, true), 'no copy of the IAM\'s SDK');
-    foreach (['config', 'migrations', 'vendor', 'storage'] as $folder) {
-        assert_match('/Require all denied/', (string) file_get_contents("$dist/$folder/.htaccess"), "$folder/ is closed to the web");
-    }
+    assert_match('/Require all denied/', (string) file_get_contents("$dist/backend/.htaccess"), 'backend/ is closed to the web');
+    assert_same('piano-academy', json_decode((string) file_get_contents("$dist/backend/release.json"), true)['site'], 'release.json says whose release it is');
 
-    $htaccess = (string) file_get_contents("$dist/.htaccess");
-    assert_match('~RewriteRule \^api\(/\|\$\) - \[L\]~', $htaccess, '/api/ goes through to api/.htaccess');
-    assert_match('~RewriteRule \^\(config\|migrations\|vendor\|storage\)\(/\|\$\) - \[F,L\]~', $htaccess, 'the backend\'s folders are refused');
-    assert_match('~RewriteRule \^ index\.html \[L\]~', $htaccess, 'the app\'s routes get the app');
-    assert_match('~CGIPassAuth On~', $htaccess);
-    assert_match('~SetEnvIf Authorization "\(\.\+\)" HTTP_AUTHORIZATION=\$1~', $htaccess, 'the token reaches PHP under CGI too');
-    assert_match("~Content-Security-Policy \"default-src 'self'; script-src 'self' https://umami\\.anotoki\\.eu;~", $htaccess, 'scripts from this origin and the family\'s visitor counter, nothing else');
-    assert_match('~<FilesMatch "\^\(setup\|host-check\)\\\\\.php\$">~', $htaccess, 'setup.php and the host check may run (the next test reads the rules as Apache does)');
-    assert_match('~RewriteRule \^ index\.php \[QSA,L\]~', (string) file_get_contents("$dist/api/.htaccess"));
+    $htaccess = (string) file_get_contents("$dist/frontend/.htaccess");
+    assert_true(str_contains($htaccess, 'RewriteRule ^(api)(/|$) index.php [L]'), '/api/ goes to the front controller');
+    assert_true(str_contains($htaccess, 'RewriteRule ^setup\.php$ index.php [L]'), 'and the setup page');
+    assert_true(str_contains($htaccess, "RewriteCond %{REQUEST_URI} !\\.[^/]*$\n    RewriteRule ^ index.html [L]"), 'the app\'s routes get the app; an old bundle stays a 404');
+    assert_true(str_contains($htaccess, 'CGIPassAuth On'));
+    assert_true(str_contains($htaccess, 'SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1'), 'the token reaches PHP under CGI too');
+    assert_true(str_contains($htaccess, "Content-Security-Policy \"default-src 'self'; script-src 'self' https://umami.anotoki.eu;"), 'scripts from this origin and the family\'s visitor counter, nothing else');
+    assert_true(str_contains($htaccess, '<FilesMatch "^(index\.html|theme-boot\.js|changelog\.json)$">'), 'the shell and the list of versions are asked for again each time');
+    assert_no_match('/^\s*(Options|DirectoryIndex|RewriteBase)/m', $htaccess, 'nothing the host has refused with a 500');
 
     // again over it: fine; over a folder that is not a build, or inside the repository: refused
     [$code, $out] = build($dist);
@@ -141,22 +161,21 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
     assert_same('keep me', file_get_contents("$other/precious.txt"));
     [$code, $out] = build(TEST_BACKEND . '/zz-build-test');
     assert_same(1, $code, 'never inside the repository\'s own folders');
-    assert_match('/inside the repository/', $out);
     assert_false(file_exists(TEST_BACKEND . '/zz-build-test'), 'and nothing made there');
     [$code] = build(dirname(TEST_BACKEND));
     assert_same(1, $code, 'never over the repository itself');
 });
 
-test('the web root\'s .htaccess lets a visitor run two PHP files alone - the setup page and the host check, each while it is there - and refuses every other one; the host check is never part of a build', function (): void {
+test('the release\'s .htaccess lets a visitor run the front controller, the setup page and the host check alone - and refuses every other PHP file; the host check is never part of a build', function (): void {
     [$code, $out, $dist] = build();
     assert_same(0, $code, $out);
-    $htaccess = (string) file_get_contents("$dist/.htaccess");
+    $htaccess = (string) file_get_contents("$dist/frontend/.htaccess");
 
     // Apache reads a <FilesMatch> as a regular expression against the file's name, a later section over an earlier one:
     // every PHP file is refused, then the ones a visitor may run are granted. Read here as Apache reads them.
     preg_match_all('~<FilesMatch "([^"]+)">\R\s*Require all (granted|denied)\R</FilesMatch>~', $htaccess, $sections, PREG_SET_ORDER);
     $rules = array_map(static fn (array $section): array => [$section[1], $section[2]], $sections);
-    assert_same([['\.(php|phtml|phar)$', 'denied'], ['^(setup|host-check)\.php$', 'granted']], $rules, 'every PHP file refused, then two granted - in that order');
+    assert_same([['\.(php|phtml|phar)$', 'denied'], ['^(index|setup|host-check)\.php$', 'granted'], ['^\.', 'denied']], $rules, 'every PHP file refused, then three granted, dot-files refused - in that order');
     $runs = static function (string $name) use ($rules): bool {
         $allowed = true;
         foreach ($rules as [$pattern, $verdict]) {
@@ -167,17 +186,17 @@ test('the web root\'s .htaccess lets a visitor run two PHP files alone - the set
 
         return $allowed && preg_match('~\.(php|phtml|phar)$~', $name) === 1;
     };
-    assert_true($runs('setup.php'), 'the setup page - which deletes itself once a real host is installed');
+    assert_true($runs('index.php'), 'the front controller: /api/... and /setup.php end there');
+    assert_true($runs('setup.php'), 'the setup page\'s address - which the front controller answers while backend/setup.php is there');
     assert_true($runs('host-check.php'), 'the host check: uploaded by hand, opened with the token written into it, and deleted again');
-    foreach (['index.php', 'bootstrap.php', 'config.php', 'migration.php', 'build.php', 'router.php', 'phpinfo.php', 'xsetup.php', 'setup.php.php',
+    foreach (['bootstrap.php', 'config.php', 'migration.php', 'build.php', 'router.php', 'phpinfo.php', 'xsetup.php', 'setup.php.php',
         'host-checks.php', 'my-host-check.php', 'host-check.phtml', 'host-check.phar', '.host-check.php', 'HOST-CHECK.php'] as $other) {
         assert_false($runs($other), "$other: never run for a visitor");
     }
 
-    // Inert while it is not there: no file of that name in the build, and a path that is no file is the app's route.
-    assert_false(file_exists("$dist/host-check.php"), 'the host check is never part of a build: it lives in tools/, which no build copies');
+    // Inert while it is not there: no file of that name in the release.
+    assert_false(file_exists("$dist/frontend/host-check.php"), 'the host check is never part of a build: it lives in tools/, which no build copies');
     assert_true(is_file(dirname(TEST_BACKEND) . '/tools/host-check.php'), 'it is the repository\'s tools/host-check.php');
-    assert_match('~RewriteCond %\{REQUEST_FILENAME\} !-f\R\s*RewriteCond %\{REQUEST_FILENAME\} !-d\R\s*RewriteRule \^ index\.html \[L\]~', $htaccess, 'a path that is no file - the host check deleted - gets the app');
     assert_match('~define\(\'HOST_CHECK_TOKEN\', \'\'\);~', (string) file_get_contents(dirname(TEST_BACKEND) . '/tools/host-check.php'), 'and its token is empty in the repository: without one written into it, it answers 404 to everybody');
 });
 
@@ -226,7 +245,7 @@ test('the setup page on a real host: the token, the tests, the database - and th
     file_put_contents("$dist/config/auth.local.php", '<?php return ' . var_export(test_offline_auth((require "$dist/config/auth.local.php") + ['application_file' => test_application_file(), 'anonymized_file' => test_anonymized_file()]), true) . ";\n");
     assert_same($database, (require "$dist/config/database.local.php")['name']);
     assert_true(is_file("$dist/storage/installed.lock"), 'the lock');
-    assert_false(is_file("$dist/setup.php"), 'the setup page deleted itself');
+    assert_false(is_file("$dist/backend/setup.php"), 'the setup page deleted itself');
     assert_false(is_file("$dist/storage/setup-token.php"), 'and the token');
     assert_same(1, (int) dbConnect(machineDatabaseSettings(), $database)->query("SELECT count(*) FROM migrations WHERE filename = '001_init.sql'")->fetchColumn());
     // Whatever answers now (Apache's rewrite gives the app; PHP's built-in
@@ -262,10 +281,10 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_same(['state' => 'ready', 'installed' => true], site($site, 'GET', '/api/site-status')['body'], 'and ready again with them');
 
     // uploaded again by mistake: refuses, and deletes itself again
-    copy(TEST_BACKEND . '/setup.php', "$dist/setup.php");
+    copy(TEST_BACKEND . '/setup.php', "$dist/backend/setup.php");
     $again = site($site, 'GET', '/setup.php');
     assert_match('/Already set up/', $again['raw']);
-    assert_false(is_file("$dist/setup.php"));
+    assert_false(is_file("$dist/backend/setup.php"));
     assert_same([], server_problems($site));
 });
 
@@ -279,7 +298,7 @@ test('run again on the host for an update: nothing saved is shown, a blank passw
 
     // A later version with a new migration: the lock goes, setup.php is uploaded again.
     unlink("$dist/storage/installed.lock");
-    copy(TEST_BACKEND . '/setup.php', "$dist/setup.php");
+    copy(TEST_BACKEND . '/setup.php', "$dist/backend/setup.php");
     $page = site($site, 'GET', '/setup.php');
     assert_match('/<h1>Install Piano Academy<\/h1>/', $page['raw']);
     assert_match('/This copy is set up already/', $page['raw']);
@@ -298,6 +317,6 @@ test('run again on the host for an update: nothing saved is shown, a blank passw
     $pdo = dbConnect(machineDatabaseSettings(), $database);
     assert_same([0, 0], [(int) $pdo->query('SELECT count(*) FROM progress')->fetchColumn(), (int) $pdo->query('SELECT count(*) FROM users')->fetchColumn()], 'nobody\'s progress, nobody made');
     $pdo = null;
-    assert_false(is_file("$dist/setup.php"), 'gone again');
+    assert_false(is_file("$dist/backend/setup.php"), 'gone again');
     assert_same([], server_problems($site));
 });

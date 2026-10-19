@@ -84,10 +84,14 @@ final class SiteUser
     }
 }
 
-/** A path from the settings: relative ones are relative to backend/. */
+/**
+ * A path from the settings: relative ones are relative to the folder the state is
+ * in (stateRoot(): backend/ in a checkout, the site's folder on the host) - so
+ * 'storage/cache' is the site's storage/cache wherever the code runs from.
+ */
 function settingsPath(string $path): string
 {
-    return preg_match('~^([A-Za-z]:)?[\\\\/]~', $path) ? $path : PIANO_BACKEND . '/' . $path;
+    return preg_match('~^([A-Za-z]:)?[\\\\/]~', $path) ? $path : stateRoot() . '/' . $path;
 }
 
 /**
