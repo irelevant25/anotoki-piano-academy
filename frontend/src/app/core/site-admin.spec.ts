@@ -1,19 +1,14 @@
-import { HttpClient, HttpContext, HttpErrorResponse, provideHttpClient, withInterceptors } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ANOTOKI_ADMIN_CONFIG } from '@anotoki/lib/admin';
-import { ISSUED_AS, VISITOR_KEY_HEADER, anotokiAuthInterceptor } from '@anotoki/lib/auth';
-import { ANOTOKI_FEEDBACK_CONFIG, DEFAULT_FEEDBACK_ENDPOINT } from '@anotoki/lib/feedback';
-import { siteStatusInterceptor } from '@anotoki/lib/migrations';
+import { ANOTOKI_FEEDBACK_CONFIG } from '@anotoki/lib/feedback';
 import { ANOTOKI_PEOPLE_CONFIG, type PeoplePerson } from '@anotoki/lib/people';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
-import { Observable, firstValueFrom } from 'rxjs';
-import { SITE_INTERCEPTORS } from '../app.config';
-import { VISITOR_STORAGE_KEY, VisitorKey } from './auth/visitor-key';
-import { FEEDBACK_SECTIONS, feedbackSenderInterceptor, provideSiteAdmin } from './site-admin';
+import { FEEDBACK_SECTIONS, provideSiteAdmin } from './site-admin';
 import { ProgressStore } from './state/progress-store.service';
-import { TestAuth, provideTestAuth, provideTestAuthInterceptor } from './testing/test-auth';
+import { TestAuth, provideTestAuth } from './testing/test-auth';
 
 const SLOVAK = {
   'nav.learn': 'Učenie',
@@ -122,93 +117,5 @@ describe("the family's admin pages and feedback form, wired to Piano Academy (co
     // Its words: the database's, an owner's rewording of the library's too.
     TestBed.inject(TranslationService).noteAddress('/');
     expect(feedback.translate?.('anotoki.feedback.title')).toBe('Napíš nám');
-  });
-});
-
-/**
- * Whom the feedback form's message is for (feedbackSenderInterceptor, core/site-admin.ts), through the family's
- * interceptor as this app configures it: the form posts to its route and says nothing itself - as here.
- */
-describe("the feedback form's message says whom it is for: the person's while somebody is signed in, nobody's otherwise - the server takes anybody's", () => {
-  const KEY = 'k'.repeat(43);
-  const MESSAGE = { kind: 'bug', message: 'The C key sticks.', page: '/terms', language: 'en', website: '' };
-  let auth: TestAuth;
-  let http: HttpClient;
-  let requests: HttpTestingController;
-
-  /** Lets the token's promise and the interceptors after it run out. */
-  const settled = (): Promise<void> => new Promise((done) => setTimeout(done));
-
-  beforeEach(() => {
-    localStorage.clear();
-    auth = new TestAuth();
-    TestBed.configureTestingModule({
-      providers: [provideHttpClient(withInterceptors([feedbackSenderInterceptor, anotokiAuthInterceptor])), provideHttpClientTesting(), ...provideTestAuth(auth), ...provideTestAuthInterceptor()],
-    });
-    auth.store = TestBed.inject(VisitorKey);
-    http = TestBed.inject(HttpClient);
-    requests = TestBed.inject(HttpTestingController);
-  });
-
-  afterEach(() => {
-    requests.verify();
-    localStorage.clear();
-  });
-
-  it('nobody signed in where Piano Academy requires a sign-in (the legal pages, the footer under them): sent, with neither a token nor a key - and the page stays, nobody sent to sign in', async () => {
-    auth.signedOut();
-    const answer = firstValueFrom(http.post(DEFAULT_FEEDBACK_ENDPOINT, MESSAGE));
-    await settled();
-    const sent = requests.expectOne(DEFAULT_FEEDBACK_ENDPOINT);
-    expect([sent.request.method, sent.request.headers.has('Authorization'), sent.request.headers.has(VISITOR_KEY_HEADER)]).toEqual(['POST', false, false]);
-    expect(sent.request.body).toEqual(MESSAGE);
-    sent.flush({ ok: true }, { status: 201, statusText: 'Created' });
-    await expect(answer).resolves.toEqual({ ok: true });
-    expect(auth.refused).not.toHaveBeenCalled();
-    expect(auth.token).not.toHaveBeenCalled();
-  });
-
-  it("a visitor (no sign-in required): nobody's too - the key goes to the progress routes alone", async () => {
-    auth.visiting();
-    localStorage.setItem(VISITOR_STORAGE_KEY, KEY);
-    const answer = firstValueFrom(http.post(DEFAULT_FEEDBACK_ENDPOINT, MESSAGE));
-    await settled();
-    const sent = requests.expectOne(DEFAULT_FEEDBACK_ENDPOINT);
-    expect([sent.request.headers.has('Authorization'), sent.request.headers.has(VISITOR_KEY_HEADER)]).toEqual([false, false]);
-    sent.flush({ ok: true }, { status: 201, statusText: 'Created' });
-    await expect(answer).resolves.toEqual({ ok: true });
-    expect(localStorage.getItem(VISITOR_STORAGE_KEY)).toBe(KEY);
-  });
-
-  it('somebody signed in: theirs, with their token - the Feedback page names them', async () => {
-    auth.signInAs({ sub: '7', preferred_username: 'mia' });
-    const answer = firstValueFrom(http.post(DEFAULT_FEEDBACK_ENDPOINT, MESSAGE));
-    await settled();
-    const sent = requests.expectOne(DEFAULT_FEEDBACK_ENDPOINT);
-    expect(sent.request.headers.get('Authorization')).toBe('Bearer token-7');
-    sent.flush({ ok: true }, { status: 201, statusText: 'Created' });
-    await expect(answer).resolves.toEqual({ ok: true });
-  });
-
-  it("nothing else is touched: a request that says whom it is for keeps it, and another route stays the page's - a person's request with nobody signed in is still never sent", async () => {
-    auth.signedOut();
-    /** The status a request failed with (each refusal caught as it is made), or null for an answer. */
-    const failed = (request: Observable<unknown>): Promise<number | null> =>
-      firstValueFrom(request).then(
-        () => null,
-        (error: HttpErrorResponse) => error.status,
-      );
-    const said = failed(http.post(DEFAULT_FEEDBACK_ENDPOINT, MESSAGE, { context: new HttpContext().set(ISSUED_AS, 'person') }));
-    const save = failed(http.put('/api/progress', {}));
-    const asked = failed(http.get(DEFAULT_FEEDBACK_ENDPOINT));
-    await settled();
-    requests.expectNone(DEFAULT_FEEDBACK_ENDPOINT, "the message said it was a person's: never sent without a token");
-    requests.expectNone('/api/progress');
-    expect(await Promise.all([said, save, asked])).toEqual([401, 401, 401]);
-    expect(auth.refused).toHaveBeenCalledTimes(3);
-  });
-
-  it("is the app's: before the family's sign-in in SITE_INTERCEPTORS (app.config.ts), after where the site stands", () => {
-    expect(SITE_INTERCEPTORS).toEqual([siteStatusInterceptor, feedbackSenderInterceptor, anotokiAuthInterceptor]);
   });
 });

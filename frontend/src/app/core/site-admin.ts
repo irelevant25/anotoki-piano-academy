@@ -1,8 +1,7 @@
-import { HttpInterceptorFn } from '@angular/common/http';
 import { EnvironmentProviders, Injector, inject } from '@angular/core';
 import { provideAnotokiAdmin } from '@anotoki/lib/admin';
-import { AnotokiAuth, ISSUED_AS } from '@anotoki/lib/auth';
-import { DEFAULT_FEEDBACK_ENDPOINT, provideAnotokiFeedback } from '@anotoki/lib/feedback';
+import { AnotokiAuth } from '@anotoki/lib/auth';
+import { provideAnotokiFeedback } from '@anotoki/lib/feedback';
 import { PeoplePerson, provideAnotokiPeople } from '@anotoki/lib/people';
 import { TranslationService } from '@anotoki/lib/translations';
 import { localDateText } from './i18n/local-date.pipe';
@@ -77,8 +76,11 @@ export function deleteQuestion(person: PeoplePerson): { title: string; message: 
  *   it can be about worded as the bar's sections; "send it without my name",
  *   and the account's address written in for somebody signed in - the reply
  *   address is what the form sends (they may keep, change or clear it): the
- *   server never fills one in. Its message says whom it is for
- *   (feedbackSenderInterceptor, below): the server takes anybody's.
+ *   server never fills one in. The form says itself that its message is
+ *   anybody's (the library's issuedAs('anybody'), anotoki-lib 0.7.2): the
+ *   person's, with the token, while somebody is signed in, nobody's otherwise
+ *   - a visitor's key goes to the progress routes alone. The server takes
+ *   anybody's.
  *
  * The factories run in an injection context; ProgressStore is asked for when
  * a delete needs it.
@@ -134,39 +136,4 @@ export function provideSiteAdmin(): EnvironmentProviders[] {
       };
     }),
   ];
-}
-
-/**
- * Whom the feedback form's message is for, said as it is issued (the library's
- * ISSUED_AS): the person's while somebody is signed in here - their token goes
- * with it, so the Feedback page names them - and nobody's otherwise: nobody
- * signed in, and a visitor too (the server counts a visitor's message by its
- * address and never reads the key there: api/routes/public.php takes anybody's).
- *
- * The form says nothing itself, and left to the family's interceptor a
- * request that does not say is the person's whenever the sign-in is set up
- * (AnotokiAuth.caller()), signed in or not - and a person's request with no
- * token is never sent: while Piano Academy requires a sign-in, the footer's
- * Feedback and Contact's form, which are anybody's, said "Sign in to send a
- * message" to everybody signed out, and the page followed a session that had
- * never been (auth.refused()), what they typed lost (the survey's pass found
- * it, 2026-10-18). A request that says whom it is for already is left alone.
- * Before anotokiAuthInterceptor in SITE_INTERCEPTORS (app.config.ts).
- */
-export const feedbackSenderInterceptor: HttpInterceptorFn = (request, next) => {
-  if (request.method !== 'POST' || !isFeedbackRoute(request.url) || request.context.get(ISSUED_AS) !== null) {
-    return next(request);
-  }
-  // HttpContext is the request's own, and mutable: the family's interceptor reads it next.
-  request.context.set(ISSUED_AS, inject(AnotokiAuth).signedIn() ? 'person' : 'nobody');
-  return next(request);
-};
-
-/** Whether `url` is the form's route (its path; whether it is this site's origin is the family's interceptor's to judge). */
-function isFeedbackRoute(url: string): boolean {
-  try {
-    return new URL(url, 'http://feedback.invalid').pathname === DEFAULT_FEEDBACK_ENDPOINT;
-  } catch {
-    return false;
-  }
 }

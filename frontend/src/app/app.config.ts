@@ -12,7 +12,7 @@ import { provideSiteErrorReport } from './core/error-report';
 import { provideFamilyKit } from './core/family-kit';
 import { provideSiteTranslations } from './core/i18n/site-translations';
 import { pianoLegalConfig } from './core/legal/legal.config';
-import { feedbackSenderInterceptor, provideSiteAdmin } from './core/site-admin';
+import { provideSiteAdmin } from './core/site-admin';
 import { BootService } from './core/state/boot.service';
 import { provideSiteMigrations } from './core/state/site-migrations';
 import { PianoTitleStrategy } from './core/title.strategy';
@@ -20,11 +20,10 @@ import { PianoTitleStrategy } from './core/title.strategy';
 /**
  * The app's HttpClient interceptors, in their order. The family's outermost: an answer that says the site is being
  * updated (or is not set up) is heard whatever request it came to, as it finally is - after the token's one retry.
- * Then whom the feedback form's message is for (core/site-admin.ts: the person's, or nobody's - the form says
- * nothing itself). Then the family's sign-in (@anotoki/lib/auth): a person's token, or a visitor's key, on this
- * app's API - as each request says, or as the page is shown.
+ * Then the family's sign-in (@anotoki/lib/auth): a person's token, or a visitor's key, on this app's API - as each
+ * request says (the feedback form's message says itself it is anybody's, anotoki-lib 0.7.2), or as the page is shown.
  */
-export const SITE_INTERCEPTORS: HttpInterceptorFn[] = [siteStatusInterceptor, feedbackSenderInterceptor, anotokiAuthInterceptor];
+export const SITE_INTERCEPTORS: HttpInterceptorFn[] = [siteStatusInterceptor, anotokiAuthInterceptor];
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -35,7 +34,7 @@ export const appConfig: ApplicationConfig = {
     provideZonelessChangeDetection(),
     // Route parameters (/lesson/:unitId/:stepId, /songs/:songId) arrive as component inputs.
     provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'top' })),
-    // Where the site stands, whom the feedback form's message is for, then the family's sign-in (SITE_INTERCEPTORS).
+    // Where the site stands, then the family's sign-in (SITE_INTERCEPTORS).
     provideHttpClient(withFetch(), withInterceptors(SITE_INTERCEPTORS)),
     // The anotoki family's one behaviour while the site is not ready (@anotoki/lib/migrations).
     provideSiteMigrations(),

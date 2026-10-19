@@ -501,7 +501,7 @@ on the pages the code's - the anotoki account's Privacy and account pages
 at the IAM's address (`AnotokiAuth.issuer()`, `accountUrl()`) -, never a
 string's.
 
-**The family's kit** (`@anotoki/lib` 0.7.0, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.7.2, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
@@ -593,12 +593,11 @@ newest entry is the version: one source), What's new opening the app's own
 dialog (`ui/changelog-dialog`, on the footer's `(whatsNew)`, a `@defer`),
 Feedback the family's form in the kit's dialog (the footer loads its code
 with the press; `provideAnotokiFeedback()` in `core/site-admin.ts`), for
-anybody - its message says whom it is for (`feedbackSenderInterceptor`,
-before the family's interceptor: the person's while somebody is signed in,
-with the token; nobody's otherwise, with neither a token nor a key - the
-server takes anybody's; the form says nothing itself, and the family's
-interceptor would take it for a person's and never send it for somebody
-signed out) - then the family's Terms · Privacy · Contact (the open page's
+anybody - the form says itself whom its message is for (anybody's, the
+library's `issuedAs('anybody')` since anotoki-lib 0.7.2: the person's while
+somebody is signed in, with the token; nobody's otherwise, with neither a
+token nor a key - the server takes anybody's) - then the family's Terms ·
+Privacy · Contact (the open page's
 link marked). Its words are the library's (`anotoki.footer.*`, the database's
 through `forKit()`, else its own; English in the admin panel).
 

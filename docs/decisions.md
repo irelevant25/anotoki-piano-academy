@@ -44,7 +44,9 @@ Why things are the way they are. Read the reason before undoing one.
   a request that says already is left alone. Feedback stays offered to
   everybody. `core/site-admin.spec.ts` holds each case and the order
   (mutation-checked); the browser check sends one from the footer signed
-  out (201, thanked on the same page, kept by nobody).
+  out (201, thanked on the same page, kept by nobody). Since anotoki-lib
+  0.7.2 the form marks its message itself (`issuedAs('anybody')`), and
+  `feedbackSenderInterceptor` is gone.
 - **The status page alone** (the owner: "I prefer nor header nor footer to
   be there"). While an update waits, the database is out of reach or the site
   is not set up, the family's status page is a page of its own: the gate is

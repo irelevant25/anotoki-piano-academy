@@ -25,8 +25,7 @@ src/
   app/
     app.config.ts, app.routes.ts     providers (the browser's errors to the error log - Angular's global listeners
                                      and provideSiteErrorReport(), core/error-report.ts; the interceptors,
-                                     SITE_INTERCEPTORS - the family's siteStatusInterceptor first, then whom the
-                                     feedback form's message is for (feedbackSenderInterceptor), then the family's
+                                     SITE_INTERCEPTORS - the family's siteStatusInterceptor first, then the family's
                                      anotokiAuthInterceptor -; the
                                      words, provideSiteTranslations(); the sign-in,
                                      provideSiteAuth(); the family's kit and frame, provideFamilyKit(); People, the
@@ -73,10 +72,8 @@ src/
                                      key for a visitor's on the progress routes - as ApiService issued it; no sign-in
                                      by the IAM's hint), VisitorKey (the visitor's key in localStorage)
       site-admin.ts                  provideSiteAdmin(): the family's People page (this app's counts and its
-                                     question before a delete), admin tools and feedback form wired to this app;
-                                     feedbackSenderInterceptor: the form's message the person's while somebody is
-                                     signed in, nobody's otherwise (the server takes anybody's - left to the
-                                     family's interceptor it was a person's, never sent for somebody signed out)
+                                     question before a delete), admin tools and feedback form wired to this app
+                                     (the form says itself that its message is anybody's, anotoki-lib 0.7.2)
       error-report.ts                provideSiteErrorReport(): the family's reporter (@anotoki/lib/error-report) on
                                      /api/client-errors - a page's own errors into the error log
       legal/                         legal.config.ts (pianoLegalConfig(): the legal pages' root configuration - the
@@ -139,7 +136,7 @@ proxy.conf.json                      /api and /setup.php to the backend on :8300
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.7.0): in
+half is the backend's `anotoki/lib`; one version for both - 0.7.2): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -319,11 +316,7 @@ the shell; the
 admin panel's routes (every page the family's, lazy, the ADMIN pages behind
 `adminGuard`), People and the admin tools as this app wires them
 (`core/site-admin.spec.ts`: the question before a delete, the visitors'
-line, the feedback form's sections; the form's message through the family's
-interceptor - nobody signed in where a sign-in is required: sent bare, the
-page not following; a visitor: bare, no key; somebody signed in: with the
-token; nothing else touched; its place in `SITE_INTERCEPTORS` - each
-mutation-checked), the browser's errors as `appConfig`
+line, the feedback form's sections), the browser's errors as `appConfig`
 gives them (`core/error-report.spec.ts`: the family's reporter the
 ErrorHandler, a person's report with the token, a visitor's bare, never a
 failed request's), the Feedback link's count and the
