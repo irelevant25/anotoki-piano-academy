@@ -386,7 +386,10 @@ test(
         assert_same(['user' . LEARNER], array_values(array_unique(array_column($theirs, 'user_name'))), 'named as this app knows them');
         assert_same(['Note Trainer', 'Songs'], array_values(array_intersect(FEEDBACK_SECTIONS, array_column($list['items'], 'section'))));
         $id = (int) dbValue("SELECT id FROM anotoki_feedback WHERE message = 'More songs, please.'");
-        assert_same('read', as_admin('GET', "/api/admin/feedback/$id")['body']['message']['status'], 'opened: read');
+        // Opening one only reads it (anotoki-lib 0.8.1); the page marks a new one read by a PUT of its own.
+        assert_same('new', as_admin('GET', "/api/admin/feedback/$id")['body']['message']['status'], 'opened: still new');
+        assert_same(['unread' => 10], as_admin('GET', '/api/admin/feedback/unread')['body'], 'a GET marks nothing read');
+        assert_same('read', as_admin('PUT', "/api/admin/feedback/$id/read", new stdClass())['body']['message']['status'] ?? null, 'marked read by its own write');
         assert_same(['unread' => 9], as_admin('GET', '/api/admin/feedback/unread')['body']);
 
         // Resolved, then deleted: each audited, by the administrator - the delete with the time the message was sent (a

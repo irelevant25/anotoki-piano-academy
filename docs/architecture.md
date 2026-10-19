@@ -506,7 +506,7 @@ every anotoki site) are routes the same way, in the same frame, and
 headings (`anotoki.about.title`, `anotoki.support.title` - the app's name
 alone while no bundle is in memory).
 
-**The family's kit** (`@anotoki/lib` 0.8.0, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.8.1, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
