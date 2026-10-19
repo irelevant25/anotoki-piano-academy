@@ -51,7 +51,8 @@ src/
                                      sign-in required meanwhile, a refused sign-in, a save refused, the progress
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
                                      ready), the page or a boot card in <main> (the legal pages drawn for
-                                     anybody), the family's footer (<anotoki-site-footer>: Version · What's new -
+                                     anybody), the family's footer (<anotoki-site-footer>: v{version} - "Version
+                                     {version}" to a screen reader - · What's new -
                                      ui/changelog-dialog, in a @defer - · Feedback, the family's form; Terms ·
                                      Privacy · Contact); the family's questions outside the gate
                                      (<anotoki-confirm-host>: ConfirmService)
@@ -161,7 +162,8 @@ first load - and a spec reads the kit's markup by the kit's own class names
   are, and the piano's box loads it in a `@defer` once the page is idle (in
   the first load it would cost 6.4 kB more).
 - `@anotoki/lib/footer` - the family's footer, `<anotoki-site-footer>` (the
-  build analyzer's): "Version X · What's new · Feedback" - this app's
+  build analyzer's): "vX · What's new · Feedback" (a screen reader hears
+  "Version X") - this app's
   version, What's new on `(whatsNew)` (its own dialog), Feedback the
   library's form in the kit's dialog, whose code comes with the press
   (`@anotoki/lib/footer/feedback`) - then Terms · Privacy · Contact; its
@@ -297,8 +299,9 @@ English with its wordmark, the way into it only while the site is ready, the
 sign-out question); the piano's widget (its box the family's popover, its
 state the family's alert, its devices in the family's select - drawn from
 its `@defer` block in the spec, `getDeferBlocks()`); the family's footer
-(the row in the build analyzer's order - "Version 0.4.0 · What's new ·
-Feedback", Feedback alone with no list of changes, never a stray dot -, Terms
+(the row in the build analyzer's order - "v0.4.0 · What's new · Feedback",
+"Version 0.4.0" in the version's text for a screen reader, Feedback alone with
+no list of changes, never a stray dot -, Terms
 · Privacy · Contact under it); What's new (the family's dialog, its lists
 named by badges, made only once the footer's What's new is pressed);
 the pages on the

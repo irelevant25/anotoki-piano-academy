@@ -56,7 +56,8 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * drawn here once, outside the gate, for every question the app asks. The
  * footer is the family's (<anotoki-site-footer>, @anotoki/lib/footer: the
  * build analyzer's, the owner's choice of 2026-10-18), under every page and
- * the admin panel's: "Version X · What's new · Feedback" - the version and
+ * the admin panel's: "vX · What's new · Feedback" ("Version X" to a screen
+ * reader) - the version and
  * What's new once the list of changes came (changelog.json, its newest entry
  * the version: one source), What's new opening this app's own dialog
  * (ui/changelog-dialog, loaded only when it is opened), Feedback the family's

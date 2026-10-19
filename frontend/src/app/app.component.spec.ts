@@ -643,8 +643,9 @@ describe('the shell with no bundle', () => {
     const connected = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [], { open: 'piano' });
     expect(connected.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Connected: KAWAI ES120');
     // The family's footer in the build analyzer's order: the version and What's new from the list of changes (its
-    // newest entry: one source), then Feedback - a dot between two of them, drawn and never read.
-    expect(footerRow(running)).toEqual(['Version 0.4.0', '·', "What's new", '·', 'Feedback']);
+    // newest entry: one source), then Feedback - a dot between two of them, drawn and never read. The version reads
+    // "v0.4.0" on screen and "Version 0.4.0" to a screen reader (anotoki-lib 0.7.1): its text holds both.
+    expect(footerRow(running)).toEqual(['v0.4.0Version 0.4.0', '·', "What's new", '·', 'Feedback']);
     expect(Array.from(running.host.querySelectorAll(`${FOOTER.row} .anotoki-site-footer__dot`)).map((dot) => dot.getAttribute('aria-hidden'))).toEqual(['true', 'true']);
     expect([FOOTER.whatsNew, FOOTER.feedback].map((part) => running.host.querySelector(part)?.getAttribute('aria-haspopup'))).toEqual(['dialog', 'dialog']);
     expect(running.host.querySelector('#progress-changed')).toBeNull();

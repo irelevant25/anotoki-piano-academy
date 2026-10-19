@@ -587,8 +587,9 @@ asked when an ADMIN opens the panel).
 **The footer** (`<anotoki-site-footer>`, `@anotoki/lib/footer`, the library's
 0.6.3 - the build analyzer's, the owner's choice of 2026-10-18), drawn by
 `AppComponent` under every page and the admin panel's, inside the gate's
-template with the bar: a line above it, then "Version 0.4.0 · What's new ·
-Feedback" - the version and What's new once `changelog.json` came (its
+template with the bar: a line above it, then "v0.4.0 · What's new · Feedback"
+(a screen reader hears "Version 0.4.0", the library's `anotoki.footer.version`):
+the version and What's new once `changelog.json` came (its
 newest entry is the version: one source), What's new opening the app's own
 dialog (`ui/changelog-dialog`, on the footer's `(whatsNew)`, a `@defer`),
 Feedback the family's form in the kit's dialog (the footer loads its code

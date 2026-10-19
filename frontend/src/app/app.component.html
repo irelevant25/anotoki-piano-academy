@@ -116,7 +116,7 @@
             }
         </main>
 
-        <!-- The family's footer (@anotoki/lib/footer), the anotoki sites' one: "Version X · What's new · Feedback" - the version and What's new once the list of changes came (one source, changelog.json), Feedback the family's form in the kit's dialog, loaded with the press - then Terms · Privacy · Contact. In the library's words (anotoki.footer.*, anotoki.legalLinks.*). -->
+        <!-- The family's footer (@anotoki/lib/footer), the anotoki sites' one: "vX · What's new · Feedback" ("Version X" to a screen reader) - the version and What's new once the list of changes came (one source, changelog.json), Feedback the family's form in the kit's dialog, loaded with the press - then Terms · Privacy · Contact. In the library's words (anotoki.footer.*, anotoki.legalLinks.*). -->
         <anotoki-site-footer [version]="changelog.version()" [whatsNew]="changelog.version() !== null" (whatsNew)="whatsNewOpen.set(true)" feedback />
 
         <!-- What's new: its code (the family's dialog with the releases) loaded only once it is opened, from the footer's What's new. -->

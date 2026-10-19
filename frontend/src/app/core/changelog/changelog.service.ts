@@ -16,8 +16,9 @@ export interface ChangelogEntry {
 /**
  * What changed, release by release: public/changelog.json, the same format as
  * the genshin site's. The newest entry's version is the app's version, shown
- * in the family's footer ("Version 0.4.0"), whose What's new opens the list -
- * both there only once the list came.
+ * in the family's footer ("v0.4.0", which a screen reader hears as "Version
+ * 0.4.0"), whose What's new opens the list - both there only once the list
+ * came.
  */
 @Injectable({ providedIn: 'root' })
 export class ChangelogService {

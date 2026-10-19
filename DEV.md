@@ -652,8 +652,9 @@ is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
 library's 0.6.3)**: the build carries `anotoki-lib` 0.7.2 - both halves. The
 foot of every page, the admin panel's too, is the family's footer
-(`<anotoki-site-footer>`, the build analyzer's): "Version 0.4.0 · What's new ·
-Feedback" - the version and What's new once `changelog.json` came, What's
+(`<anotoki-site-footer>`, the build analyzer's): "v0.4.0 · What's new ·
+Feedback" (a screen reader hears "Version 0.4.0") - the version and What's new
+once `changelog.json` came, What's
 new opening the app's own dialog, Feedback the family's form - then Terms ·
 Privacy · Contact. The app's frame - the bar, the notes under it, the page,
 the footer - is the gate's marked template, so while the site is not ready
