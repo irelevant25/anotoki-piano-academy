@@ -29,21 +29,21 @@ live site.
 ```bash
 cd backend && php tests/run.php     # green first
 cd ../frontend && npm test          # and these
-npx anotoki-deploy build            # npm run build, then the release -> ../dist/
+bun run anotoki-deploy build        # npm run build, then the release -> ../dist/
 ```
 
-(Until `@anotoki/deploy` is a dev dependency of `frontend/` - from anotoki-lib
-0.9.0's release - `node ../../anotoki-lib/deploy/cli.mjs` stands for
-`npx anotoki-deploy`.)
+(`@anotoki/deploy`: a dev dependency of `frontend/`, from anotoki-lib's release.
+`bun run` finds it whichever tool installed `node_modules/`; on Windows, `npx`
+misses bun's links.)
 
 ## 2. Release
 
 ```bash
-npx anotoki-deploy deploy --backups <folder>        # a dry run: what goes up
-npx anotoki-deploy deploy --backups <folder> --go   # the live frontend/ and backend/ copied into <folder>,
-                                                    # the release up as .new, checked, swapped in, the app checked
-npx anotoki-deploy rollback --go                    # if it is wrong: the release before (kept as .old) back in
-npx anotoki-deploy status                           # what is on the host
+bun run anotoki-deploy deploy --backups <folder>        # a dry run: what goes up
+bun run anotoki-deploy deploy --backups <folder> --go   # the live frontend/ and backend/ copied into <folder>,
+                                                        # the release up as .new, checked, swapped in, the app checked
+bun run anotoki-deploy rollback --go                    # if it is wrong: the release before (kept as .old) back in
+bun run anotoki-deploy status                           # what is on the host
 ```
 
 Nothing of the version before stays on the host; `config/` and `storage/`
@@ -59,8 +59,8 @@ stay as they are.
   the release, then open `/setup.php` (each release carries it) with the same
   details; it applies what is pending, locks, and deletes itself.
 - **First install**: in the hosting panel a PostgreSQL database and its user,
-  and HTTPS (Web MIDI needs it). `deploy --go`, then `npx anotoki-deploy switch
-  --go` once (the folder's `.htaccess` becomes the switch), then
+  and HTTPS (Web MIDI needs it). `deploy --go`, then `bun run anotoki-deploy
+  switch --go` once (the folder's `.htaccess` becomes the switch), then
   `https://piano.anotoki.eu/setup.php`: the token it writes into
   `storage/setup-token.php` (read it over SFTP), the database, the IAM
   (`https://iam.anotoki.eu`, client id `piano-academy`).

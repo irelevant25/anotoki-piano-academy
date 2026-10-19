@@ -775,7 +775,7 @@ php tools/progress.php --export=FILE --user=ID   # also --import=FILE --user=ID 
 php tools/translations.php --status       # the library's command: the keys the frontend asks for against the database's (exit 1 on a gap)
 php tools/translations.php --export sk [FILE]   # also --import sk FILE: one language's strings as flat JSON
 php tests/tools/testdb.php template --fresh     # rebuild the tests' template after editing an unreleased migration
-# the release: cd ../frontend && npx anotoki-deploy build / deploy --backups <folder> [--go] (DEV.md)
+# the release: cd ../frontend && bun run anotoki-deploy build / deploy --backups <folder> [--go] (DEV.md)
 
 # Frontend (from frontend/)
 npm ci && npm start                       # ng serve on :4500
