@@ -258,9 +258,10 @@ test('an empty database gets every migration, recorded once, under the app\'s on
             '010_backups_where_words.sql',
             '011_privacy_words_made_true.sql',
             '012_footer_words.sql',
+            '013_about_and_support_words.sql',
         ],
         library_migration_files(),
-        'the library\'s words, as vendor/ has them (anotoki-lib 0.7.2)',
+        'the library\'s words, as vendor/ has them (anotoki-lib 0.8.0)',
     );
     assert_same(['001_audit_log.sql', '002_feedback.sql'], library_migration_files(\Anotoki\Lib\Admin\Schema::migrationSet()), 'its admin tools\'');
     assert_same(['001_people.sql'], library_migration_files(\Anotoki\Lib\People\Schema::migrationSet()), 'its people\'s');
@@ -299,7 +300,7 @@ test('an empty database gets every migration, recorded once, under the app\'s on
     assert_same(array_map('migrationLabel', every_migration()), $pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN));
     assert_same(['anotoki_admin/001_audit_log.sql', 'anotoki_admin/002_feedback.sql'], array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), 0, 2));
     assert_same(
-        ['anotoki_translations/012_footer_words.sql', 'anotoki_people/001_people.sql'],
+        ['anotoki_translations/013_about_and_support_words.sql', 'anotoki_people/001_people.sql'],
         array_slice($pdo->query('SELECT filename FROM migrations ORDER BY id')->fetchAll(PDO::FETCH_COLUMN), -2),
     );
     assert_same(0, advisory_locks($pdo), 'the lock was let go');

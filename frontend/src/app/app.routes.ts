@@ -40,9 +40,13 @@ function withNotation<T>(load: () => Promise<T>): () => Promise<T> {
  * children match, and would draw the empty frame at "/" with no guard (the
  * survey's lesson, 2026-10-17; app.routes.spec.ts). They come before the
  * learner's pages, whose "**" would take them. Their paths are the library's
- * (DEFAULT_LEGAL_PATHS), the footer's links go there.
+ * (DEFAULT_LEGAL_PATHS), the footer's links go there. The family's About and
+ * Support pages (anotoki-lib 0.8.0: @anotoki/lib/legal/about, /support - the
+ * same on every anotoki site) are in the same frame, the same way.
  *
- * A title is a translation key (`title.*`): PianoTitleStrategy words it in the
+ * A title is a translation key (`title.*`; About's and Support's the
+ * library's own headings, `anotoki.about.title`, `anotoki.support.title`):
+ * PianoTitleStrategy words it in the
  * language on the page and puts the app's name after it. The admin panel's
  * pages are English whatever the language, and so are their titles: written
  * here as they are (PianoTitleStrategy puts "Admin panel" between them and
@@ -148,6 +152,17 @@ export const routes: Routes = [
     path: 'contact',
     loadComponent: legalFrame,
     children: [{ path: '', title: 'title.contact', loadComponent: () => import('@anotoki/lib/legal/pages').then((m) => m.ContactPageComponent) }],
+  },
+  // About and Support, the family's: anybody's, in the legal pages' frame, the same way.
+  {
+    path: 'about',
+    loadComponent: legalFrame,
+    children: [{ path: '', title: 'anotoki.about.title', loadComponent: () => import('@anotoki/lib/legal/about').then((m) => m.AboutPageComponent) }],
+  },
+  {
+    path: 'support',
+    loadComponent: legalFrame,
+    children: [{ path: '', title: 'anotoki.support.title', loadComponent: () => import('@anotoki/lib/legal/support').then((m) => m.SupportPageComponent) }],
   },
   // The learner's pages.
   {

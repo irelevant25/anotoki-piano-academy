@@ -9,8 +9,8 @@ import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { provideSiteTranslations } from './i18n/site-translations';
 import { PianoTitleStrategy } from './title.strategy';
 
-const ENGLISH = { 'title.learn': 'Learn', 'title.trainer': 'Note Trainer' };
-const SLOVAK = { 'title.learn': 'Učenie', 'title.trainer': 'Tréning nôt' };
+const ENGLISH = { 'title.learn': 'Learn', 'title.trainer': 'Note Trainer', 'anotoki.about.title': 'About anotoki' };
+const SLOVAK = { 'title.learn': 'Učenie', 'title.trainer': 'Tréning nôt', 'anotoki.about.title': 'O projekte anotoki' };
 
 @Component({ selector: 'app-test-page', template: '' })
 class TestPageComponent {}
@@ -19,6 +19,7 @@ const ROUTES = [
   { path: '', title: 'title.learn', component: TestPageComponent },
   { path: 'trainer', title: 'title.trainer', component: TestPageComponent },
   { path: 'stats', title: 'title.stats', component: TestPageComponent },
+  { path: 'about', title: 'anotoki.about.title', component: TestPageComponent },
   { path: 'admin/translations', title: 'Translations', component: TestPageComponent },
   { path: 'untitled', component: TestPageComponent },
 ];
@@ -42,6 +43,13 @@ describe('PianoTitleStrategy', () => {
     expect(title()).toBe('Učenie · Piano Academy');
     await TestBed.inject(Router).navigateByUrl('/trainer');
     expect(title()).toBe('Tréning nôt · Piano Academy');
+  });
+
+  it('words the library’s own heading of its About page from the bundle too, in the language on the page (anotoki-lib 0.8.0)', async () => {
+    await TestBed.inject(Router).navigateByUrl('/about');
+    expect(title()).toBe('O projekte anotoki · Piano Academy');
+    await TestBed.inject(TranslationService).setLanguage('en', { remember: false });
+    expect(title()).toBe('About anotoki · Piano Academy');
   });
 
   it('follows the language without a navigation', async () => {
@@ -113,6 +121,9 @@ describe('PianoTitleStrategy with no strings at all', () => {
     expect(title()).toBe('Note Trainer · Piano Academy');
     await TestBed.inject(Router).navigateByUrl('/admin/translations');
     expect(title()).toBe('Translations · Admin panel · Piano Academy');
+    // The library's heading of its About page has no words kept here: the app's name alone - never the key.
+    await TestBed.inject(Router).navigateByUrl('/about');
+    expect(title()).toBe('Piano Academy');
 
     expect(warn).not.toHaveBeenCalled();
     expect(http.get).not.toHaveBeenCalled();

@@ -591,9 +591,9 @@ describe('the shell with no bundle', () => {
     // No language to choose from while there are no strings: the chooser is not there.
     expect(loading.host.querySelector('anotoki-language-switcher button')).toBeNull();
     // The family's footer, in the library's own words: no list of changes yet, so neither the version nor What's new -
-    // Feedback alone in its row, no dot beside it - then Terms · Privacy · Contact.
+    // Feedback alone in its row, no dot beside it - then About · Support · Terms · Privacy · Contact.
     expect(footerRow(loading)).toEqual(['Feedback']);
-    expect(footerLinks(loading).map(([word]) => word)).toEqual(['Terms', 'Privacy', 'Contact']);
+    expect(footerLinks(loading).map(([word]) => word)).toEqual(['About', 'Support', 'Terms', 'Privacy', 'Contact']);
     // The piano's box, opened: the state said whole.
     const box = await drawn(STATES['loading, before anything is known'], [], { open: 'piano' });
     expect(box.host.querySelector('#midi-status')?.textContent?.trim()).toBe('Piano not connected');
@@ -880,7 +880,7 @@ describe('the shell with no bundle', () => {
     const nobody = await drawn(() => undefined);
     expect(text(nobody, FOOTER.feedback)).toBe('Feedback');
     // Its code is not loaded until it is pressed.
-    expect(nobody.host.querySelector('anotoki-footer-feedback-dialog, anotoki-feedback-form')).toBeNull();
+    expect(nobody.host.querySelector('anotoki-feedback-dialog, anotoki-feedback-form')).toBeNull();
 
     const form = await drawn(() => undefined, [], { open: 'feedback' });
     // In the kit's dialog, named by the footer's words (the form draws no heading of its own), outside the footer's landmark.
@@ -891,8 +891,8 @@ describe('the shell with no bundle', () => {
     // The places of this app it can be about, in the page's words (core/site-admin.ts); nobody signed in: no "without my name".
     expect(form.host.querySelector('anotoki-feedback-form [data-section]')).not.toBeNull();
     expect(form.host.querySelector('anotoki-feedback-form [data-anonymous]')).toBeNull();
-    // Cancel closes it, and the focus is back on Feedback.
-    (form.host.querySelector('anotoki-feedback-form [data-cancel]') as HTMLButtonElement).click();
+    // Cancel - in the dialog's own footer since anotoki-lib 0.8.0, always in view - closes it, and the focus is back on Feedback.
+    (form.host.querySelector('anotoki-dialog [data-cancel]') as HTMLButtonElement).click();
     await settledAll(form);
     expect(form.host.querySelector('anotoki-dialog')).toBeNull();
     expect(document.activeElement).toBe(form.host.querySelector(FOOTER.feedback));
@@ -1153,7 +1153,7 @@ describe('the shell with no bundle', () => {
     expect(standsAlone(back)).toEqual({ status: false, frame: FRAME, mains: 1 });
     expect(back.host.querySelector('#view-root #stub-page')).not.toBeNull();
     expect(Array.from(back.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
-    expect(footerLinks(back).map(([, href]) => href)).toEqual(['/terms', '/privacy', '/contact']);
+    expect(footerLinks(back).map(([, href]) => href)).toEqual(['/about', '/support', '/terms', '/privacy', '/contact']);
 
     // The one page that runs while an update waits - the ADMIN's Migrations page - is in the frame: the bar (Migrations
     // alone in it) and the footer, but no note meanwhile; the gate draws no <main> of its own then.
@@ -1288,9 +1288,11 @@ describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
     localStorage.clear();
   });
 
-  it('the footer has the family’s Terms · Privacy · Contact under every page, in the library’s words - also while the app has no strings, and in the database’s words, an owner’s rewording too', async () => {
+  it('the footer has the family’s About · Support · Terms · Privacy · Contact under every page, in the library’s words - also while the app has no strings, and in the database’s words, an owner’s rewording too', async () => {
     const onTheWay = await drawn(STATES['nobody signed in, on the way to the IAM']);
     expect(footerLinks(onTheWay)).toEqual([
+      ['About', '/about'],
+      ['Support', '/support'],
       ['Terms', '/terms'],
       ['Privacy', '/privacy'],
       ['Contact', '/contact'],
@@ -1303,11 +1305,13 @@ describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
     expect(onTheWay.host.querySelectorAll('footer').length).toBe(1);
 
     const running = await drawn(STATES['running, signed in, a piano connected, the list of changes there']);
-    expect(footerLinks(running).map(([, href]) => href)).toEqual(['/terms', '/privacy', '/contact']);
+    expect(footerLinks(running).map(([, href]) => href)).toEqual(['/about', '/support', '/terms', '/privacy', '/contact']);
 
     const slovak = [provideTestTranslations({ 'anotoki.legalLinks.privacy': 'Osobné údaje' }, { language: 'sk' })];
     const reworded = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], slovak);
     expect(footerLinks(reworded)).toEqual([
+      ['O projekte', '/about'],
+      ['Podporiť', '/support'],
       ['Podmienky', '/terms'],
       ['Osobné údaje', '/privacy'],
       ['Kontakt', '/contact'],
@@ -1332,6 +1336,16 @@ describe('the legal pages and the footer’s links (anotoki-lib 0.6.0)', () => {
     expect(signIn).toHaveBeenCalledTimes(1);
     // The open page's link is marked in the footer.
     expect(s.host.querySelector('footer [data-legal-link="privacy"]')?.getAttribute('aria-current')).toBe('page');
+
+    // About and Support (anotoki-lib 0.8.0) the same way: pages of the legal frame, anybody's.
+    for (const page of ['about', 'support']) {
+      await TestBed.inject(Router).navigateByUrl(`/${page}`);
+      await settledAll(s);
+      expect(s.host.querySelector('#view-root #stub-page'), page).not.toBeNull();
+      expect(s.host.querySelector('.loading'), page).toBeNull();
+      expect(text(s, BAR.signIn), page).toBe('Sign in');
+      expect(s.host.querySelector(`footer [data-legal-link="${page}"]`)?.getAttribute('aria-current'), page).toBe('page');
+    }
 
     // Anywhere else in the same state the start's card stands (the guard is on its way to the IAM) - no page, no Sign in.
     await TestBed.inject(Router).navigateByUrl('/stats');

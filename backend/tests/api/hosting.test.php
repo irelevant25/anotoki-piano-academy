@@ -99,6 +99,7 @@ test('the build: exactly what to upload - no settings, no progress, no tools', f
         'migrations/piano_academy/013_family_footer_words.sql',
         'migrations/.htaccess', 'vendor/autoload.php', 'vendor/anotoki/lib/backend/migrations/translations/010_backups_where_words.sql',
         'vendor/anotoki/lib/backend/migrations/translations/011_privacy_words_made_true.sql', 'vendor/anotoki/lib/backend/migrations/translations/012_footer_words.sql',
+        'vendor/anotoki/lib/backend/migrations/translations/013_about_and_support_words.sql',
         'vendor/slim/slim/Slim/App.php', 'vendor/anotoki/lib/backend/src/Migrations/Migrator.php', 'vendor/anotoki/lib/backend/src/Migrations/Http/SiteGate.php',
         'vendor/anotoki/lib/backend/src/Auth/Http/Identify.php', 'vendor/anotoki/lib/backend/src/People/Http/PeopleRoutes.php',
         'vendor/anotoki/lib/backend/src/Backups/Backups.php', 'vendor/anotoki/lib/backend/migrations/admin/001_audit_log.sql',

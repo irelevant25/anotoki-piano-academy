@@ -62,13 +62,13 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * the version: one source), What's new opening this app's own dialog
  * (ui/changelog-dialog, loaded only when it is opened), Feedback the family's
  * form in the kit's dialog (its code loaded with the press, configured in
- * core/site-admin.ts) - and Terms · Privacy · Contact under them (the legal
- * pages' own paths, the open one marked). Its words are the library's
+ * core/site-admin.ts) - and About · Support · Terms · Privacy · Contact under
+ * them (the library's paths, the open one marked). Its words are the library's
  * (`anotoki.footer.*`, `anotoki.legalLinks.*`): the database's, else its own.
  *
  * The sign-in's own pages - the IAM's callback and the family's screen that
  * says why a sign-in did not work - and the legal pages (Terms, Privacy,
- * Contact) are drawn in the view's place whatever the start says: nobody need
+ * Contact, and About and Support in their frame) are drawn in the view's place whatever the start says: nobody need
  * be signed in on them, and none runs on anybody's progress.
  *
  * For a VISITOR - practising without signing in, while the IAM does not

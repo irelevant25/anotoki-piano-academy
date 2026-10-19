@@ -96,11 +96,12 @@ vendor/                Slim and its pieces, and anotoki/lib (the anotoki family'
 ```
 
 `anotoki/lib` is the PHP half of the family's library (the Angular half is the
-frontend's `@anotoki/lib`; one version for both - 0.7.2, `^0.7.0` in
+frontend's `@anotoki/lib`; one version for both - 0.8.0, `^0.8.0` in
 `composer.json`): the
 engine and the gate; the words - `Anotoki\Lib\Translations` with its
 migration set `anotoki_translations`, run after this app's own (its 005 to
-011 the legal pages' words and the kit's newer pieces', 012 the footer's); signing in -
+011 the legal pages' words and the kit's newer pieces', 012 the footer's,
+013 About and Support's); signing in -
 `Anotoki\Lib\Auth`; the people - `Anotoki\Lib\People`, its set
 `anotoki_people`; the admin tools - the error log, the audit log, feedback
 and backups, their set `anotoki_admin` run first). To update it: `composer update

@@ -38,7 +38,9 @@ src/
                                      (AuthCallbackComponent, SignInFailureComponent); /terms, /privacy, /contact the
                                      family's legal pages (@anotoki/lib/legal/pages, lazy), each its own path with
                                      layouts/legal-layout as its parent, before the learner's routes and the
-                                     catch-all, no guard - anybody's; every admin page the family's,
+                                     catch-all, no guard - anybody's; /about and /support the family's About and
+                                     Support (@anotoki/lib/legal/about, /support, lazy) the same way, in the same
+                                     frame; every admin page the family's,
                                      lazy - /admin/translations and /admin/languages (@anotoki/lib/translations/admin;
                                      anotokiUnsavedChangesGuard), /admin/people (@anotoki/lib/people/page),
                                      /admin/errors, /audit, /feedback, /backups (@anotoki/lib/admin/*),
@@ -50,11 +52,12 @@ src/
                                      progress changed elsewhere; a visitor's: the notice on Learn and Stats,
                                      sign-in required meanwhile, a refused sign-in, a save refused, the progress
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
-                                     ready), the page or a boot card in <main> (the legal pages drawn for
-                                     anybody), the family's footer (<anotoki-site-footer>: v{version} - "Version
+                                     ready), the page or a boot card in <main> (the legal pages, About and
+                                     Support drawn for anybody), the family's footer (<anotoki-site-footer>:
+                                     v{version} - "Version
                                      {version}" to a screen reader - · What's new -
-                                     ui/changelog-dialog, in a @defer - · Feedback, the family's form; Terms ·
-                                     Privacy · Contact); the family's questions outside the gate
+                                     ui/changelog-dialog, in a @defer - · Feedback, the family's form; About ·
+                                     Support · Terms · Privacy · Contact); the family's questions outside the gate
                                      (<anotoki-confirm-host>: ConfirmService)
     boot/                            drawn instead of the app: could not load (the family's error state). (Not set up, being
                                      updated, not available: the family's status page, @anotoki/lib/migrations; a
@@ -78,7 +81,8 @@ src/
       error-report.ts                provideSiteErrorReport(): the family's reporter (@anotoki/lib/error-report) on
                                      /api/client-errors - a page's own errors into the error log
       legal/                         legal.config.ts (pianoLegalConfig(): the legal pages' root configuration - the
-                                     page's language, the database's words; LEGAL_PAGE_PATHS, isLegalPage()) and
+                                     page's language, the database's words; LEGAL_PAGE_PATHS, isLegalPage() - the
+                                     legal pages', About's and Support's paths) and
                                      legal-facts.ts (pianoLegalFacts(): Piano's facts - what it keeps, why, how
                                      long, its storage by name, who else handles data, the anotoki account's pages
                                      at the IAM's address; true of the code, every address the code's;
@@ -116,8 +120,8 @@ src/
                                      English
     layouts/admin-layout/            /admin's frame: the page, or why there is nothing for you; asks for the
                                      feedback's count when an ADMIN opens it
-    layouts/legal-layout/            the legal pages' frame (lazy): gives them Piano's facts (core/legal), so the
-                                     facts load with the pages, never with the first one
+    layouts/legal-layout/            the legal pages' frame (lazy; About's and Support's too): gives them Piano's
+                                     facts (core/legal), so the facts load with the pages, never with the first one
     pages/                           home (the path: the kit's highlighted card and chips), lesson (+ steps; the
                                      kit's step dots), trainer, sheet, songs, stats (+ own-progress: your progress
                                      file - signed in; a visitor gets the sign-in line in its place) - drawn with
@@ -137,7 +141,7 @@ proxy.conf.json                      /api and /setup.php to the backend on :8300
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.7.2): in
+half is the backend's `anotoki/lib`; one version for both - 0.8.0): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -166,12 +170,14 @@ first load - and a spec reads the kit's markup by the kit's own class names
   "Version X") - this app's
   version, What's new on `(whatsNew)` (its own dialog), Feedback the
   library's form in the kit's dialog, whose code comes with the press
-  (`@anotoki/lib/footer/feedback`) - then Terms · Privacy · Contact; its
-  words `anotoki.footer.*`.
+  (`<anotoki-feedback-dialog>`, `@anotoki/lib/feedback/form`) - then About ·
+  Support · Terms · Privacy · Contact; its words `anotoki.footer.*`.
 - `@anotoki/lib/legal` - the legal pages' configuration
   (`provideAnotokiLegal`, `ANOTOKI_LEGAL_CONFIG`, `LegalFacts`), which the
-  footer's Terms · Privacy · Contact read too; `/legal/pages` - Terms,
-  Privacy and Contact, lazy (`core/legal/`, `layouts/legal-layout`).
+  footer's About · Support · Terms · Privacy · Contact read too;
+  `/legal/pages` - Terms, Privacy and Contact, lazy (`core/legal/`,
+  `layouts/legal-layout`); `/legal/about` and `/legal/support` - About and
+  Support, lazy, in the same frame.
 - `@anotoki/lib/translations` - the words: `TranslationService`, the
   `translate` and `translatePlural` pipes, `forKit()` / `forShell()`, the
   status page's words (`siteStatusWords()`), `anotokiUnsavedChangesGuard`;
@@ -301,8 +307,8 @@ state the family's alert, its devices in the family's select - drawn from
 its `@defer` block in the spec, `getDeferBlocks()`); the family's footer
 (the row in the build analyzer's order - "v0.4.0 · What's new · Feedback",
 "Version 0.4.0" in the version's text for a screen reader, Feedback alone with
-no list of changes, never a stray dot -, Terms
-· Privacy · Contact under it); What's new (the family's dialog, its lists
+no list of changes, never a stray dot -, About · Support · Terms · Privacy ·
+Contact under it); What's new (the family's dialog, its lists
 named by badges, made only once the footer's What's new is pressed);
 the pages on the
 kit's markup (the lesson's large primary button where the one thing to do is
@@ -313,8 +319,8 @@ frame's facts, the Privacy page drawn for real - its parts in order, its
 storage by name, who else handles data, every link where the code says,
 whatever an administrator rewords -, Terms, Contact with the feedback form
 and the account page, Slovak), the routes (`app.routes.spec.ts`: `/` and an
-unknown address, each legal page its own path in the frame, no guard,
-before the catch-all) and the footer's links and a legal page signed out in
+unknown address, each legal page - About and Support too - its own path in
+the frame, no guard, before the catch-all) and the footer's links and a legal page signed out in
 the shell; the
 admin panel's routes (every page the family's, lazy, the ADMIN pages behind
 `adminGuard`), People and the admin tools as this app wires them

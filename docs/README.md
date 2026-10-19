@@ -143,3 +143,8 @@ database update", "The footer", "Where a request comes from"); `decisions.md`.
 Migration 013 (words only: the old footer's one word gone) goes with 005 to
 012 at the hand-over, the library's words 012 (the footer's) after it in the
 same Apply.
+Then (2026-10-19) the library's 0.8.0, both halves: the family's About and
+Support on `/about` and `/support`, anybody's in the legal pages' frame, and
+About · Support first among the footer's links - `architecture.md` ("The
+legal pages"). No migration of the app's: the library's words 013 in the
+same Apply.

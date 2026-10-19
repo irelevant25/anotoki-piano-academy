@@ -499,9 +499,14 @@ and the bar offers Sign in; nothing of a learner's is asked. The facts are
 true of the code as it is (`docs/decisions.md`, 2026-10-18), every address
 on the pages the code's - the anotoki account's Privacy and account pages
 at the IAM's address (`AnotokiAuth.issuer()`, `accountUrl()`) -, never a
-string's.
+string's. **About and Support** (`/about`, `/support`: the family's
+`@anotoki/lib/legal/about` and `/support`, anotoki-lib 0.8.0, the same on
+every anotoki site) are routes the same way, in the same frame, and
+`isLegalPage()` knows them too; their tabs' titles are the library's
+headings (`anotoki.about.title`, `anotoki.support.title` - the app's name
+alone while no bundle is in memory).
 
-**The family's kit** (`@anotoki/lib` 0.7.2, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.8.0, `core/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
@@ -597,8 +602,8 @@ with the press; `provideAnotokiFeedback()` in `core/site-admin.ts`), for
 anybody - the form says itself whom its message is for (anybody's, the
 library's `issuedAs('anybody')` since anotoki-lib 0.7.2: the person's while
 somebody is signed in, with the token; nobody's otherwise, with neither a
-token nor a key - the server takes anybody's) - then the family's Terms ·
-Privacy · Contact (the open page's
+token nor a key - the server takes anybody's) - then the family's About ·
+Support · Terms · Privacy · Contact (the open page's
 link marked). Its words are the library's (`anotoki.footer.*`, the database's
 through `forKit()`, else its own; English in the admin panel).
 

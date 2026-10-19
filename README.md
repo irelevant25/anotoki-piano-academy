@@ -87,7 +87,8 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   Stats), your piano, the language, the theme and your menu. On a phone or a
   window 1320 px wide or narrower they fold into one menu button. **One
   footer** too, the same as on every anotoki site: the version, **What's
-  new** and **Feedback** in one row, then Terms, Privacy and Contact.
+  new** and **Feedback** in one row, then About, Support, Terms, Privacy and
+  Contact.
 - **Light and dark**: the theme switch in the bar has three choices - light,
   dark, or as your computer is set. Signed in, the theme is your anotoki
   account's: choose it here or on any anotoki site, and every site - the
@@ -117,6 +118,9 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   read them, signed in or not: what Piano Academy is and the rules of using
   it, what it keeps about you and for how long, and how to reach the people
   behind it (the feedback form, or an address for everything else).
+- **About and Support**, at the foot of every page too, the same on every
+  anotoki site - anybody may read them: where the name anotoki comes from,
+  who makes the anotoki projects, and how to support them.
 
 ### Data and privacy
 
@@ -214,12 +218,18 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
 - English and Slovak (informal), 303 keys of the app's own words in the
-  database (migrations 002 to 013) and the anotoki library's 261 (`anotoki.*`:
+  database (migrations 002 to 013) and the anotoki library's 288 (`anotoki.*`:
   the words of the bar, its menus, the language chooser, the theme switch,
   the dialogs, the status page, the sign-in's failure page, the feedback
-  form, the legal pages and the footer), a language chooser, and the
+  form, the legal pages, About and Support and the footer), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
+- **About and Support (2026-10-19).** `anotoki-lib` 0.8.0, both halves: the
+  family's About and Support pages on `/about` and `/support`, open to
+  anybody in the legal pages' frame, and About · Support first among the
+  footer's links; the footer's feedback form keeps what was typed until it
+  is sent, with Clear. No migration of the app's: the library's words 013 go
+  in the next Apply.
 - **The anotoki sites' one footer, and the status page alone (2026-10-18,
   after the deploy).** `anotoki-lib` 0.6.3, both halves: the foot of every
   page - the admin panel's too - is the family's footer, the build

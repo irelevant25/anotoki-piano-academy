@@ -3,7 +3,7 @@
         'name' => 'anotoki/piano-academy',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '03c1d149f4a0ea1ac050e5484e55ea389e7dd780',
+        'reference' => '1f2cc0b2eeaabc7eb8f434158444dfeab0ef51f8',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -11,9 +11,9 @@
     ),
     'versions' => array(
         'anotoki/lib' => array(
-            'pretty_version' => 'v0.7.2',
-            'version' => '0.7.2.0',
-            'reference' => 'c2b5ad436eaf139865b594bbc9c716da389502ee',
+            'pretty_version' => 'v0.8.0',
+            'version' => '0.8.0.0',
+            'reference' => 'ef2dc54bf2be34a6eca957bf80bbddb24bc03dbf',
             'type' => 'library',
             'install_path' => __DIR__ . '/../anotoki/lib',
             'aliases' => array(),
@@ -22,7 +22,7 @@
         'anotoki/piano-academy' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '03c1d149f4a0ea1ac050e5484e55ea389e7dd780',
+            'reference' => '1f2cc0b2eeaabc7eb8f434158444dfeab0ef51f8',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

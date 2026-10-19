@@ -50,7 +50,7 @@ export const appConfig: ApplicationConfig = {
     // The admin panel's People page and admin tools (error log, audit log, feedback, backups), and the visitors'
     // feedback form - the family's (core/site-admin.ts).
     provideSiteAdmin(),
-    // The anotoki family's legal pages - Terms, Privacy, Contact, on lazy routes open to anybody - and the footer's
+    // The anotoki family's legal pages - Terms, Privacy, Contact, and About and Support, on lazy routes open to anybody - and the footer's
     // links to them: the library's words around Piano Academy's facts, every address the pages link to in the code
     // (core/legal/legal.config.ts; the facts, which only the pages read, come with their frame: core/legal/legal-facts.ts).
     provideAnotokiLegal(pianoLegalConfig),

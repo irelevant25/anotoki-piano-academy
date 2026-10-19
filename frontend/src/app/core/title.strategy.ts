@@ -13,6 +13,12 @@ const ADMIN_PANEL = 'Admin panel';
 const TITLE_KEY = /^title\.[A-Za-z0-9]+$/;
 
 /**
+ * A route's title that is the library's own heading of a page of its - `anotoki.about.title`,
+ * `anotoki.support.title` (anotoki-lib 0.8.0's About and Support): its words come with a bundle alone, never kept here.
+ */
+const LIBRARY_TITLE_KEY = /^anotoki\.[A-Za-z0-9]+\.title$/;
+
+/**
  * "Learn · Piano Academy": a page's own title first, where a tab shows the
  * start of it.
  *
@@ -23,7 +29,9 @@ const TITLE_KEY = /^title\.[A-Za-z0-9]+$/;
  * title follows the language: switching it renames the tab without a
  * navigation. While no bundle is in memory the key is worded from the kept
  * English, as the rest of the shell; with one, a key that has no string shows
- * as itself - the owner wants to see which.
+ * as itself - the owner wants to see which. The library's heading of its
+ * About or Support page is worded from the bundle too; while none is in
+ * memory the tab says the app's name alone - never the key.
  *
  * It also tells the family's translation service where the page is after
  * every navigation (noteAddress()): the admin panel is English, a `?lang=`
@@ -45,11 +53,12 @@ export class PianoTitleStrategy extends TitleStrategy {
     super();
     effect(() => {
       const page = this._page();
-      if (page === undefined) {
+      const library = page !== undefined && LIBRARY_TITLE_KEY.test(page);
+      if (page === undefined || (library && !this._i18n.ready())) {
         this._title.setTitle(APP_NAME);
         return;
       }
-      const own = TITLE_KEY.test(page) ? this._i18n.t(page) : page;
+      const own = TITLE_KEY.test(page) || library ? this._i18n.t(page) : page;
       this._title.setTitle(this._admin() ? `${own} · ${ADMIN_PANEL} · ${APP_NAME}` : `${own} · ${APP_NAME}`);
     });
   }

@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.7.0"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.8.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.7.2/anotoki-lib-0.7.2.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.8.0/anotoki-lib-0.8.0.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -35,8 +35,8 @@ the theme switch, the language chooser, the menus, the questions, Manrope,
 and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*); the
-legal pages (below, *Terms, Privacy and Contact*); the footer (below, *The
-family's footer*). Both halves are at 0.7.2 (0.6.0 added the legal pages -
+legal pages (below, *Terms, Privacy and Contact*) and About and Support; the
+footer (below, *The family's footer*). Both halves are at 0.8.0 (0.6.0 added the legal pages -
 Terms, Privacy, Contact and the footer's links - and the kit's chips, stat
 tiles and step dots, the highlighted card and the select's own entry point;
 0.6.1 made the Privacy page's sentences on the backups true, and 0.6.2 three
@@ -47,7 +47,9 @@ changed nothing the app does - it renamed the library's own folders, its PHP
 half's files now in `vendor/anotoki/lib/backend/`; 0.7.1 writes the footer's
 version short, "v0.4.0"; 0.7.2 has the feedback form say itself whom its
 message is for - Piano's own interceptor gone - and the library's words in
-the reader's language while no bundle is in memory; 0.5.1 and
+the reader's language while no bundle is in memory; 0.8.0 adds the About and
+Support pages - About · Support first among the footer's links, its
+translations 013 - and the feedback form's kept draft and Clear; 0.5.1 and
 0.5.2 changed only the PHP half: 0.5.1 a restore's sequences that count down, 0.5.2 the origin
 secret - below, *The library's PHP 0.5.2*; 0.1.1 and 0.2.0 changed
 only the Angular half: 0.1.1 made the pages a template, made only while the
@@ -650,7 +652,7 @@ is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
-library's 0.6.3)**: the build carries `anotoki-lib` 0.7.2 - both halves. The
+library's 0.6.3)**: the build carries `anotoki-lib` 0.8.0 - both halves. The
 foot of every page, the admin panel's too, is the family's footer
 (`<anotoki-site-footer>`, the build analyzer's): "v0.4.0 · What's new ·
 Feedback" (a screen reader hears "Version 0.4.0") - the version and What's new
@@ -670,6 +672,15 @@ the footer says the library's built-in words. It all goes with 005 to 012 at
 the hand-over - one Apply. The web root's `.htaccess` lets the host check
 run too (`host-check.php`, by its exact name, while it is there - README,
 *Hosting checklist*).
+
+**About and Support (2026-10-19; the library's 0.8.0)**: the family's About
+and Support pages on `/about` and `/support` - anybody's, in the legal pages'
+frame, drawn whatever the start says - and About · Support first among the
+footer's links. No migration of the app's: the library's
+`anotoki_translations/013_about_and_support_words.sql` (the two pages' words,
+the footer's two links and the feedback form's Clear) runs in the same Apply,
+after the app's own; until then the pages and the links say the library's
+built-in words.
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code
