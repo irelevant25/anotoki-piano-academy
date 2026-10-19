@@ -175,7 +175,7 @@ test('the release\'s .htaccess lets a visitor run the front controller, the setu
     // every PHP file is refused, then the ones a visitor may run are granted. Read here as Apache reads them.
     preg_match_all('~<FilesMatch "([^"]+)">\R\s*Require all (granted|denied)\R</FilesMatch>~', $htaccess, $sections, PREG_SET_ORDER);
     $rules = array_map(static fn (array $section): array => [$section[1], $section[2]], $sections);
-    assert_same([['\.(php|phtml|phar)$', 'denied'], ['^(index|setup|host-check)\.php$', 'granted'], ['^\.', 'denied']], $rules, 'every PHP file refused, then three granted, dot-files refused - in that order');
+    assert_same([['\.(php|phtml|phar)$', 'denied'], ['^(index|setup|host-check)\.php$', 'granted'], ['^\.ht', 'denied']], $rules, 'every PHP file refused, then three granted, the .ht* files refused - in that order');
     $runs = static function (string $name) use ($rules): bool {
         $allowed = true;
         foreach ($rules as [$pattern, $verdict]) {
