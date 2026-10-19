@@ -88,7 +88,7 @@ storage/               cache/ (the IAM's keys and answers, the limits' counts), 
                        lock; gitignored
 tests/                 run.php, lib.php; unit/, api/; tools/ (testdb.php, testenv.php) - the stand-in IAM is the
                        library's (vendor/anotoki/lib/backend/testing/stand-in-iam.php)
-tools/                 build.php (the upload -> ../dist/), progress.php, translations.php (the library's
+tools/                 progress.php, translations.php (the library's
                        TranslationsCommand), translation_keys.php (the library's KeyScanner set up for the
                        frontend: what it reads, dynamic-keys.ts, the kept English)
 vendor/                Slim and its pieces, and anotoki/lib (the anotoki family's library, from GitHub:
@@ -118,7 +118,7 @@ anotoki/lib --prefer-dist` (its CHANGELOG.md first; the constraint in
 | `migration.php` | `php migration.php [--status \| --dry-run]`: the migrations for the configured database, with the family's engine, under the update lock |
 | `tools/progress.php` | an operator's: `--export=FILE --user=ID`, `--import=FILE --user=ID [--replace]`, `--move=FROM --to=TO` (no size limit) |
 | `tools/translations.php` | the library's command: `--status` (the frontend's keys against the database), `--export sk [FILE]`, `--import sk FILE` |
-| `tools/build.php` | the upload for the FTP-only hosting -> `../dist/` (builds the frontend too) |
+| (the release) | anotoki-deploy (anotoki-lib's deploy tool), set up in `composer.json`'s `extra["anotoki-deploy"]`: `frontend/` and `backend/` -> `../dist/`, replaced whole on the host (`../DEV.md`) |
 
 ## Commands
 
@@ -128,7 +128,7 @@ php tests/run.php                             # every PHP test, on throwaway pia
 php tests/tools/testdb.php template --fresh   # after editing a migration the tests' template has applied
 php migration.php [--status|--dry-run]
 php tools/translations.php --status
-php tools/build.php
+# the release: anotoki-deploy, from ../frontend/ (../DEV.md, Building and deploying)
 ```
 
 The Bash `php` on the owner's computer may be an older one: use a PHP 8.2+
@@ -170,7 +170,7 @@ installed one stood (the app's files to one, then the library's words).
 | `api/visitors` | sign-in not required, through two servers: nobody's state, a first save that makes a visitor (or fails and makes nobody), the key and what it opens, a Bearer header never falling back to it, sign-in required again, the limits, the sweep after the answer, a database without 005 (every round held at the gate; `visitors_unavailable` under it), requireUser()/requireRole() refusing a visitor; the attack an origin-secret file without a usable secret would let through - with a `cloudflare.local.php` whose byte-order mark comes before `<?php declare(strict_types=1);` (a 500 on every request with the five-byte check taken out), and with one read cleanly that holds the secret under a misspelt key: made-up CF-Connecting-IP addresses from Cloudflare's ranges, the file's own value carried or not, all count as the edge (the visitors' limit and the error reports' trip), the log says it once and never the secret, the site ready |
 | `api/visitor_move` | the move at sign-in: the person's notes kept, a path step both have merged (a pass never lost), every round, the visitor gone and a new generation; again `found: false`; merged documents over BODY_LIMIT not made; no token / no key / a malformed key; the switch on; a row held too long (503 `visitor_move_retry`); the person's row gone |
 | `api/setup` | the setup page on this computer: its fields and defaults, Test connection's sentences, Save under the lock, a re-save over an old file, a settings file PHP cannot run (named, and written anew) |
-| `api/hosting` | `tools/build.php` (the family's library in the upload, the app's old engine not); the web root's `.htaccess` read as Apache reads it - every PHP file refused but `setup.php` and the host check (`host-check.php`, by its exact name; never in a build, its token empty in the repository, a path that is no file the app's route); the setup page on a host (token, lock, self-delete, nothing saved shown); once installed the setup page is never named again, not even with the settings gone |
+| `api/hosting` | the release anotoki-deploy builds (the family's library in it, the app's old engine not), served from `frontend/` through `tests/release_router.php`; `frontend/.htaccess` read as Apache reads it - every PHP file refused but `index.php`, `setup.php` and the host check (`host-check.php`, by its exact name; never in a build, its token empty in the repository, a path that is no file the app's route); the setup page on a host (token, lock, self-delete, nothing saved shown); once installed the setup page is never named again, not even with the settings gone |
 | `api/translations` | the words through the library's routes: the bundle, the IAM's wire format both ways (snake_case answers, a camelCase body no language), the staff's and ADMIN's routes role by role, saves, export and import, a language deleted (200 `{strings}`), concurrency, the command line; before there is any string (`translations_unavailable`); a database with only 001 (the words not there yet, the admin routes behind the gate, nothing looked up) |
 
 The browser check (`.claude/skills/check-in-browser`, DEV.md "The browser

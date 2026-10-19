@@ -382,6 +382,10 @@ new's 0.4.0: the footer, and "Feedback". The first load is 558.1 kB
    build and deploy it; `docs/` how it works and why (`docs/README.md`);
    `backend/README.md` and `frontend/README.md` each part's layout, commands
    and tests.
+3. To deploy, release or roll back: the **`deploy-piano`** skill
+   (`.claude/skills/deploy-piano/SKILL.md`) - anotoki-deploy, a release of
+   `frontend/` and `backend/` replaced whole beside the host's `config/` and
+   `storage/`.
 
 ## Always, after a change
 
@@ -771,7 +775,7 @@ php tools/progress.php --export=FILE --user=ID   # also --import=FILE --user=ID 
 php tools/translations.php --status       # the library's command: the keys the frontend asks for against the database's (exit 1 on a gap)
 php tools/translations.php --export sk [FILE]   # also --import sk FILE: one language's strings as flat JSON
 php tests/tools/testdb.php template --fresh     # rebuild the tests' template after editing an unreleased migration
-php tools/build.php                       # the upload -> ../dist/ (builds the frontend too)
+# the release: cd ../frontend && npx anotoki-deploy build / deploy --backups <folder> [--go] (DEV.md)
 
 # Frontend (from frontend/)
 npm ci && npm start                       # ng serve on :4500

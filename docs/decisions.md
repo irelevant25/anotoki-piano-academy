@@ -1542,3 +1542,20 @@ entry's "no sign-in on your own computer" is history and stays as written.
 `piano_test_browser_<port>` database, ports 8590 and 8597 (others when they
 are taken). It checks by bounding boxes, not by eye alone - and its
 screenshots are looked at.
+
+## Releases
+
+**A release is `frontend/` and `backend/`, each replaced whole; the state is
+beside them, never in one** (the owner's decision of 2026-10-19). An upload
+over the old files (FTP never deletes) left every earlier build's hashed
+bundles and removed PHP files on the host, mixed with `config/*.local.php` and
+`storage/` - nothing could be deleted wholesale, and nobody could tell what was
+stale. Now anotoki-lib's anotoki-deploy builds the release from
+`backend/composer.json`'s `extra["anotoki-deploy"]` (the same tool for every
+site), puts it up beside the live one, checks it and swaps it in by renames
+(the one before kept for a rollback); the folder's `.htaccess` - the switch,
+as Japanese Academy has run since 2026-10-04 - sends every request into
+`frontend/`, so `backend/`, `config/` and `storage/` are never served. The
+PHP finds its state with one rule, `stateRoot()`: with `release.json` in
+`backend/`, the folder above it; in a checkout, `backend/` itself - so the
+development setup and the tests are as they were.
