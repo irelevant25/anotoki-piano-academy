@@ -461,7 +461,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   context tokens; the first save that makes a visitor goes alone in
   `ApiService`, whose waiting saves write their generation once it is back).
   **Every page signs in first** - but for a visitor while the IAM requires no
-  sign-in, and the legal pages (`/terms`, `/privacy`, `/contact`: anybody's,
+  sign-in, and the legal pages (`/terms`, `/privacy`, `/contact`, and About
+  and Support, `/about`, `/support`: anybody's,
   no guard, never a trip to the IAM): the family's guards (`@anotoki/lib/auth`, `app.routes.ts`) -
   `personOrVisitorGuard` on the learner pages, `staffGuard` on `/admin`
   (never a visitor's), `adminGuard` on its ADMIN pages (anybody else signed
@@ -657,8 +658,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `@defer`; Feedback the family's form in the kit's dialog, whose code the
   footer loads with the press - its message the person's while somebody is
   signed in, nobody's otherwise: the form says it is anybody's itself,
-  `issuedAs('anybody')`, as the server takes anybody's), then Terms ·
-  Privacy · Contact (the open page's marked); its words the library's
+  `issuedAs('anybody')`, as the server takes anybody's), then About ·
+  Support · Terms · Privacy · Contact (the open page's marked); its words the library's
   (`anotoki.footer.*`; English in the admin panel). Never round the status
   page.
 - **Terms, Privacy and Contact are the family's pages with Piano's facts**
@@ -672,7 +673,12 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   strings by a migration and `PIANO_LEGAL_UPDATED`. Every address a page
   links to (the anotoki account's pages at the IAM's address, the operator,
   Cloudflare) is the code's, never a string: a rewording changes words,
-  never where a link goes (`legal-facts.spec.ts`).
+  never where a link goes (`legal-facts.spec.ts`). **About and Support**
+  (anotoki-lib 0.8.0, `@anotoki/lib/legal/about`, `/support` - the same on
+  every anotoki site) are `/about` and `/support`, in the same frame and the
+  same way (`isLegalPage()` knows them); their tabs' titles are the library's
+  headings (`anotoki.about.title`, `anotoki.support.title` - the app's name
+  alone while no bundle is in memory).
 - **PHP**: `declare(strict_types=1)`, camelCase functions by area (`store*`,
   `transfer*`, `auth*`, `translation*`, `language*`, `database*`...), `?`
   parameters in every query, every query **on a person's data** scoped to the
@@ -726,9 +732,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.7.2 - PHP `anotoki/lib` (`^0.7.0`, Composer's VCS repository on GitHub,
+  0.8.0 - PHP `anotoki/lib` (`^0.8.0`, Composer's VCS repository on GitHub,
   committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.7.2 tarball, in both lock files). Never
+  v0.8.0 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry

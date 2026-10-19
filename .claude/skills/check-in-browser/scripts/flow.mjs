@@ -115,7 +115,7 @@ const MIGRATION_SETS = [
 /** A figure on Stats and in the Note Trainer: the family's stat tile's value (@anotoki/lib/ui/stat-tiles). */
 const TILE = 'anotoki-stat-tile .anotoki-stat-tile__value';
 
-/** Where the footer's Terms · Privacy · Contact are: the family's links (@anotoki/lib/legal's <anotoki-legal-links>), in the family's footer. */
+/** Where the footer's About · Support · Terms · Privacy · Contact are: the family's links (@anotoki/lib/legal's <anotoki-legal-links>), in the family's footer. */
 const LEGAL_LINKS = 'anotoki-site-footer anotoki-legal-links';
 
 /**
@@ -898,7 +898,8 @@ try {
         const page = await signedIn(context, MIA, '/stats');
         check((await page.textContent(FOOTER.feedback))?.trim() === 'Feedback', `${label}: "Feedback" at the foot of the page`);
         await page.click(FOOTER.feedback);
-        await page.waitForSelector('anotoki-dialog dialog[open] anotoki-feedback-form [data-send]', { timeout: 20000 });
+        // Its buttons are the dialog's own footer since anotoki-lib 0.8.0 (always in view), outside the form.
+        await page.waitForSelector('anotoki-dialog dialog[open] [data-send]', { timeout: 20000 });
         await page.waitForTimeout(300);
         check((await page.textContent('anotoki-dialog dialog[open] .anotoki-dialog__title'))?.trim() === 'Feedback', `${label}: in the kit's dialog, named by the footer's words`);
         const box = await page.$eval('anotoki-dialog dialog[open]', (dialog) => {
@@ -915,7 +916,7 @@ try {
         if (scheme === 'light') {
           await page.fill('anotoki-feedback-form [data-message] textarea', `The Note Trainer at ${width} px is lovely.`);
           const sent = page.waitForResponse((response) => response.url().endsWith('/api/feedback') && response.request().method() === 'POST', { timeout: 10000 });
-          await page.click('anotoki-feedback-form [data-send]');
+          await page.click('anotoki-dialog dialog[open] [data-send]');
           check((await sent).status() === 201, `${label}: sent - the server kept it (201)`);
           await page.waitForSelector('anotoki-feedback-form [data-thanks]', { timeout: 10000 });
           await page.waitForTimeout(250);
@@ -937,14 +938,23 @@ try {
   }
 
   step(
-    `Terms, Privacy and Contact (the family's pages, @anotoki/lib/legal/pages) with nobody signed in and a sign-in required - never a trip to the IAM: 1280 and 390, light and dark, English and Slovak; the footer's links; signed in, from Stats`,
+    `Terms, Privacy and Contact (the family's pages, @anotoki/lib/legal/pages), About and Support (@anotoki/lib/legal/about, /support) with nobody signed in and a sign-in required - never a trip to the IAM: 1280 and 390, light and dark, English and Slovak; the footer's links; signed in, from Stats`,
   );
   {
     // Each page's heading is the library's words (its translations' 005) and the tab's title too (migration 012's
-    // title.*); the footer's links are the library's words (anotoki.legalLinks.*).
+    // title.*; About's and Support's the library's heading, its 013); the footer's links are the library's words
+    // (anotoki.legalLinks.*).
     const LEGAL = {
-      en: { headings: { '/terms': 'Terms of use', '/privacy': 'Privacy policy', '/contact': 'Contact' }, links: ['Terms', 'Privacy', 'Contact'], signIn: 'Sign in' },
-      sk: { headings: { '/terms': 'Podmienky používania', '/privacy': 'Ochrana osobných údajov', '/contact': 'Kontakt' }, links: ['Podmienky', 'Súkromie', 'Kontakt'], signIn: 'Prihlásiť sa' },
+      en: {
+        headings: { '/terms': 'Terms of use', '/privacy': 'Privacy policy', '/about': 'About anotoki', '/support': 'Support anotoki', '/contact': 'Contact' },
+        links: ['About', 'Support', 'Terms', 'Privacy', 'Contact'],
+        signIn: 'Sign in',
+      },
+      sk: {
+        headings: { '/terms': 'Podmienky používania', '/privacy': 'Ochrana osobných údajov', '/about': 'O projekte anotoki', '/support': 'Podporiť anotoki', '/contact': 'Kontakt' },
+        links: ['O projekte', 'Podporiť', 'Podmienky', 'Súkromie', 'Kontakt'],
+        signIn: 'Prihlásiť sa',
+      },
     };
     // Every address a legal page of Piano Academy's may link to: the anotoki account's pages at the IAM the app signs in
     // with, its own Contact page, the family's address and operator, the authority, the hosting company (WebSupport,
@@ -973,8 +983,9 @@ try {
             if (request.isNavigationRequest() && request.frame() === page.mainFrame()) trips.push(request.url());
             else if (request.url().startsWith(`${APP}/api/`)) calls.push(request.url().slice(APP.length).split('?')[0]);
           });
-          for (const [index, address] of ['/terms', '/privacy', '/contact'].entries()) {
-            // The first by its address, the language with it; the others from the footer's links, in the app.
+          for (const [index, address] of ['/terms', '/privacy', '/about', '/support', '/contact'].entries()) {
+            // The first by its address, the language with it; the others from the footer's links, in the app - Contact
+            // last: its "Send feedback" is pressed below.
             if (index === 0) await page.goto(`${APP}${address}?lang=${language}`);
             else await page.click(`${LEGAL_LINKS} a[href="${address}"]`);
             const heading = words.headings[address];
@@ -1058,7 +1069,7 @@ try {
           // Contact's "Send feedback": the family's form in the kit's dialog, for anybody - nothing sent here.
           if (scheme === 'light') {
             await page.click('#view-root [data-section="feedback"] [data-open-feedback]');
-            await page.waitForSelector('anotoki-dialog dialog[open] anotoki-feedback-form [data-send]', { timeout: 20000 });
+            await page.waitForSelector('anotoki-dialog dialog[open] [data-send]', { timeout: 20000 });
             await page.waitForTimeout(300);
             const box = await page.$eval('anotoki-dialog dialog[open]', (dialog) => {
               const rect = dialog.getBoundingClientRect();
@@ -1077,11 +1088,13 @@ try {
           if (language === 'en' && scheme === 'light' && width === 1280) {
             const before = Number(fromTheDatabase('SELECT count(*) AS n FROM anotoki_feedback')[0].n);
             const form = 'anotoki-dialog dialog[open] anotoki-feedback-form';
+            // Send is the dialog's own footer's since anotoki-lib 0.8.0, outside the form.
+            const send = 'anotoki-dialog dialog[open] [data-send]';
             await page.click(FOOTER.feedback);
-            await page.waitForSelector(`${form} [data-send]`, { timeout: 20000 });
+            await page.waitForSelector(send, { timeout: 20000 });
             await page.fill(`${form} [data-message] textarea`, 'Sent from Contact by somebody not signed in.');
             const sent = page.waitForResponse((response) => response.url().endsWith('/api/feedback') && response.request().method() === 'POST', { timeout: 10000 });
-            await page.click(`${form} [data-send]`);
+            await page.click(send);
             const answer = await sent;
             check(
               answer.status() === 201 && !answer.request().headers()['authorization'],
@@ -1132,8 +1145,8 @@ try {
   {
     // The library's words for it (anotoki.footer.*, its translations 012) and the legal links' (anotoki.legalLinks.*).
     const WORDS = {
-      en: { row: [`v${VERSION}Version ${VERSION}`, '·', "What's new", '·', 'Feedback'], links: ['Terms', 'Privacy', 'Contact'] },
-      sk: { row: [`v${VERSION}Verzia ${VERSION}`, '·', 'Čo je nové', '·', 'Spätná väzba'], links: ['Podmienky', 'Súkromie', 'Kontakt'] },
+      en: { row: [`v${VERSION}Version ${VERSION}`, '·', "What's new", '·', 'Feedback'], links: ['About', 'Support', 'Terms', 'Privacy', 'Contact'] },
+      sk: { row: [`v${VERSION}Verzia ${VERSION}`, '·', 'Čo je nové', '·', 'Spätná väzba'], links: ['O projekte', 'Podporiť', 'Podmienky', 'Súkromie', 'Kontakt'] },
     };
     /** How the footer is drawn - the build analyzer's look: a line on top, 1.25rem 1rem 1.5rem round it, 13 px, centred, as wide as the window, under the page. */
     const drawnAs = (page) =>
@@ -1164,7 +1177,7 @@ try {
           await page.waitForSelector(FOOTER.version, { timeout: 10000 }).catch(() => undefined);
           check(JSON.stringify(await footerRow(page)) === JSON.stringify(WORDS[language].row), `${label}: "Version · What's new · Feedback" in the library's words`, await footerRow(page));
           const links = await page.$$eval(`${LEGAL_LINKS} a`, (all) => all.map((a) => a.textContent.trim()));
-          check(JSON.stringify(links) === JSON.stringify(WORDS[language].links), `${label}: Terms · Privacy · Contact under it`, links);
+          check(JSON.stringify(links) === JSON.stringify(WORDS[language].links), `${label}: About · Support · Terms · Privacy · Contact under it`, links);
           check(asTheBuildAnalyzer(await drawnAs(page)), `${label}: the build analyzer's look, under the page, no sideways scroll`, await drawnAs(page));
           check((await keysOnPage(page)).length === 0, `${label}: no key on the page`, await keysOnPage(page));
           await page.screenshot({ path: join(shots, `footer-learner-${language}-${scheme}-${width}.png`), fullPage: true });

@@ -175,7 +175,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.7.2, both halves): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.8.0, both halves): in the browser `@anotoki/lib/auth`, wired in
   `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -200,7 +200,7 @@ Working conventions specific to this repo:
   deleting the file switches the secret off); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.7.2, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.8.0, wired in
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
@@ -212,10 +212,12 @@ Working conventions specific to this repo:
   dialog (made when it opens), the error state, the table styles (numbers
   `.cell-num`), and Terms, Privacy and Contact (`@anotoki/lib/legal/pages`,
   lazy, each its own path before the catch-all, no guard; the facts
-  `core/legal/legal-facts.ts` - TRUE of the code), and the footer
+  `core/legal/legal-facts.ts` - TRUE of the code), About and Support
+  (`@anotoki/lib/legal/about`, `/support`: `/about`, `/support`, the same way
+  in the same frame; `isLegalPage()` knows them), and the footer
   (`<anotoki-site-footer>`, `@anotoki/lib/footer`, the build analyzer's:
   "v{version} · What's new · Feedback" - a screen reader hears "Version
-  {version}" -, then Terms · Privacy · Contact; What's
+  {version}" -, then About · Support · Terms · Privacy · Contact; What's
   new opens `ui/changelog-dialog` on `(whatsNew)`) - never copy one into `ui/`,
   never restyle one (a site gives its colours only) - each
   imported from its own entry point (`@anotoki/lib/ui/config`, `/ui/icon`,
