@@ -1070,9 +1070,10 @@ try {
             await page.waitForSelector('anotoki-dialog dialog[open]', { state: 'detached', timeout: 3000 }).catch(() => undefined);
             check(!(await page.$('anotoki-dialog dialog[open]')), `${label}: Escape closes it`);
           }
-          // Nobody signed in sends a message from the footer's Feedback: the server takes anybody's, and the message
-          // says it is nobody's (core/site-admin.ts's feedbackSenderInterceptor) - sent with no token, thanked, nobody
-          // sent to sign in, the page kept. Left to the family's interceptor it was a person's, never sent.
+          // Nobody signed in sends a message from the footer's Feedback: the server takes anybody's, and the form says
+          // its message is anybody's (the library's issuedAs('anybody'), anotoki-lib 0.7.2) - sent with no token,
+          // thanked, nobody sent to sign in, the page kept. Unmarked, the family's interceptor took it for a person's
+          // and never sent it.
           if (language === 'en' && scheme === 'light' && width === 1280) {
             const before = Number(fromTheDatabase('SELECT count(*) AS n FROM anotoki_feedback')[0].n);
             const form = 'anotoki-dialog dialog[open] anotoki-feedback-form';

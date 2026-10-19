@@ -354,12 +354,11 @@ gone. **The gate is the outermost of the shell**: the bar, the notes, the
 page's `<main>` and the footer are its marked template, so while the site is
 not ready the family's status page stands alone in the gate's own `<main>` -
 no bar, no footer (the owner's rule); an ADMIN's Migrations page has the
-frame. **The feedback form's message says whom it is for**
-(`feedbackSenderInterceptor`, `core/site-admin.ts`, before the family's
-interceptor in `SITE_INTERCEPTORS`, `app.config.ts`): the person's while
-somebody is signed in, nobody's otherwise - the server takes anybody's; the
-form says nothing itself, and the family's interceptor took it for a
-person's and never sent it for somebody signed out. **A present
+frame. **The feedback form's message says whom it is for**: the person's
+while somebody is signed in, nobody's otherwise - the server takes
+anybody's (an interceptor of Piano's said it then; since `anotoki-lib` 0.7.2
+the form says it itself, `issuedAs('anybody')`, and the interceptor is
+gone). **A present
 `config/cloudflare.local.php` without a usable secret
 fails closed** (the owner's "do as you think is the best"; the build
 analyzer's and the survey's rule too): one read cleanly that names none -
@@ -656,10 +655,11 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   new opens Piano's own dialog, `ui/changelog-dialog`, on `(whatsNew)`, in a
   `@defer`; Feedback the family's form in the kit's dialog, whose code the
   footer loads with the press - its message the person's while somebody is
-  signed in, nobody's otherwise: `feedbackSenderInterceptor`, as the server
-  takes anybody's), then Terms · Privacy · Contact (the open
-  page's marked); its words the library's (`anotoki.footer.*`; English in the
-  admin panel). Never round the status page.
+  signed in, nobody's otherwise: the form says it is anybody's itself,
+  `issuedAs('anybody')`, as the server takes anybody's), then Terms ·
+  Privacy · Contact (the open page's marked); its words the library's
+  (`anotoki.footer.*`; English in the admin panel). Never round the status
+  page.
 - **Terms, Privacy and Contact are the family's pages with Piano's facts**
   (`@anotoki/lib/legal/pages`, lazy; `core/legal/legal-facts.ts`, given by
   the frame `layouts/legal-layout`): each page a path of its own with the
@@ -725,9 +725,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.7.0 - PHP `anotoki/lib` (`^0.7.0`, Composer's VCS repository on GitHub,
+  0.7.2 - PHP `anotoki/lib` (`^0.7.0`, Composer's VCS repository on GitHub,
   committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.7.0 tarball, in both lock files). Never
+  v0.7.2 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry
