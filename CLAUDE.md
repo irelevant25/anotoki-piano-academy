@@ -650,7 +650,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   **One footer, the anotoki family's** (`<anotoki-site-footer>`,
   `@anotoki/lib/footer` - the build analyzer's, the owner's choice of
   2026-10-18), under every page and the admin panel's: a top border,
-  "Version 0.4.0 · What's new · Feedback" (the version and What's new once
+  "v0.4.0 · What's new · Feedback" (a screen reader hears "Version 0.4.0";
+  the version and What's new once
   `changelog.json` came - its newest entry the version, one source; What's
   new opens Piano's own dialog, `ui/changelog-dialog`, on `(whatsNew)`, in a
   `@defer`; Feedback the family's form in the kit's dialog, whose code the

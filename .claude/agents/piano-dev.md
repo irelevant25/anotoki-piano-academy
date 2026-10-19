@@ -214,7 +214,8 @@ Working conventions specific to this repo:
   lazy, each its own path before the catch-all, no guard; the facts
   `core/legal/legal-facts.ts` - TRUE of the code), and the footer
   (`<anotoki-site-footer>`, `@anotoki/lib/footer`, the build analyzer's:
-  "Version · What's new · Feedback", then Terms · Privacy · Contact; What's
+  "v{version} · What's new · Feedback" - a screen reader hears "Version
+  {version}" -, then Terms · Privacy · Contact; What's
   new opens `ui/changelog-dialog` on `(whatsNew)`) - never copy one into `ui/`,
   never restyle one (a site gives its colours only) - each
   imported from its own entry point (`@anotoki/lib/ui/config`, `/ui/icon`,
