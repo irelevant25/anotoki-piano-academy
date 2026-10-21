@@ -175,7 +175,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.9.1, both halves): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.9.2, both halves): in the browser `@anotoki/lib/auth`, wired in
   `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -200,7 +200,7 @@ Working conventions specific to this repo:
   deleting the file switches the secret off); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.9.1, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.9.2, wired in
   `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
