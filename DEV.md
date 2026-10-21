@@ -680,7 +680,7 @@ is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
-library's 0.6.3)**: the build carries `anotoki-lib` 0.8.1 - both halves. The
+library's 0.6.3)**: the build carries `anotoki-lib` 0.9.1 - both halves. The
 foot of every page, the admin panel's too, is the family's footer
 (`<anotoki-site-footer>`, the build analyzer's): "v0.4.0 · What's new ·
 Feedback" (a screen reader hears "Version 0.4.0") - the version and What's new
