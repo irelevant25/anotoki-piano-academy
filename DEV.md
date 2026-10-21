@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.8.0"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.9.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.8.1/anotoki-lib-0.8.1.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.9.1/anotoki-lib-0.9.1.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -36,7 +36,7 @@ and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*); the
 legal pages (below, *Terms, Privacy and Contact*) and About and Support; the
-footer (below, *The family's footer*). Both halves are at 0.8.1 (0.6.0 added the legal pages -
+footer (below, *The family's footer*). Both halves are at 0.9.1 (0.6.0 added the legal pages -
 Terms, Privacy, Contact and the footer's links - and the kit's chips, stat
 tiles and step dots, the highlighted card and the select's own entry point;
 0.6.1 made the Privacy page's sentences on the backups true, and 0.6.2 three
