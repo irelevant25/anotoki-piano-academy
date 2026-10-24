@@ -10,22 +10,22 @@ import { AnotokiThemeMode, ThemeService } from '@anotoki/lib/shell';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { AppComponent } from './app.component';
-import { ApiService, VISITOR_OWNER } from './core/api/api.service';
-import { SIGN_IN_FAILED_ROUTE, provideSiteAuth } from './core/auth/site-auth';
-import { VisitorKey } from './core/auth/visitor-key';
-import { ChangelogEntry, ChangelogService } from './core/changelog/changelog.service';
-import { provideFamilyKit } from './core/family-kit';
-import { KEPT_ENGLISH } from './core/i18n/kept-english';
-import { provideSiteTranslations } from './core/i18n/site-translations';
-import { VISITOR_WORDS } from './core/i18n/visitor-words';
-import { pianoLegalConfig } from './core/legal/legal.config';
-import { MidiService } from './core/midi/midi.service';
-import { provideSiteAdmin } from './core/site-admin';
-import { BootService } from './core/state/boot.service';
-import { ProgressStore } from './core/state/progress-store.service';
-import { SITE_STATUS_URL, provideSiteMigrations } from './core/state/site-migrations';
-import { TestAuth, provideTestAuth } from './core/testing/test-auth';
-import { provideTestKit } from './core/testing/test-kit';
+import { ApiService, VISITOR_OWNER } from './api/api.service';
+import { SIGN_IN_FAILED_ROUTE, provideSiteAuth } from './shared/auth/site-auth';
+import { VisitorKey } from './shared/auth/visitor-key';
+import { ChangelogEntry, ChangelogService } from './shared/changelog/changelog.service';
+import { provideFamilyKit } from './shared/family-kit';
+import { KEPT_ENGLISH } from './shared/i18n/kept-english';
+import { provideSiteTranslations } from './shared/i18n/site-translations';
+import { VISITOR_WORDS } from './shared/i18n/visitor-words';
+import { pianoLegalConfig } from './shared/legal/legal.config';
+import { MidiService } from './shared/midi/midi.service';
+import { provideSiteAdmin } from './shared/site-admin';
+import { BootService } from './shared/state/boot.service';
+import { ProgressStore } from './shared/state/progress-store.service';
+import { SITE_STATUS_URL, provideSiteMigrations } from './shared/state/site-migrations';
+import { TestAuth, provideTestAuth } from './shared/testing/test-auth';
+import { provideTestKit } from './shared/testing/test-kit';
 
 /**
  * A key as it would stand on a page: a namespace, then segments that begin
@@ -49,7 +49,7 @@ interface Shell {
   fixture: ComponentFixture<AppComponent>;
   host: HTMLElement;
   boot: BootService;
-  /** The family's AnotokiAuth as the spec drives it (core/testing/test-auth.ts): its state, who, the IAM's switch, a failure. */
+  /** The family's AnotokiAuth as the spec drives it (shared/testing/test-auth.ts): its state, who, the IAM's switch, a failure. */
   auth: TestAuth;
   store: ProgressStore;
   midi: MidiService;
@@ -79,10 +79,10 @@ class CountedPageComponent {
 
 /**
  * The shell, made with the providers given: the real translation service with no bundle unless they say otherwise -
- * wired as the app wires it (core/i18n/site-translations.ts: the kept English) - the family's sign-in configured as
- * the app configures it (core/auth/site-auth.ts: the failure's screen on its route, its words from this app's), its
+ * wired as the app wires it (shared/i18n/site-translations.ts: the kept English) - the family's sign-in configured as
+ * the app configures it (shared/auth/site-auth.ts: the failure's screen on its route, its words from this app's), its
  * state the spec's (nobody known yet: the sign-in settings not read, nothing asked for), the admin panel's and the
- * feedback form's configuration (core/site-admin.ts), and the legal pages' (core/legal/legal.config.ts: the footer's
+ * feedback form's configuration (shared/site-admin.ts), and the legal pages' (shared/legal/legal.config.ts: the footer's
  * links in the page's language and the database's words).
  */
 async function shell(providers: Provider[] = []): Promise<Shell> {
@@ -888,7 +888,7 @@ describe('the shell with no bundle', () => {
     expect(form.host.querySelector('anotoki-dialog anotoki-feedback-form')).not.toBeNull();
     expect(form.host.querySelector('anotoki-feedback-form .anotoki-feedback-form__title')).toBeNull();
     expect(form.host.querySelector('footer anotoki-dialog')).toBeNull();
-    // The places of this app it can be about, in the page's words (core/site-admin.ts); nobody signed in: no "without my name".
+    // The places of this app it can be about, in the page's words (shared/site-admin.ts); nobody signed in: no "without my name".
     expect(form.host.querySelector('anotoki-feedback-form [data-section]')).not.toBeNull();
     expect(form.host.querySelector('anotoki-feedback-form [data-anonymous]')).toBeNull();
     // Cancel - in the dialog's own footer since anotoki-lib 0.8.0, always in view - closes it, and the focus is back on Feedback.

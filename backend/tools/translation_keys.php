@@ -26,10 +26,10 @@ use Anotoki\Lib\Translations\Cli\KeyScanner;
  * What is Piano Academy's own:
  *
  *   - the sources, frontend/src/app: every .ts and .html but the specs,
- *     core/testing/ (the specs' helpers) and core/i18n/kept-english.ts - the
+ *     shared/testing/ (the specs' helpers) and shared/i18n/kept-english.ts - the
  *     English the shell falls back to while it has no strings at all, a
  *     second copy of some of them: a key named only there is used by nothing;
- *   - the keys put together at run time, declared in core/i18n/dynamic-keys.ts
+ *   - the keys put together at run time, declared in shared/i18n/dynamic-keys.ts
  *     (prefix -> every tail; the file is read only for what it declares);
  *   - the pipes and calls are the library's (translate, translatePlural; t,
  *     around, has, plural, aroundPlural), and so is the namespace never looked
@@ -37,10 +37,10 @@ use Anotoki\Lib\Translations\Cli\KeyScanner;
  */
 
 /** Where the keys put together at run time are declared, under the frontend's src/app. */
-const TRANSLATION_DYNAMIC_KEYS_FILE = 'core/i18n/dynamic-keys.ts';
+const TRANSLATION_DYNAMIC_KEYS_FILE = 'shared/i18n/dynamic-keys.ts';
 
 /** The English the shell keeps for when it has no strings, under the frontend's src/app: not read for keys. */
-const TRANSLATION_KEPT_ENGLISH_FILE = 'core/i18n/kept-english.ts';
+const TRANSLATION_KEPT_ENGLISH_FILE = 'shared/i18n/kept-english.ts';
 
 /** The frontend's sources, seen from backend/tools/. */
 function translationKeysFrontendRoot(): string
@@ -51,7 +51,7 @@ function translationKeysFrontendRoot(): string
 /** The family's scan of this app's frontend ($root: the tests' own small frontends). */
 function translationKeyScanner(?string $root = null): KeyScanner
 {
-    return new KeyScanner($root ?? translationKeysFrontendRoot(), exclude: ['core/testing/**', TRANSLATION_KEPT_ENGLISH_FILE], dynamicKeys: TRANSLATION_DYNAMIC_KEYS_FILE);
+    return new KeyScanner($root ?? translationKeysFrontendRoot(), exclude: ['shared/testing/**', TRANSLATION_KEPT_ENGLISH_FILE], dynamicKeys: TRANSLATION_DYNAMIC_KEYS_FILE);
 }
 
 /**

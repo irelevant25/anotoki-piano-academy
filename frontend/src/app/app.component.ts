@@ -10,21 +10,21 @@ import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { ConfirmHostComponent } from '@anotoki/lib/ui/dialog';
 import { SpinnerComponent } from '@anotoki/lib/ui/spinner';
 import { filter, map } from 'rxjs';
-import { LoadErrorComponent } from './boot/load-error/load-error.component';
-import { ApiService } from './core/api/api.service';
-import { CALLBACK_PATH, SIGN_IN_FAILED_ROUTE } from './core/auth/site-auth';
-import { VisitorKey } from './core/auth/visitor-key';
-import { ChangelogService } from './core/changelog/changelog.service';
-import { VISITOR_KEEP_DAYS, VISITOR_WORDS } from './core/i18n/visitor-words';
-import { isLegalPage } from './core/legal/legal.config';
-import { BootService } from './core/state/boot.service';
-import { ProgressStore } from './core/state/progress-store.service';
-import { MIGRATIONS_ROUTE } from './core/state/site-migrations';
-import { TopBarComponent } from './layouts/top-bar/top-bar.component';
-import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog.component';
+import { LoadErrorComponent } from './shared/boot/load-error/load-error.component';
+import { ApiService } from './api/api.service';
+import { CALLBACK_PATH, SIGN_IN_FAILED_ROUTE } from './shared/auth/site-auth';
+import { VisitorKey } from './shared/auth/visitor-key';
+import { ChangelogService } from './shared/changelog/changelog.service';
+import { VISITOR_KEEP_DAYS, VISITOR_WORDS } from './shared/i18n/visitor-words';
+import { isLegalPage } from './shared/legal/legal.config';
+import { BootService } from './shared/state/boot.service';
+import { ProgressStore } from './shared/state/progress-store.service';
+import { MIGRATIONS_ROUTE } from './shared/state/site-migrations';
+import { TopBarComponent } from './shared/top-bar/top-bar.component';
+import { ChangelogDialogComponent } from './shared/ui/changelog-dialog/changelog-dialog.component';
 
 /**
- * The frame around every view: the family's top bar (layouts/top-bar: the
+ * The frame around every view: the family's top bar (shared/top-bar: the
  * brand, the sections, the piano, the language, the theme and the person's
  * menu - the admin panel's sections under /admin), the view - or, while the
  * app cannot run yet, the card saying why - and the family's footer. Also the
@@ -60,9 +60,9 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * reader) - the version and
  * What's new once the list of changes came (changelog.json, its newest entry
  * the version: one source), What's new opening this app's own dialog
- * (ui/changelog-dialog, loaded only when it is opened), Feedback the family's
+ * (shared/ui/changelog-dialog, loaded only when it is opened), Feedback the family's
  * form in the kit's dialog (its code loaded with the press, configured in
- * core/site-admin.ts) - and About · Support · Terms · Privacy · Contact under
+ * shared/site-admin.ts) - and About · Support · Terms · Privacy · Contact under
  * them (the library's paths, the open one marked). Its words are the library's
  * (`anotoki.footer.*`, `anotoki.legalLinks.*`): the database's, else its own.
  *
@@ -72,7 +72,7 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  * be signed in on them, and none runs on anybody's progress.
  *
  * For a VISITOR - practising without signing in, while the IAM does not
- * require it (BootService.visiting) - the notes of core/i18n/visitor-words.ts:
+ * require it (BootService.visiting) - the notes of shared/i18n/visitor-words.ts:
  * on Learn and Stats only (the practice screens stay clear) that the progress
  * is kept for this browser for VISITOR_KEEP_DAYS days after the last visit
  * and that signing in keeps it, with Sign in; that sign-in became required
@@ -89,7 +89,7 @@ import { ChangelogDialogComponent } from './ui/changelog-dialog/changelog-dialog
  *
  * All of it is drawn in every state of the start, also when the app has no
  * strings at all (not set up, the backend down): every key used out here is
- * in core/i18n/kept-english.ts too, which the translation service reads while
+ * in shared/i18n/kept-english.ts too, which the translation service reads while
  * no bundle is in memory.
  */
 @Component({
@@ -138,7 +138,7 @@ export class AppComponent {
    * app waits for an update, or the address is one of the sign-in's own pages
    * (the callback, the failure's screen), or one of the legal pages (Terms,
    * Privacy, Contact: anybody's, signed in or not, with nothing of a person's
-   * progress on them - core/legal). One outlet for all, so the
+   * progress on them - shared/legal). One outlet for all, so the
    * Migrations page stays (with what its Apply said) as the app starts after
    * it. Otherwise the card that says where the start is (loading, could not
    * load).

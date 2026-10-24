@@ -8,7 +8,7 @@ declare(strict_types=1);
  * query is limited to it - one person can never read or change another's.
  *
  * The browser works out every SRS and path change itself (frontend,
- * core/music/) and saves the whole document; the server checks its shape and
+ * shared/music/) and saves the whole document; the server checks its shape and
  * keeps it. The documents go back out as the database's JSON text, never
  * through PHP arrays, so the empty object {} stays {}.
  *

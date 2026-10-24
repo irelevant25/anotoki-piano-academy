@@ -19,7 +19,7 @@
                     </anotoki-alert>
                 }
 
-                <!-- A visitor's notes (practising without signing in: core/i18n/visitor-words.ts), then the notes after a sign-in that moved a visitor's progress. -->
+                <!-- A visitor's notes (practising without signing in: shared/i18n/visitor-words.ts), then the notes after a sign-in that moved a visitor's progress. -->
                 @if (visitorSignInNow()) {
                     <anotoki-alert id="visitor-sign-in-now" tone="warning" announce>
                         <span>{{ words.signInNow | translate }}</span>

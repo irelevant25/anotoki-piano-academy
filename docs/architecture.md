@@ -159,7 +159,7 @@ the app; the ADMIN check there reads the token alone and records nobody
 (`adminByToken()`): the users table may be waiting for the very update.
 
 In the browser (`@anotoki/lib/migrations`, wired in
-`frontend/src/app/core/state/site-migrations.ts`): the app's initializer asks
+`frontend/src/app/shared/state/site-migrations.ts`): the app's initializer asks
 `GET /api/site-status` first; `siteStatusInterceptor` hears any `503
 update_pending`/`not_set_up` later; `<anotoki-site-gate>` is the outermost of
 what the shell draws, and the shell's whole frame - the top bar, the notes
@@ -376,7 +376,7 @@ under `/admin`:
   405, 413, 415 and 429 and PHP's warnings, with the route and a redacted
   message - never a query, a header, a body, a token or an address - and the
   pages' own errors (`source: client`): the library's reporter in the browser
-  (`core/error-report.ts`, the app's ErrorHandler) scrubs each and posts it,
+  (`shared/error-report.ts`, the app's ErrorHandler) scrubs each and posts it,
   through the app's HttpClient (a person's with their token), to `POST
   /api/client-errors` (`ErrorLogRoutes::client()`), which redacts it again; at
   most five a page load, twenty an hour from one sender (a person by their
@@ -438,7 +438,7 @@ under `/admin`:
 `frontend/README.md` has its folders and commands; the project skill has the
 whole map. How it meets the backend:
 
-**The start** (`core/state/boot.service.ts`, run by the app initializer before
+**The start** (`shared/state/boot.service.ts`, run by the app initializer before
 the router's first navigation, once the initializer has asked where the site
 stands - `GET /api/site-status`): the sign-in (the family's
 `AnotokiAuth.init()`: `GET /api/auth/config` - the IAM's address, the client
@@ -463,7 +463,7 @@ forgotten and the start goes on as nobody. It ends in one status:
 | `ready` | the page | the progress is in memory - a person's, or a visitor's |
 
 **The sign-in guards** (the family's, `@anotoki/lib/auth`, wired in
-`core/auth/site-auth.ts`): `personOrVisitorGuard`, `canActivateChild` on the
+`shared/auth/site-auth.ts`): `personOrVisitorGuard`, `canActivateChild` on the
 route that holds every learner page, and `staffGuard`, `canActivate` on
 `/admin` (`adminGuard` on each ADMIN page: anybody else signed in goes to
 the start page). Signed out, they send the browser to the IAM with the
@@ -488,13 +488,13 @@ analyzer only).
 
 **The legal pages** (`/terms`, `/privacy`, `/contact`: the family's
 `@anotoki/lib/legal/pages`, lazy): each a route of its own whose parent is
-the frame `layouts/legal-layout` - which gives the pages Piano's facts
-(`core/legal/legal-facts.ts`, over the root configuration
+the frame `sites/main/legal/legal-layout` - which gives the pages Piano's facts
+(`sites/main/legal/legal-facts.ts`, over the root configuration
 `provideAnotokiLegal(pianoLegalConfig)` in `app.config.ts`: the page's
 language, the database's words) - placed before the learner's `''` parent
 and the catch-all, so neither the learner's guard nor `**` ever takes them.
 They are anybody's: while nobody is signed in where a sign-in is required
-the shell still draws them (`pageShown()`: `isLegalPage()`, `core/legal/legal.config.ts`)
+the shell still draws them (`pageShown()`: `isLegalPage()`, `shared/legal/legal.config.ts`)
 and the bar offers Sign in; nothing of a learner's is asked. The facts are
 true of the code as it is (`docs/decisions.md`, 2026-10-18), every address
 on the pages the code's - the anotoki account's Privacy and account pages
@@ -506,7 +506,7 @@ every anotoki site) are routes the same way, in the same frame, and
 headings (`anotoki.about.title`, `anotoki.support.title` - the app's name
 alone while no bundle is in memory).
 
-**The family's kit** (`@anotoki/lib` 0.9.2, `core/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.9.2, `shared/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
@@ -539,7 +539,7 @@ informal Slovak (and, while no bundle is in memory, the theme switch's
 "Theme: light" kept in code). What is Piano's own is what no other site
 has, built from the family's tokens: the path (the phases' heads, the
 units), a lesson's steps and its result (the meet step's count of plays
-among them), the practice screens (`pages/_practice.scss`), the keyboard,
+among them), the practice screens (`sites/main/features/_practice.scss`), the keyboard,
 the notation, the piano's button in the bar and What's new's list of
 releases. Piano has no global rule for
 buttons, selects or cards any more (`styles.scss` keeps the palette,
@@ -547,7 +547,7 @@ Piano's own colours and `body`'s word breaking): nothing of Piano's can
 reach the kit's components.
 
 **The words** (`@anotoki/lib/translations`, wired in
-`core/i18n/site-translations.ts`; the PHP half in `api/translations.php`):
+`shared/i18n/site-translations.ts`; the PHP half in `api/translations.php`):
 the anotoki family's one implementation. `TranslationService` decides the
 language (below) and holds its bundle (`GET /api/translations/{code}`, cached
 on the device under this app's old keys, `piano-academy:language` and
@@ -560,13 +560,13 @@ the family's (`@anotoki/lib/translations/admin`, lazy), with this app's
 checks (`allows`: the strings for the staff, the languages for ADMIN) and
 its guard for unsaved changes (`anotokiUnsavedChangesGuard`).
 
-**The top bar** (`layouts/top-bar/`, drawn once by `AppComponent` above every
+**The top bar** (`shared/top-bar/`, drawn once by `AppComponent` above every
 page and boot card): the anotoki family's `<anotoki-top-bar>`, told what is
 Piano's - the brand (the mark in `public/anotoki.png`, "anotoki Piano
 Academy"), the five sections as links (`APP_LINKS`: a lesson is under Learn,
 a song under Songs; drawn once the app runs), and two widgets of the app's
 own before the language: "Not saved yet" while a save waits and the piano
-(`ui/midi-panel`: a dot and the device's name; its box holds the state, the
+(`shared/ui/midi-panel`: a dot and the device's name; its box holds the state, the
 devices, Connect and Rescan); then the language, the theme switch (light,
 dark, as the device is set) and the person's menu (name, e-mail, role; their
 anotoki account; "Admin panel" for the staff while the site is ready; Sign
@@ -596,9 +596,9 @@ template with the bar: a line above it, then "v0.4.0 · What's new · Feedback"
 (a screen reader hears "Version 0.4.0", the library's `anotoki.footer.version`):
 the version and What's new once `changelog.json` came (its
 newest entry is the version: one source), What's new opening the app's own
-dialog (`ui/changelog-dialog`, on the footer's `(whatsNew)`, a `@defer`),
+dialog (`shared/ui/changelog-dialog`, on the footer's `(whatsNew)`, a `@defer`),
 Feedback the family's form in the kit's dialog (the footer loads its code
-with the press; `provideAnotokiFeedback()` in `core/site-admin.ts`), for
+with the press; `provideAnotokiFeedback()` in `shared/site-admin.ts`), for
 anybody - the form says itself whom its message is for (anybody's, the
 library's `issuedAs('anybody')` since anotoki-lib 0.7.2: the person's while
 somebody is signed in, with the token; nobody's otherwise, with neither a
@@ -615,12 +615,12 @@ the People page, the admin tools' pages, `<anotoki-migrations-page>`, each
 lazy from its own entry point; `/admin/database` redirects to Migrations);
 the person's menu calls it "Admin panel", its brand "anotoki Piano Academy ·
 admin panel" and its titles "Translations · Admin panel · Piano Academy", as on
-every anotoki site; `layouts/admin-layout/` draws the page, or
+every anotoki site; `sites/admin/admin-layout/` draws the page, or
 says why there is nothing (signed out; signed in without a role). `/translations` and `/languages`
 redirect there. The family's pages show the server's own English sentence
 when a call fails; a learner's page never does.
 
-**Saving** (`core/state/progress-store.service.ts`, `core/api/api.service.ts`):
+**Saving** (`shared/state/progress-store.service.ts`, `api/api.service.ts`):
 `ApiService.fetchState()` keeps the generation; every `PUT /api/progress` and
 `PUT /api/path` names it (`Progress-Generation`) - without one the save is not
 sent at all, so `428` never comes from the app - one that comes all the same
@@ -639,14 +639,14 @@ meanwhile is made again on what it gives - so the old documents never go out
 under the new generation, also in the middle of a round. Rounds go through the outbox
 (localStorage, an Idempotency-Key), unchanged.
 
-**Who a call is for** (`core/api/api.service.ts`, the family's
+**Who a call is for** (`api/api.service.ts`, the family's
 `anotokiAuthInterceptor`): decided as `ApiService` issues it, from the page's
 data owner, and carried on the request (the library's `ISSUED_AS`). A
 person's: the access token, or - with none
 to send - not sent at all (401 `sign_in_required` locally, whatever the
 switch says); never the visitor key, but on the move (`CARRIES_VISITOR_KEY`).
 A visitor's (`VISITOR_OWNER`): the key this browser holds now
-(`core/auth/visitor-key.ts`, localStorage `piano-academy:visitor`) - only to
+(`shared/auth/visitor-key.ts`, localStorage `piano-academy:visitor`) - only to
 the progress routes (`VISITOR_PREFIXES`) -, never a token; the answer that
 made the visitor brings the key (the first key stays) and the generation; a
 401 `visitor_unknown` forgets the key that was sent and tries once more
@@ -659,7 +659,7 @@ change, and after a 429 no new visitor is asked for before its Retry-After
 (`ApiService.visitorRefusal` holds the words' key).
 
 **A visitor's words** (the shell, `app.component`; keys of migration 005 in
-`core/i18n/visitor-words.ts`, English kept in `kept-english.ts`): under the
+`shared/i18n/visitor-words.ts`, English kept in `kept-english.ts`): under the
 bar, on Learn and Stats only, the notice - kept for this browser 30 days
 after the last visit, signing in keeps it - with Sign in; on any page, while
 visiting: sign-in required meanwhile (`visitor.signInNow`, with Sign in), a
@@ -673,7 +673,7 @@ sets no "changed elsewhere"). After a sign-in: `visitor.moved` (+
 place of the progress file for anybody not signed in; People counts the
 visitors in a line of its own.
 
-**The own progress file** (`pages/stats/own-progress/`, the last card of
+**The own progress file** (`sites/main/features/stats/own-progress/`, the last card of
 Stats, for somebody signed in): Download (`GET /api/me/export`, saved under the server's file name);
 Bring back a file - the size checked here, refused while a save waits, the dry
 run's counts (saved now, in the file, rounds left out), then a second press,
@@ -694,7 +694,7 @@ is the account's `{theme, date_format, time_format}` while somebody is signed
 in - null for nobody, a visitor, or an IAM that sends none, and then the app
 keeps its own settings as before and saves nothing to the account.
 The family's `ThemeService` (`@anotoki/lib/shell`, given the account's theme
-and the save in `core/family-kit.ts`) shows the account's theme (taken at
+and the save in `shared/family-kit.ts`) shows the account's theme (taken at
 sign-in and whenever it changes - another tab, another site, a token refresh
 - but not while a save of its own is out), and the bar's theme switch saves
 a choice to the account through `AnotokiAuth.savePreferences()`: shown at
@@ -709,7 +709,7 @@ automatic), the admin panel's People and Migrations included (`stamp`: their
 `yyyy-MM-dd HH:mm`, the server's own numbers for Migrations).
 
 **Which language** (the family's `TranslationService`, wired in
-`core/i18n/site-translations.ts`; the family's order): for somebody signed in whose account sends
+`shared/i18n/site-translations.ts`; the family's order): for somebody signed in whose account sends
 its preferences, this tab's `?lang=` and a choice made on the page this
 visit come first, then the account's language (when the site has it), then
 the choice this device remembered, the browser's languages, English. A

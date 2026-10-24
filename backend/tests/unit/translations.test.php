@@ -740,12 +740,12 @@ test('a string migration\'s gate checks exactly the keys the migration writes, a
 
 test('the scan as this app sets it up: this app\'s sources and dynamic keys - never a spec, the specs\' helpers, the kept English, or the library\'s own keys', function (): void {
     $root = sources([
-        'pages/home/home.component.html' => "<h1>{{ 'home.title' | translate }}</h1>\n<span>{{ 'home.due' | translatePlural: n }}</span>\n<em>{{ 'home.missing' | translate }}</em>\n",
-        'pages/home/home.component.ts' => "const label = word('path.hint.' + midi);\nconst kit = 'anotoki.topbar.signIn';\n",
-        'pages/home/home.component.spec.ts' => "expect(text).toBe('home.onlyInASpec');\n",
-        'core/testing/example.ts' => "export const example = 'home.onlyInTesting';\n",
-        'core/i18n/kept-english.ts' => "export const KEPT_ENGLISH: Readonly<Record<string, string>> = {\n  'home.title': 'Learn',\n  'home.onlyKept': 'Kept, and asked for by no page',\n};\n",
-        'core/i18n/dynamic-keys.ts' => "export const DYNAMIC_KEYS: Record<string, readonly string[]> = {\n  'path.hint.': ['60'],\n};\n",
+        'sites/main/home/home.component.html' => "<h1>{{ 'home.title' | translate }}</h1>\n<span>{{ 'home.due' | translatePlural: n }}</span>\n<em>{{ 'home.missing' | translate }}</em>\n",
+        'sites/main/home/home.component.ts' => "const label = word('path.hint.' + midi);\nconst kit = 'anotoki.topbar.signIn';\n",
+        'sites/main/home/home.component.spec.ts' => "expect(text).toBe('home.onlyInASpec');\n",
+        'shared/testing/example.ts' => "export const example = 'home.onlyInTesting';\n",
+        'shared/i18n/kept-english.ts' => "export const KEPT_ENGLISH: Readonly<Record<string, string>> = {\n  'home.title': 'Learn',\n  'home.onlyKept': 'Kept, and asked for by no page',\n};\n",
+        'shared/i18n/dynamic-keys.ts' => "export const DYNAMIC_KEYS: Record<string, readonly string[]> = {\n  'path.hint.': ['60'],\n};\n",
     ]);
     $database = [
         'home.title',
@@ -761,9 +761,9 @@ test('the scan as this app sets it up: this app\'s sources and dynamic keys - ne
     ];
     $scan = translationKeyScanner($root)->scan($database);
     assert_same([], $scan['problems']);
-    assert_same(['home.missing' => ['pages/home/home.component.html:3']], $scan['missing'], 'asked for, and not there');
+    assert_same(['home.missing' => ['sites/main/home/home.component.html:3']], $scan['missing'], 'asked for, and not there');
     assert_same(['home.onlyInASpec', 'home.onlyInTesting', 'home.onlyKept'], $scan['unused'], 'the specs, their helpers and the kept English do not count - and the library\'s keys are never unused');
-    assert_same(['core/i18n/dynamic-keys.ts'], $scan['used']['path.hint.60']);
+    assert_same(['shared/i18n/dynamic-keys.ts'], $scan['used']['path.hint.60']);
     assert_false(isset($scan['used']['anotoki.topbar.signIn']), 'the library\'s namespace is never looked for');
 
     // And what it reads of the real frontend: only what it should.
@@ -771,7 +771,7 @@ test('the scan as this app sets it up: this app\'s sources and dynamic keys - ne
     assert_true(in_array('app.routes.ts', $files, true) && in_array('app.component.html', $files, true), 'the sources are where the scan looks');
     foreach ($files as $file) {
         assert_match('/\.(ts|html)$/', $file);
-        assert_no_match('~\.spec\.ts$|^core/testing/|^core/i18n/kept-english\.ts$~', $file);
+        assert_no_match('~\.spec\.ts$|^shared/testing/|^shared/i18n/kept-english\.ts$~', $file);
     }
     assert_true(in_array(TRANSLATION_DYNAMIC_KEYS_FILE, $files, true), 'the dynamic keys are read - for what they declare');
 });

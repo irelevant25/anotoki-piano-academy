@@ -4,8 +4,8 @@ import { Route, Router, RouterOutlet, Routes, provideRouter } from '@angular/rou
 import { RouterTestingHarness } from '@angular/router/testing';
 import { AuthCallbackComponent, SignInFailureComponent, adminGuard, personOrVisitorGuard, staffGuard } from '@anotoki/lib/auth';
 import { routes } from './app.routes';
-import { LEGAL_PAGE_PATHS } from './core/legal/legal.config';
-import { HomePageComponent } from './pages/home/home-page.component';
+import { LEGAL_PAGE_PATHS } from './shared/legal/legal.config';
+import { HomePageComponent } from './sites/main/home/home-page.component';
 
 /** A route of the table by its path, under `parent`'s children (or at the top). */
 function route(path: string, parent?: Route): Route {

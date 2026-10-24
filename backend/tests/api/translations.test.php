@@ -994,7 +994,7 @@ test('the command line: --export and --import on the same strings, by nobody; --
     assert_match('/In the database, used nowhere.*\n\s+test\.bye\n\s+test\.count\n\s+test\.hello\n\s+test\.new\n/', $out);
     assert_match('/\n\s+de\s+German \(Germany\)\s+3 \/ 4\n/', $out, 'how much of each language there is');
     // Exit 1 exactly when it says "Not clean." - a key the frontend puts together at run time
-    // (core/i18n/dynamic-keys.ts) must be there whatever else the database has, so with the test's
+    // (shared/i18n/dynamic-keys.ts) must be there whatever else the database has, so with the test's
     // four keys it is one or the other by what the frontend declares today.
     assert_same(str_contains($out, 'Not clean.') ? 1 : 0, $code, $out);
     assert_same(str_contains($out, 'Clean.') ? 0 : 1, $code, $out);

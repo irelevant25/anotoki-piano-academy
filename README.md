@@ -160,7 +160,7 @@ this in full, in English and Slovak: each part the app keeps, why and for
 how long, what this browser stores (by name), who else handles data (the
 hosting company and Cloudflare) and your rights; your anotoki account itself
 is the IAM's, and its own Privacy page is linked from there. The facts on it
-are written in the code (`frontend/src/app/core/legal/legal-facts.ts`) and
+are written in the code (`frontend/src/app/sites/main/legal/legal-facts.ts`) and
 must stay true of it: a change to what the app keeps, or for how long,
 changes them too.
 

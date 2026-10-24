@@ -37,12 +37,12 @@ Why things are the way they are. Read the reason before undoing one.
   and the page followed a session that had never been, what they typed
   lost. Piano's server takes anybody's message (`FeedbackRoutes::public`:
   nobody's and a visitor's too, counted by address), so the message now
-  says it: `feedbackSenderInterceptor` (`core/site-admin.ts`, before the
+  says it: `feedbackSenderInterceptor` (`shared/site-admin.ts`, before the
   family's interceptor in `SITE_INTERCEPTORS`, `app.config.ts` - the
   survey's way) marks it the person's while somebody is signed in (the
   token goes with it) and nobody's otherwise (neither a token nor a key);
   a request that says already is left alone. Feedback stays offered to
-  everybody. `core/site-admin.spec.ts` holds each case and the order
+  everybody. `shared/site-admin.spec.ts` holds each case and the order
   (mutation-checked); the browser check sends one from the footer signed
   out (201, thanked on the same page, kept by nobody). Since anotoki-lib
   0.7.2 the form marks its message itself (`issuedAs('anybody')`), and
@@ -138,7 +138,7 @@ first, and set the pattern), both halves of the library on 0.6.1.
 - **The legal pages are the family's, the facts Piano's.**
   `@anotoki/lib/legal/pages` draws Terms, Privacy and Contact - their
   structure and shared words (`anotoki.legal.*`) the library's; Piano gives
-  its facts (`core/legal/legal-facts.ts`): what it keeps, what for and how
+  its facts (`sites/main/legal/legal-facts.ts`): what it keeps, what for and how
   long, its visitors, feedback, the error log, the audit log, the backups,
   its cookies and browser storage by name, counting visits (Umami), who else
   handles data. The operator stays the library's default (Code Hero s.r.o.,
@@ -159,7 +159,7 @@ first, and set the pattern), both halves of the library on 0.6.1.
 - **The facts load with the pages.** The root configuration
   (`provideAnotokiLegal(pianoLegalConfig)`: the page's language, the
   database's words) is all the first load carries; the frame
-  (`layouts/legal-layout`) provides the facts, over the root's
+  (`sites/main/legal/legal-layout`) provides the facts, over the root's
   (`skipSelf`).
 - **The account is the anotoki account's.** Its Privacy page and its
   account page are linked at the IAM's address the app signs in with
@@ -356,7 +356,7 @@ of 2026-10-11 for every site, and what they mean here:
   delete begins, commits or rolls back nothing. A test holds it
   (mutation-checked: on `db()` the restore hangs and fails).
 - **The pages' own errors go to the error log** (every site): the
-  library's reporter is the app's ErrorHandler (`core/error-report.ts`,
+  library's reporter is the app's ErrorHandler (`shared/error-report.ts`,
   beside Angular's global listeners), sends each error - scrubbed, at most
   five a page load - through the app's HttpClient, so the family's
   interceptor gives a person's report their token and a visitor's none, to
@@ -464,7 +464,7 @@ here:
   site would use: the path (the Continue card with its blue edge and glow,
   the phases' heads, the units, the step chips - a step is a small button
   with three states; the kit has no chip), a lesson's step dots and result,
-  the practice screens (`pages/_practice.scss`), the figures in tiles
+  the practice screens (`sites/main/features/_practice.scss`), the figures in tiles
   (`pages/_stat-tiles.scss`: the kit has no metric tile), the keyboard, the
   staff, the piano's round-ended button in the bar, What's new's releases
   (in the kit's dialog, their lists named by the kit's badges).
@@ -502,7 +502,7 @@ what they mean here:
   `core/auth/anotoki-auth.mjs`), this app's `AuthService`, interceptor,
   guards, sign-in card and its stand-in IAM (`tests/tools/fake-iam.php`)
   went; `Anotoki\Lib\Auth` and `@anotoki/lib/auth` stand there, wired in
-  `api/auth.php`, `api/meddleware/auth.php` and `core/auth/site-auth.ts`,
+  `api/auth.php`, `api/meddleware/auth.php` and `shared/auth/site-auth.ts`,
   refusing in this app's `{error, code}`. The tokens stay where the SDK kept
   them (`anotoki-auth:piano-academy`): nobody is signed out by the move. What
   stays this app's: the visitors - the key and the paths it goes to, the move
@@ -708,7 +708,7 @@ owner's decisions for Piano Academy:
   light", what the round button said); what Piano never had - the switch's
   name, "As your device is set", "Saving…" - is the kit's own.
 
-What is the family's now: the top bar (`layouts/top-bar` wraps
+What is the family's now: the top bar (`shared/top-bar` wraps
 `<anotoki-top-bar>`: Piano's brand, sections, person and menu items, "Not
 saved yet" and the piano as its widgets, the phone's dot and the menus'
 note), the brand, the icons, the spinner, the language chooser, the menus,
@@ -750,7 +750,7 @@ big changes, new features, bug fixes. What's new's entries were renamed
 0.4.0 already holds this round's line. `frontend/package.json` said 0.4.0
 already; its package-lock's root still said 0.3.0 and says 0.4.0 now. A new
 release is a new entry on top with three numbers, and `package.json`'s
-version line the same - `core/changelog/changelog.service.spec.ts` reads
+version line the same - `shared/changelog/changelog.service.spec.ts` reads
 both files and holds them to it. Nothing here remembers which What's new
 somebody saw (it opens only from the footer's version), so no "0.4" kept in
 a browser had to be read as "0.4.0".
@@ -881,7 +881,7 @@ the service, the button and the boot script are the family's - its
 `ThemeService`, its switch and its `theme-boot.js` - with the same rules and
 the same key: "the anotoki family's kit", above.)
 
-**Dates and times** (`core/i18n/local-date.pipe.ts`, with the family's four
+**Dates and times** (`shared/i18n/local-date.pipe.ts`, with the family's four
 orders and two clocks in `date-patterns.ts`): for somebody signed in whose
 account chose an order or a clock, a day is written in that order, and a
 moment as the date and the time side by side - each half the language's own
@@ -950,7 +950,7 @@ controls what `umami.anotoki.eu` serves that far.
 
 What somebody practising without signing in reads, and what a person reads
 after a sign-in that brought a visitor's progress along - all the shell's
-(`app.component`), keys of migration 005 (`core/i18n/visitor-words.ts`),
+(`app.component`), keys of migration 005 (`shared/i18n/visitor-words.ts`),
 English kept in code too (`kept-english.ts`), Slovak informal.
 
 **The notice only on Learn and Stats.** "Your progress is kept for this
@@ -1404,7 +1404,7 @@ the learner is on keeps what it has until they choose to sign in again (the
 browser asks before a page with an unsaved save is left).
 
 **The admin panel is `/admin`, English, split by role.** The owner's two pages
-became the admin panel's (`pages/admin/`, `layouts/admin-layout/`):
+became the admin panel's (`pages/admin/`, `sites/admin/admin-layout/`):
 Translations for the staff (EDITOR or ADMIN); Languages, People and Migrations
 for ADMIN alone (`adminGuard` sends anybody else to Translations). The old
 addresses `/translations` and `/languages` redirect there. Everything there
@@ -1481,7 +1481,7 @@ outbox are kept for the next sign-in and are no reason to ask.
 
 **One top bar, the family's - five sections, and Piano's own fold.** "All
 other should have same top menu bar structure": the survey's bar, rebuilt in
-Piano's tokens (`layouts/top-bar`). The five sections stay (Learn, Note
+Piano's tokens (`shared/top-bar`). The five sections stay (Learn, Note
 Trainer, Sheet Practice, Songs, Stats - the trainer is one of the app's
 modes). With the real labels the widest row is 1237 px (Slovak, "Not saved
 yet" showing, a device name at its widest; 1174 with "No piano"), measured by

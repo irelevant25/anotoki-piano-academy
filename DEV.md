@@ -207,7 +207,7 @@ site (`anotoki-lib` 0.3.0): `api/translations.php` wires its PHP half - the
 bundle `GET /api/translations/{code}`, the admin panel's
 `/api/admin/translations...` and `/api/admin/languages...` (snake_case, the
 IAM's format; the role checks are this app's, on the route groups) - and
-`frontend/src/app/core/i18n/site-translations.ts` its Angular half (the
+`frontend/src/app/shared/i18n/site-translations.ts` its Angular half (the
 `TranslationService`, the pipes, the admin pages). The library's own words
 are keys of its own, `anotoki.*` (94: the bar's, the menus', the language
 chooser's and theme switch's, the dialogs', the status page's, the sign-in
@@ -218,7 +218,7 @@ rewords them on the Translations page like any other.
 - `tools/translations.php --status` (the library's command) scans
   `frontend/src/app` for the keys it asks for (`tools/translation_keys.php`
   sets the library's `KeyScanner` up: quoted literals of a key's shape,
-  `core/i18n/dynamic-keys.ts` for keys put together at run time; `anotoki.*`
+  `shared/i18n/dynamic-keys.ts` for keys put together at run time; `anotoki.*`
   passed by) and compares them with the database: exit 1 when a key is
   missing, has no English string, or is asked for in a way the scan does not
   let through; it lists keys nothing asks for. `php tests/run.php` runs the
@@ -232,7 +232,7 @@ rewords them on the Translations page like any other.
   text): the key with a description, its English, its Slovak, and a closing
   gate. A string the shell shows while there are no strings at all (the
   top bar, the cards) also goes into
-  `frontend/src/app/core/i18n/kept-english.ts`, letter for letter.
+  `frontend/src/app/shared/i18n/kept-english.ts`, letter for letter.
 - While a migration is not released it may still change: after editing it,
   `php tests/tools/testdb.php template --fresh` builds the tests' template
   again from every migration (the template otherwise never reapplies a
@@ -251,7 +251,7 @@ cd .. && bun run format:check      # Prettier on every file of both halves, at t
 ```
 
 The frontend's specs need no server: `HttpTestingController` answers the API,
-`TestAuth` (`core/testing/test-auth.ts`) stands for the family's `AnotokiAuth`,
+`TestAuth` (`shared/testing/test-auth.ts`) stands for the family's `AnotokiAuth`,
 `provideTestTranslations()` gives a page its
 strings. `frontend/README.md` lists what they cover.
 
@@ -676,7 +676,7 @@ library's first wording - Piano words two of them itself, the backups and
 the sign-in's storage).
 It all goes with 005 to 011 at the hand-over - one Apply. The hosting company
 is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
-'hosting' }` in `frontend/src/app/core/legal/legal-facts.ts`); before the site
+'hosting' }` in `frontend/src/app/sites/main/legal/legal-facts.ts`); before the site
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
@@ -716,7 +716,7 @@ after release needs an `UPDATE` in its migration. The two databases (your
 computer, the host) each hold their own strings: export and import - on the
 Translations page or with `tools/translations.php` - are the bridge. After a
 release, a new or reworded string is a new migration, and a new string of the
-shell also goes into `core/i18n/kept-english.ts`.
+shell also goes into `shared/i18n/kept-english.ts`.
 
 If a whole site answers "500 Internal Server Error" after an upload, the host
 may not allow a line of `.htaccess` (`Options -Indexes` or `CGIPassAuth`):

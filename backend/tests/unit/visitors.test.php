@@ -481,7 +481,7 @@ test('the key: 43 characters of base64url, a new one each time; only its SHA-256
 });
 
 test('the days the notice promises are the days the sweep keeps a visitor - here and in the frontend', function (): void {
-    $words = (string) file_get_contents(TEST_BACKEND . '/../frontend/src/app/core/i18n/visitor-words.ts');
+    $words = (string) file_get_contents(TEST_BACKEND . '/../frontend/src/app/shared/i18n/visitor-words.ts');
     assert_match('/export const VISITOR_KEEP_DAYS = ' . VISITOR_KEEP_DAYS . ';/', $words);
 });
 
