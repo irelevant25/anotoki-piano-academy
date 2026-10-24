@@ -22,8 +22,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '../../../..');
 const shots = join(WORK, 'shots');
 
-/** The bar's fold, as layouts/top-bar has it - the check follows the number. */
-const BAR_SOURCE = readFileSync(join(repo, 'frontend/src/app/layouts/top-bar/top-bar.component.ts'), 'utf8');
+/** The bar's fold, as shared/top-bar has it - the check follows the number. */
+const BAR_SOURCE = readFileSync(join(repo, 'frontend/src/app/shared/top-bar/top-bar.component.ts'), 'utf8');
 const PHONE_BAR_MAX = Number(/export const PHONE_BAR_MAX = (\d+);/.exec(BAR_SOURCE)[1]);
 const NAME_BAR_MIN = PHONE_BAR_MAX + Number(/export const NAME_BAR_MIN = PHONE_BAR_MAX \+ (\d+);/.exec(BAR_SOURCE)[1]);
 /** The admin panel's own fold (its row is not the learner's), and where its person's name shows. */
@@ -147,14 +147,14 @@ const standsAlone = (page) =>
     FRAME,
   );
 
-/** An ADMIN's sections in the admin panel (layouts/top-bar's ADMIN_LINKS): the family's admin tools among them. */
+/** An ADMIN's sections in the admin panel (shared/top-bar's ADMIN_LINKS): the family's admin tools among them. */
 const ADMIN_SECTIONS = 'Translations|Languages|People|Feedback|Error log|Audit log|Backups|Migrations';
 
 /** The family's screen of a sign-in that did not work (<anotoki-sign-in-failure>, on /sign-in-failed under the bar). */
 const FAILURE = 'anotoki-sign-in-failure';
 
 /**
- * Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in layouts/top-bar) draws what the tours read: the
+ * Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in shared/top-bar) draws what the tours read: the
  * kit's own class names (anotoki-<component>__<part>, since anotoki-lib 0.3.0).
  */
 const BAR = {
@@ -958,7 +958,7 @@ try {
     };
     // Every address a legal page of Piano Academy's may link to: the anotoki account's pages at the IAM the app signs in
     // with, its own Contact page, the family's address and operator, the authority, the hosting company (WebSupport,
-    // named by the owner on 2026-10-18) and Cloudflare (core/legal/legal-facts.ts).
+    // named by the owner on 2026-10-18) and Cloudflare (sites/main/legal/legal-facts.ts).
     const ADDRESSES = [
       `${IAM}/account`,
       `${IAM}/privacy`,
@@ -1274,7 +1274,7 @@ try {
       .catch(() => undefined);
     check(((await badge()) ?? '0') === String(unread - 1), "opened: read - the bar's number one less", await badge());
 
-    // A page's own error (anotoki-lib 0.5.0's reporter, core/error-report.ts): thrown outside Angular's own code, it
+    // A page's own error (anotoki-lib 0.5.0's reporter, shared/error-report.ts): thrown outside Angular's own code, it
     // goes to the console and - through the app's HttpClient, so with ada's token - into the error log. Thrown on
     // purpose, so it is taken off the list of the page errors this check otherwise allows none of.
     const thrown = 'The browser check threw this on purpose';

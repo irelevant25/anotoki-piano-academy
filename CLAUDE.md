@@ -25,7 +25,7 @@ export and import, the progress generation, the People routes and migration
 004's schema part (stage 2). The frontend is in step (stage 3): sign-in on
 every page, the admin panel under `/admin`, the own progress file on Stats,
 saves that name the generation, the sign-out question, and 004's strings for
-them. The family's one top bar is in (stage 4: `layouts/top-bar`), 004 is
+them. The family's one top bar is in (stage 4: `shared/top-bar`), 004 is
 finished with its strings, and the version is 0.2. Stage 5 reviewed it all
 and fixed what it found (a round no longer keeps its own copy of the
 progress; the bar's names hold the words they show; a 428 is a failed save). Then, at the owner's request, the
@@ -47,7 +47,7 @@ before: until then the owner's dev site says "needs an update"), visitors as
 visitors line. Stage C (the move at sign-in) is in: `POST /api/visitor/move`
 (`api/routes/visitor.php`, `visitorMove()`) with the token and the key.
 Stage D (the frontend's core) is in: `AuthService.loginRequired`,
-`core/auth/visitor-key.ts`, who a request is decided as `ApiService` issues
+`shared/auth/visitor-key.ts`, who a request is decided as `ApiService` issues
 it (`ISSUED_AS`), one "maker", the move before the state, the visitor's
 outbox taken on at every signed-in start, the guards (a visitor on the
 learner pages, never on `/admin`). Stage E (the visitor's words) is in: the
@@ -94,13 +94,13 @@ changed), `frontend/package.json` says 0.4.0, and a spec holds the two equal.
 **2026-10-08 to 11: the anotoki family's kit - `@anotoki/lib` 0.2.0** (its
 PHP half stays 0.1.0: 0.2.0 changed nothing there; the owner's decisions,
 `docs/decisions.md`). The top bar is the family's `<anotoki-top-bar>`
-(`layouts/top-bar` wraps it with Piano's brand, sections, person and menu
+(`shared/top-bar` wraps it with Piano's brand, sections, person and menu
 items, "Not saved yet" and the piano as its widgets, the phone's dot and
 the menus' note), with the family's segmented theme switch (light / dark /
 as the device is set) in the round button's place - its row is wider, so
 `PHONE_BAR_MAX` is 1320. The brand, icons, spinner, language chooser,
 menus, the piano's popover, the questions (`ConfirmService`), `ThemeService`
-and `theme-boot.js` are the family's too (`core/family-kit.ts`); the kit's
+and `theme-boot.js` are the family's too (`shared/family-kit.ts`); the kit's
 words are this app's strings where it has them (`core/i18n/kit-words.ts`).
 A site overrides the family's colours only (the owner's rule): Piano keeps
 its palette (`anotoki.root()` in `styles.scss`) and takes the family's
@@ -128,7 +128,7 @@ this app's own: its 001 proves the tables' shape, its 002 adds the library's
 54 words, `anotoki.*`), and the Angular half's `@anotoki/lib/translations`
 (`TranslationService`, the pipes, the kit's words and the bar's language
 chooser, the status page's words, the guard) and `/admin` (the Translations
-and Languages pages), wired in `core/i18n/site-translations.ts`. The wire
+and Languages pages), wired in `shared/i18n/site-translations.ts`. The wire
 format is the IAM's, snake_case (`native_name`, `sort_order`). The kit's
 words are the library's keys now: migration **009** copies this app's
 strings of the 17 keys the kit said (`core/i18n/kit-words.ts`, gone) under
@@ -149,7 +149,7 @@ family's library - `anotoki-lib` 0.4.1** (both halves; the owner's decisions,
 `Anotoki\Lib\Auth` (`api/auth.php`, `api/meddleware/auth.php`: `identify()`
 once in front of every route but the public ones, and this app's
 `requireUser()`, `requireRole()`, `requireOwner()`, `adminByToken()` stacking
-the library's checks) and `@anotoki/lib/auth` (`core/auth/site-auth.ts`:
+the library's checks) and `@anotoki/lib/auth` (`shared/auth/site-auth.ts`:
 AnotokiAuth, its interceptor, its guards, its callback page and its screen
 for a sign-in that did not work, `/sign-in-failed`, in this app's frame) -
 the vendored IAM SDKs, `AuthService`, the interceptor, the guards, the
@@ -204,7 +204,7 @@ Piano's own colours: `.btn-primary`, `.btn-large`, `.card`, `.chip`, `.tag`,
 `--accent`...: the components say `--anotoki-*`). Piano's own, from the
 tokens: the path (the Continue card, the phases' heads, the units, the step
 chips), a lesson's step dots and result, the practice screens
-(`pages/_practice.scss`), the figures in tiles (`pages/_stat-tiles.scss`),
+(`sites/main/features/_practice.scss`), the figures in tiles (`pages/_stat-tiles.scss`),
 the keyboard, the staff, the piano's button, What's new's releases. Piano's
 light green is a shade darker (`#187a4b`): its words now read AA. One line in
 What's new's 0.4.0; no words, no migration. The first load is 535 kB (the
@@ -228,7 +228,7 @@ connection the library hands it, inside the library's transaction - which
 forgets the person's feedback and writes `person.data_deleted` in it, by its
 transaction id - and begins none of its own (`db()` would wait on a
 restore's locks). The pages' own errors go to the error log: the library's
-reporter (`core/error-report.ts`, `provideSiteErrorReport()` beside
+reporter (`shared/error-report.ts`, `provideSiteErrorReport()` beside
 `provideBrowserGlobalErrorListeners()`) posts them through the app's
 HttpClient to `POST /api/client-errors` (`ErrorLogRoutes::client`, behind
 the gate and `identify()`; 20 an hour from one sender, 500 a day from the
@@ -270,13 +270,13 @@ Without the file, as before. No line in What's new; no migration.
 halves; the round-3 pass of every anotoki site, `docs/decisions.md`). The
 family's legal pages (`@anotoki/lib/legal/pages`) on lazy routes of their
 own - `/terms`, `/privacy`, `/contact`, each its own path with the frame
-(`layouts/legal-layout`) as its parent, before the learner's routes and the
+(`sites/main/legal/legal-layout`) as its parent, before the learner's routes and the
 catch-all (`app.routes.spec.ts` holds `/` and an unknown address) - for
 anybody: no guard, never a trip to the IAM; the shell shows them while
 nobody is signed in, and the bar offers Sign in there. The root
 configuration (`provideAnotokiLegal(pianoLegalConfig)`,
-`core/legal/legal.config.ts`: the page's language, the database's words) is
-in the first load, Piano's facts (`core/legal/legal-facts.ts`) come with the
+`shared/legal/legal.config.ts`: the page's language, the database's words) is
+in the first load, Piano's facts (`sites/main/legal/legal-facts.ts`) come with the
 frame. **The facts are true of the code as it is**: a change to what the app
 keeps, or for how long, changes their `legal.*` strings (by a migration) and
 `PIANO_LEGAL_UPDATED`. The operator is the library's default (Code Hero
@@ -456,7 +456,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   HttpContext token), never from whether a token is there when it leaves: a
   person's request with no token is never sent (401 `sign_in_required`
   locally - never a visitor's, never a maker); the key
-  (`core/auth/visitor-key.ts`, localStorage) goes only on a visitor's
+  (`shared/auth/visitor-key.ts`, localStorage) goes only on a visitor's
   request, on the progress routes alone (`VISITOR_PREFIXES`), and only while
   no sign-in is required; it is KEPT while one is (only 401 `visitor_unknown`
   forgets it, compare-and-delete); the move is the one request with both
@@ -467,7 +467,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   **Every page signs in first** - but for a visitor while the IAM requires no
   sign-in, and the legal pages (`/terms`, `/privacy`, `/contact`, and About
   and Support, `/about`, `/support`: anybody's,
-  no guard, never a trip to the IAM): the family's guards (`@anotoki/lib/auth`, `app.routes.ts`) -
+  no guard, never a trip to the IAM): the family's guards (`@anotoki/lib/auth`, `app.routes.ts`, `sites/main/main.routes.ts`, `sites/admin/admin.routes.ts`) -
   `personOrVisitorGuard` on the learner pages, `staffGuard` on `/admin`
   (never a visitor's), `adminGuard` on its ADMIN pages (anybody else signed
   in goes to the start page); anybody else signed out is sent to the IAM and
@@ -482,14 +482,14 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   No sign-in by the IAM's hint (`hint: false` - the owner's: genshin and the
   build analyzer only). A
   visitor's notes are the shell's (`app.component`; the keys in
-  `core/i18n/visitor-words.ts`, migration 005's, in `kept-english.ts` too).
+  `shared/i18n/visitor-words.ts`, migration 005's, in `kept-english.ts` too).
   The boot card "could not load" draws without a sign-in, and so does the
   family's status page while the site is not ready (below).
 - **The theme, the dates, the clock and the language are the anotoki
   account's** for somebody signed in (`AnotokiAuth.preferences`: the
   token's `preferences` claim; null for nobody, a visitor, or an IAM before
   its 015 - then the app keeps its own settings and saves nothing). The family's `ThemeService` (`@anotoki/lib/shell`, wired in
-  `core/family-kit.ts`) shows the account's theme everywhere (taken at
+  `shared/family-kit.ts`) shows the account's theme everywhere (taken at
   sign-in and whenever it changes, never while its own save is out) and the
   bar's theme switch saves a choice (`AnotokiAuth.savePreferences()`: one at
   a time, the latest last; refused, the account's theme back and
@@ -498,7 +498,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the family's pages take it as their `formatDate`, `localDateText()`);
   the language chooser (the family's) saves a signed-in person's choice
   (the family's `TranslationService.setLanguage()`, its `account.save`
-  `AnotokiAuth.savePreferences()` - `core/i18n/site-translations.ts`: a language the
+  `AnotokiAuth.savePreferences()` - `shared/i18n/site-translations.ts`: a language the
   IAM does not offer stays the site's own for the visit, silently; another
   refusal, `access_denied` too, is `anotoki.language.notSaved`). **Which language**
   (the family's order, the survey's the reference): signed in with
@@ -591,7 +591,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `piano_test_` names). Back it up with `pg_dump` before any migration. A
   new migration is written whole and final in one go (the owner's dev site
   reads the folder) and the owner applies it at the hand-over, never before.
-- **The domain logic lives in the frontend's services** (`frontend/src/app/core/music/`:
+- **The domain logic lives in the frontend's services** (`frontend/src/app/shared/music/`:
   theory, srs, songs, path). The browser computes every SRS and path change and
   saves whole documents; the backend checks shapes and stores. Never copy that
   logic into a component or into PHP.
@@ -631,9 +631,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   and Piano's own (`--key-*`, `--notation-*`); the font the family's
   Manrope, the type its base (`anotoki.base`).
 - **One top bar, the anotoki family's** (`<anotoki-top-bar>`, wrapped by
-  `layouts/top-bar`): the brand, the five sections (Learn, Note Trainer,
+  `shared/top-bar`): the brand, the five sections (Learn, Note Trainer,
   Sheet Practice, Songs, Stats), "Not saved yet" and the piano
-  (`ui/midi-panel`) as its widgets, the language, the theme switch (light /
+  (`shared/ui/midi-panel`) as its widgets, the language, the theme switch (light /
   dark / as the device is set), the person's menu (their anotoki account,
   "Admin panel" for the staff while the site is ready, Sign out - which
   waits for the saves and asks when progress would be lost). Up to
@@ -658,7 +658,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   "v0.4.0 · What's new · Feedback" (a screen reader hears "Version 0.4.0";
   the version and What's new once
   `changelog.json` came - its newest entry the version, one source; What's
-  new opens Piano's own dialog, `ui/changelog-dialog`, on `(whatsNew)`, in a
+  new opens Piano's own dialog, `shared/ui/changelog-dialog`, on `(whatsNew)`, in a
   `@defer`; Feedback the family's form in the kit's dialog, whose code the
   footer loads with the press - its message the person's while somebody is
   signed in, nobody's otherwise: the form says it is anybody's itself,
@@ -667,8 +667,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   (`anotoki.footer.*`; English in the admin panel). Never round the status
   page.
 - **Terms, Privacy and Contact are the family's pages with Piano's facts**
-  (`@anotoki/lib/legal/pages`, lazy; `core/legal/legal-facts.ts`, given by
-  the frame `layouts/legal-layout`): each page a path of its own with the
+  (`@anotoki/lib/legal/pages`, lazy; `sites/main/legal/legal-facts.ts`, given by
+  the frame `sites/main/legal/legal-layout`): each page a path of its own with the
   frame as its parent, before the catch-all, no guard. The facts are true of
   the code as it is - its tables and how long each keeps what, the storage
   by name, Umami, the hosting company (WebSupport s.r.o., named by the owner
@@ -699,7 +699,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `@anotoki/lib/translations/admin`; English, not translated; EDITOR rewords,
   ADMIN also keeps the languages). One implementation for every anotoki site,
   the library's (`Anotoki\Lib\Translations`, wired in `api/translations.php`;
-  `@anotoki/lib/translations`, wired in `core/i18n/site-translations.ts`); one
+  `@anotoki/lib/translations`, wired in `shared/i18n/site-translations.ts`); one
   wire format, the IAM's (snake_case). The permissions stay this app's: the
   strings' routes for `ROLES_STAFF`, the languages' for `ROLE_ADMIN`, on the
   route groups. English and Slovak, English the fallback key by key; **Slovak
@@ -708,7 +708,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   purpose**. A new or reworded string is a new migration with the key, its
   English and its Slovak (003's layout - a test reads the file); state and
   stored sessions hold keys and ids, never sentences. The shell's English is
-  also kept in code (`core/i18n/kept-english.ts`) for when there is no bundle
+  also kept in code (`shared/i18n/kept-english.ts`) for when there is no bundle
   at all. The family's components read the library's own keys, `anotoki.*`
   (`forKit()`): the database's string - this app's wording, which 009 copied
   there, or the owner's rewording - else the library's built-in English and

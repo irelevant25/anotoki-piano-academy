@@ -44,13 +44,13 @@ Working conventions specific to this repo:
   inline template or styles; standalone, OnPush, signals, `inject()`. Colours
   come from the tokens in `styles.scss` (light and dark); everything works at
   390 px. User text is plain and short.
-- The domain logic (`frontend/src/app/core/music/`: theory, srs, songs, path)
+- The domain logic (`frontend/src/app/shared/music/`: theory, srs, songs, path)
   is pure and unit-tested; views use it and save the result. Never fork it into
   a component or into PHP.
-- All API calls go through `core/api/api.service.ts` (HttpClient + the family's
+- All API calls go through `api/api.service.ts` (HttpClient + the family's
   `anotokiAuthInterceptor`); sessions go through its outbox; progress through
   `ProgressStore` (chained saves, retries).
-- Play-along sequences go through `core/player/sequence-player.ts`; don't write
+- Play-along sequences go through `sites/main/common/player/sequence-player.ts`; don't write
   another grading loop. Tempo mode is clock-driven (a press matches the nearest
   click, unplayed notes become misses); 'wait' mode has no clock.
 - Every component removes its MIDI listeners and timers in
@@ -86,32 +86,32 @@ Working conventions specific to this repo:
   when `ApiService` issues it (`ISSUED_AS`: the page's data owner, a
   person's id or `VISITOR_OWNER`), never from whether a token is there as it
   leaves: a person's request with no token is never sent (local 401), the
-  key (`core/auth/visitor-key.ts`) goes only on a visitor's and is kept while
+  key (`shared/auth/visitor-key.ts`) goes only on a visitor's and is kept while
   a sign-in is required; one "maker" (the first save without a key) at a
   time; `BootService` moves a held key before it loads a person's state and
   takes the visitor's outbox on at every signed-in start. A new API call
   goes through `ApiService.request()` - a person's only (`asPerson`) unless
   it is one of a visitor's four (state, progress, path, sessions -
-  `VISITOR_PREFIXES` in `core/auth/site-auth.ts`, the only paths the key
+  `VISITOR_PREFIXES` in `shared/auth/site-auth.ts`, the only paths the key
   goes to). A
   visitor's words are the shell's (`app.component`: the notice on Learn and
   Stats only, sign-in required meanwhile, a refused sign-in, a save refused,
   the progress ended; after a sign-in moved / kept / not moved), keys of
-  005 in `core/i18n/visitor-words.ts` and in `kept-english.ts`; a 409 after
+  005 in `shared/i18n/visitor-words.ts` and in `kept-english.ts`; a 409 after
   `VisitorKey.lost` sets no "changed elsewhere".
   `setup.php` stays PHP 7.4-parseable and asks for the database and the IAM
   only.
 - The app's words are keys (the `translate` / `translatePlural` pipes and
   `TranslationService` - the anotoki family's, `@anotoki/lib/translations`,
-  wired in `core/i18n/site-translations.ts`; the backend's half
+  wired in `shared/i18n/site-translations.ts`; the backend's half
   `Anotoki\Lib\Translations` in `api/translations.php`, its routes on this
   app's role checks, the IAM's wire format, snake_case): every
   learner-facing word has a key with English and informal Slovak ("ty") in a
   migration; a missing string shows its key on purpose. State holds keys and
   ids, never sentences (a step's `Feedback` is `{key, params, kind}`);
   nothing worded is awaited in a MIDI handler. A new shell string also goes
-  into `core/i18n/kept-english.ts`; a key put together at run time into
-  `core/i18n/dynamic-keys.ts`. Note names, song titles and device names are
+  into `shared/i18n/kept-english.ts`; a key put together at run time into
+  `shared/i18n/dynamic-keys.ts`. Note names, song titles and device names are
   never translated. The admin panel's Translations and Languages pages are
   the family's (`@anotoki/lib/translations/admin`), English. The library's
   own words are `anotoki.*` (the kit's, the status page's), in the same
@@ -176,14 +176,14 @@ Working conventions specific to this repo:
 
 - Signing in, the People page and the admin tools are the family's
   (`anotoki-lib` 0.9.2, both halves): in the browser `@anotoki/lib/auth`, wired in
-  `core/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
+  `shared/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
   `@anotoki/lib/people/page`: delete after this app's question, audited
   inside the delete's transaction; the scrub of the accounts the IAM
   deleted); the admin tools, the site's ADMIN alone (`api/admin_tools.php`,
-  `core/site-admin.ts`): the error log (the pages' own errors too:
-  `core/error-report.ts`), the audit log (`audit()`), feedback (the family's
+  `shared/site-admin.ts`): the error log (the pages' own errors too:
+  `shared/error-report.ts`), the audit log (`audit()`), feedback (the family's
   footer's "Feedback", no mail, the admin bar's count; the reply address the
   form's) and backups (daily, before an update, by hand; sealed; a restore
   does every delete since its backup again). Code the library calls inside
@@ -199,9 +199,9 @@ Working conventions specific to this repo:
   no request carries, said once a day by its fault, never its text; only
   deleting the file switches the secret off); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
-  spec stands `TestAuth` (`core/testing/test-auth.ts`) in for `AnotokiAuth`.
+  spec stands `TestAuth` (`shared/testing/test-auth.ts`) in for `AnotokiAuth`.
 - The anotoki family's kit (`@anotoki/lib` 0.9.2, wired in
-  `core/family-kit.ts`): the top bar, its menus, the piano's popover, the
+  `shared/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
   the app's root) are the family's - and every page's buttons
@@ -212,13 +212,13 @@ Working conventions specific to this repo:
   dialog (made when it opens), the error state, the table styles (numbers
   `.cell-num`), and Terms, Privacy and Contact (`@anotoki/lib/legal/pages`,
   lazy, each its own path before the catch-all, no guard; the facts
-  `core/legal/legal-facts.ts` - TRUE of the code), About and Support
+  `sites/main/legal/legal-facts.ts` - TRUE of the code), About and Support
   (`@anotoki/lib/legal/about`, `/support`: `/about`, `/support`, the same way
   in the same frame; `isLegalPage()` knows them), and the footer
   (`<anotoki-site-footer>`, `@anotoki/lib/footer`, the build analyzer's:
   "v{version} · What's new · Feedback" - a screen reader hears "Version
   {version}" -, then About · Support · Terms · Privacy · Contact; What's
-  new opens `ui/changelog-dialog` on `(whatsNew)`) - never copy one into `ui/`,
+  new opens `shared/ui/changelog-dialog` on `(whatsNew)`) - never copy one into `shared/ui/` or `sites/main/common/`,
   never restyle one (a site gives its colours only) - each
   imported from its own entry point (`@anotoki/lib/ui/config`, `/ui/icon`,
   `/ui/button`...; never the `@anotoki/lib/ui` barrel). Their words are the
@@ -227,18 +227,18 @@ Working conventions specific to this repo:
   the family's tokens in Piano's palette (`anotoki.root()` in `styles.scss`,
   with the family's base, utilities and tables), the font Manrope. What is
   Piano's alone (the path's phases and units, the practice screens -
-  `pages/_practice.scss` -, the meet step's count of plays, the keyboard,
+  `sites/main/features/_practice.scss` -, the meet step's count of plays, the keyboard,
   the staff, the piano's button) is built from the `--anotoki-*` tokens. The
   first load is 558.1 kB since the footer, over its 550 kB warning (the
   owner's call): build and read "Initial total" before adding anything to
   the first page; there is no global
   rule for buttons, selects or cards. Specs read the kit's markup by
   its own class names (`anotoki-<component>__<part>`); `provideTestKit()`,
-  `drawTestQuestions()` (`core/testing/test-kit.ts`), the library's
+  `drawTestQuestions()` (`shared/testing/test-kit.ts`), the library's
   `provideTestTranslations()` (`@anotoki/lib/translations/testing`).
 - The top bar is the family's `<anotoki-top-bar>`, wrapped by
-  `layouts/top-bar` (Piano's brand, sections, person, menu items; "Not
-  saved yet" and the piano - `ui/midi-panel` - as its widgets; the phone's
+  `shared/top-bar` (Piano's brand, sections, person, menu items; "Not
+  saved yet" and the piano - `shared/ui/midi-panel` - as its widgets; the phone's
   dot and the menus' note; Sign out settling and asking first): five
   sections, the language, the theme switch (light / dark / as the device is
   set), the person's menu ("Admin panel" for the staff while the site is

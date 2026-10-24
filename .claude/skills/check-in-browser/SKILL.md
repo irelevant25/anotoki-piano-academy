@@ -38,7 +38,7 @@ PHP=/path/to/php-8.2+ node .claude/skills/check-in-browser/scripts/run.mjs [--no
   saved yet" showing, with a device name at its widest, and in the admin
   panel twelve new messages beside Feedback - measured at each area's
   NAME_BAR_MIN - 1 px, where nothing is squeezed. `PHONE_BAR_MAX` and the admin panel's `ADMIN_PHONE_BAR_MAX` in
-  `frontend/src/app/layouts/top-bar/top-bar.component.ts` (the family's bar
+  `frontend/src/app/shared/top-bar/top-bar.component.ts` (the family's bar
   takes it as `phoneMax`; there is no copy in a `.scss`) stands just above
   the widest; the command exits 1 when the row no longer fits - in the
   screen, or in the family's row, which is no wider than 84rem (1344 px).

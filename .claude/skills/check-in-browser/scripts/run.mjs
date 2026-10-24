@@ -9,7 +9,7 @@
 // through playwright-core (flow.mjs), and then stops all of it and drops the database - also when the check
 // fails. --keep leaves the work folder (settings, logs, screenshots, the downloaded file) behind to look at;
 // the screenshots are there while it runs. --measure only prints what the top bar's row needs, in English and
-// in Slovak (how PHONE_BAR_MAX and ADMIN_PHONE_BAR_MAX in layouts/top-bar were chosen).
+// in Slovak (how PHONE_BAR_MAX and ADMIN_PHONE_BAR_MAX in shared/top-bar were chosen).
 //
 // PHP: the `php` on the PATH, or PHP=<the 8.2+ binary>. playwright-core is installed once into <temp>/pw (never
 // into the repository): `npx -y npm@11 install --prefix "<temp>/pw" playwright-core` - this script does it when
