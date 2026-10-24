@@ -7,12 +7,12 @@ import { SiteStatus } from '@anotoki/lib/migrations';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
-import { provideFamilyKit } from '../family-kit';
-import { BootService, BootStatus } from '../state/boot.service';
-import { ProgressStore } from '../state/progress-store.service';
-import { provideSiteMigrations } from '../state/site-migrations';
-import { provideTestKit } from '../testing/test-kit';
-import { PianoTitleStrategy } from '../title.strategy';
+import { provideFamilyKit } from '../../../../shared/family-kit';
+import { BootService, BootStatus } from '../../../../shared/state/boot.service';
+import { ProgressStore } from '../../../../shared/state/progress-store.service';
+import { provideSiteMigrations } from '../../../../shared/state/site-migrations';
+import { provideTestKit } from '../../../../shared/testing/test-kit';
+import { PianoTitleStrategy } from '../../../../shared/title.strategy';
 import { ADMIN_PHONE_BAR_MAX, ADMIN_SHORT_BRAND_MAX, PHONE_BAR_MAX, TopBarComponent } from './top-bar.component';
 
 const ENGLISH: Record<string, string> = {

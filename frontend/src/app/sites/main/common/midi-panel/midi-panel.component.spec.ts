@@ -1,8 +1,8 @@
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
-import { provideFamilyKit } from '../../family-kit';
-import { MidiService } from '../../midi/midi.service';
-import { provideTestKit } from '../../testing/test-kit';
+import { provideFamilyKit } from '../../../../shared/family-kit';
+import { MidiService } from '../../../../shared/midi/midi.service';
+import { provideTestKit } from '../../../../shared/testing/test-kit';
 import { MidiPanelComponent } from './midi-panel.component';
 
 const SLOVAK = {

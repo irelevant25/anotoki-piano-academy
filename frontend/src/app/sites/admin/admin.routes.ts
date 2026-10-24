@@ -19,7 +19,7 @@ export const ADMIN_ROUTES: Routes = [
   {
     path: 'admin',
     canActivate: [staffGuard],
-    loadComponent: () => import('./admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
+    loadComponent: () => import('./app.component').then((m) => m.AdminLayoutComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: () => (inject(BootService).onlyMigrations() ? 'migrations' : 'translations') },
       // The anotoki family's pages of the words, in an entry point of their own (@anotoki/lib/translations/admin -

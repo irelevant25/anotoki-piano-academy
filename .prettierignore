@@ -19,7 +19,7 @@ frontend/src/app/sites/main/home/home-page.component.html
 frontend/src/app/sites/main/features/lesson/lesson-page.component.html
 frontend/src/app/sites/main/features/songs/song-player-page.component.html
 frontend/src/app/sites/main/features/stats/stats-page.component.html
-frontend/src/app/shared/ui/midi-panel/midi-panel.component.html
+frontend/src/app/sites/main/common/midi-panel/midi-panel.component.html
 # The build copies it as it is: Prettier's four-space indent would make the built index.html differ from the one before.
 frontend/src/index.html
 # Runs on PHP 5.6 and up, so an old host still gets an answer: the PHP plugin would add PHP 7.3's trailing commas.

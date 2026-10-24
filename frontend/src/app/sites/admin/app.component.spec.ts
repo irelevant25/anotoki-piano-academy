@@ -1,9 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
-import { BootService } from '../../../shared/state/boot.service';
-import { TestAuth, provideTestAuth } from '../../../shared/testing/test-auth';
-import { AdminLayoutComponent } from './admin-layout.component';
+import { BootService } from '../../shared/state/boot.service';
+import { TestAuth, provideTestAuth } from '../../shared/testing/test-auth';
+import { AdminLayoutComponent } from './app.component';
 
 describe('AdminLayoutComponent: the admin panel split by role, in English', () => {
   let fixture: ComponentFixture<AdminLayoutComponent>;

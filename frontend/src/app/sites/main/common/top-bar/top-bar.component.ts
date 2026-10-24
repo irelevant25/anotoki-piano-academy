@@ -9,11 +9,11 @@ import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
 import { filter, map } from 'rxjs';
-import { isLegalPage } from '../legal/legal.config';
-import { ADMIN_TOOL_ROUTES } from '../site-admin';
-import { BootService } from '../state/boot.service';
-import { ProgressStore } from '../state/progress-store.service';
-import { MidiPanelComponent } from '../ui/midi-panel/midi-panel.component';
+import { isLegalPage } from '../../../../shared/legal/legal.config';
+import { ADMIN_TOOL_ROUTES } from '../../../../shared/site-admin';
+import { BootService } from '../../../../shared/state/boot.service';
+import { ProgressStore } from '../../../../shared/state/progress-store.service';
+import { MidiPanelComponent } from '../midi-panel/midi-panel.component';
 
 /**
  * A section in the bar: its words - a key where learners read it, English

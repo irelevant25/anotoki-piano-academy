@@ -20,7 +20,7 @@ import { isLegalPage } from './shared/legal/legal.config';
 import { BootService } from './shared/state/boot.service';
 import { ProgressStore } from './shared/state/progress-store.service';
 import { MIGRATIONS_ROUTE } from './shared/state/site-migrations';
-import { TopBarComponent } from './shared/top-bar/top-bar.component';
+import { TopBarComponent } from './sites/main/common/top-bar/top-bar.component';
 import { ChangelogDialogComponent } from './shared/ui/changelog-dialog/changelog-dialog.component';
 
 /**

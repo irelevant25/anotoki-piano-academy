@@ -4,7 +4,7 @@ import { FeedbackUnread } from '@anotoki/lib/admin';
 import { AnotokiAuth } from '@anotoki/lib/auth';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
-import { BootService } from '../../../shared/state/boot.service';
+import { BootService } from '../../shared/state/boot.service';
 
 /**
  * The frame of the admin panel (/admin), under the top bar - English, like
@@ -33,8 +33,8 @@ import { BootService } from '../../../shared/state/boot.service';
  */
 @Component({
   selector: 'app-admin-layout',
-  templateUrl: './admin-layout.component.html',
-  styleUrl: './admin-layout.component.scss',
+  templateUrl: './app.component.html',
+  styleUrl: './app.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterOutlet, RouterLink, ButtonComponent, CardComponent],
 })

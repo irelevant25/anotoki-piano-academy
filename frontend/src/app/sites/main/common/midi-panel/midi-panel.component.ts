@@ -9,7 +9,7 @@ import { PopoverComponent, PopoverTriggerDirective } from '@anotoki/lib/ui/menu'
 // named it would put it back there - its options' type is an import type).
 import { SelectComponent } from '@anotoki/lib/ui/select';
 import type { SelectOption } from '@anotoki/lib/ui/select';
-import { MidiProblemKind, MidiService } from '../../midi/midi.service';
+import { MidiProblemKind, MidiService } from '../../../../shared/midi/midi.service';
 
 /** Why there is no piano, as a sentence of the app's own: the kind's key, written out whole. */
 const PROBLEM_KEYS: Record<MidiProblemKind, string> = {
