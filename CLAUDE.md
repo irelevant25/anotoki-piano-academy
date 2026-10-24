@@ -25,7 +25,7 @@ export and import, the progress generation, the People routes and migration
 004's schema part (stage 2). The frontend is in step (stage 3): sign-in on
 every page, the admin panel under `/admin`, the own progress file on Stats,
 saves that name the generation, the sign-out question, and 004's strings for
-them. The family's one top bar is in (stage 4: `shared/top-bar`), 004 is
+them. The family's one top bar is in (stage 4: `sites/main/common/top-bar`), 004 is
 finished with its strings, and the version is 0.2. Stage 5 reviewed it all
 and fixed what it found (a round no longer keeps its own copy of the
 progress; the bar's names hold the words they show; a 428 is a failed save). Then, at the owner's request, the
@@ -94,7 +94,7 @@ changed), `frontend/package.json` says 0.4.0, and a spec holds the two equal.
 **2026-10-08 to 11: the anotoki family's kit - `@anotoki/lib` 0.2.0** (its
 PHP half stays 0.1.0: 0.2.0 changed nothing there; the owner's decisions,
 `docs/decisions.md`). The top bar is the family's `<anotoki-top-bar>`
-(`shared/top-bar` wraps it with Piano's brand, sections, person and menu
+(`sites/main/common/top-bar` wraps it with Piano's brand, sections, person and menu
 items, "Not saved yet" and the piano as its widgets, the phone's dot and
 the menus' note), with the family's segmented theme switch (light / dark /
 as the device is set) in the round button's place - its row is wider, so
@@ -631,12 +631,13 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   and Piano's own (`--key-*`, `--notation-*`); the font the family's
   Manrope, the type its base (`anotoki.base`).
 - **One top bar, the anotoki family's** (`<anotoki-top-bar>`, wrapped by
-  `shared/top-bar`): the brand, the five sections (Learn, Note Trainer,
+  `sites/main/common/top-bar`), the learner's site's alone: the brand, the five sections (Learn, Note Trainer,
   Sheet Practice, Songs, Stats), "Not saved yet" and the piano
-  (`shared/ui/midi-panel`) as its widgets, the language, the theme switch (light /
+  (`sites/main/common/midi-panel`) as its widgets, the language, the theme switch (light /
   dark / as the device is set), the person's menu (their anotoki account,
   "Admin panel" for the staff while the site is ready, Sign out - which
-  waits for the saves and asks when progress would be lost). Up to
+  waits for the saves and asks when progress would be lost: `SignOutService`,
+  `shared/auth/sign-out.service.ts`, the admin frame's too). Up to
   `PHONE_BAR_MAX` (1320 px, measured with the real labels - the browser
   check's `--measure`; the bar takes it as `phoneMax`) it is a phone's:
   "Piano" (`brand.short`) and one menu button, "Not saved yet" a dot on it
@@ -644,17 +645,23 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   keys are the family's (Tab and Shift+Tab close the menu onto its button).
   Every control's accessible name holds the words it shows (WCAG 2.5.3,
   label in name: "Language: {name} ({code})", the piano's "{label}:
-  {status}", "anotoki Piano Academy: Learn"). Under `/admin` it has the
-  admin sections and the family's wordmark, short at every width ("Piano"
-  with "admin panel" under it; "anotoki Piano Academy · admin panel" the
-  link's name), folding up to its own `ADMIN_PHONE_BAR_MAX` (1280, measured
-  the same way: eight sections and a two-digit count need 1255 px), in
-  English (`TranslationService.effectiveLanguage`), with no chooser and no
-  piano, and "Back to Piano Academy"; an ADMIN's "Feedback" there carries
-  how many messages are new (the family's `FeedbackUnread`).
+  {status}", "anotoki Piano Academy: Learn"). **The admin panel has no
+  top bar**: it is in the family's admin frame (`@anotoki/lib/admin/frame`'s
+  `<anotoki-admin-frame>`, anotoki-lib 0.10.0 - genshin's, the owner's
+  request of 2026-10-24; `sites/admin/app.component`, `app-admin-root`): on
+  the left the panel's name ("anotoki Piano Academy · admin panel"), who is
+  signed in, "Back to Piano Academy", Sign out (the bar's, `SignOutService`),
+  the family's theme switch and the pages under Localization and System by
+  role (`ADMIN_GROUPS`) - an ADMIN's "Feedback" with how many messages are
+  new (the family's `FeedbackUnread`), Migrations alone while an update
+  waits; the page and the footer on the right; a phone's row and drawer up
+  to 860 px; in English (`TranslationService.effectiveLanguage`). The shell
+  draws nothing round it: no bar, no notes, no footer, no `<main>` of its
+  own (`shared/view-root` moves the one outlet out of the learner's
+  `<main>`).
   **One footer, the anotoki family's** (`<anotoki-site-footer>`,
   `@anotoki/lib/footer` - the build analyzer's, the owner's choice of
-  2026-10-18), under every page and the admin panel's: a top border,
+  2026-10-18), under every page - the admin panel's in its frame's footer slot: a top border,
   "v0.4.0 · What's new · Feedback" (a screen reader hears "Version 0.4.0";
   the version and What's new once
   `changelog.json` came - its newest entry the version, one source; What's
@@ -736,9 +743,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.9.2 - PHP `anotoki/lib` (`^0.9.0`, Composer's VCS repository on GitHub,
+  0.10.0 - PHP `anotoki/lib` (`^0.10.0`, Composer's VCS repository on GitHub,
   committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.9.2 tarball, in both lock files). Never
+  v0.10.0 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry

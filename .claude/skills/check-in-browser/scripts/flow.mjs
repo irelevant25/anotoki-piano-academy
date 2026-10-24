@@ -22,13 +22,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '../../../..');
 const shots = join(WORK, 'shots');
 
-/** The bar's fold, as shared/top-bar has it - the check follows the number. */
-const BAR_SOURCE = readFileSync(join(repo, 'frontend/src/app/shared/top-bar/top-bar.component.ts'), 'utf8');
+/** The bar's fold, as sites/main/common/top-bar has it - the check follows the number. */
+const BAR_SOURCE = readFileSync(join(repo, 'frontend/src/app/sites/main/common/top-bar/top-bar.component.ts'), 'utf8');
 const PHONE_BAR_MAX = Number(/export const PHONE_BAR_MAX = (\d+);/.exec(BAR_SOURCE)[1]);
 const NAME_BAR_MIN = PHONE_BAR_MAX + Number(/export const NAME_BAR_MIN = PHONE_BAR_MAX \+ (\d+);/.exec(BAR_SOURCE)[1]);
-/** The admin panel's own fold (its row is not the learner's), and where its person's name shows. */
-const ADMIN_PHONE_BAR_MAX = Number(/export const ADMIN_PHONE_BAR_MAX = (\d+);/.exec(BAR_SOURCE)[1]);
-const ADMIN_NAME_BAR_MIN = ADMIN_PHONE_BAR_MAX + (NAME_BAR_MIN - PHONE_BAR_MAX);
+/** The admin panel's frame (@anotoki/lib/admin/frame) is a phone's - its row and Menu's drawer - up to its own 860 px. */
+const ADMIN_FRAME_PHONE_MAX = 860;
 const VERSION = JSON.parse(readFileSync(join(repo, 'frontend/public/changelog.json'), 'utf8'))[0].version;
 
 const failures = [];
@@ -147,14 +146,14 @@ const standsAlone = (page) =>
     FRAME,
   );
 
-/** An ADMIN's sections in the admin panel (shared/top-bar's ADMIN_LINKS): the family's admin tools among them. */
+/** An ADMIN's pages in the admin panel's frame (sites/admin/app.component's ADMIN_GROUPS): the family's admin tools among them. */
 const ADMIN_SECTIONS = 'Translations|Languages|People|Feedback|Error log|Audit log|Backups|Migrations';
 
 /** The family's screen of a sign-in that did not work (<anotoki-sign-in-failure>, on /sign-in-failed under the bar). */
 const FAILURE = 'anotoki-sign-in-failure';
 
 /**
- * Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in shared/top-bar) draws what the tours read: the
+ * Where the family's bar (@anotoki/lib/shell's <anotoki-top-bar>, in sites/main/common/top-bar) draws what the tours read: the
  * kit's own class names (anotoki-<component>__<part>, since anotoki-lib 0.3.0).
  */
 const BAR = {
@@ -173,6 +172,30 @@ const BAR = {
   themeChosen: 'anotoki-theme-toggle [role="radio"][aria-checked="true"]',
   themeNote: 'anotoki-theme-toggle [role="alert"]',
 };
+
+/**
+ * The admin panel's frame (@anotoki/lib/admin/frame's <anotoki-admin-frame>, anotoki-lib 0.10.0 - in
+ * sites/admin/app.component; no top bar there), by the kit's own class names: its column (the panel's name, the
+ * person, Back, Sign out, the theme), the side navigation's pages and headings, the phone's row with Menu, the drawer.
+ */
+const ADMIN_FRAME = {
+  host: 'anotoki-admin-frame',
+  /** Somebody signed in, in the frame: the person in the column - or, on a phone, Menu. */
+  signedIn: '.anotoki-admin-frame__person, .anotoki-admin-frame__menu',
+  brand: '.anotoki-admin-frame__brand',
+  name: '.anotoki-admin-frame__name',
+  back: '.anotoki-admin-frame__back',
+  signOut: '.anotoki-admin-frame__sign-out',
+  menu: '.anotoki-admin-frame__menu',
+  theme: '.anotoki-admin-frame__theme anotoki-theme-toggle [role="radio"]',
+  headings: 'anotoki-admin-frame .anotoki-side-nav__heading',
+  /** A page in the column (on a phone: in the drawer, while it is open) - its words in .anotoki-side-nav__label, its count in .anotoki-side-nav__badge. */
+  link: 'anotoki-admin-frame .anotoki-side-nav__link',
+  drawer: 'anotoki-drawer',
+};
+
+/** The admin panel's pages in the frame's column, by their words. */
+const adminPages = (page) => page.$$eval(ADMIN_FRAME.link, (links) => links.map((link) => link.querySelector('.anotoki-side-nav__label')?.textContent.trim() ?? ''));
 
 /** The family's question (ConfirmService's <anotoki-confirm-host>, in the app's root), while one is asked. */
 const QUESTION = 'anotoki-confirm-host dialog[open]';
@@ -213,12 +236,12 @@ async function newContext({ width = DESKTOP, height = 900, scheme = 'light' } = 
   return context;
 }
 
-/** Signs in on a page through the stand-in IAM: open an address, the guard goes there and back. */
+/** Signs in on a page through the stand-in IAM: open an address, the guard goes there and back (the bar names the person; in the admin panel, its frame). */
 async function signedIn(context, user, address = '/') {
   await iamAs(user);
   const page = await context.newPage();
   await page.goto(`${APP}${address}`);
-  await page.waitForSelector(BAR.signedIn, { timeout: 20000 });
+  await page.waitForSelector(`${BAR.signedIn}, ${ADMIN_FRAME.signedIn}`, { timeout: 20000 });
   await page.waitForFunction(() => document.querySelector('#view-root .loading') === null, null, { timeout: 20000 });
   return page;
 }
@@ -304,38 +327,42 @@ async function checkBar(page, label, width) {
 }
 
 /**
- * The admin panel's bar at one width: folded up to ADMIN_PHONE_BAR_MAX, one row above it (the brand, the
- * sections, the theme switch, the person - no language, no piano), the brand short at every width.
+ * The admin panel's frame at one width: up to ADMIN_FRAME_PHONE_MAX a phone's row (the panel's name and Menu); above
+ * it the column on the left (the panel's name, the person, Back, Sign out, the theme, the pages), the whole window
+ * tall, and the page right of it - no top bar, one <main> (the frame's), no sideways scroll.
  */
-async function checkAdminBar(page, label, width) {
-  const phone = width <= ADMIN_PHONE_BAR_MAX;
-  const row = await barRow(page);
-  const bar = await page.evaluate(() => {
-    const box = document.querySelector('.anotoki-top-bar__topbar').getBoundingClientRect();
-    return { top: box.top, bottom: box.bottom, scroll: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth };
+async function checkAdminFrame(page, label, width) {
+  const phone = width <= ADMIN_FRAME_PHONE_MAX;
+  const seen = await page.evaluate(() => {
+    const box = (selector) => {
+      const element = document.querySelector(selector);
+      if (!element) return null;
+      const { left, right, top, bottom, height } = element.getBoundingClientRect();
+      return { left: Math.round(left), right: Math.round(right), top: Math.round(top), bottom: Math.round(bottom), height: Math.round(height) };
+    };
+    return {
+      bar: !!document.querySelector('anotoki-top-bar'),
+      mains: document.querySelectorAll('main').length,
+      row: !!document.querySelector('.anotoki-admin-frame__row'),
+      column: box('.anotoki-admin-frame__column'),
+      account: box('.anotoki-admin-frame__account-column'),
+      main: box('anotoki-admin-frame main#main'),
+      window: innerHeight,
+      scroll: document.documentElement.scrollWidth,
+      screen: document.documentElement.clientWidth,
+    };
   });
-  const order = row.map((thing) => thing.what);
-  const expected = phone ? ['anotoki-brand', 'anotoki-theme-toggle', 'menu-button'] : ['anotoki-brand', 'nav', 'anotoki-theme-toggle', 'person-button'];
-  check(JSON.stringify(order) === JSON.stringify(expected), `${label}: the admin panel's row (${phone ? 'folded' : 'whole'})`, order);
-  check(
-    row.every((thing) => thing.left >= 0 && thing.right <= width),
-    `${label}: everything inside the screen`,
-    row,
-  );
-  check(
-    row.every((thing) => thing.top >= bar.top - 1 && thing.bottom <= bar.bottom + 1),
-    `${label}: one row, inside the bar's height`,
-    row,
-  );
-  check(
-    row.every((thing, i) => i === 0 || row[i - 1].right <= thing.left + 1),
-    `${label}: nothing on top of anything`,
-    row,
-  );
-  check(bar.scroll <= bar.screen, `${label}: no sideways scroll`, bar);
-  const brand = await page.evaluate(() => [...document.querySelectorAll('.anotoki-brand__wordmark > span')].filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
-  check(JSON.stringify(brand) === JSON.stringify(['Piano', 'admin panel']), `${label}: the brand short at every width - "Piano", "admin panel" under it`, brand);
-  return row;
+  check(!seen.bar && seen.mains === 1 && !!seen.main, `${label}: no top bar, one <main> - the frame's`, seen);
+  if (phone) {
+    check(seen.row && !seen.account && (await page.textContent(ADMIN_FRAME.menu))?.trim() === 'Menu', `${label}: a phone's row - the panel's name and Menu`, seen);
+  } else {
+    check(
+      !!seen.account && seen.column.right <= seen.main.left + 1 && Math.abs(seen.column.height - seen.window) <= 1,
+      `${label}: the column on the left, the whole window tall; the page right of it`,
+      seen,
+    );
+  }
+  check(seen.scroll <= seen.screen, `${label}: no sideways scroll`, seen);
 }
 
 /**
@@ -420,28 +447,20 @@ async function playUntil(page, staff, end) {
 /* ------------------------------------------------------------------ --measure */
 
 if (MEASURE) {
-  // A two-digit count beside the admin panel's "Feedback": twelve new messages, on the check's own throwaway database.
-  onTheDatabase("INSERT INTO anotoki_feedback (kind, message) SELECT 'idea', 'A message to measure the bar by, ' || n FROM generate_series(1, 12) AS n");
+  // The learner's bar alone: the admin panel has none since anotoki-lib 0.10.0 (the family's admin frame).
   const results = [];
   for (const language of ['en', 'sk']) {
     for (const [who, user] of [
       ['a learner', MIA],
       ['an ADMIN', ADA],
     ]) {
-      for (const area of ['/stats', '/admin/translations']) {
-        if (area.startsWith('/admin') && user === MIA) continue;
-        const admin = area.startsWith('/admin');
-        // As wide as a desktop bar gets with the initial alone (the name shows from the area's NAME_BAR_MIN): nothing is squeezed.
-        const context = await newContext({ width: (admin ? ADMIN_NAME_BAR_MIN : NAME_BAR_MIN) - 1 });
+      {
+        const area = '/stats';
+        // As wide as a desktop bar gets with the initial alone (the name shows from NAME_BAR_MIN): nothing is squeezed.
+        const context = await newContext({ width: NAME_BAR_MIN - 1 });
         const page = await signedIn(context, user, `/stats?lang=${language}`);
         await makeUnsaved(page);
         await page.waitForSelector('#save-status', { timeout: 10000 }).catch(() => undefined);
-        if (admin) {
-          await page.click(BAR.person);
-          await page.click(`${BAR.menu} a[href="/admin"]`);
-          await page.waitForSelector(`${BAR.nav} a[href="/admin/translations"]`);
-          await page.waitForSelector(`${BAR.nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`, { timeout: 10000 }).catch(() => undefined);
-        }
         const need = await page.evaluate(() => {
           const inner = document.querySelector('.anotoki-top-bar__row');
           const actions = document.querySelector('.anotoki-top-bar__actions');
@@ -461,19 +480,17 @@ if (MEASURE) {
             rowMax: Math.floor(parseFloat(getComputedStyle(inner).maxWidth)),
           };
         });
-        const badge = admin ? await page.evaluate((nav) => document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? '', BAR.nav) : '';
-        results.push({ language, who, area, badge, ...need, withDevice: need.row + need.deviceRoom });
+        results.push({ language, who, area, ...need, withDevice: need.row + need.deviceRoom });
         await context.close();
       }
     }
   }
   console.table(results);
-  const widest = (admin) => Math.max(...results.filter((result) => result.area.startsWith('/admin') === admin).map((result) => result.withDevice));
+  const widest = Math.max(...results.map((result) => result.withDevice));
   const rowMax = Math.min(...results.map((result) => result.rowMax));
-  console.log(`The learner's widest row: ${widest(false)} px (with a device name at its widest) - PHONE_BAR_MAX now: ${PHONE_BAR_MAX}.`);
-  console.log(`The admin panel's widest row: ${widest(true)} px (a two-digit count beside Feedback) - ADMIN_PHONE_BAR_MAX now: ${ADMIN_PHONE_BAR_MAX}. The row's own limit: ${rowMax} px.`);
+  console.log(`The widest row: ${widest} px (with a device name at its widest) - PHONE_BAR_MAX now: ${PHONE_BAR_MAX}. The row's own limit: ${rowMax} px.`);
   await browser.close();
-  process.exit(widest(false) <= PHONE_BAR_MAX && widest(true) <= ADMIN_PHONE_BAR_MAX && Math.max(widest(false), widest(true)) <= rowMax ? 0 : 1);
+  process.exit(widest <= PHONE_BAR_MAX && widest <= rowMax ? 0 : 1);
 }
 
 /* ------------------------------------------------------------------ the tours */
@@ -734,7 +751,7 @@ try {
     await context.close();
   }
 
-  step('The admin panel: EDITOR and ADMIN, English with Slovak chosen');
+  step("The admin panel in the family's admin frame: EDITOR and ADMIN, English with Slovak chosen");
   {
     const context = await newContext();
     const page = await signedIn(context, ED, '/?lang=sk');
@@ -744,26 +761,30 @@ try {
     await page.waitForSelector(BAR.menu);
     check((await page.textContent(`${BAR.menu} a[href="/admin"]`))?.trim() === 'Administrátorský panel', 'the way in, in Slovak: "Administrátorský panel"');
     await page.click(`${BAR.menu} a[href="/admin"]`);
-    await page.waitForSelector(`${BAR.nav} a[href="/admin/translations"]`);
+    await page.waitForSelector(`${ADMIN_FRAME.link}[href="/admin/translations"]`);
     check(new URL(page.url()).pathname === '/admin/translations', 'into the admin panel, on Translations');
-    check((await sections(page)).join('|') === 'Translations', "an EDITOR's section: Translations alone");
+    check((await adminPages(page)).join('|') === 'Translations', "an EDITOR's page: Translations alone");
     check((await page.getAttribute('html', 'lang')) === 'en', '<html lang="en"> in the admin panel');
-    // The admin panel's brand is short at every width (eight sections for an ADMIN leave the whole wordmark no room):
-    // "Piano" with "admin panel" under it - the whole "anotoki Piano Academy · admin panel" in the link's name.
-    const brandShown = await page.$$eval('.anotoki-brand__wordmark > span', (all) => all.filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
-    check(brandShown.join('|') === 'Piano|admin panel', 'the brand short: "Piano", "admin panel" under it', brandShown);
-    check((await page.getAttribute('.anotoki-brand__brand', 'aria-label')) === 'anotoki Piano Academy · admin panel', 'the brand link\'s name: the family\'s "anotoki Piano Academy · admin panel"');
+    await checkAdminFrame(page, `the admin panel at ${DESKTOP}`, DESKTOP);
+    check(
+      (await page.textContent(ADMIN_FRAME.brand))?.trim() === 'anotoki Piano Academy · admin panel' && (await page.getAttribute(ADMIN_FRAME.brand, 'href')) === '/admin',
+      'the panel\'s name: the family\'s "anotoki Piano Academy · admin panel", to its home',
+    );
     check((await page.title()) === 'Translations · Admin panel · Piano Academy', 'the title names the admin panel', await page.title());
     check(!(await page.$('anotoki-language-switcher')) && !(await page.$('app-midi-panel')), 'no language chooser, no piano');
-    check((await page.getAttribute(BAR.person, 'aria-label')) === 'Your menu: ed', "the bar's words in English");
-    await page.click(BAR.person);
-    await page.waitForSelector(BAR.menu);
-    const items = await page.$$eval(`${BAR.menu} [role="menuitem"]`, (all) => all.map((item) => item.textContent.replace(/\s+/g, ' ').trim()));
-    check(JSON.stringify(items) === JSON.stringify(['Your anotoki account', 'Back to Piano Academy', 'Sign out']), "the person's menu in English, with the way back", items);
-    check(!(await page.$('#admin-nav')), 'the admin layout draws no section nav of its own');
-    await page.waitForTimeout(250);
-    await page.screenshot({ path: join(shots, 'admin-editor.png'), clip: { x: 0, y: 0, width: DESKTOP, height: 400 } });
-    await page.keyboard.press('Escape');
+    const column = {
+      name: (await page.textContent(ADMIN_FRAME.name))?.trim(),
+      back: (await page.textContent(ADMIN_FRAME.back))?.trim(),
+      backTo: await page.getAttribute(ADMIN_FRAME.back, 'href'),
+      signOut: (await page.textContent(ADMIN_FRAME.signOut))?.trim(),
+      theme: (await page.$$(ADMIN_FRAME.theme)).length,
+    };
+    check(
+      JSON.stringify(column) === JSON.stringify({ name: 'ed', back: 'Back to Piano Academy', backTo: '/', signOut: 'Sign out', theme: 3 }),
+      "the frame's column, in English: the person, Back to Piano Academy (to /), Sign out, the theme's three choices",
+      column,
+    );
+    await page.screenshot({ path: join(shots, 'admin-editor.png') });
     // The pages for ADMIN alone (the family's adminGuard): an EDITOR who opens one is sent to the start page.
     await page.goto(`${APP}/admin/people`);
     await page.waitForFunction(() => location.pathname === '/', null, { timeout: 10000 }).catch(() => undefined);
@@ -776,11 +797,12 @@ try {
     const adminContext = await newContext();
     const admin = await signedIn(adminContext, ADA, '/admin/people');
     await admin.waitForSelector('[data-people] [data-person]', { timeout: 20000 });
-    check((await sections(admin)).join('|') === ADMIN_SECTIONS, "an ADMIN's sections: the family's admin tools among them", await sections(admin));
-    check((await admin.$$eval(`${BAR.nav} a[aria-current="page"]`, (all) => all.map((a) => a.textContent.trim()))).join() === 'People', 'People is the page');
+    check((await adminPages(admin)).join('|') === ADMIN_SECTIONS, "an ADMIN's pages: the family's admin tools among them", await adminPages(admin));
+    check((await admin.$$eval(ADMIN_FRAME.headings, (all) => all.map((heading) => heading.textContent.trim()))).join('|') === 'Localization|System', 'under two headings: Localization, System');
+    check((await admin.$$eval(`${ADMIN_FRAME.link}[aria-current="page"] .anotoki-side-nav__label`, (all) => all.map((label) => label.textContent.trim()))).join() === 'People', 'People is the page');
     await admin.screenshot({ path: join(shots, 'admin-people.png'), fullPage: true });
     // Migrations: the anotoki family's page (@anotoki/lib/migrations/page), in the admin panel's frame.
-    await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
+    await admin.click(`${ADMIN_FRAME.link}[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-pending]`);
     check((await admin.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), "Migrations (the family's page): nothing pending");
     check(await admin.isDisabled(`${MIGRATIONS} [data-apply]`), 'Apply pending is off with nothing pending');
@@ -822,24 +844,42 @@ try {
     await admin.goto(`${APP}/admin/database`);
     await admin.waitForSelector(`${MIGRATIONS} [data-pending]`);
     check(new URL(admin.url()).pathname === '/admin/migrations', '/admin/database goes to /admin/migrations', admin.url());
-    // A phone: the admin panel's bar (Piano's own short form beside the mark, "admin panel" under it) and the page, nothing wider than the screen.
+    // A phone: the frame's row (the panel's name, Menu) and the page, nothing wider than the screen; Menu opens the
+    // drawer, with all the column holds.
     await admin.setViewportSize({ width: 360, height: 800 });
     await admin.waitForTimeout(200);
-    const shortBrand = await admin.evaluate(() => [...document.querySelectorAll('.anotoki-brand__wordmark > span')].filter((span) => span.checkVisibility()).map((span) => span.textContent.trim()));
-    check(JSON.stringify(shortBrand) === JSON.stringify(['Piano', 'admin panel']), 'at 360: "Piano" beside the mark, "admin panel" under it', shortBrand);
-    check(await admin.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'at 360: no sideways scroll');
+    await checkAdminFrame(admin, 'the admin panel at 360', 360);
     await admin.screenshot({ path: join(shots, 'admin-migrations-360.png'), fullPage: true });
+    await admin.click(ADMIN_FRAME.menu);
+    await admin.waitForSelector(`${ADMIN_FRAME.drawer} .anotoki-side-nav__link`, { timeout: 5000 });
+    await admin.waitForTimeout(300);
+    const drawer = await admin.evaluate(() => {
+      const box = document.querySelector('anotoki-drawer');
+      const said = (selector) => box?.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim() ?? null;
+      return {
+        name: said('.anotoki-admin-frame__name'),
+        back: said('.anotoki-admin-frame__back'),
+        signOut: said('.anotoki-admin-frame__sign-out'),
+        theme: box?.querySelectorAll('anotoki-theme-toggle [role="radio"]').length ?? 0,
+        pages: [...(box?.querySelectorAll('.anotoki-side-nav__link .anotoki-side-nav__label') ?? [])].map((label) => label.textContent.trim()).join('|'),
+      };
+    });
+    check(
+      JSON.stringify(drawer) === JSON.stringify({ name: 'ada', back: 'Back to Piano Academy', signOut: 'Sign out', theme: 3, pages: ADMIN_SECTIONS }),
+      'at 360 Menu opens the drawer: the person, Back, Sign out, the theme, the eight pages',
+      drawer,
+    );
+    await admin.screenshot({ path: join(shots, 'admin-drawer-360.png') });
+    await admin.keyboard.press('Escape');
+    await admin.waitForTimeout(300);
+    check((await admin.evaluate(() => document.activeElement?.classList.contains('anotoki-admin-frame__menu'))) === true, 'Escape closes it, the focus back on Menu');
     await adminContext.close();
 
     // A learner (no role here) is sent to the start page by the family's staffGuard: the admin panel is not theirs.
     const learnerContext = await newContext();
     const learner = await signedIn(learnerContext, MIA, '/admin/people');
     await learner.waitForSelector(`${BAR.nav} a[href="/stats"]`, { timeout: 20000 });
-    check(
-      new URL(learner.url()).pathname === '/' && !(await learner.$(`${BAR.nav} a[href="/admin/translations"]`)),
-      "a learner on the admin panel's address: the start page, none of its sections",
-      learner.url(),
-    );
+    check(new URL(learner.url()).pathname === '/' && !(await learner.$(ADMIN_FRAME.host)), "a learner on the admin panel's address: the start page, nothing of the panel", learner.url());
     await learnerContext.close();
   }
 
@@ -1148,19 +1188,24 @@ try {
       en: { row: [`v${VERSION}Version ${VERSION}`, '·', "What's new", '·', 'Feedback'], links: ['About', 'Support', 'Terms', 'Privacy', 'Contact'] },
       sk: { row: [`v${VERSION}Verzia ${VERSION}`, '·', 'Čo je nové', '·', 'Spätná väzba'], links: ['O projekte', 'Podporiť', 'Podmienky', 'Súkromie', 'Kontakt'] },
     };
-    /** How the footer is drawn - the build analyzer's look: a line on top, 1.25rem 1rem 1.5rem round it, 13 px, centred, as wide as the window, under the page. */
+    /**
+     * How the footer is drawn - the build analyzer's look: a line on top, 1.25rem 1rem 1.5rem round it, 13 px, centred,
+     * as wide as the window (in the admin panel: as the frame's page column), under the page.
+     */
     const drawnAs = (page) =>
       page.evaluate((selector) => {
         const footer = document.querySelector(selector);
         const style = getComputedStyle(footer);
         const box = footer.getBoundingClientRect();
-        const main = document.querySelector('#view-root').getBoundingClientRect();
+        const main = (document.querySelector('#view-root') ?? document.querySelector('anotoki-admin-frame main#main')).getBoundingClientRect();
+        const column = document.querySelector('.anotoki-admin-frame__page-column');
+        const room = column ? { left: column.getBoundingClientRect().left, right: column.getBoundingClientRect().left + column.clientWidth } : { left: 0, right: document.documentElement.clientWidth };
         return {
           border: `${style.borderTopWidth} ${style.borderTopStyle}`,
           padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].join(' '),
           size: style.fontSize,
           align: style.textAlign,
-          wide: Math.round(box.left) === 0 && Math.round(box.right) === document.documentElement.clientWidth,
+          wide: Math.round(box.left) === Math.round(room.left) && Math.round(box.right) === Math.round(room.right),
           under: box.top >= main.bottom - 1,
           scroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
         };
@@ -1245,17 +1290,16 @@ try {
     const context = await newContext();
     const page = await signedIn(context, ADA, '/admin/feedback');
     const unread = Number(fromTheDatabase("SELECT count(*) AS n FROM anotoki_feedback WHERE status = 'new'")[0].n);
-    const badge = () => page.evaluate((nav) => document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? null, BAR.nav);
+    const badge = () => page.evaluate((link) => document.querySelector(`${link}[href="/admin/feedback"] .anotoki-side-nav__badge`)?.textContent.trim() ?? null, ADMIN_FRAME.link);
     await page.waitForSelector('[data-messages] [data-message]', { timeout: 20000 });
     await page.waitForTimeout(300);
-    check(unread > 0 && (await badge()) === String(unread), 'the bar: "Feedback" with how many messages are new (no mail is sent)', [unread, await badge()]);
-    // The admin panel's own fold: folded up to ADMIN_PHONE_BAR_MAX, one row from a pixel more, the brand short at every width.
-    for (const width of [ADMIN_PHONE_BAR_MAX, ADMIN_PHONE_BAR_MAX + 1, DESKTOP]) {
+    check(unread > 0 && (await badge()) === String(unread), 'the frame\'s column: "Feedback" with how many messages are new (no mail is sent)', [unread, await badge()]);
+    // The frame's own fold: a phone's row and Menu up to ADMIN_FRAME_PHONE_MAX, the column from a pixel more.
+    for (const width of [ADMIN_FRAME_PHONE_MAX, ADMIN_FRAME_PHONE_MAX + 1, DESKTOP]) {
       await page.setViewportSize({ width, height: 900 });
       await page.waitForTimeout(150);
-      const row = await checkAdminBar(page, `the admin panel's bar at ${width}`, width);
-      console.log(`       admin ${width}: ${row.map((thing) => `${thing.what} ${thing.left}-${thing.right}`).join(', ')}`);
-      await page.screenshot({ path: join(shots, `admin-bar-${width}.png`), clip: { x: 0, y: 0, width, height: 120 } });
+      await checkAdminFrame(page, `the admin panel's frame at ${width}`, width);
+      await page.screenshot({ path: join(shots, `admin-frame-${width}.png`) });
     }
     await page.setViewportSize({ width: DESKTOP, height: 900 });
     await page.waitForTimeout(150);
@@ -1267,12 +1311,12 @@ try {
     await page.keyboard.press('Escape');
     await page
       .waitForFunction(
-        ([nav, expected]) => (document.querySelector(`${nav} a[href="/admin/feedback"] .anotoki-top-bar__badge`)?.textContent.trim() ?? '0') === expected,
-        [BAR.nav, String(unread - 1)],
+        ([link, expected]) => (document.querySelector(`${link}[href="/admin/feedback"] .anotoki-side-nav__badge`)?.textContent.trim() ?? '0') === expected,
+        [ADMIN_FRAME.link, String(unread - 1)],
         { timeout: 5000 },
       )
       .catch(() => undefined);
-    check(((await badge()) ?? '0') === String(unread - 1), "opened: read - the bar's number one less", await badge());
+    check(((await badge()) ?? '0') === String(unread - 1), "opened: read - the column's number one less", await badge());
 
     // A page's own error (anotoki-lib 0.5.0's reporter, shared/error-report.ts): thrown outside Angular's own code, it
     // goes to the console and - through the app's HttpClient, so with ada's token - into the error log. Thrown on
@@ -1870,7 +1914,7 @@ try {
       "People (the family's page): first and last seen in the account’s order, on its 24-hour clock",
       seen,
     );
-    await admin.click(`${BAR.nav} a[href="/admin/migrations"]`);
+    await admin.click(`${ADMIN_FRAME.link}[href="/admin/migrations"]`);
     await admin.waitForSelector(`${MIGRATIONS} [data-applied] li`);
     const ran = await admin.$$eval(`${MIGRATIONS} [data-applied] .anotoki-migrations-page__when`, (all) => all.map((when) => when.textContent.trim()));
     check(
@@ -2032,8 +2076,11 @@ try {
       all.map((li) => `${li.querySelector('code').textContent.trim()} ${li.querySelector('anotoki-badge').textContent.trim()}`),
     );
     check(JSON.stringify(pending) === JSON.stringify(['005_visitors.sql pending']), 'Pending: 005', pending);
-    check((await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === 'Migrations', 'the bar: Migrations alone while the database is behind');
-    check(!!(await page.$(FOOTER.footer)) && (await page.$$('main')).length === 1, 'the one page that runs meanwhile is in the frame: the bar and the footer, one <main>');
+    check((await adminPages(page)).join('|') === 'Migrations', "the frame's column: Migrations alone while the database is behind");
+    check(
+      !!(await page.$(`${ADMIN_FRAME.host} ${FOOTER.footer}`)) && (await page.$$('main')).length === 1 && !(await page.$('anotoki-top-bar')),
+      "the one page that runs meanwhile is in the admin panel's frame: its footer, one <main>, no top bar",
+    );
     await page.screenshot({ path: join(shots, `migrations-behind-${DESKTOP}.png`), fullPage: true });
 
     // An Apply that fails: users.visitor_key_hash made a text, so 005's gate refuses - the page shows what PostgreSQL said.
@@ -2086,17 +2133,13 @@ try {
     await page.waitForSelector(`${MIGRATIONS} [data-result][data-tone="success"]`, { timeout: 20000 });
     check((await page.textContent(`${result} .anotoki-alert__heading`))?.trim() === 'Up to date', 'Up to date', await page.textContent(result));
     check((await page.textContent(`${result} .anotoki-migrations-page__result-text`))?.trim() === 'Applied: 005_visitors.sql.', 'Applied: 005', await page.textContent(result));
-    await page.waitForSelector(`${BAR.nav} a[href="/admin/people"]`, { timeout: 20000 });
-    check(
-      (await page.$$eval(`${BAR.nav} a`, (all) => all.map((a) => a.textContent.trim()))).join('|') === ADMIN_SECTIONS,
-      'the app started where it stands: every section, the result still on the page',
-    );
+    await page.waitForSelector(`${ADMIN_FRAME.link}[href="/admin/people"]`, { timeout: 20000 });
+    check((await adminPages(page)).join('|') === ADMIN_SECTIONS, 'the app started where it stands: every page in the column, the result still on the page');
     check((await page.textContent(`${MIGRATIONS} [data-pending]`)).includes('Nothing pending'), 'nothing pending now');
     await page.screenshot({ path: join(shots, `migrations-applied-${DESKTOP}.png`), fullPage: true });
-    await page.click(BAR.person);
-    await page.click(`${BAR.menu} a[href="/"]`);
+    await page.click(ADMIN_FRAME.back);
     await page.waitForSelector(`${BAR.nav} a[href="/stats"]`);
-    check(!(await siteStatus(page)), 'back to Piano Academy: the app runs');
+    check(!(await siteStatus(page)), "the frame's Back to Piano Academy: the app runs");
     // The strings in memory are from before the update: the Learn page has every word only if the resume asked again.
     await page.waitForFunction(() => !!document.querySelector('#view-root router-outlet')?.nextElementSibling, null, { timeout: 20000 });
     let keysAfter = await keysOnPage(page);

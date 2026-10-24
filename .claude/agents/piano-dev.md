@@ -175,7 +175,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.9.2, both halves): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.10.0, both halves): in the browser `@anotoki/lib/auth`, wired in
   `shared/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -200,7 +200,7 @@ Working conventions specific to this repo:
   deleting the file switches the secret off); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`shared/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.9.2, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.10.0, wired in
   `shared/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
@@ -237,19 +237,21 @@ Working conventions specific to this repo:
   `drawTestQuestions()` (`shared/testing/test-kit.ts`), the library's
   `provideTestTranslations()` (`@anotoki/lib/translations/testing`).
 - The top bar is the family's `<anotoki-top-bar>`, wrapped by
-  `shared/top-bar` (Piano's brand, sections, person, menu items; "Not
-  saved yet" and the piano - `shared/ui/midi-panel` - as its widgets; the phone's
-  dot and the menus' note; Sign out settling and asking first): five
+  `sites/main/common/top-bar` (Piano's brand, sections, person, menu items; "Not
+  saved yet" and the piano - `sites/main/common/midi-panel` - as its widgets; the phone's
+  dot and the menus' note; Sign out settling and asking first - `SignOutService`): five
   sections, the language, the theme switch (light / dark / as the device is
   set), the person's menu ("Admin panel" for the staff while the site is
   ready); a phone's up to `PHONE_BAR_MAX` (1320, measured - `run.mjs
   --measure`; the bar's `phoneMax`, no .scss copy); the menus' Tab and
-  Shift+Tab close onto the menu button; under `/admin` the admin sections,
-  folding up to its own `ADMIN_PHONE_BAR_MAX` (1280, measured the same way),
-  and the wordmark short at every width ("Piano", "admin panel" under it;
-  "anotoki Piano Academy · admin panel" the link's name), English
-  (`effectiveLanguage`), no chooser, no piano. Its words are keys, in
-  kept-english.ts too.
+  Shift+Tab close onto the menu button. It is the learner's site's alone:
+  the admin panel is in the family's admin frame (`@anotoki/lib/admin/frame`,
+  anotoki-lib 0.10.0; `sites/admin/app.component`) - the panel's name, the
+  person, "Back to Piano Academy", Sign out (`SignOutService`, the bar's), the
+  theme and the pages under Localization and System by role on the left, the
+  page and the footer on the right, a drawer on a phone, English
+  (`effectiveLanguage`); the shell draws nothing round it
+  (`shared/view-root`). The bar's words are keys, in kept-english.ts too.
 - The theme, the dates, the clock and the language are the anotoki
   account's for somebody signed in (the IAM's 015; the family's
   `AnotokiAuth.preferences`, null for nobody, a visitor or an IAM
