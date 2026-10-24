@@ -1,5 +1,15 @@
-// The admin panel's frame, English like the pages in it (its sections are the
-// top bar's links). Its two cards are the family's (@anotoki/lib/ui/card).
+// The admin panel's frame is the family's (@anotoki/lib/admin/frame: its own look, the whole window). No box of its
+// own here: the frame - or the page drawn in its place - stands in the shell's column, which draws nothing round it.
+:host {
+  display: contents;
+}
+
+// For anybody but the staff, a page of its own in place of the frame: one card (the family's, @anotoki/lib/ui/card),
+// no column, no menu.
+.admin-alone {
+  display: block;
+  padding: 1.5rem 1rem;
+}
 
 .no-access {
   max-width: 34rem;

@@ -104,7 +104,7 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   this browser, and until you choose, it follows your browser. Note names, song titles and your piano's name stay as they
   are in every language. The app's words live in the database, reworded in
   the browser in the admin panel (`/admin`, in English; **Admin panel** in
-  your menu, and the bar there has its sections): an account with the role EDITOR of Piano Academy
+  your menu - the panel's pages are in a column on its left, the anotoki family's admin frame): an account with the role EDITOR of Piano Academy
   rewords them, an ADMIN also adds and deletes languages, sees everybody's
   progress counts (**People**), reads the **Error log**, the **Audit log**
   and the **Feedback**, keeps the **Backups** and applies database updates
@@ -206,6 +206,12 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
 
 ## Current state
 
+- **The admin panel in the family's frame (2026-10-24).** `anotoki-lib`
+  0.10.0, both halves: the admin panel looks like genshin's - its pages in a
+  column on the left under Localization and System, with who is signed in,
+  Back to Piano Academy, Sign out and the theme above them; the page and the
+  footer on the right; on a phone a Menu that opens it all in a drawer. The
+  top bar is the learner's site's alone. No migration, no new words.
 - The learning path's phase 1 (right hand): five units - C D E (Hot Cross
   Buns), G (Mary Had a Little Lamb), F (Ode to Joy), A (Twinkle Twinkle),
   B and high C (Joy to the World) - with every step type. Phases 2-6 are

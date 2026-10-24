@@ -22,12 +22,17 @@ import { ProgressStore } from './shared/state/progress-store.service';
 import { MIGRATIONS_ROUTE } from './shared/state/site-migrations';
 import { TopBarComponent } from './sites/main/common/top-bar/top-bar.component';
 import { ChangelogDialogComponent } from './shared/ui/changelog-dialog/changelog-dialog.component';
+import { ViewRootComponent } from './shared/view-root/view-root.component';
 
 /**
- * The frame around every view: the family's top bar (shared/top-bar: the
- * brand, the sections, the piano, the language, the theme and the person's
- * menu - the admin panel's sections under /admin), the view - or, while the
- * app cannot run yet, the card saying why - and the family's footer. Also the
+ * The frame around every view of the learner's site: the family's top bar
+ * (sites/main/common/top-bar: the brand, the sections, the piano, the
+ * language, the theme and the person's menu), the view - or, while the app
+ * cannot run yet, the card saying why - and the family's footer. The admin
+ * panel (/admin) has none of it: its page is the family's admin frame
+ * (sites/admin/app.component - its column, its own <main>, the footer under
+ * it), drawn here with nothing round it; only a card of the start (while
+ * the app cannot run) stands alone in the view's <main> there. Also the
  * notes that cannot be missed, under the bar: signed out in the middle of
  * practising, and the progress replaced or deleted somewhere else
  * (ProgressStore.changedElsewhere) - the family's alerts, as wide as the
@@ -106,6 +111,7 @@ import { ChangelogDialogComponent } from './shared/ui/changelog-dialog/changelog
     SiteGateComponent,
     SitePagesDirective,
     ConfirmHostComponent,
+    ViewRootComponent,
     AlertComponent,
     ButtonComponent,
     SpinnerComponent,
@@ -131,6 +137,9 @@ export class AppComponent {
     ),
     { initialValue: this.router.url.split(/[?#]/)[0] },
   );
+
+  /** The admin panel (/admin): the family's admin frame is its page's frame - no bar, no notes, no footer of the shell's. */
+  protected readonly adminArea = computed(() => this.path() === '/admin' || this.path().startsWith('/admin/'));
 
   /**
    * Inside the gate, the page rather than a card of the start: the app runs -

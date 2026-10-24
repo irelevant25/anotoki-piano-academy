@@ -506,7 +506,7 @@ every anotoki site) are routes the same way, in the same frame, and
 headings (`anotoki.about.title`, `anotoki.support.title` - the app's name
 alone while no bundle is in memory).
 
-**The family's kit** (`@anotoki/lib` 0.9.2, `shared/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.10.0, `shared/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
@@ -560,13 +560,14 @@ the family's (`@anotoki/lib/translations/admin`, lazy), with this app's
 checks (`allows`: the strings for the staff, the languages for ADMIN) and
 its guard for unsaved changes (`anotokiUnsavedChangesGuard`).
 
-**The top bar** (`shared/top-bar/`, drawn once by `AppComponent` above every
-page and boot card): the anotoki family's `<anotoki-top-bar>`, told what is
+**The top bar** (`sites/main/common/top-bar/`, drawn once by `AppComponent`
+above every page and boot card of the learner's site - the admin panel has the
+family's admin frame instead, below): the anotoki family's `<anotoki-top-bar>`, told what is
 Piano's - the brand (the mark in `public/anotoki.png`, "anotoki Piano
 Academy"), the five sections as links (`APP_LINKS`: a lesson is under Learn,
 a song under Songs; drawn once the app runs), and two widgets of the app's
 own before the language: "Not saved yet" while a save waits and the piano
-(`shared/ui/midi-panel`: a dot and the device's name; its box holds the state, the
+(`sites/main/common/midi-panel`: a dot and the device's name; its box holds the state, the
 devices, Connect and Rescan); then the language, the theme switch (light,
 dark, as the device is set) and the person's menu (name, e-mail, role; their
 anotoki account; "Admin panel" for the staff while the site is ready; Sign
@@ -577,22 +578,16 @@ switch and one menu button holding the sections and the person's menu; "Not
 saved yet" is a dot on that button (`phoneMark`, its words for a screen
 reader) and the first line of both menus (`menuNote`). Its menus' keys are
 the family's: arrows, Home and End; Escape, a click outside, Tab and
-Shift+Tab close the menu - Tab with the focus on its button. Under `/admin`
-it has the admin sections (`ADMIN_LINKS`, English), folding up to its own
-`ADMIN_PHONE_BAR_MAX` (1280 px: eight sections need 1255), the family's
-wordmark short at every width ("Piano" with "admin panel" under it;
-"anotoki Piano Academy · admin panel" the link's name - the whole one beside
-eight sections would not fit the family's row), "Back to Piano Academy" in
-the menu, no chooser and no piano;
-`TranslationService` reads every key in English there (`effectiveLanguage`,
-the bundle's `english`), so the bar has no case of its own; its Feedback
-link carries the number of new messages (the family's `FeedbackUnread`,
-asked when an ADMIN opens the panel).
+Shift+Tab close the menu - Tab with the focus on its button. Signing out is
+`SignOutService` (`shared/auth/sign-out.service.ts`), the admin frame's too:
+the saves settled first ("Saving…" meanwhile), and a question when progress
+would be lost.
 
 **The footer** (`<anotoki-site-footer>`, `@anotoki/lib/footer`, the library's
 0.6.3 - the build analyzer's, the owner's choice of 2026-10-18), drawn by
-`AppComponent` under every page and the admin panel's, inside the gate's
-template with the bar: a line above it, then "v0.4.0 · What's new · Feedback"
+`AppComponent` under every page of the learner's site, inside the gate's
+template with the bar - and by the admin panel's frame in its footer slot,
+the same: a line above it, then "v0.4.0 · What's new · Feedback"
 (a screen reader hears "Version 0.4.0", the library's `anotoki.footer.version`):
 the version and What's new once `changelog.json` came (its
 newest entry is the version: one source), What's new opening the app's own
@@ -607,18 +602,35 @@ Support · Terms · Privacy · Contact (the open page's
 link marked). Its words are the library's (`anotoki.footer.*`, the database's
 through `forKit()`, else its own; English in the admin panel).
 
-**The admin panel** (`/admin`, English): its sections are the top bar's links
-there - Translations (EDITOR, ADMIN); Languages, People, Feedback, Error
-log, Audit log, Backups, Migrations (ADMIN, the family's `adminGuard`) - every
-page the family's (`<anotoki-translations-page>`, `<anotoki-languages-page>`,
-the People page, the admin tools' pages, `<anotoki-migrations-page>`, each
-lazy from its own entry point; `/admin/database` redirects to Migrations);
-the person's menu calls it "Admin panel", its brand "anotoki Piano Academy ·
-admin panel" and its titles "Translations · Admin panel · Piano Academy", as on
-every anotoki site; `sites/admin/admin-layout/` draws the page, or
-says why there is nothing (signed out; signed in without a role). `/translations` and `/languages`
-redirect there. The family's pages show the server's own English sentence
-when a call fails; a learner's page never does.
+**The admin panel** (`/admin`, English) is in the family's admin frame
+(`@anotoki/lib/admin/frame`'s `<anotoki-admin-frame>`, anotoki-lib 0.10.0 -
+genshin's, the owner's request of 2026-10-24; `sites/admin/app.component`),
+never under the top bar: on the left a column - the panel's name ("anotoki
+Piano Academy · admin panel", to `/admin`), who is signed in (the name, the
+address under it), "Back to Piano Academy", Sign out (`SignOutService`, the
+bar's), the family's theme switch, then the pages under their headings -
+Localization: Translations (EDITOR, ADMIN), Languages; System: People,
+Feedback (with the number of new messages, the family's `FeedbackUnread`,
+asked when an ADMIN opens the panel), Error log, Audit log, Backups,
+Migrations (ADMIN, the family's `adminGuard`; Migrations alone while an
+update waits); on the right the page in the frame's own `<main>` and the
+family's footer under it. On a phone (up to 860 px) a row with the name and
+Menu, which opens all of it in a drawer. The shell draws nothing round it
+(no bar, no notes, no footer of its own, no `<main>`: `shared/view-root`
+moves the one router outlet out of the learner's site's `<main>`, so the
+page is made once as an address crosses from one half to the other); its
+words are English (`TranslationService.effectiveLanguage`; the frame's own -
+Menu, Sign out, Theme, Skip to content - the kit's, through `forKit()`).
+Every page is the family's (`<anotoki-translations-page>`,
+`<anotoki-languages-page>`, the People page, the admin tools' pages,
+`<anotoki-migrations-page>`, each lazy from its own entry point;
+`/admin/database` redirects to Migrations); the person's menu on the
+learner's site calls it "Admin panel", and its titles are "Translations ·
+Admin panel · Piano Academy", as on every anotoki site. Anybody else sees
+why there is nothing (signed out; signed in without a role) on a page of its
+own - no column, no menu. `/translations` and `/languages` redirect there.
+The family's pages show the server's own English sentence when a call fails;
+a learner's page never does.
 
 **Saving** (`shared/state/progress-store.service.ts`, `api/api.service.ts`):
 `ApiService.fetchState()` keeps the generation; every `PUT /api/progress` and

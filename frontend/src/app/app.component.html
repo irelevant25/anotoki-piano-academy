@@ -1,10 +1,12 @@
-<!-- The family's gate (@anotoki/lib/migrations) is the outermost of what the app draws. While the site is ready - or an ADMIN is on the Migrations page while an update waits - it draws its marked template (anotokiSitePages): the whole frame, the bar, the notes, the page and the footer. While it is not (an update waits, it is not set up, its database is out of reach) it draws its status page alone, in a <main> of its own: no bar, no note, no footer round it (the owner's rule of 2026-10-18). The template is made only while the gate shows it, so no page runs behind the status page. -->
+<!-- The family's gate (@anotoki/lib/migrations) is the outermost of what the app draws. While the site is ready - or an ADMIN is on the Migrations page while an update waits - it draws its marked template (anotokiSitePages): the whole frame, the bar, the notes, the page and the footer - the learner's site's, round every page but the admin panel's, which draws the family's admin frame itself (sites/admin/app.component: its column, its own <main>, the footer under it). While it is not (an update waits, it is not set up, its database is out of reach) it draws its status page alone, in a <main> of its own: no bar, no note, no footer round it (the owner's rule of 2026-10-18). The template is made only while the gate shows it, so no page runs behind the status page. -->
 <anotoki-site-gate>
     <ng-template anotokiSitePages>
-        <app-top-bar />
+        @if (!adminArea()) {
+            <app-top-bar />
+        }
 
-        <!-- While an ADMIN applies an update on the Migrations page the site is not ready yet: no note waits under the bar meanwhile. -->
-        @if (!site.blocked()) {
+        <!-- While an ADMIN applies an update on the Migrations page the site is not ready yet: no note waits under the bar meanwhile. The admin panel has none: the learner's notes wait for the learner's pages (the signed-out one is the panel's own card there). -->
+        @if (!site.blocked() && !adminArea()) {
             <!-- The notes that cannot be missed, above the page: the family's alerts (@anotoki/lib/ui/alert) - the ones that come of what just happened are said at once (role alert or status). -->
             <div class="notes">
                 @if (signedOutBanner()) {
@@ -99,7 +101,8 @@
             </div>
         }
 
-        <main id="view-root" class="view-root">
+        <!-- The page's place: the learner's site's <main id="view-root"> - or nothing round the admin panel's frame, which has a <main> of its own. Made here once, only moved between the two (shared/view-root). -->
+        <app-view-root [bare]="adminArea() && pageShown()">
             @if (pageShown()) {
                 <!-- One outlet for both: the Migrations page an ADMIN applies from while an update waits stays as the app starts. -->
                 <router-outlet />
@@ -114,10 +117,12 @@
                     }
                 }
             }
-        </main>
+        </app-view-root>
 
         <!-- The family's footer (@anotoki/lib/footer), the anotoki sites' one: "vX · What's new · Feedback" ("Version X" to a screen reader) - the version and What's new once the list of changes came (one source, changelog.json), Feedback the family's form in the kit's dialog, loaded with the press - then About · Support · Terms · Privacy · Contact. In the library's words (anotoki.footer.*, anotoki.legalLinks.*). -->
-        <anotoki-site-footer [version]="changelog.version()" [whatsNew]="changelog.version() !== null" (whatsNew)="whatsNewOpen.set(true)" feedback />
+        @if (!adminArea()) {
+            <anotoki-site-footer [version]="changelog.version()" [whatsNew]="changelog.version() !== null" (whatsNew)="whatsNewOpen.set(true)" feedback />
+        }
 
         <!-- What's new: its code (the family's dialog with the releases) loaded only once it is opened, from the footer's What's new. -->
         @if (whatsNewOpen()) {

@@ -1,0 +1,10 @@
+<!-- What the shell gives, made once by the shell: drawn in whichever place is in use - the <main> of the learner's site, or nothing round it for the admin panel's frame. -->
+<ng-template #page><ng-content /></ng-template>
+
+@if (bare()) {
+    <ng-container [ngTemplateOutlet]="page" />
+} @else {
+    <main id="view-root" class="view-root">
+        <ng-container [ngTemplateOutlet]="page" />
+    </main>
+}

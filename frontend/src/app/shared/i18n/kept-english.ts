@@ -25,7 +25,7 @@
 export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   // While the start is on its way (app.component).
   'common.loading': 'Loading…',
-  // The top bar (shared/top-bar): the brand - "Piano" alone on a phone - and its link's name.
+  // The top bar (sites/main/common/top-bar): the brand - "Piano" alone on a phone - and its link's name.
   'brand.area': 'Piano Academy',
   'brand.short': 'Piano',
   'topbar.home': 'anotoki Piano Academy: Learn',
@@ -43,12 +43,12 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   // Sign in: the signed-out banner's button and the visitor's notes' (a sign-in that did not work is said on the
   // family's own screen, in the library's words - KEPT_LIBRARY_ENGLISH below).
   'signIn.button': 'Sign in',
-  // Who is signed in and what waits, in the top bar (shared/top-bar), and the signed-out banner (app.component).
+  // Who is signed in and what waits, in the top bar (sites/main/common/top-bar), and the signed-out banner (app.component).
   'account.notSaved': 'Not saved yet',
   'account.notSavedHint': 'Some of your progress is not on the server yet. The app keeps trying.',
   'account.signedIn': 'Signed in',
   'account.signedOutBanner': 'You are signed out, so your progress is not saved.',
-  // Signing out while some progress could not be saved (shared/top-bar: the question, the family's ConfirmService).
+  // Signing out while some progress could not be saved (shared/auth/sign-out.service.ts - the bar's and the admin frame's: the question, the family's ConfirmService).
   'signOut.title': 'Sign out without your latest progress?',
   'signOut.text': 'Some of your progress could not be saved yet. If you sign out now, it is lost.',
   'signOut.confirm': 'Sign out anyway',
@@ -66,7 +66,7 @@ export const KEPT_ENGLISH: Readonly<Record<string, string>> = {
   'visitor.full': 'Without signing in, this browser cannot keep any more. Sign in to keep practising with your progress saved.',
   'visitor.busy': 'Too many people are practising without signing in just now, so this is not saved yet. Sign in, or try again later.',
   'visitor.close': 'Close',
-  // The piano, in the top bar (shared/ui/midi-panel): the button, and the box it opens.
+  // The piano, in the top bar (sites/main/common/midi-panel): the button, and the box it opens.
   'midi.button': '{label}: {status}',
   'midi.none': 'No piano',
   'midi.title': 'Your piano',

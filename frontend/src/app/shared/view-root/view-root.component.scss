@@ -1,0 +1,21 @@
+// No box of its own: the <main> (or the admin panel's frame) stands in the shell's column (app.component).
+:host {
+  display: contents;
+}
+
+// The page between the bar and the family's footer (@anotoki/lib/footer: its own look - the top border, the row, the
+// links), which this column pushes to the foot of the window on a short page. The gate draws the status page in a
+// <main> of its own, and nothing of this frame then.
+.view-root {
+  flex: 1;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .view-root {
+    padding: 1rem;
+  }
+}

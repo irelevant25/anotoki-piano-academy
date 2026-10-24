@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.9.0"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.10.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.9.2/anotoki-lib-0.9.2.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.10.0/anotoki-lib-0.10.0.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -36,7 +36,9 @@ and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*); the
 legal pages (below, *Terms, Privacy and Contact*) and About and Support; the
-footer (below, *The family's footer*). Both halves are at 0.9.2 (0.6.0 added the legal pages -
+footer (below, *The family's footer*); the admin panel's frame. Both halves are at 0.10.0 (0.10.0 added the
+admin panel's frame - `<anotoki-admin-frame>`, genshin's: the panel's pages in a column on the left, no top bar
+there; 0.6.0 added the legal pages -
 Terms, Privacy, Contact and the footer's links - and the kit's chips, stat
 tiles and step dots, the highlighted card and the select's own entry point;
 0.6.1 made the Privacy page's sentences on the backups true, and 0.6.2 three
@@ -349,8 +351,8 @@ Edge (`BROWSER=chrome` for Chrome) through `playwright-core` - installed once
 into `<temp>/pw`, never into `frontend/` - and stops and drops everything at
 the end, also when a check fails. `--keep` keeps the screenshots (the path
 is printed): look at them. `--measure` prints what the top bar's row needs
-in English and Slovak - how `PHONE_BAR_MAX` and the admin panel's
-`ADMIN_PHONE_BAR_MAX` were chosen.
+in English and Slovak - how `PHONE_BAR_MAX` was chosen (the admin panel has
+no bar: the family's admin frame).
 
 ### Testing without a piano
 
@@ -680,7 +682,7 @@ is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
-library's 0.6.3)**: the build carries `anotoki-lib` 0.9.2 - both halves. The
+library's 0.6.3)**: the build carries `anotoki-lib` 0.10.0 - both halves. The
 foot of every page, the admin panel's too, is the family's footer
 (`<anotoki-site-footer>`, the build analyzer's): "v0.4.0 · What's new ·
 Feedback" (a screen reader hears "Version 0.4.0") - the version and What's new

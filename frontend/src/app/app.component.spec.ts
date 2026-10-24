@@ -1155,14 +1155,64 @@ describe('the shell with no bundle', () => {
     expect(Array.from(back.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
     expect(footerLinks(back).map(([, href]) => href)).toEqual(['/about', '/support', '/terms', '/privacy', '/contact']);
 
-    // The one page that runs while an update waits - the ADMIN's Migrations page - is in the frame: the bar (Migrations
-    // alone in it) and the footer, but no note meanwhile; the gate draws no <main> of its own then.
+    // The one page that runs while an update waits - the ADMIN's Migrations page - is the admin panel's: its frame
+    // (sites/admin/app.component, the family's admin frame - Migrations alone in its column, its footer, its <main>) is
+    // the page's, and neither the shell nor the gate draws anything round it.
     const admin = await drawn(STATES["an update waits, the site's ADMIN signed in"], [anyPage]);
     await go(admin, '/admin/migrations');
-    expect(admin.host.querySelector('#view-root #stub-page')).not.toBeNull();
-    expect(standsAlone(admin)).toEqual({ status: false, frame: FRAME.filter((part) => part !== '.notes'), mains: 1 });
-    expect(Array.from(admin.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Migrations']);
-    expect(footerRow(admin)).toEqual(['Feedback']);
+    expect(admin.host.querySelector('app-view-root #stub-page')).not.toBeNull();
+    expect(standsAlone(admin)).toEqual({ status: false, frame: [], mains: 0 });
+  });
+
+  it('draws nothing of its own round the admin panel - no bar, no note, no footer, no <main>: its frame has them - and makes its page once as the address crosses from one half to the other', async () => {
+    const counted: Provider = {
+      provide: ROUTES,
+      multi: true,
+      useValue: [
+        { path: 'admin', component: CountedPageComponent },
+        { path: '**', component: StubPageComponent },
+      ],
+    };
+    CountedPageComponent.made = CountedPageComponent.gone = 0;
+    const s = await drawn(
+      (made) => {
+        session(made.auth, { ...PERSON, roles: ['ADMIN'] });
+        made.store.loaded.set(true);
+        made.boot.status.set('ready');
+      },
+      [counted],
+    );
+    await go(s, '/stats');
+    expect(standsAlone(s)).toEqual({ status: false, frame: FRAME, mains: 1 });
+    expect(s.host.querySelector('#view-root #stub-page')).not.toBeNull();
+
+    // Into the admin panel: the shell's frame goes, the panel's page stands with nothing round it - made once, though
+    // the shell's <main> it was made in went (two outlets, one in each place, would make it again in the second).
+    await go(s, '/admin');
+    expect(s.host.querySelector('app-view-root #counted-page')).not.toBeNull();
+    expect(standsAlone(s)).toEqual({ status: false, frame: [], mains: 0 });
+    expect([CountedPageComponent.made, CountedPageComponent.gone]).toEqual([1, 0]);
+
+    // And back: the frame round the learner's page again; the panel's page gone once.
+    await go(s, '/stats');
+    expect([CountedPageComponent.made, CountedPageComponent.gone]).toEqual([1, 1]);
+    expect(standsAlone(s)).toEqual({ status: false, frame: FRAME, mains: 1 });
+    expect(s.host.querySelector('#view-root #stub-page')).not.toBeNull();
+  });
+
+  it("the admin panel's address while the start cannot go on (the progress did not load): the card alone in the view's <main> - no bar, no footer", async () => {
+    const s = await drawn(
+      (made) => {
+        session(made.auth, { ...PERSON, roles: ['ADMIN'] });
+        made.boot.status.set('load-error');
+      },
+      [anyPage],
+    );
+    // (An ADMIN's Migrations page is drawn whatever the start says: any other page of the panel.)
+    await go(s, '/admin/translations');
+    expect(s.host.querySelector('#view-root app-load-error')).not.toBeNull();
+    expect(s.host.querySelector('#stub-page')).toBeNull();
+    expect(standsAlone(s)).toEqual({ status: false, frame: ['#view-root'], mains: 1 });
   });
 
   it("the theme switch: its three choices named in the app's words, the one in force checked and kept for the next first paint", async () => {

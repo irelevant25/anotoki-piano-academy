@@ -50,11 +50,13 @@ src/
     app.component.*                  the family's <anotoki-site-gate>, outermost, with the whole frame as its
                                      marked template (<ng-template anotokiSitePages>: made only while the gate
                                      shows it, so nothing runs behind the status page, which stands alone - no
-                                     bar, no footer): the top bar, the notes that cannot be missed (signed out,
+                                     bar, no footer) - the learner's site's frame; the admin panel's page is the
+                                     family's admin frame (sites/admin/app.component), drawn with nothing round
+                                     it: the top bar, the notes that cannot be missed (signed out,
                                      progress changed elsewhere; a visitor's: the notice on Learn and Stats,
                                      sign-in required meanwhile, a refused sign-in, a save refused, the progress
                                      ended; after a sign-in moved / kept / not moved - none while the site is not
-                                     ready), the page or a boot card in <main> (the legal pages, About and
+                                     ready), the page or a boot card in <main> (shared/view-root; the legal pages, About and
                                      Support drawn for anybody), the family's footer (<anotoki-site-footer>:
                                      v{version} - "Version
                                      {version}" to a screen reader - · What's new -
@@ -80,7 +82,9 @@ src/
                                      switch -, preferences - the account's theme, dates and clock while signed in -
                                      and savePreferences(); its interceptor: the token for a person's request, the
                                      key for a visitor's on the progress routes - as ApiService issued it; no sign-in
-                                     by the IAM's hint), VisitorKey (the visitor's key in localStorage)
+                                     by the IAM's hint), VisitorKey (the visitor's key in localStorage),
+                                     SignOutService (the one sign-out, the bar's and the admin frame's: the saves
+                                     settled first, a question when progress would be lost)
       site-admin.ts                  provideSiteAdmin(): the family's People page (this app's counts and its
                                      question before a delete), admin tools and feedback form wired to this app
                                      (the form says itself that its message is anybody's, anotoki-lib 0.7.2)
@@ -112,20 +116,21 @@ src/
                                      family's question read and answered (drawTestQuestions()); a spec's strings
                                      are the library's provideTestTranslations() (@anotoki/lib/translations/testing)
       midi/, changelog/, util/
-      top-bar/                       the anotoki family's one bar (@anotoki/lib/shell's <anotoki-top-bar>), told
-                                     Piano's brand, sections, person and menu items; its widgets "Not saved yet"
-                                     and the piano; a phone's up to PHONE_BAR_MAX (1320); under /admin the
-                                     admin sections - Feedback with the count of new ones - folding up to
-                                     ADMIN_PHONE_BAR_MAX (1280), and the wordmark short at every width, in
-                                     English
-      ui/                            Piano's own, in the shell: the piano's widget in the bar (midi-panel: its
-                                     button Piano's, its box the family's popover, alert, buttons and select - the
-                                     select in a @defer, out of the first load), What's new (changelog-dialog: the
-                                     family's dialog and badges, made when it opens - from the footer's What's new)
+      view-root/                     the page's place in the shell: the learner's site's <main id="view-root">, or
+                                     nothing round the admin panel's frame (which has its own <main>) - what the
+                                     shell gives it (the one router outlet, a boot card) made once and only moved
+      ui/                            Piano's own, in the shell: What's new (changelog-dialog: the family's dialog
+                                     and badges, made when it opens - from the footer's What's new)
     sites/admin/                     the admin panel: admin.routes.ts (ADMIN_ROUTES - /admin and its pages, every
-                                     one the family's, and where two of them were before it)
-      admin-layout/                  /admin's frame: the page, or why there is nothing for you; asks for the
-                                     feedback's count when an ADMIN opens it
+                                     one the family's, and where two of them were before it) and
+                                     app.component.* (app-admin-root): the family's admin frame
+                                     (@anotoki/lib/admin/frame's <anotoki-admin-frame>, genshin's) - on the left
+                                     the panel's name, who is signed in, Back to Piano Academy, Sign out
+                                     (SignOutService), the family's theme switch and the pages under Localization
+                                     and System by role (ADMIN_GROUPS - Feedback with the count of new ones, asked
+                                     when an ADMIN opens it); the page and the family's footer on the right; a
+                                     phone's row and drawer up to 860 px; in English. Anybody else: why there is
+                                     nothing for them, on a page of its own (no column, no menu)
     sites/main/                      the learner's site: main.routes.ts (MAIN_ROUTES - the legal pages, About and
                                      Support, the learner's pages)
       home/                          Learn - the path: the kit's highlighted card and chips
@@ -142,9 +147,14 @@ src/
                                      PIANO_LEGAL_UPDATED), given by the legal pages' frame - legal-layout/ (lazy;
                                      About's and Support's too), so the facts load with the pages, never with the
                                      first one
-      common/                        Piano's own that only the learner's pages use: the piano keyboard
-                                     (piano-keyboard/), the notation (notation/: VexFlow and the staff), the
-                                     sequence player (player/), the metronome (audio/)
+      common/                        Piano's own that only the learner's site uses: the top bar (top-bar/: the
+                                     anotoki family's one bar, @anotoki/lib/shell's <anotoki-top-bar>, told
+                                     Piano's brand, sections, person and menu items; its widgets "Not saved yet"
+                                     and the piano - midi-panel/: its button Piano's, its box the family's popover,
+                                     alert, buttons and select, the select in a @defer, out of the first load; a
+                                     phone's up to PHONE_BAR_MAX, 1320), the piano keyboard (piano-keyboard/),
+                                     the notation (notation/: VexFlow and the staff), the sequence player
+                                     (player/), the metronome (audio/)
 public/                              changelog.json (the version shown: MAJOR.MINOR.PATCH, the newest entry's -
                                      package.json's too), anotoki.png (the family's mark), favicon.svg
 proxy.conf.json                      /api and /setup.php to the backend on :8300
@@ -152,7 +162,7 @@ proxy.conf.json                      /api and /setup.php to the backend on :8300
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.9.2): in
+half is the backend's `anotoki/lib`; one version for both - 0.10.0): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -166,7 +176,8 @@ first load - and a spec reads the kit's markup by the kit's own class names
   configuration and words, icons, the menus, the piano's popover, the
   questions (`ConfirmService`, drawn by `<anotoki-confirm-host>` in
   `app.component.html`) and What's new's dialog; their words through
-  `provideFamilyKit()` (`forKit()`).
+  `provideFamilyKit()` (`forKit()`); `/ui/icons` - the admin panel's
+  pages' icons, registered as it opens (`AnotokiIcons.register()`).
 - `@anotoki/lib/ui/button`, `/ui/card`, `/ui/alert`, `/ui/badge`,
   `/ui/spinner`, `/ui/error-state`, `/ui/empty-state` - the pages' buttons,
   cards (the Continue card the highlighted one), notes, badges, "Working…",
@@ -196,6 +207,12 @@ first load - and a spec reads the kit's markup by the kit's own class names
   lazy; `/translations/testing` - a spec's strings.
 - `@anotoki/lib/shell` - the top bar, the language chooser, the theme switch
   and `ThemeService`, the brand; `assets/theme-boot.js` (angular.json).
+- `@anotoki/lib/admin/frame` - the admin panel's frame,
+  `<anotoki-admin-frame>` (0.10.0, genshin's: the panel's pages in a column on
+  the left, `SideNavGroup`s), lazy with the panel
+  (`sites/admin/app.component`); the theme's switch in its `adminFrameTheme`
+  slot is the shell's `<anotoki-theme-toggle>`, the footer in
+  `adminFrameFooter` the family's footer.
 - `@anotoki/lib/migrations` - where the site stands (`SiteStatus`,
   `siteStatusInterceptor`), the gate in front of the pages and its status
   page. The gate is the outermost of the shell, and takes the shell's whole
@@ -249,8 +266,8 @@ written in its templates (the family's pages in theirs). State holds keys
 and ids, never sentences, and a learner never sees the server's own sentence.
 
 The top bar is the anotoki family's (`<anotoki-top-bar>`, wrapped by
-`shared/top-bar`). Its folds, `PHONE_BAR_MAX` and the admin panel's
-`ADMIN_PHONE_BAR_MAX`, are measured: `node
+`sites/main/common/top-bar`), the learner's site's alone - the admin panel
+has the family's admin frame. Its fold, `PHONE_BAR_MAX`, is measured: `node
 .claude/skills/check-in-browser/scripts/run.mjs --measure` prints what the
 row needs with the real labels - change the number in `top-bar.component.ts`
 (the family's bar takes it as `phoneMax`; there is no copy in a `.scss`).
@@ -269,7 +286,7 @@ Sign in at `http://localhost:4500` - the address the IAM knows for
 `piano-academy`; `127.0.0.1` does not sign in. Any page you open while
 signed out sends you to the IAM first, and back - but Terms, Privacy and
 Contact, which are anybody's. The first load's budget warns at 575 kB (550
-until the family's footer, 2026-10-18: the owner's call): it is 558.1 kB; a
+until the family's footer, 2026-10-18: the owner's call): it is 558.8 kB; a
 new piece in it needs room made first.
 
 ## Tests
@@ -289,7 +306,7 @@ every closed state - no bar, no section, no note, no footer, one landmark -
 and the frame back with the site; visitors and learners told
 it is being updated in their language with no error and no setup or
 Migrations link, an ADMIN told an update waits and on the Migrations page
-(in the frame),
+(in the admin panel's frame, nothing of the shell's round it),
 a signed-out ADMIN's Sign in coming back to the page, the setup page only
 while never installed, the start waiting and resumed after an Apply, no page
 made behind the status page (an update in the middle of practising takes the
@@ -297,7 +314,12 @@ page away); the sign-in as this app wires the family's (`shared/auth/site-auth.s
 its settings, the visitors' paths, the failure's route, no hint; the
 routes' guards in `app.routes.spec.ts`; the failure screen in the shell in
 both languages); the
-routes and the admin panel's split by role; every save naming the generation,
+routes and the admin panel's split by role (`sites/admin/app.component.spec.ts`:
+the family's admin frame - the panel's name, the person, Back, the one
+sign-out, the theme, the pages under their headings by role, Migrations alone
+while an update waits, Feedback's count, the footer - and the cards on a page
+of their own; the shell's spec: nothing of its own round the panel, its page
+made once as an address crosses from one half to the other); every save naming the generation,
 none sent without one, a 409 settled by loading again and the other tabs told,
 a reload in the middle of a round sending none of the old notes, a 428 kept
 as a failed save; visitors (who a request is, decided as it is issued - a
@@ -311,9 +333,8 @@ after a lost key - several of them checked by taking the fix out once);
 the own progress file (the size checked, the dry run, the question before a
 replace, every code worded); the top bar - the family's, told Piano's (the
 row, the sections lit, the menus' keys - Tab and Shift+Tab onto the menu
-button, the phone's menu and its dot, "Not saved yet", the admin panel in
-English with its wordmark, the way into it only while the site is ready, the
-sign-out question); the piano's widget (its box the family's popover, its
+button, the phone's menu and its dot, "Not saved yet", the way into the
+admin panel only while the site is ready, the sign-out question); the piano's widget (its box the family's popover, its
 state the family's alert, its devices in the family's select - drawn from
 its `@defer` block in the spec, `getDeferBlocks()`); the family's footer
 (the row in the build analyzer's order - "v0.4.0 · What's new · Feedback",

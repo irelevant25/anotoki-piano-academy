@@ -96,7 +96,7 @@ vendor/                Slim and its pieces, and anotoki/lib (the anotoki family'
 ```
 
 `anotoki/lib` is the PHP half of the family's library (the Angular half is the
-frontend's `@anotoki/lib`; one version for both - 0.9.2, `^0.9.0` in
+frontend's `@anotoki/lib`; one version for both - 0.10.0, `^0.10.0` in
 `composer.json`): the
 engine and the gate; the words - `Anotoki\Lib\Translations` with its
 migration set `anotoki_translations`, run after this app's own (its 005 to

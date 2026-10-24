@@ -8,16 +8,13 @@
     [menuItems]="menuItems()"
     [signIn]="signIn()"
     [signOut]="signOut"
-    [languages]="!inAdmin()"
-    [phoneMax]="phoneMax()"
-    [nameMin]="nameMin()"
-    [shortBrandMax]="shortBrandMax()"
+    languages
+    [phoneMax]="phoneMax"
+    [nameMin]="nameMin"
     [phoneMark]="phoneMark()"
     [menuNote]="menuNote()">
     @if (store.unsaved() && !bar.phone()) {
         <anotoki-badge topBarWidgets class="save-status" id="save-status" tone="warning" [title]="'account.notSavedHint' | translate">{{ "account.notSaved" | translate }}</anotoki-badge>
     }
-    @if (!inAdmin()) {
-        <app-midi-panel topBarWidgets [compact]="bar.phone()" />
-    }
+    <app-midi-panel topBarWidgets [compact]="bar.phone()" />
 </anotoki-top-bar>

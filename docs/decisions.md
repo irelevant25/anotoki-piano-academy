@@ -2,6 +2,60 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-24 - the admin panel in the family's admin frame (`anotoki-lib` 0.10.0)
+
+The owner's request: every anotoki admin panel looks like genshin's, "so it is
+directly distinguishable if I am on the site or the admin panel" - the menu
+on the left, the page on the right. The library's 0.10.0 has genshin's frame
+for every site (`@anotoki/lib/admin/frame`, `<anotoki-admin-frame>`); the
+frontend's folders became genshin's the same day (`api/`, `shared/`,
+`sites/main/`, `sites/admin/`). The choices made here:
+
+- **No top bar in the admin panel.** The panel's root (`sites/admin/app.component`,
+  `app-admin-root` as in genshin) draws the frame: the panel's name as the bar
+  named it ("anotoki Piano Academy · admin panel", to `/admin`), the person
+  (the name, the address under it), "Back to Piano Academy" (to `/`), Sign
+  out, the family's theme switch (`<anotoki-theme-toggle>`, the account's
+  theme as everywhere), the pages, and the family's footer in its slot -
+  "vX · What's new · Feedback", What's new opening the app's own dialog, the
+  same as under every page. The top bar is the learner's site's alone
+  (`sites/main/common/top-bar`, with the piano's widget): its admin area -
+  the admin sections, the admin wordmark, "Back to Piano Academy", the
+  panel's own fold `ADMIN_PHONE_BAR_MAX` - is gone; the frame folds at its
+  own 860 px.
+- **The same pages, the same roles, under headings**: Localization
+  (Translations for the staff, Languages) and System (People, Feedback with
+  the number of new messages, Error log, Audit log, Backups, Migrations) - an
+  ADMIN's all eight, an EDITOR's Translations alone, an ADMIN's Migrations
+  alone while an update waits; the order the bar had. Each with one of the
+  family's icons (`@anotoki/lib/ui/icons`, registered as the panel opens -
+  its lazy chunk carries them).
+- **One sign-out** (`SignOutService`, `shared/auth`): the bar's and the
+  frame's are the same function - the saves settled first ("Saving…"
+  meanwhile), and the question in the page's words when progress would be
+  lost (English in the panel).
+- **The shell draws nothing round the panel** - no bar, no notes, no footer,
+  no `<main>` (the frame has its own: one `<main>` a page). The router's one
+  outlet stays where it is in the shell, given to `shared/view-root`, which
+  puts it in the learner's site's `<main>` or nowhere: two outlets, one in
+  each place, would make the page anew as an address crossed from one half to
+  the other (the app.component spec counts it). While the start cannot go on
+  (the progress did not load, a sign-in under way) an admin address shows the
+  start's card alone in that `<main>`.
+- **The learner's notes stay on the learner's pages.** Signed out, the panel
+  says so with its own card; the notes that wait until closed (progress
+  changed elsewhere, a visitor's progress moved) are there on the next
+  learner's page.
+- **Anybody but the staff** - signed out, or signed in with no role here -
+  gets the two cards as they were, on a page of their own: no column, no menu
+  (genshin's page that says the panel is not theirs).
+- **The first load** is 558.8 kB (557.8 before): nothing new in it, but the
+  footer and the shell's theme switch are now shared with the panel's lazy
+  chunk, so the build splits them out of the first page's own file - the
+  library measured the same for its switch (0.10.0's CHANGELOG). No
+  migration, no new words: the frame's words are the kit's ("Menu", "Sign
+  out", "Theme", "Skip to content"), English in the panel.
+
 ## 2026-10-18, after the deploy - the anotoki sites' one footer, the status page alone, a Cloudflare file without a usable secret failing closed, and the host check (`anotoki-lib` 0.6.3)
 
 - **One footer for every anotoki site, the build analyzer's** (the owner,
@@ -708,7 +762,7 @@ owner's decisions for Piano Academy:
   light", what the round button said); what Piano never had - the switch's
   name, "As your device is set", "Saving…" - is the kit's own.
 
-What is the family's now: the top bar (`shared/top-bar` wraps
+What is the family's now: the top bar (`sites/main/common/top-bar` wraps
 `<anotoki-top-bar>`: Piano's brand, sections, person and menu items, "Not
 saved yet" and the piano as its widgets, the phone's dot and the menus'
 note), the brand, the icons, the spinner, the language chooser, the menus,
@@ -1404,7 +1458,7 @@ the learner is on keeps what it has until they choose to sign in again (the
 browser asks before a page with an unsaved save is left).
 
 **The admin panel is `/admin`, English, split by role.** The owner's two pages
-became the admin panel's (`pages/admin/`, `sites/admin/admin-layout/`):
+became the admin panel's (`pages/admin/`, `sites/admin/app.component`):
 Translations for the staff (EDITOR or ADMIN); Languages, People and Migrations
 for ADMIN alone (`adminGuard` sends anybody else to Translations). The old
 addresses `/translations` and `/languages` redirect there. Everything there
@@ -1481,7 +1535,7 @@ outbox are kept for the next sign-in and are no reason to ask.
 
 **One top bar, the family's - five sections, and Piano's own fold.** "All
 other should have same top menu bar structure": the survey's bar, rebuilt in
-Piano's tokens (`shared/top-bar`). The five sections stay (Learn, Note
+Piano's tokens (`sites/main/common/top-bar`). The five sections stay (Learn, Note
 Trainer, Sheet Practice, Songs, Stats - the trainer is one of the app's
 modes). With the real labels the widest row is 1237 px (Slovak, "Not saved
 yet" showing, a device name at its widest; 1174 with "No piano"), measured by

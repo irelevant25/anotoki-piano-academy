@@ -5,21 +5,22 @@ import { anotokiUnsavedChangesGuard } from '@anotoki/lib/translations';
 import { BootService } from '../../shared/state/boot.service';
 
 /**
- * The admin panel's addresses: /admin and its pages, and where two of them
- * were before it. The map of every address and its guards is app.routes.ts's,
+ * The admin panel's addresses: /admin and its pages, in the family's admin
+ * frame (app.component: @anotoki/lib/admin/frame), and where two of them were
+ * before it. The map of every address and its guards is app.routes.ts's,
  * which spreads these in after the sign-in's own pages, as they stand and in
  * this order.
  */
 export const ADMIN_ROUTES: Routes = [
   // The admin panel (English): the app's words for the staff (EDITOR or ADMIN) - Translations; the
   // languages, the people, the migrations and the admin tools for ADMIN alone (adminGuard). The
-  // guards and the layout only hide what the server refuses anyway; leaving a page with something
+  // guards and the frame only hide what the server refuses anyway; leaving a page with something
   // not saved asks. While an update waits, the Migrations page is the one an ADMIN can use, and
   // /admin opens it. The family's pages are entry points of their own, never in the first load.
   {
     path: 'admin',
     canActivate: [staffGuard],
-    loadComponent: () => import('./app.component').then((m) => m.AdminLayoutComponent),
+    loadComponent: () => import('./app.component').then((m) => m.AppComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: () => (inject(BootService).onlyMigrations() ? 'migrations' : 'translations') },
       // The anotoki family's pages of the words, in an entry point of their own (@anotoki/lib/translations/admin -
