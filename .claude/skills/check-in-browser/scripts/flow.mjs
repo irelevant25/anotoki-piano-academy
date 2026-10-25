@@ -507,7 +507,8 @@ const fitsWidth = (page) => page.evaluate(() => document.documentElement.scrollW
 
 /**
  * The site settings, as Piano Academy wires them (shared/site-settings.ts, api/site_settings.php): robots.txt and
- * sitemap.xml from the API, by the address the settings name; the announcement above a learner page's bar (1280 light
+ * sitemap.xml from the API - by the checkout's own address without config/site.local.php, by the one it names with
+ * it (siteAddress()); the announcement above a learner page's bar (1280 light
  * English, 390 dark Slovak); the admin panel's Site settings page and its menu (1280 light, 390 dark - English); the
  * site closed for maintenance - the family's closed sign alone, its door at /staff (1280 light English, 390 dark
  * Slovak), and the ADMIN through that door using the site as it is, the notice above the page. Screenshots
@@ -517,7 +518,11 @@ async function siteSettingsTour() {
   step('The site settings: robots.txt and sitemap.xml, the announcement, the admin page and its menu, the site closed for maintenance');
   const siteFile = join(WORK, 'config', 'site.local.php');
   try {
-    // robots.txt and sitemap.xml, by the address the installation's settings name (config/site.local.php) - never a request's Host.
+    // Without config/site.local.php: the address of where the code runs - run.mjs serves this checkout, so its
+    // development address (siteAddress()) - never a request's Host.
+    const bare = await (await fetch(`${APP}/robots.txt`, { headers: { 'X-Forwarded-Host': 'evil.example' } })).text();
+    check(bare.endsWith('\nSitemap: http://localhost:4500/sitemap.xml\n'), "robots.txt without config/site.local.php: the sitemap by the checkout's own address", bare);
+    // With it: the address it names - never a request's Host.
     writeFileSync(siteFile, `<?php return ['public_url' => '${APP}'];\n`);
     const robots = await fetch(`${APP}/robots.txt`, { headers: { 'X-Forwarded-Host': 'evil.example' } });
     const robotsText = await robots.text();

@@ -391,6 +391,22 @@ and its translations 014 and 015 in one Apply. In What's new's 0.4.0: the
 announcement and the closed page. The first load is 572.9 kB (558.8 before),
 under its 575 kB warning.
 
+**2026-10-25, later: `anotoki-lib` 0.11.1, and the site's address without a
+file** (both halves; the family's fixes after 0.11.0, `docs/decisions.md`).
+The announcement's bar and the administrators' notice come only when there
+is something to draw (the library's `site-settings/bar` and `/notice`,
+fetched by the elements Piano already writes - no code of Piano's changed):
+the first load is 567.5 kB (572.9 before), and a page with no announcement
+fetches no bar. The kit's date and number fields and a dialog's autofocus
+are mended, the error log keeps `maintenance` and `page_locked` out, the
+sitemap keeps `:` in a path. **robots.txt and sitemap.xml need no file** (the
+survey's `siteAddress()`): a release (`release.json` beside `backend/`)
+names `https://piano.anotoki.eu` (`PIANO_RELEASE_ADDRESS`, `composer.json`'s
+deploy `url` - a test holds them together), a checkout
+`http://localhost:4500` (`PIANO_DEVELOPMENT_ADDRESS`), and the optional
+`config/site.local.php` another; never the request's Host. No migration, no
+line in What's new.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -642,9 +658,12 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `/auth`, `/stats`, `/sign-in-failed`, `/staff`; the sitemap the legal
   pages, About, Support and - while the IAM lets visitors in - Learn, the
   Note Trainer, Sheet Practice and Songs, never one Page access hides, by the
-  address `config/site.local.php` names (`['public_url' => ...]`,
-  `siteAddress()`; optional, uploaded by hand, never written by setup; never
-  the request's Host; without it no Sitemap line and `/sitemap.xml` 404). A
+  site's own address (`siteAddress()`, anotoki-lib 0.11.1's step: a release's
+  `https://piano.anotoki.eu`, a checkout's `http://localhost:4500`, or
+  another the optional `config/site.local.php` names - `['public_url' =>
+  ...]`, never written by setup, none needed on the live site; one that
+  cannot be read cleanly or names no usable address passed over, said once a
+  day; never the request's Host): robots.txt always names the sitemap. A
   person deleted on People leaves the settings they changed by nobody; the
   Privacy page says what the settings keep (014's `legal.settings.*`).
 - **The owner's database is `anotoki_piano_academy`** (their IAM user id is 1;
@@ -811,9 +830,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.11.0 - PHP `anotoki/lib` (`^0.11.0`, Composer's VCS repository on GitHub,
-  committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.11.0 tarball, in both lock files). Never
+  0.11.1 - PHP `anotoki/lib` (`^0.11.0`, the lock at v0.11.1, Composer's VCS
+  repository on GitHub, committed in `vendor/`), Angular `@anotoki/lib` (the
+  GitHub release's v0.11.1 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry

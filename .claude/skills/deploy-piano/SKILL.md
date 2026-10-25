@@ -70,3 +70,7 @@ stay as they are.
 The tool checks the live app after each swap: the app (the release just sent),
 `/api/health`, an old bundle answering 404, and `backend/`, `config/`,
 `storage/` never served. Then sign in, and open the admin panel as an ADMIN.
+`/robots.txt` ends with `Sitemap: https://piano.anotoki.eu/sitemap.xml`: a
+release names its own address (`siteAddress()`, since anotoki-lib 0.11.1),
+so nothing is uploaded for robots.txt and sitemap.xml - an optional
+`config/site.local.php` is only for a site served at another address.

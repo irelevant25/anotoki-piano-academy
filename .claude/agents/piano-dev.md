@@ -173,7 +173,10 @@ Working conventions specific to this repo:
   sign-in's configuration, the health check, `/api/me`, the progress store,
   the move), which no Page access row may claim; the pages draw the family's
   closed sign (Sign in at `/staff` alone). A new route a learner's start or
-  saves need goes into the reserved paths.
+  saves need goes into the reserved paths. robots.txt and sitemap.xml name
+  the site by `siteAddress()` (`config/config.php`): a release's
+  `https://piano.anotoki.eu`, a checkout's `http://localhost:4500`, or what
+  the optional `config/site.local.php` names - never a request's Host.
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 - Before reporting done: `php tests/run.php` in `backend/` (it must pass on
   PHP 8.5; the hosting runs 8.2, so use nothing 8.2 lacks), `npm test` and `npm run build` in
@@ -185,7 +188,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.11.0, both halves): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.11.1, both halves): in the browser `@anotoki/lib/auth`, wired in
   `shared/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -210,7 +213,7 @@ Working conventions specific to this repo:
   deleting the file switches the secret off); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`shared/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.11.0, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.11.1, wired in
   `shared/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
@@ -220,7 +223,8 @@ Working conventions specific to this repo:
   selects (`/ui/select`, lazy: the piano's in a `@defer`), the dates
   (`/ui/dates`: the `anotokiDate` pipe on What's new and Stats,
   `formatDateTime()` for the admin panel's stamp), the site settings'
-  announcement and notice (`@anotoki/lib/site-settings`), stat tiles
+  announcement and notice (`@anotoki/lib/site-settings` - the bar and the
+  notice fetched only when there is something to draw, 0.11.1), stat tiles
   (`/ui/stat-tiles`), a lesson's step dots (`/ui/stepper`), What's new's
   dialog (made when it opens), the error state, the table styles (numbers
   `.cell-num`), and Terms, Privacy and Contact (`@anotoki/lib/legal/pages`,
@@ -242,8 +246,8 @@ Working conventions specific to this repo:
   Piano's alone (the path's phases and units, the practice screens -
   `sites/main/features/_practice.scss` -, the meet step's count of plays, the keyboard,
   the staff, the piano's button) is built from the `--anotoki-*` tokens. The
-  first load is 572.9 kB since the site settings (anotoki-lib 0.11.0),
-  under its 575 kB warning (the owner's call): build and read "Initial
+  first load is 567.5 kB since anotoki-lib 0.11.1 (572.9 with 0.11.0's site
+  settings drawn in it), under its 575 kB warning (the owner's call): build and read "Initial
   total" before adding anything to
   the first page; there is no global
   rule for buttons, selects or cards. Specs read the kit's markup by
