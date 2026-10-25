@@ -13,7 +13,7 @@ import { BootService } from '../../shared/state/boot.service';
  */
 export const ADMIN_ROUTES: Routes = [
   // The admin panel (English): the app's words for the staff (EDITOR or ADMIN) - Translations; the
-  // languages, the people, the migrations and the admin tools for ADMIN alone (adminGuard). The
+  // languages, the site settings, the people, the migrations and the admin tools for ADMIN alone (adminGuard). The
   // guards and the frame only hide what the server refuses anyway; leaving a page with something
   // not saved asks. While an update waits, the Migrations page is the one an ADMIN can use, and
   // /admin opens it. The family's pages are entry points of their own, never in the first load.
@@ -52,6 +52,14 @@ export const ADMIN_ROUTES: Routes = [
         // The anotoki family's page, in an entry point of its own (@anotoki/lib/migrations/page - never in the
         // first load): Pending, Applied with each file's SQL, "Apply pending".
         loadComponent: () => import('@anotoki/lib/migrations/page').then((m) => m.MigrationsPageComponent),
+      },
+      // The anotoki family's site settings (@anotoki/lib/admin/site-settings, anotoki-lib 0.11.0; shared/site-admin.ts,
+      // shared/site-settings.ts): Getting in, the announcement and Page access, a card each.
+      {
+        path: 'site-settings',
+        title: 'Site settings',
+        canActivate: [adminGuard],
+        loadComponent: () => import('@anotoki/lib/admin/site-settings').then((m) => m.SiteSettingsPageComponent),
       },
       // The anotoki family's admin tools (@anotoki/lib/admin/*, shared/site-admin.ts): what failed, who did what,
       // what visitors wrote, and the database's backups.

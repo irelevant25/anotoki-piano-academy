@@ -98,6 +98,18 @@ declare(strict_types=1);
  * edge (originSecretFile(); the family's rule of 2026-10-18). Only deleting
  * the file switches the secret off. The secret is never printed or logged.
  *
+ * A fifth file is optional, never written or read by setup.php: site.local.php
+ * - the site's public address, which robots.txt names the sitemap by and the
+ * sitemap writes every page's address with (anotoki-lib 0.11.0's Robots,
+ * api/site_settings.php):
+ *
+ *       return ['public_url' => 'https://piano.anotoki.eu'];
+ *
+ * Never an address read off a request: a Host header is anybody's to write.
+ * Without it (or with one that cannot be read cleanly, or names none) the site
+ * runs as ever - robots.txt names no sitemap, and /sitemap.xml answers 404
+ * not_configured (siteAddress()).
+ *
  * The tests run against throwaway databases with settings of their own:
  * PIANO_TEST_CONFIG names a folder holding the same two files, and it is only
  * honoured while the database named there is a piano_test_ one.
@@ -443,6 +455,47 @@ function originSecretFile(): ?string
 }
 
 /**
+ * The site's public address - 'https://piano.anotoki.eu' - from the optional
+ * config/site.local.php (['public_url' => ...]; see the top of this file), or
+ * null: no file, one that cannot be read cleanly (settingsFileReadCleanly()),
+ * or one that names no public_url (a text with something in it) - each fault
+ * said once a day, never the file's text. What robots.txt and sitemap.xml are
+ * written with (api/site_settings.php's siteRobots(); the library's
+ * Robots::address() takes an http(s) origin alone, anything else is none) -
+ * never the request's Host, which anybody may write. Read once per request,
+ * again with $reload.
+ */
+function siteAddress(bool $reload = false): ?string
+{
+    static $read = false;
+    static $address = null;
+
+    if ($read && !$reload) {
+        return $address;
+    }
+    $read = true;
+    $file = localConfigFile('site');
+    if (!file_exists($file)) {
+        return $address = null;
+    }
+
+    $values = settingsFileReadCleanly($file);
+    if ($values['problem'] !== null) {
+        settingsSaid("config/site.local.php {$values['problem']}, so the site has no public address: robots.txt names no sitemap, and /sitemap.xml answers 404.");
+
+        return $address = null;
+    }
+    $url = is_array($values['value']) ? $values['value']['public_url'] ?? null : null;
+    if (!is_string($url) || trim($url) === '') {
+        settingsSaid("config/site.local.php holds no public_url (the site's address, https://...): robots.txt names no sitemap, and /sitemap.xml answers 404.");
+
+        return $address = null;
+    }
+
+    return $address = trim($url);
+}
+
+/**
  * A secret no request can carry: 256 random bits, made once a process and
  * never printed, logged or stored, so no X-Anotoki-Origin matches it - what a
  * cloudflare.local.php that is there but yields no usable secret stands for.
@@ -456,7 +509,7 @@ function originSecretNobodyCarries(): string
 
 /**
  * Requires a *.local.php - every one is read this way: database, auth,
- * visitors, cloudflare - read cleanly, or not at all.
+ * visitors, cloudflare, site - read cleanly, or not at all.
  *
  * A file that does not start with <?php - saved with a byte-order mark, a
  * blank line or a space before it, or without that line at all - is passed
@@ -479,7 +532,7 @@ function originSecretNobodyCarries(): string
  * either, said by the kind of error and its line alone. What each caller makes
  * of no file is its own: the database's or the auth's leaves the site not set
  * up (localSettings()), the visitors' the defaults, the cloudflare's a secret
- * no request carries.
+ * no request carries, the site's no public address.
  *
  * @return array{value: mixed, problem: ?string}
  */

@@ -199,6 +199,47 @@ test(
     },
 );
 
+test(
+    'the site\'s public address (robots.txt and sitemap.xml): config/site.local.php\'s public_url, read cleanly - none without the file, nor with one that cannot be read cleanly or names none, each said once and never its text; never a reason for "not set up"',
+    function (): void {
+        $url = 'https://piano.example.test';
+        $cases = [
+            'no file' => [null, null, null],
+            'a public_url' => ["<?php return ['public_url' => ' {$url} '];\n", $url, null],
+            'a byte-order mark before <?php declare(strict_types=1)' => [
+                "\xEF\xBB\xBF<?php declare(strict_types=1);\nreturn ['public_url' => '{$url}'];\n",
+                null,
+                'config/site.local.php does not start with <?php',
+            ],
+            'text after a closing tag' => ["<?php ?>\nhello\n<?php return ['public_url' => '{$url}'];\n", null, 'config/site.local.php prints 6 bytes of its own'],
+            'a misspelt key' => ["<?php return ['public_uri' => '{$url}'];\n", null, 'config/site.local.php holds no public_url'],
+            'a blank one' => ["<?php return ['public_url' => '  '];\n", null, 'config/site.local.php holds no public_url'],
+            'no array' => ["<?php return '{$url}';\n", null, 'config/site.local.php holds no public_url'],
+        ];
+        foreach ($cases as $case => [$contents, $expected, $said]) {
+            $dir = test_temp_dir('site-config');
+            file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
+            file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
+            if ($contents !== null) {
+                file_put_contents("$dir/site.local.php", $contents);
+            }
+            ob_start();
+            try {
+                $log = config_log_of(static function () use ($dir, $case, $expected): void {
+                    assert_same($expected, with_config_dir($dir, static fn(): ?string => siteAddress(true)), $case);
+                    assert_same(null, with_config_dir($dir, 'settingsProblem'), "$case: never a reason for \"not set up\"");
+                });
+            } finally {
+                $printed = (string) ob_get_clean();
+            }
+            assert_same('', $printed, "$case: nothing of the file printed");
+            assert_true($said === null ? !str_contains($log, 'site.local.php') : str_contains($log, "[config] $said"), "$case: said - $log");
+            assert_false(str_contains($log, 'piano.example.test'), "$case: never its text in the log");
+        }
+        siteAddress(true);
+    },
+);
+
 test('nothing committed stands in for the settings: config/ holds the loader and nothing else', function (): void {
     $committed = array_values(array_filter(array_map('basename', glob(TEST_BACKEND . '/config/*') ?: []), static fn(string $name): bool => !str_ends_with($name, '.local.php')));
     assert_same(['config.php'], $committed, 'no template with working values beside the loader');

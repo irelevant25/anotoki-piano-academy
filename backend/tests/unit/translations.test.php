@@ -490,15 +490,15 @@ test('the English the shell keeps for when it has no strings is the database\'s 
 });
 
 test(
-    'the legal pages\' facts (012) hold no address - where a link goes is the code\'s, never a string an administrator rewords - and their Slovak speaks to the reader as ty, never formally',
+    'the legal pages\' facts (012, and 014\'s site settings) hold no address - where a link goes is the code\'s, never a string an administrator rewords - and their Slovak speaks to the reader as ty, never formally',
     function (): void {
         test_db();
         $rows = dbAll("SELECT key_name, language_code, value FROM translations WHERE key_name LIKE 'legal.%' ORDER BY key_name COLLATE \"C\", language_code");
         $keys = array_values(array_unique(array_column($rows, 'key_name')));
         assert_same(
-            in_order(migration_keys('012_legal_pages.sql')['keys']),
-            in_order(array_merge($keys, ['lesson.steps', 'title.contact', 'title.privacy', 'title.terms'])),
-            'the facts 012 writes, the three tabs\' titles and the step dots\' name',
+            in_order([...migration_keys('012_legal_pages.sql')['keys'], ...migration_keys('014_site_settings_words.sql')['keys']]),
+            in_order(array_merge($keys, ['lesson.steps', 'title.contact', 'title.privacy', 'title.terms', 'title.notOpen', 'notOpen.title', 'notOpen.text'])),
+            'the facts 012 and 014 write, the three tabs\' titles, the step dots\' name and the page that is not open',
         );
         assert_true(count($keys) >= 39, 'the facts are there: ' . count($keys));
         foreach ($rows as ['key_name' => $key, 'language_code' => $code, 'value' => $value]) {

@@ -13,10 +13,12 @@ import { ProgressStore } from './progress-store.service';
  *   loading      the sign-in settings and the progress are on their way
  *   not-set-up   the backend has no settings yet: the family's status page says so
  *                (<anotoki-site-gate>, SiteStatus) - and nothing more can start
- *   waiting      the site is not ready (SiteStatus.blocked(): an update waits, or the database is
- *                out of reach): the sign-in and the strings are there, the progress is not asked
- *                for - the family's status page stands in every page's place, and an ADMIN's
- *                Apply on the Migrations page goes on from here (resumeAfterUpdate())
+ *   waiting      the site is not ready (SiteStatus.blocked(): an update waits, the database is
+ *                out of reach, or the site settings close the site for maintenance - never for
+ *                the site's ADMIN, who uses it as it is): the sign-in and the strings are there,
+ *                the progress is not asked for - the family's status page (or closed sign) stands
+ *                in every page's place, and an ADMIN's Apply on the Migrations page goes on from
+ *                here (resumeAfterUpdate())
  *   sign-in      nobody signed in, and the IAM requires a sign-in: the family's guard sends the
  *                browser to the IAM - or, after a sign-in that came back without one, to the
  *                family's screen that says why (/sign-in-failed, shared/auth/site-auth.ts)
@@ -329,14 +331,16 @@ export class BootService {
   }
 
   /**
-   * To the IAM, and back to this page - its pages in the language the app is
+   * To the IAM, and back to this page - or to `returnTo`: the family's closed
+   * sign's Sign in at the staff route comes back to the start page, where the
+   * site's ADMIN uses the site as it is - its pages in the language the app is
    * read in (shared/auth/site-auth.ts: only one that came with a bundle). A
    * visitor's saves arrive first (beforeSignIn()).
    */
-  async signIn(): Promise<void> {
+  async signIn(returnTo?: string): Promise<void> {
     this.leaving = true;
     // Could not start: the page stays, and says why (AnotokiAuth.signInFailure).
-    if (!(await this.auth.signIn())) {
+    if (!(await (returnTo === undefined ? this.auth.signIn() : this.auth.signIn({ returnTo })))) {
       this.leaving = false;
     }
   }
@@ -359,7 +363,11 @@ export class BootService {
   }
 }
 
-/** The server's answer that the site is not ready: 503 update_pending, or not_set_up (the family's gate). */
+/**
+ * The server's answer that the site is not ready: 503 update_pending, or not_set_up (the family's gate). (Never
+ * maintenance here: the progress store and the move are reserved paths of the site settings, which keep answering while
+ * the site is closed - a start that read the site closed waits before it asks for either.)
+ */
 function siteNotReady(error: unknown): error is ApiError & { code: 'update_pending' | 'not_set_up' } {
   return error instanceof ApiError && error.status === 503 && (error.code === 'update_pending' || error.code === 'not_set_up');
 }

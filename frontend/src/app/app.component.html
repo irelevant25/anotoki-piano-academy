@@ -2,6 +2,8 @@
 <anotoki-site-gate>
     <ng-template anotokiSitePages>
         @if (!adminArea()) {
+            <!-- The site settings' announcement, when the administrators have something to say: the site talking, above its bar (the family's, @anotoki/lib/site-settings - hidden in this browser until its words change). -->
+            <anotoki-announcement />
             <app-top-bar />
         }
 
@@ -99,6 +101,11 @@
                     </anotoki-alert>
                 }
             </div>
+        }
+
+        <!-- What the site's administrators alone read above a page of the learner's site: the site is closed for maintenance, this page is switched off, or kept for some readers (the family's notice; nothing for anybody else). The admin panel's frame has its own. -->
+        @if (!adminArea()) {
+            <anotoki-page-notice />
         }
 
         <!-- The page's place: the learner's site's <main id="view-root"> - or nothing round the admin panel's frame, which has a <main> of its own. Made here once, only moved between the two (shared/view-root). -->

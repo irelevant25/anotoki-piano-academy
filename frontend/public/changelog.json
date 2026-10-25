@@ -5,7 +5,8 @@
     "changes": {
       "added": [
         "Feedback, at the foot of every page: tell us about a problem or an idea - signed in or not",
-        "Terms, Privacy and Contact, at the foot of every page: the rules of using Piano Academy, what it keeps about you and for how long, and how to reach us - anybody may read them, signed in or not"
+        "Terms, Privacy and Contact, at the foot of every page: the rules of using Piano Academy, what it keeps about you and for how long, and how to reach us - anybody may read them, signed in or not",
+        "News about Piano Academy in a line at the top of the page when there is something to tell - you can hide it until it changes - and, while the site is closed for maintenance, a page of its own that says so"
       ],
       "updated": [
         "While Piano Academy is being updated, a page of its own says so in your language instead of showing an error, and the site comes back by itself when the update is done",

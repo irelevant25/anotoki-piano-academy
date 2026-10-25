@@ -142,7 +142,7 @@ test('the build: the release - the app in frontend/, the code in backend/, nothi
     assert_same('piano-academy', json_decode((string) file_get_contents("$dist/backend/release.json"), true)['site'], 'release.json says whose release it is');
 
     $htaccess = (string) file_get_contents("$dist/frontend/.htaccess");
-    assert_true(str_contains($htaccess, 'RewriteRule ^(api)(/|$) index.php [L]'), '/api/ goes to the front controller');
+    assert_true(str_contains($htaccess, 'RewriteRule ^(api|robots\\.txt|sitemap\\.xml)(/|$) index.php [L]'), '/api/, /robots.txt and /sitemap.xml go to the front controller');
     assert_true(str_contains($htaccess, 'RewriteRule ^setup\.php$ index.php [L]'), 'and the setup page');
     assert_true(str_contains($htaccess, "RewriteCond %{REQUEST_URI} !\\.[^/]*$\n    RewriteRule ^ index.html [L]"), 'the app\'s routes get the app; an old bundle stays a 404');
     assert_true(str_contains($htaccess, 'CGIPassAuth On'));
@@ -232,7 +232,7 @@ test('the setup page on a real host: the token, the tests, the database - and th
 
     $done = site_form($site, '/setup.php', form($token, $database));
     assert_match('/<h1>Installed<\/h1>/', $done['raw']);
-    assert_match('~Made the tables \(anotoki_admin/001_audit_log\.sql, anotoki_admin/002_feedback\.sql, 001_init\.sql, 002_~', $done['raw'], 'the library\'s admin tools\' set first');
+    assert_match('~Made the tables \(anotoki_admin/001_audit_log\.sql, anotoki_admin/002_feedback\.sql, anotoki_admin/003_site_settings\.sql, 001_init\.sql, 002_~', $done['raw'], 'the library\'s admin tools\' set first');
     assert_match('/The setup page has deleted itself/', $done['raw']);
     assert_no_match('/<script/', $done['raw'], 'no script to ask the deleted file for');
 
@@ -260,6 +260,13 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_same(401, site($site, 'GET', '/api/admin/migrations')['status'], 'nor into the admin panel');
     assert_same(['ok' => true, 'database' => $database, 'pending' => []], site($site, 'GET', '/api/health')['body']);
     assert_match('/<title>Piano Academy<\/title>/', site($site, 'GET', '/')['raw'], 'the app');
+    // robots.txt and sitemap.xml are the API's (composer.json's routes: the front controller before any file of the app).
+    $robots = site($site, 'GET', '/robots.txt');
+    assert_same([200, 'text/plain; charset=utf-8'], [$robots['status'], $robots['headers']['content-type'] ?? null], 'robots.txt from the API');
+    assert_match('/^User-agent: \*\nDisallow: \/admin\nDisallow: \/api\nDisallow: \/auth\n/m', $robots['raw']);
+    assert_no_match('/Sitemap:/', $robots['raw'], 'no public address configured (config/site.local.php): no Sitemap line - never the request\'s Host');
+    $sitemap = site($site, 'GET', '/sitemap.xml');
+    assert_same([404, 'not_configured'], [$sitemap['status'], $sitemap['body']['code'] ?? null], 'and no sitemap');
 
     // Where the site stands: ready, and installed - so the setup page is never offered again, not even when
     // its settings go missing later (a half-finished upload): then the site is only "not available right now".

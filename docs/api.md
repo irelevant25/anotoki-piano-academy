@@ -1,7 +1,8 @@
 # The API
 
-Every route starts with `/api/`. Answers are JSON; an error is
-`{error: sentence, code}` (plus fields of its own). Bodies are JSON only:
+Every route starts with `/api/` - but `GET /robots.txt` and `GET
+/sitemap.xml`, the API's too (anotoki-lib 0.11.0). Answers are JSON; an error
+is `{error: sentence, code}` (plus fields of its own). Bodies are JSON only:
 anything else is `415 unsupported_media_type`, too large `413 too_large`. There
 is no CORS anywhere: another site's page cannot call a write.
 
@@ -20,11 +21,34 @@ Before any route, the site's gate (the anotoki family's - `anotoki/lib`'s
   the error log's `/api/admin/errors...` and the backups'
   `/api/admin/backups...` but a restore (and `GET /api/site-status`).
   "Behind" below means that answer;
+- closed for maintenance (the site settings' Getting in, below) ->
+  `503 {code: "maintenance", message: "The site is closed for maintenance.
+  Try again later.", maintenance_message: {en, sk, ...}}` with
+  `Retry-After: 300` to everybody but the site's ADMIN - known by the token
+  alone, the gate running before anything else reads it (a forged, expired
+  or other application's token is nobody) - on every path but the open ones
+  above and the **reserved** ones: `/api/site-status`, `/api/translations`,
+  `/api/site-settings`, `/api/admin/site-settings`, `/api/auth/config`,
+  `/api/health`, `/api/me`, `/api/state`, `/api/progress`, `/api/path`,
+  `/api/sessions`, `/api/visitor` (each with everything under it:
+  `api/site_settings.php`). The progress store is reserved, so a learner who
+  was practising when the site closed keeps their progress; a page loaded
+  afresh shows the closed sign. "Closed" below means that answer;
 - the database out of reach: through - a route that needs it answers
   `503 database_unavailable` as ever.
 
-Who is asking is read once, in front of every route but the first four
-below (the anotoki family's `Identify`, `anotoki/lib` 0.5.0). A token that is
+After who is asking is known (below), **Page access** (the site settings'
+third part: the library's `PageAccessGate`): an API path a page's row refuses
+with it answers `423 page_locked` ("That part of the site is not available.",
+in this app's `{error, code}`) to everybody that page is not shown to - a
+page switched off, or kept for people signed in, for editors or for
+administrators - never to the site's ADMIN, never on a reserved path (no row
+may claim one: the admin routes refuse it), read decoded as the router reads
+it; where two rows claim one path the more open wins.
+
+Who is asking is read once, in front of every route but the first five
+below, robots.txt and sitemap.xml (the anotoki family's `Identify`,
+`anotoki/lib` 0.5.0). A token that is
 sent must check out, or the answer is `401 invalid_token`
 (`WWW-Authenticate: Bearer realm="piano-academy", error="invalid_token"`) -
 `Authorization: Bearer` with no token too; no token where one is needed is
@@ -38,16 +62,19 @@ one's own progress (the next section's first four routes) is also a
 
 ## Anybody
 
-The first four read no token at all; the last two read who is asking as every other route does (a token that does not check out is `401 invalid_token` there too).
+The first five, robots.txt and sitemap.xml read no token at all; the feedback and the pages' errors read who is asking as every other route does (a token that does not check out is `401 invalid_token` there too).
 
 | Route | Answers |
 | --- | --- |
 | `GET /api/health` | `{ok: true}`; asked from this computer (loopback) also `database` and `pending` (the migrations still to apply). Answers while behind |
 | `GET /api/auth/config` | `{issuer, client_id, login_required, sign_in_available}` (the anotoki family's `AuthRoutes::config()`, snake_case; `no-store`): how the browser signs in, and whether the IAM says this app requires sign-in (its "Sign-in required" switch for `piano-academy`, read by the library's `SignInRule` from `{issuer}/api/public/applications/piano-academy`, kept a minute, `true` whenever nothing better is known - an IAM out of reach with nothing read, a 404, an answer about another app). `sign_in_available`: `false` once the IAM answered that it does not know this app - the pages offer no sign-in then. While `login_required` is `true`, every learner route requires a token; while `false`, one's own progress is also a visitor's (below). Answers while behind: somebody can sign in then |
 | `GET /api/translations/{code}` | a language's strings with English underneath: `{language, languages: [{code, name, native_name}], values, english?}` (the anotoki family's bundle, `anotoki/lib`'s `TranslationsRoutes::bundle()` - the IAM's format, snake_case; the library's own words, `anotoki.*`, among the values); ETag + `no-cache` (304); `sk-sk` is answered by `sk`, an unknown code in English, a code that is none is `404 not_found`. Answers while behind (the gate's open path, `TranslationsRoutes::openPath()`), from the words the database has - without the words' tables or their English yet (a fresh database before its first Apply), or with the database out of reach: `503 {error, code: "translations_unavailable"}` with `Retry-After: 60`, and the pages read the English kept in code |
-| `GET /api/site-status` | where the site stands, for the pages: `{state: "ready" \| "not_set_up" \| "update_pending" \| "unavailable", installed}` and nothing else (the family's `MigrationsRoutes::status()`); always `200`, in every state, to anybody - no token, key or header is read, so a sign-in the IAM requires, a token that does not verify or a settings file PHP cannot run never turns it into a 401 or a 500; `no-store` |
+| `GET /api/site-status` | where the site stands, for the pages: `{state: "ready" \| "not_set_up" \| "update_pending" \| "unavailable" \| "maintenance", installed}` - with `maintenance_message: {en, sk, ...}` (the administrators' words, `{}` for none) while the site is closed - and nothing else (the family's `MigrationsRoutes::status()`); always `200`, in every state, to anybody - no token, key or header is read, so a sign-in the IAM requires, a token that does not verify or a settings file PHP cannot run never turns it into a 401 or a 500; `no-store` |
+| `GET /api/site-settings` | what every page is told of the site settings (the family's `SiteSettingsRoutes::public()`, `api/site_settings.php`): `{maintenance: bool, announcement: null \| {level: "info" \| "warning" \| "danger", message: {en, sk, ...}}, pages: [{path, visibility: "PUBLIC" \| "USER" \| "EDITOR" \| "ADMIN", blocked}]}` - never a page's API paths. Open while closed (reserved); behind -> 503 |
 | `POST /api/feedback` | a message from the form at the foot of every page (the family's `FeedbackRoutes::public()`): `{kind: "bug" \| "idea" \| "other", section?, subject?, message, email?, page?, language?, anonymous?}` -> `201 {ok: true}` (no id). `section` one of `Learn`, `Note Trainer`, `Sheet Practice`, `Songs`, `Stats`; `page` kept as a path, without its query. Who sent it comes from the token alone - nobody for a visitor; the reply address is `email` as the form sends it (the form writes a signed-in sender's account address in, theirs to keep, change or clear) - the server fills none in (anotoki-lib 0.5.0) - and with `anonymous` neither the id nor an address is kept. Nothing of where it came from is kept. `422` with its code (`kind_unknown`, `message_required`, `subject_required`, `subject_too_long`, `section_unknown`, `email_invalid`, `too_long`); `429 too_many` with `retry_after` past 5 an hour or 20 a day from one sender - a person by their account, a visitor (and an `anonymous` message) by their address bucket - or 300 a day from the visitors together, as many from the people signed in; a filled `website` (the honeypot) is answered as a kept message, and nothing is kept. No mail. `503 feature_unavailable` while its table waits, `503 storage_unavailable` when the counts cannot be kept; behind -> 503 |
 | `POST /api/client-errors` | an error a page met in the browser, into the error log (the family's `ErrorLogRoutes::client()`; the pages' reporter, `@anotoki/lib/error-report`, sends it through the app's HttpClient - a person's with their token): `{type?, message, page?, stack?, status?}` -> `204`, written as `source: client`, by the person (none for a visitor), redacted again (the page scrubs it first); JSON only (`415`), 8 KB at most (`413`), a message (`422 message_required`); `429 too_many` with `retry_after` past 20 an hour from one sender - a person by their account, a visitor by their address bucket - or 500 a day from the visitors together, as many from the people signed in. Behind -> 503 (the gate's, not written) |
+| `GET /robots.txt` | `text/plain`, `Cache-Control: public, max-age=3600` (the family's `RobotsRoutes::robots()`): every robot kept out of `/admin`, `/api`, `/auth`, `/stats` (a learner's own numbers), `/sign-in-failed` and `/staff`, then `Sitemap: <the site's public address>/sitemap.xml` - the address `backend/config/site.local.php` names (`public_url`), never the request's `Host`; no Sitemap line without one. Behind or closed -> 503 with `Retry-After` |
+| `GET /sitemap.xml` | `application/xml`, the same caching (`RobotsRoutes::sitemap()`): the pages anybody reads - Terms, Privacy, Contact, About, Support - and, while the IAM lets visitors in, Learn, the Note Trainer, Sheet Practice and Songs, as absolute addresses, without what Page access hides; kept an hour in `storage/cache/anotoki-sitemap.json` (made again at once when what Page access hides or the address changes; the IAM's switch within the hour). `404 {code: "not_configured", message}` while no public address is configured. Behind or closed -> 503 |
 
 ## Signed in (any role, or none): one's own progress
 
@@ -231,3 +258,4 @@ group checks the site's ADMIN once more itself, behind this app's check.
 | `/api/admin/feedback` | feedback (`FeedbackRoutes::admin()`): `GET ?kind=&status=&section=&search=&page=` -> `{total, page, pageSize: 25, items}`, `GET /facets`, `GET /unread` -> `{unread}` (the admin bar's count), `GET /{id}` -> `{message}` (a new one becomes read), `PUT /{id}/status {status: new \| read \| resolved \| spam}`, `DELETE /{id}` -> `{deleted: true}` - both audited (a delete's `feedback.deleted` with the message's `created_at`, written inside the delete's transaction: a restore deletes it again by both; `503 feature_unavailable` while the audit log's table waits). Each item's `user_name` / `handled_by_name` is this app's copy of the IAM's name. Spam goes after 30 days, a resolved message a year after it was resolved. `503 feature_unavailable` while its table waits |
 | `/api/admin/backups` | the backups (`BackupsRoutes::admin()`; `storage/backups/`): `GET` -> `{backups, status}` (each backup's `sealed` and its maker's name, `created_by_name`), `GET /proof` -> `{kind: "recent_sign_in"}`, `POST {description?}` -> `201 {backup}`, `GET /{id}`, `DELETE /{id}`, `POST /{id}/ticket` -> `{url, expires_in}` (a download), `GET /{id}/preview` (what a restore would take away), `POST /{id}/restore {confirm: the id's last 6 characters}`. Making, downloading, deleting and restoring one need a sign-in of the last ten minutes: `403 reauth_required` otherwise (the page offers "Sign in again"); each is audited (`backup.*`). A restore runs only for a backup sealed by this installation (an HMAC under `storage/anotoki-lib.key`; one made before anotoki-lib 0.5.0, elsewhere or changed since: `422 archive_invalid`, restored offline), only where the database's migrations and columns are the backup's (`409 schema_differs`), after a backup of its own; inside its transaction it does again every People delete and feedback delete made since the backup, and every progress takes a new generation (a page left open since before gets `409 progress_changed` on its next save) - what fails there rolls it back whole (`500 restore_failed`); once committed, the scrub of the IAM's deleted accounts runs again - what could not be done is its `after_restore_error`. Not encrypted (the owner, 2026-10-11) - sealed. Kept: the newest 14 daily, 5 before an update, 5 before a restore; one made by hand until the owner deletes it - no backup goes for its age (the owner, 2026-10-11). Works while behind, but a restore |
 | `GET /api/admin/backups/{id}/file?ticket=` | the backup itself, as an attachment - deliberately outside every admin check (a browser's navigation sends no token): the ticket from `POST /{id}/ticket` is the check - good once, for that backup, for 60 seconds; anything else `403 ticket_invalid` |
+| `/api/admin/site-settings` | the site settings (the family's `SiteSettingsRoutes::admin()`, anotoki-lib 0.11.0; `api/site_settings.php`) - all three parts: Getting in, the announcement, Page access. `GET` -> `{parts, settings: {maintenance_mode, maintenance_message, announcement_enabled, announcement_level, announcement_message: {value, updated_at, updated_by, updated_by_name}}, pages: [{id, path, visibility, blocked, api_paths, sort_order, updated_at, updated_by, updated_by_name, refused}], levels, visibilities, reserved: {pages, api_paths}, limits}`; `PUT {settings: {name: value}}` the switches that changed (audited `site_settings.changed`, each before and after); `POST /pages {path, visibility?, blocked?, api_paths?}` -> 201 (audited `page_access.added`; `409 page_exists`; `422 invalid_page` for a reserved page or one under it - the sign-in's way back `/auth`, `/sign-in-failed`, `/staff`, `/admin`, the legal pages, About, Support - and `invalid_api_path` for a reserved API path, one that covers it or sits inside it); `PUT /pages {pages: [{id, visibility?, blocked?, api_paths?}]}` (audited `page_access.changed`, a row an entry); `DELETE /pages/{id}` (audited `page_access.removed`; `404 not_found`). Every answer the page's whole. `503 feature_unavailable` while the library's `anotoki_admin/003` waits. A reserved path: it answers while the site is closed |

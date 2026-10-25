@@ -6,6 +6,8 @@ use Anotoki\Lib\Auth\Http\Identify;
 use Anotoki\Lib\Auth\Http\RequireCaller;
 use Anotoki\Lib\Auth\Http\RequirePerson;
 use Anotoki\Lib\Auth\Http\RequireRole;
+use Anotoki\Lib\Robots\Http\RobotsRoutes;
+use Anotoki\Lib\SiteSettings\SiteSettings;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -52,13 +54,17 @@ use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 
 /**
  * The paths that read no token at all - the sign-in settings, the words, the
- * health check, where the site stands: the pages ask them before anybody can
- * be signed in, and a token that does not check out must not turn them into a
- * 401 (the family's status page reads a 401 there as "not available").
+ * health check, where the site stands, what every page is told of the site
+ * settings: the pages ask them before anybody can be signed in, and a token
+ * that does not check out must not turn them into a 401 (the family's status
+ * page reads a 401 there as "not available"). And robots.txt and sitemap.xml,
+ * which are nobody's. Every one under /api is a reserved path of the site
+ * settings (api/site_settings.php), so Page access - inside identify() - never
+ * asks who a request it passed by is.
  */
 function publicPaths(): array
 {
-    return ['/api/site-status', '/api/auth/config', '/api/health', TranslationsRoutes::openPath()];
+    return ['/api/site-status', '/api/auth/config', '/api/health', TranslationsRoutes::openPath(), SiteSettings::PUBLIC_PATH, RobotsRoutes::ROBOTS_PATH, RobotsRoutes::SITEMAP_PATH];
 }
 
 /** Who the request is (the library's Identify), for every route but publicPaths(). */

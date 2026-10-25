@@ -195,7 +195,11 @@ test('Save: the settings - the IAM and nothing else - and the tables; the page s
     $answer = call_form($GLOBALS['site']['base'], '/setup.php', fields(), [], with_cookie());
     assert_match('/<h1>Saved<\/h1>/', $answer['raw']);
     assert_no_match('/<script/', $answer['raw'], 'a finished page has nothing to script');
-    assert_match('~Made the tables \(anotoki_admin/001_audit_log\.sql, anotoki_admin/002_feedback\.sql, 001_init\.sql, 002_~', $answer['raw'], 'the library\'s admin tools\' set first');
+    assert_match(
+        '~Made the tables \(anotoki_admin/001_audit_log\.sql, anotoki_admin/002_feedback\.sql, anotoki_admin/003_site_settings\.sql, 001_init\.sql, 002_~',
+        $answer['raw'],
+        'the library\'s admin tools\' set first',
+    );
     assert_match(
         '/People sign in through the IAM at http:\/\/127\.0\.0\.1:\d+, where this app is &quot;piano-academy&quot;\. Who may reword its words \(EDITOR\) and administer it \(ADMIN\) is set there/',
         $answer['raw'],

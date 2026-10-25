@@ -165,9 +165,13 @@ function adoptLegacyMigrationsTable(PDO $pdo): void
  * (api/index.php) and for GET /api/site-status: its settings
  * (settingsProblem()); whether its installer finished on a real host -
  * storage/installed.lock, which setup.php writes there and never on this
- * computer, after which nobody is offered the setup page again; and the
- * migrations, asked only once the settings are complete. The state itself is
- * computed afresh on every call (SiteState::state()).
+ * computer, after which nobody is offered the setup page again; the
+ * migrations, asked only once the settings are complete; and the site
+ * settings' Getting in (api/site_settings.php: anotoki-lib 0.11.0) - a ready
+ * site its administrators closed for maintenance stays ready here (the
+ * people's scrub and the day's backup run on), while the status path says
+ * "maintenance" and the gate answers everybody but the site's ADMIN 503. The
+ * state itself is computed afresh on every call (SiteState::state()).
  */
 function siteState(): SiteState
 {
@@ -177,5 +181,6 @@ function siteState(): SiteState
         settingsProblem: static fn(): ?string => settingsProblem(),
         installed: static fn(): bool => is_file(storageDir() . '/installed.lock'),
         migrator: static fn(): Migrator => databaseMigrator(),
+        settings: siteSettings(),
     );
 }

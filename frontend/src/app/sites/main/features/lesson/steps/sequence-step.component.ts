@@ -69,8 +69,8 @@ export class SequenceStepComponent {
     return [50, 60, 70, 80].map((value) => ({ value, original: false }));
   });
   /** The tempos as the select's choices, in the page's language ("80 BPM", "100 BPM (original)"). */
-  protected readonly tempoOptions = computed<SelectOption[]>(() =>
-    this.tempos().map((tempo) => ({ value: String(tempo.value), label: this.i18n.t(tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm', { bpm: tempo.value }) })),
+  protected readonly tempoOptions = computed<SelectOption<number>[]>(() =>
+    this.tempos().map((tempo) => ({ value: tempo.value, label: this.i18n.t(tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm', { bpm: tempo.value }) })),
   );
   /** 60 BPM for a melody; 80% of the song's own tempo. */
   protected readonly bpm = signal(0);
@@ -108,8 +108,8 @@ export class SequenceStepComponent {
     if (this.type() === 'read') this.player.start({ mode: 'wait' });
   }
 
-  protected chooseTempo(value: string): void {
-    this.bpm.set(Number(value));
+  protected chooseTempo(value: number): void {
+    this.bpm.set(value);
   }
 
   /** In time, or the song with the metronome: the run that counts. */

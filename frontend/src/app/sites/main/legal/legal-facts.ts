@@ -8,15 +8,16 @@ import { THEME_KEY } from '../../../shared/family-kit';
 import { TRANSLATIONS_STORAGE_PREFIX } from '../../../shared/i18n/site-translations';
 import { VISITOR_KEEP_DAYS } from '../../../shared/i18n/visitor-words';
 import { LAST_DEVICE_KEY } from '../../../shared/midi/midi.service';
+import { ANNOUNCEMENT_KEY } from '../../../shared/site-settings';
 import { PROGRESS_REPLACED_PREFIX } from '../../../shared/state/progress-store.service';
 
 /**
  * The day Piano Academy's facts last changed: the pages show the later of it
  * and the day the library's own words last did. Move it with any change to
  * what the app keeps or for how long - and the strings that say so
- * (`legal.*`, migration 012).
+ * (`legal.*`, migrations 012 and 014).
  */
-export const PIANO_LEGAL_UPDATED = '2026-10-18';
+export const PIANO_LEGAL_UPDATED = '2026-10-25';
 
 /**
  * The anotoki account's cookie for every anotoki site (the IAM's
@@ -59,6 +60,10 @@ export function pianoLegalPagesConfig(): AnotokiLegalConfig {
  *   storage/), visitor_starts (a keyed hash of the bucket, an hour -
  *   api/visitors.php); each gone at the next count after its time;
  * - the words: translations.updated_by (002: ON DELETE SET NULL), the staff's;
+ * - the site settings (the library's anotoki_admin/003, api/site_settings.php):
+ *   anotoki_site_settings.updated_by and anotoki_page_access.updated_by, the
+ *   administrator's IAM id beside when - until changed again; set to nobody by
+ *   the People delete (peopleDelete());
  * - visitors (005, while the IAM requires no sign-in): users with a negative
  *   id, the key's SHA-256, created and last seen; their progress under that
  *   id; moved into the account at a sign-in (visitorMove()), swept
@@ -86,7 +91,9 @@ export function pianoLegalPagesConfig(): AnotokiLegalConfig {
  *   (TRANSLATIONS_STORAGE_PREFIX; a `?lang=` held for the tab), the visitor's
  *   key (VISITOR_STORAGE_KEY), the rounds not saved yet (OUTBOX_PREFIX), the
  *   note a tab leaves after an import (PROGRESS_REPLACED_PREFIX), the last
- *   piano (LAST_DEVICE_KEY), the admin pages' unsaved words;
+ *   piano (LAST_DEVICE_KEY), the admin pages' unsaved words, the mark of the
+ *   announcement the reader hid (ANNOUNCEMENT_KEY: the library's
+ *   <anotoki-announcement> - its words and kind's fingerprint, never the words);
  * - counting visits: the family's Umami (src/index.html: umami.anotoki.eu, the
  *   query and the fragment left out) - the library's words;
  * - who else handles data: the hosting company (WebSupport s.r.o., named by
@@ -116,6 +123,7 @@ export function pianoLegalFacts(i18n: TranslationService, auth: AnotokiAuth): Le
       { name: i18n.t('legal.progress.name'), what: i18n.t('legal.progress.what'), why: i18n.t('legal.progress.why'), kept: i18n.t('legal.progress.kept') },
       { name: i18n.t('legal.limits.name'), what: i18n.t('legal.limits.what'), why: i18n.t('legal.limits.why'), kept: i18n.t('legal.limits.kept') },
       { name: i18n.t('legal.words.name'), what: i18n.t('legal.words.what'), why: i18n.t('legal.words.why'), kept: i18n.t('legal.words.kept') },
+      { name: i18n.t('legal.settings.name'), what: i18n.t('legal.settings.what'), why: i18n.t('legal.settings.why'), kept: i18n.t('legal.settings.kept') },
     ],
     visitors: {
       what: i18n.t('legal.visitors.what'),
@@ -144,6 +152,8 @@ export function pianoLegalFacts(i18n: TranslationService, auth: AnotokiAuth): Le
       { name: `${PROGRESS_REPLACED_PREFIX}…`, kind: 'local', purpose: i18n.t('legal.storage.replaced.purpose'), kept: i18n.t('legal.storage.replaced.kept') },
       { name: LAST_DEVICE_KEY, kind: 'local', purpose: i18n.t('legal.storage.piano.purpose'), kept: i18n.t('legal.storage.piano.kept') },
       { name: words.drafts, kind: 'session', purpose: i18n.t('legal.storage.wordDrafts.purpose'), kept: i18n.t('legal.storage.untilTabClosed') },
+      // The announcement the reader hid (the site settings): the library's own words, anotoki.legal.storageAnnouncementPurpose.
+      { preset: 'announcement', name: ANNOUNCEMENT_KEY },
     ],
     // The hosting company, named by the owner on 2026-10-18: the servers, the database and the mail.
     processors: [{ preset: 'hosting', name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' }, { preset: 'cloudflare' }],

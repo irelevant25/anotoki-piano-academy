@@ -1,17 +1,20 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { FeedbackUnread } from '@anotoki/lib/admin';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
 import { ConfirmService } from '@anotoki/lib/ui/dialog';
+import { AdminDates } from '../../shared/admin-dates';
 import { ChangelogService } from '../../shared/changelog/changelog.service';
 import { provideFamilyKit } from '../../shared/family-kit';
 import { pianoLegalConfig } from '../../shared/legal/legal.config';
 import { provideSiteAdmin } from '../../shared/site-admin';
+import { provideSiteSettings } from '../../shared/site-settings';
 import { BootService, BootStatus } from '../../shared/state/boot.service';
 import { provideSiteMigrations } from '../../shared/state/site-migrations';
 import { TestAuth, provideTestAuth } from '../../shared/testing/test-auth';
@@ -26,10 +29,11 @@ const ENGLISH: Record<string, string> = {
   'signOut.cancel': 'Stay signed in',
 };
 
-/** The eight pages of an ADMIN, in the column's order, and where each goes. */
+/** The nine pages of an ADMIN, in the column's order - the family's one shape: Localization, then System - and where each goes. */
 const ADMIN_PAGES = [
   ['Translations', '/admin/translations'],
   ['Languages', '/admin/languages'],
+  ['Site settings', '/admin/site-settings'],
   ['People', '/admin/people'],
   ['Feedback', '/admin/feedback'],
   ['Error log', '/admin/errors'],
@@ -89,6 +93,7 @@ describe("AppComponent (the admin panel): the family's admin frame, split by rol
         provideSiteMigrations(),
         provideFamilyKit(),
         provideSiteAdmin(),
+        provideSiteSettings(),
         provideAnotokiLegal(pianoLegalConfig),
       ],
     });
@@ -173,6 +178,30 @@ describe("AppComponent (the admin panel): the family's admin frame, split by rol
     await fixture.whenStable();
     expect(texts('.anotoki-side-nav__badge')).toEqual(['3']);
     expect($('.anotoki-side-nav__link[href="/admin/feedback"] .anotoki-side-nav__badge')).not.toBeNull();
+  });
+
+  it("hands the panel's dates to the family's pages as it opens - People's, Migrations', the admin tools': yyyy-MM-dd HH:mm, the family's dates (never in the first load)", async () => {
+    const dates = TestBed.inject(AdminDates);
+    const when = new Date(2026, 9, 1, 9, 5).toISOString();
+    await as({ signedIn: true, roles: ['ADMIN'] });
+    expect(TestBed.inject(AdminDates).format(when)).toBe('2026-10-01 09:05');
+    // Before any frame opened (a fresh injector), a date is written as it came.
+    expect(dates.format(when)).toBe(when);
+  });
+
+  it("while the site is closed for maintenance: the family's notice above the page, outside its <main> - the panel a closed site's ADMIN still uses; nothing while it is open", async () => {
+    await as({ signedIn: true, roles: ['ADMIN'] });
+    expect($('anotoki-page-notice anotoki-alert')).toBeNull();
+    const http = TestBed.inject(HttpTestingController);
+    const load = TestBed.inject(SiteSettings).load();
+    http.expectOne('/api/site-settings').flush({ maintenance: true, announcement: null, pages: [] });
+    await load;
+    await fixture.whenStable();
+    const notice = $('anotoki-page-notice anotoki-alert[data-notice]');
+    expect(notice?.textContent).toContain('closed');
+    expect(notice?.closest('main')).toBeNull();
+    // Every page still in its column: the ADMIN uses the site as it is.
+    expect(pages()).toEqual(ADMIN_PAGES);
   });
 
   it('while an update waits: an ADMIN has the Migrations page alone - anybody else, no page', async () => {

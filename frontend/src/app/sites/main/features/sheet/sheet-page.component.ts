@@ -45,7 +45,7 @@ export class SheetPageComponent {
   protected readonly minKnown = MIN_KNOWN_NOTES;
   protected readonly tempos = [60, 70, 80, 100, 120];
   /** The tempos as the select's choices, in the page's language ("80 BPM"). */
-  protected readonly tempoOptions = computed<SelectOption[]>(() => this.tempos.map((tempo) => ({ value: String(tempo), label: this.i18n.t('tempo.bpm', { bpm: tempo }) })));
+  protected readonly tempoOptions = computed<SelectOption<number>[]>(() => this.tempos.map((tempo) => ({ value: tempo, label: this.i18n.t('tempo.bpm', { bpm: tempo }) })));
 
   /** The known notes it may use, in a shuffled order - fixed while the page is open. */
   protected readonly knownTreble = this.path.shuffle(this.store.knownNotes().filter((midi) => midi >= 60));
@@ -108,8 +108,8 @@ export class SheetPageComponent {
     this.feedback.set({ key: 'sheet.newReady', kind: null });
   }
 
-  protected chooseTempo(value: string): void {
-    this.bpm.set(Number(value));
+  protected chooseTempo(value: number): void {
+    this.bpm.set(value);
   }
 
   protected start(): void {

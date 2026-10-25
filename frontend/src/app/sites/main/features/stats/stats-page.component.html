@@ -41,7 +41,7 @@
                 <tbody>
                     @for (row of recent(); track row.id) {
                         <tr>
-                            <td [attr.data-label]="'stats.recent.when' | translate">{{ row.when | localDate: 'moment' }}</td>
+                            <td [attr.data-label]="'stats.recent.when' | translate">{{ row.when | anotokiDate: 'datetime' }}</td>
                             <td [attr.data-label]="'stats.recent.mode' | translate">
                                 <span>
                                     <span>{{ row.mode[0] }}</span>

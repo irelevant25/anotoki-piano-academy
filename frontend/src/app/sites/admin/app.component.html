@@ -2,6 +2,8 @@
 @if (auth.isStaff()) {
     <anotoki-admin-frame lang="en" [brand]="brand" [person]="person()" [back]="back" [signOut]="signOut" [groups]="groups()">
         <anotoki-theme-toggle adminFrameTheme />
+        <!-- Above every page, outside its <main>: while the site is closed for maintenance, that it is (the family's notice - the site settings). -->
+        <anotoki-page-notice adminFrameNotice />
         <router-outlet />
         <!-- The family's footer, as under every page of the site: "vX · What's new · Feedback" - the version and What's new once the list of changes came, Feedback the family's form in the kit's dialog - then About · Support · Terms · Privacy · Contact (the learner's site's pages). In English, as the panel is. -->
         <anotoki-site-footer adminFrameFooter [version]="changelog.version()" [whatsNew]="changelog.version() !== null" (whatsNew)="whatsNewOpen.set(true)" feedback />

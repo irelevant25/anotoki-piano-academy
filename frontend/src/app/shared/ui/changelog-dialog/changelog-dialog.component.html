@@ -8,7 +8,7 @@
                     @if (first) {
                         <anotoki-badge class="latest" tone="primary">{{ "whatsNew.latest" | translate }}</anotoki-badge>
                     }
-                    <span class="release-date">{{ entry.date | localDate: "day" }}</span>
+                    <span class="release-date">{{ entry.date | anotokiDate: "day" }}</span>
                 </div>
 
                 @if (entry.changes.added?.length) {

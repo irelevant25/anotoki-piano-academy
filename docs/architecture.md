@@ -27,7 +27,8 @@ them without the IAM (the admin panel never does).
 ```
 browser ── Authorization: Bearer <IAM access token> ──> backend/api/index.php
    securityHeaders -> the error log -> error handler -> the site's gate (where the site stands)
-   -> the day's backup -> the people's scrub -> who is asking (Identify) -> the route's middleware -> the route
+   -> the day's backup -> the people's scrub -> who is asking (Identify) -> Page access
+   -> the route's middleware -> the route
 ```
 
 1. **The site's gate** - the anotoki family's (`anotoki/lib`'s `SiteGate`,
@@ -50,6 +51,17 @@ browser ── Authorization: Bearer <IAM access token> ──> backend/api/inde
      `TranslationsRoutes::openPath()`), `/api/health` and the
      Migrations page's `/api/admin/migrations...`, so somebody can sign in,
      the pages have their words and an ADMIN reaches Apply;
+   - **closed for maintenance** - the site settings' Getting in (anotoki-lib
+     0.11.0, `api/site_settings.php`; below): every request is `503 {code:
+     "maintenance", message, maintenance_message}` with `Retry-After: 300`
+     but the open paths and the reserved API paths (`siteReservedApiPaths()`:
+     the sign-in's configuration, the health check, `/api/me`, the whole
+     progress store, the move at sign-in - a learner who was practising keeps
+     their saves), and but for the site's ADMIN, whom the gate knows by the
+     token alone (its `exempt`: it runs before Identify, so a forged, expired
+     or foreign token is nobody) - who uses the site as it is and opens it
+     again. The library builds no gate for a site that can be closed without
+     that check;
    - **unavailable** - the database out of reach - and **ready**: through
      (a dead database is the error handler's `503 database_unavailable`).
 2. **Who is asking** - the anotoki family's `Identify` (`identify()`,
@@ -71,7 +83,12 @@ browser ── Authorization: Bearer <IAM access token> ──> backend/api/inde
    visitor (`requireOwner()`; nobody as the route says, below). Those checks
    record the person's visit in `users` (`recordPerson()`, the library's
    `PeopleRecorder`: never a visitor's row, never an account the IAM deleted).
-3. **The role** (`requireRole()`, the library's `RequireRole` in this app's
+3. **Page access** - the library's `PageAccessGate`, just inside Identify,
+   whose person it reads: an API path a page's row of the site settings
+   refuses with it is `423 page_locked` to everybody that page is not shown
+   to - never the site's ADMIN, never a reserved path (which no row may claim:
+   a learner's progress is saved whatever a page's row says).
+4. **The role** (`requireRole()`, the library's `RequireRole` in this app's
    words): added to a whole Slim route group, so a route added later cannot
    forget it. `403 forbidden` without the role, with a sentence for the
    staff group and another for ADMIN's. The Migrations page's and the admin
@@ -87,7 +104,7 @@ browser ── Authorization: Bearer <IAM access token> ──> backend/api/inde
 | a visitor (sign-in not required) | learns: their own progress (`/api/state`, `/api/progress`, `/api/path`, `/api/sessions`) - nothing else: no file, no admin panel, no role |
 | signed in, MEMBER (every account holds it) or no role | learns: their own progress (`/api/state`, `/api/progress`, `/api/path`, `/api/sessions`), and takes it out as a file and brings one back (`/api/me/export`, `/api/me/import`) |
 | EDITOR | also rewords the app's words: the Translations grid, a language's strings as a file and back |
-| ADMIN | all of that, and adds, changes and deletes languages, sees everybody's counts and deletes a person's data (`/api/admin/people`), keeps the admin tools - the error log, the audit log, feedback, backups (`/api/admin/errors`, `/audit`, `/feedback`, `/backups`; EDITORs see none of them) - and applies a database update |
+| ADMIN | all of that, and adds, changes and deletes languages, sees everybody's counts and deletes a person's data (`/api/admin/people`), keeps the admin tools - the error log, the audit log, feedback, backups (`/api/admin/errors`, `/audit`, `/feedback`, `/backups`; EDITORs see none of them) -, keeps the site settings (`/api/admin/site-settings`: closes the site for maintenance, writes the announcement, decides who each learner's page is shown to) and applies a database update |
 
 The roles are granted in the IAM's admin panel (IAM migration 007 gives
 every IAM administrator ADMIN here; every account holds MEMBER, which no
@@ -112,13 +129,19 @@ with three groups:
 | ADMIN, the people (the family's: `PeopleRoutes::admin()`) | `requireRole(ROLE_ADMIN)`, and the group's own ADMIN check | `GET /api/admin/people`, `DELETE /api/admin/people/{sub}`, `POST /api/admin/people/sync` |
 | ADMIN, the migrations (the family's: `anotoki/lib`'s `MigrationsRoutes::admin()`) | `adminByToken()` - open while an update waits | `GET /api/admin/migrations`, `GET /api/admin/migrations/file`, `POST /api/admin/migrations/apply` |
 | ADMIN, the admin tools (the family's: `ErrorLogRoutes`, `AuditRoutes`, `FeedbackRoutes`, `BackupsRoutes`) | `adminByToken()`, and each group's own ADMIN check (`adminContext()`) - the error log and the backups (but a restore) open while an update waits | `/api/admin/errors...`, `/api/admin/audit...`, `/api/admin/feedback...`, `/api/admin/backups...` |
+| ADMIN, the site settings (the family's: `SiteSettingsRoutes::admin()`) | `adminByToken()`, and the group's own ADMIN check (`adminContext()`) - a reserved path, open while the site is closed | `GET`/`PUT /api/admin/site-settings`, `POST`/`PUT /api/admin/site-settings/pages`, `DELETE /api/admin/site-settings/pages/{id}` |
 | a backup's download | its single-use ticket (60 s, one backup, issued to an ADMIN) - deliberately no other check: a browser's navigation sends no token | `GET /api/admin/backups/{id}/file?ticket=` |
 
 Each of the library's route groups takes this app's check
 (`api/routes/admin.php`) first, refusing in this app's words; the People and
 admin tools' groups check the site's ADMIN once more themselves, so a group
 mounted without a check opens nothing. Its bundle (`GET
-/api/translations/{code}`, `api/routes/public.php`) reads no token at all.
+/api/translations/{code}`, `api/routes/public.php`) reads no token at all,
+nor do the site settings' public read (`GET /api/site-settings`: what every
+page is told, never a page's API paths) and robots.txt and sitemap.xml (`GET
+/robots.txt`, `GET /sitemap.xml`: the library's `RobotsRoutes`, which the
+front controller is given beside `/api` - `composer.json`'s
+`extra["anotoki-deploy"]["routes"]`, `router.php`).
 
 Every route, with its answers: [api.md](api.md).
 
@@ -188,6 +211,16 @@ start in place (`resumeAfterUpdate()`), the Migrations page
 (`<anotoki-migrations-page>` under `/admin/migrations`, lazy from
 `@anotoki/lib/migrations/page`) staying on the screen.
 
+While the site settings close the site (anotoki-lib 0.11.0) the gate draws
+the family's closed sign in the status page's place for everybody but the
+site's ADMIN: the administrators' words in the page's language, and Sign in
+at `/staff` alone (`STAFF_ROUTE`, a route of the learner's site that keeps
+its address only while the site is closed; back to the start page after the
+IAM). The sign-in's way back, the legal pages, About, Support and
+`/sign-in-failed` stay anybody's (`OPEN_WHILE_CLOSED`); the start waits as
+for an update. The ADMIN uses the site as it is, with the family's notice
+above every page saying it is closed.
+
 ## Settings
 
 `backend/config/database.local.php` (host, port, name, user, password) and
@@ -213,7 +246,13 @@ behind Cloudflare gives `'trusted_proxies' => []`. A range wider than /8
 (IPv4) or /16 (IPv6) - 0.0.0.0/0, ::/0 - is refused, never believed, and
 the header is no setting. See `backend/config/config.php`.
 `backend/config/cloudflare.local.php` is optional too (never written or read
-by setup, never a reason for "not set up"): the origin secret, below.
+by setup, never a reason for "not set up"): the origin secret, below. So is
+`backend/config/site.local.php` (never written by setup, never a reason for
+"not set up"; anotoki-lib 0.11.0): the site's public address,
+`['public_url' => 'https://...']` (`siteAddress()`), from which robots.txt's
+Sitemap line and sitemap.xml's addresses are written - never from the
+request's Host, which anybody can set. Without it robots.txt names no
+sitemap and `/sitemap.xml` answers `404 not_configured`.
 
 Every one of these files is read cleanly or not at all
 (`settingsFileReadCleanly()`, as the IAM reads its own). A file edited by
@@ -230,7 +269,7 @@ and is passed over, like one PHP cannot parse, run or open. A database or
 auth file read so leaves the site not set up (never a 500, never its text;
 the setup page on this computer names the file and its fault), the
 visitors' file the defaults, the origin secret's file a secret no request
-carries. Each fault is said in PHP's error log at most once a day
+carries, the site's address file no address. Each fault is said in PHP's error log at most once a day
 (`settingsSaid()`), by its kind and line, its start or the bytes printed -
 never what PHP said, which may quote the file.
 
@@ -506,7 +545,7 @@ every anotoki site) are routes the same way, in the same frame, and
 headings (`anotoki.about.title`, `anotoki.support.title` - the app's name
 alone while no bundle is in memory).
 
-**The family's kit** (`@anotoki/lib` 0.10.0, `shared/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.11.0, `shared/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
@@ -517,7 +556,8 @@ and message (`<anotoki-alert>`: the notes under the bar, the review's
 reminder, the progress file's warning and refusals, the piano's state),
 badge ("Coming soon", "Latest", "Not saved yet", What's new's lists), chip
 (the path's steps, `button[anotokiChip]`), select (`<anotoki-select>` from
-`/ui/select`: the tempo, the MIDI device), dialog (What's new), stat tiles
+`/ui/select`: the tempo, the MIDI device), dialog (What's new), dates
+(`anotokiDate` from `/ui/dates`: What's new's days, Stats' rounds), stat tiles
 (the figures on Stats and in the Note Trainer), step dots (a lesson's
 steps), spinner, error state ("Could not load your progress"), empty state
 (Stats with no round yet) and table (the family's table styles: a small card a
@@ -526,8 +566,11 @@ from its own entry point (`@anotoki/lib/ui/config`, `/ui/button`,
 `/ui/card`...: the first load carries only the pieces it draws; the select
 is lazy - the piano's select in the bar is a `@defer` block,
 loaded once the page is idle, and What's new and the footer's feedback form
-load when they open: the first load is 558.1 kB since the family's footer
-came, under its 575 kB warning - 550 until the owner raised it that day). They draw with the family's tokens, which
+load when they open: the first load is 572.9 kB with anotoki-lib 0.11.0's
+site settings - the announcement, the notice above a page, Page access's
+guard - and the kit's newer core (558.1 kB from the family's footer until
+then), under its 575 kB warning - 550 until the owner raised it the day the
+footer came). They draw with the family's tokens, which
 `styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
 a site gives the colours only), with the family's corners, shadows, font
 (Manrope) and base (`anotoki.base`: type, links, the focus ring), and its
@@ -609,11 +652,14 @@ never under the top bar: on the left a column - the panel's name ("anotoki
 Piano Academy · admin panel", to `/admin`), who is signed in (the name, the
 address under it), "Back to Piano Academy", Sign out (`SignOutService`, the
 bar's), the family's theme switch, then the pages under their headings -
-Localization: Translations (EDITOR, ADMIN), Languages; System: People,
-Feedback (with the number of new messages, the family's `FeedbackUnread`,
-asked when an ADMIN opens the panel), Error log, Audit log, Backups,
-Migrations (ADMIN, the family's `adminGuard`; Migrations alone while an
-update waits); on the right the page in the frame's own `<main>` and the
+Localization: Translations (EDITOR, ADMIN), Languages; System: Site
+settings, People, Feedback (with the number of new messages, the family's
+`FeedbackUnread`, asked when an ADMIN opens the panel), Error log, Audit
+log, Backups, Migrations (ADMIN, the family's `adminGuard`; Migrations alone
+while an update waits) - the one shape of every anotoki admin panel (the
+owner's request of 2026-10-25); on the right the page in the frame's own
+`<main>` - while the site is closed for maintenance, the family's notice
+above it (`<anotoki-page-notice>` in the frame's notice slot) - and the
 family's footer under it. On a phone (up to 860 px) a row with the name and
 Menu, which opens all of it in a drawer. The shell draws nothing round it
 (no bar, no notes, no footer of its own, no `<main>`: `shared/view-root`
@@ -622,8 +668,9 @@ page is made once as an address crosses from one half to the other); its
 words are English (`TranslationService.effectiveLanguage`; the frame's own -
 Menu, Sign out, Theme, Skip to content - the kit's, through `forKit()`).
 Every page is the family's (`<anotoki-translations-page>`,
-`<anotoki-languages-page>`, the People page, the admin tools' pages,
-`<anotoki-migrations-page>`, each lazy from its own entry point;
+`<anotoki-languages-page>`, the Site settings page, the People page, the
+admin tools' pages, `<anotoki-migrations-page>`, each lazy from its own
+entry point;
 `/admin/database` redirects to Migrations); the person's menu on the
 learner's site calls it "Admin panel", and its titles are "Translations ·
 Admin panel · Piano Academy", as on every anotoki site. Anybody else sees
@@ -631,6 +678,40 @@ why there is nothing (signed out; signed in without a role) on a page of its
 own - no column, no menu. `/translations` and `/languages` redirect there.
 The family's pages show the server's own English sentence when a call fails;
 a learner's page never does.
+
+**The site settings** (anotoki-lib 0.11.0, [decisions.md](decisions.md)
+2026-10-25; `api/site_settings.php`, `shared/site-settings.ts`): the
+family's three parts on the admin panel's Site settings page, each change
+audited. **Getting in** closes the site for maintenance (the gate, above).
+**The announcement** is a line above the learner's site's bar - information,
+a warning or something wrong, in the page's language - which a reader may
+hide in this browser until its words change (`piano-academy:announcement`).
+**Page access** governs the learner's pages - Learn, a lesson, the Note
+Trainer, Sheet Practice, Songs and a song, Stats -, a row each: shown to
+anybody, to people signed in, to editors, to administrators, or switched off
+(the ADMIN still opens it); where two rows name the same API path, the
+more open decides. The pages read
+the settings as the app starts, beside where the site stands and before the
+router's first navigation (`startApp()`, `app.config.ts`): the family's
+`pageAccessGuard`, a canMatch on each learner page, lets a page closed to
+the reader fall through to Learn as an unknown address does - never a
+redirect that says the page exists; where Learn is closed to them too, the
+page that says it is not open (`sites/main/not-open`). The bar and Learn's
+free practice leave out what would not open, the administrators read above
+a page whom it is kept for (`<anotoki-page-notice>`), and the server
+refuses the API paths a row names (`423 page_locked`, above) - the guard is
+no security boundary. Nothing may claim the reserved pages (the sign-in's
+`/auth` and `/sign-in-failed`, `/staff`, `/admin`, the legal pages,
+About, Support) or API paths (`siteReservedApiPaths()`, and the library's
+own): a page access that shut the way in, the words, the progress or the
+settings themselves would lock everybody out. **robots.txt and sitemap.xml**
+(the library's `Robots`, `siteRobots()`): every robot told to leave
+`/admin`, `/api`, `/auth`, `/stats`, `/sign-in-failed` and `/staff`
+alone; the sitemap lists the legal pages, About and Support, and Learn, the
+Note Trainer, Sheet Practice and Songs only while the IAM lets visitors in
+(signed out, they lead to the IAM), never one Page access hides - by the
+configured address (`config/site.local.php`) alone, kept for an hour (made
+again at once when what Page access hides changes).
 
 **Saving** (`shared/state/progress-store.service.ts`, `api/api.service.ts`):
 `ApiService.fetchState()` keeps the generation; every `PUT /api/progress` and
@@ -714,11 +795,14 @@ once, one save at a time, the latest last; refused, the account's theme
 comes back and `anotoki.theme.notSaved` is said under the switch. The whole site,
 the admin panel too, has that one theme; `piano-academy:theme` keeps the
 theme on the screen for the family's `theme-boot.js` (`index.html`,
-`data-storage-key`). The `localDate` pipe writes a signed-in person's
-dates in the account's order and clock when it chose them (a moment: the
-date and the time side by side, each half the language's own where left
-automatic), the admin panel's People and Migrations included (`stamp`: their
-`yyyy-MM-dd HH:mm`, the server's own numbers for Migrations).
+`data-storage-key`). The family's dates (`@anotoki/lib/ui/dates`,
+anotoki-lib 0.11.0: the `anotokiDate` pipe, given the account's choices in
+`shared/family-kit.ts`) write a signed-in person's dates in the account's
+order and clock when it chose them (a moment: the date and the time side by
+side, each half the language's own where left automatic), the admin panel's
+People, Migrations and admin tools included (`sites/admin/admin-stamp.ts`:
+their `yyyy-MM-dd HH:mm` otherwise, the server's own numbers for
+Migrations).
 
 **Which language** (the family's `TranslationService`, wired in
 `shared/i18n/site-translations.ts`; the family's order): for somebody signed in whose account sends

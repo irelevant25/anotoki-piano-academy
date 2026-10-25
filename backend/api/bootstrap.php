@@ -63,3 +63,4 @@ require_once __DIR__ . '/after_response.php';
 require_once __DIR__ . '/visitors.php';
 require_once __DIR__ . '/translations.php';
 require_once __DIR__ . '/admin_tools.php';
+require_once __DIR__ . '/site_settings.php';

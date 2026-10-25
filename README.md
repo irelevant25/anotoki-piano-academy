@@ -105,9 +105,11 @@ You need **PHP 8.2 or newer** with the `pdo_pgsql` and `openssl` extensions,
   are in every language. The app's words live in the database, reworded in
   the browser in the admin panel (`/admin`, in English; **Admin panel** in
   your menu - the panel's pages are in a column on its left, the anotoki family's admin frame): an account with the role EDITOR of Piano Academy
-  rewords them, an ADMIN also adds and deletes languages, sees everybody's
-  progress counts (**People**), reads the **Error log**, the **Audit log**
-  and the **Feedback**, keeps the **Backups** and applies database updates
+  rewords them, an ADMIN also adds and deletes languages, sets the **Site
+  settings** (an announcement at the top of every page, closing the site for
+  a while, who may see which page), sees everybody's progress counts
+  (**People**), reads the **Error log**, the **Audit log** and the
+  **Feedback**, keeps the **Backups** and applies database updates
   (**Migrations**).
 - **Feedback**, at the foot of every page - signed in or not: a
   problem or an idea, and which part of the app it is about. It is kept for
@@ -153,7 +155,11 @@ the app's administrators: one a day (the last 14), one before every update
 (the last 5) and any made by hand, which stays until the owner deletes it -
 no backup goes for its age, so a deleted account's data stays in the
 backups made before until they go. Its error log keeps what went wrong -
-never a query, a header, a body or an address - for 30 days.
+never a query, a header, a body or an address - for 30 days. The site's
+settings (an announcement at the top of its pages, closing the site for a
+while, who may see which page) each keep which administrator changed them
+last, and when; this browser keeps a mark of an announcement you hid, never
+its words.
 
 The **Privacy** page (`/privacy`, at the foot of every page) says all of
 this in full, in English and Slovak: each part the app keeps, why and for
@@ -193,6 +199,10 @@ hosting:
     closed: the site keeps running, believes no `CF-Connecting-IP` (every visitor counts as the Cloudflare
     edge they came through, sharing its limits) and says so once a day in PHP's error log until the file is
     mended.
+- **The site's address** for robots.txt and sitemap.xml: `config/site.local.php`
+  (`return ['public_url' => 'https://piano.anotoki.eu'];`, put there by hand, never by setup) - without it
+  `/robots.txt` names no sitemap and `/sitemap.xml` answers 404. Never read off a request: a `Host` header is
+  anybody's to write.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.
@@ -206,6 +216,24 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
 
 ## Current state
 
+- **The site settings, robots.txt and sitemap.xml (2026-10-25).**
+  `anotoki-lib` 0.11.0, both halves: the administrators' Site settings page
+  (the admin panel's System, first) - an announcement in a bar above the
+  site's own (information, a warning, something wrong; hidden in a browser
+  until its words change), closing the site for maintenance (everybody but
+  the site's administrators reads the family's closed sign, in their
+  language with the administrators' words; an administrator signs in at
+  `/staff` and uses the site as it is, told above every page that it is
+  closed), and Page access (who may see Learn, a lesson, the Note Trainer,
+  Sheet Practice, Songs or Stats - or none but the administrators; the bar and
+  the home page offer no closed section). A learner's progress keeps saving
+  whatever a page's row says. `/robots.txt` and `/sitemap.xml` come from the
+  API, by the address `config/site.local.php` names. The dates are the
+  family's (Slovak times before ten with two digits now: 09:05), the tempo
+  selects the kit's typed values, the admin menu the family's one shape.
+  Migration 014 (the Privacy page's new part, the page that says a page is
+  not open) and the library's `anotoki_admin/003`, `anotoki_translations/014`
+  and `015` go in one Apply. The first load is 572.9 kB.
 - **The admin panel in the family's frame (2026-10-24).** `anotoki-lib`
   0.10.0, both halves: the admin panel looks like genshin's - its pages in a
   column on the left under Localization and System, with who is signed in,
@@ -223,11 +251,12 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
   comes next.
 - Since 2026-09-29: rebuilt as `backend/` (Slim 4) + `frontend/` (Angular),
   with a setup page for every installation and a changelog in the app.
-- English and Slovak (informal), 303 keys of the app's own words in the
-  database (migrations 002 to 013) and the anotoki library's 288 (`anotoki.*`:
+- English and Slovak (informal), 310 keys of the app's own words in the
+  database (migrations 002 to 014) and the anotoki library's 357 (`anotoki.*`:
   the words of the bar, its menus, the language chooser, the theme switch,
   the dialogs, the status page, the sign-in's failure page, the feedback
-  form, the legal pages, About and Support and the footer), a language chooser, and the
+  form, the legal pages, About and Support, the footer, the site settings'
+  bar and notice, the closed sign and the kit's newer pieces), a language chooser, and the
   Translations and Languages pages. A word of the app's with no string shows
   its key, on purpose.
 - **About and Support (2026-10-19).** `anotoki-lib` 0.8.0, both halves: the

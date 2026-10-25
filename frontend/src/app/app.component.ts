@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { AnotokiAuth, SignInFailure, failureText, signInWords } from '@anotoki/lib/auth';
 import { SiteFooterComponent } from '@anotoki/lib/footer';
 import { SiteGateComponent, SitePagesDirective, SiteStatus } from '@anotoki/lib/migrations';
+import { AnnouncementComponent, PageNoticeComponent } from '@anotoki/lib/site-settings';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
@@ -56,6 +57,16 @@ import { ViewRootComponent } from './shared/view-root/view-root.component';
  * comes in the middle of practising (the page goes then, and the frame with
  * it; the status page loads the site afresh once it is back, without opening
  * the gate first).
+ *
+ * The site settings (anotoki-lib 0.11.0, shared/site-settings.ts) add two
+ * of the family's pieces to the learner's frame: the announcement above the
+ * bar (<anotoki-announcement>: information, a warning or something wrong, in
+ * the page's language, hidden in this browser until its words change) and,
+ * between the notes and the page, what the administrators alone read about
+ * it (<anotoki-page-notice>: the site is closed for maintenance, this page is
+ * switched off or kept for some readers). While the site is closed the gate
+ * draws the family's closed sign alone for everybody but the site's ADMIN -
+ * the sign-in's way back, the legal pages, About and Support stay anybody's.
  *
  * The family's "Are you sure?" (<anotoki-confirm-host>, ConfirmService) is
  * drawn here once, outside the gate, for every question the app asks. The
@@ -116,6 +127,8 @@ import { ViewRootComponent } from './shared/view-root/view-root.component';
     ButtonComponent,
     SpinnerComponent,
     SiteFooterComponent,
+    AnnouncementComponent,
+    PageNoticeComponent,
   ],
 })
 export class AppComponent {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { AlertComponent } from '@anotoki/lib/ui/alert';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
@@ -38,6 +39,14 @@ interface UnitView {
   chips: ChipView[];
 }
 
+/** The free-practice sections under the path, in the bar's order: their words and where they go. */
+const FREE_PRACTICE: readonly { key: string; path: string }[] = [
+  { key: 'nav.trainer', path: '/trainer' },
+  { key: 'nav.sheet', path: '/sheet' },
+  { key: 'nav.songs', path: '/songs' },
+  { key: 'nav.stats', path: '/stats' },
+];
+
 interface PhaseView {
   phase: Phase;
   title: string;
@@ -58,6 +67,10 @@ interface PhaseView {
  * worded inside a computed() - t() reads signals, so it is worded again when
  * the language changes - and the rest in the template. Note names and song
  * titles go in as they are.
+ *
+ * A free-practice section the site settings' Page access closes to the
+ * reader is not offered (nor the review's way into the Note Trainer): its
+ * page would not open for them (the family's pageAccessGuard).
  */
 @Component({
   selector: 'app-home-page',
@@ -72,7 +85,13 @@ export class HomePageComponent {
   private readonly srs = inject(SrsService);
   private readonly theory = inject(TheoryService);
   private readonly i18n = inject(TranslationService);
+  private readonly settings = inject(SiteSettings);
   protected readonly path = inject(PathService);
+
+  /** The free-practice sections the reader may open. */
+  protected readonly practice = computed(() => FREE_PRACTICE.filter((section) => this.settings.mayNavigate(section.path)));
+  /** Whether the Note Trainer opens for the reader: the review's way there. */
+  protected readonly trainerOpen = computed(() => this.settings.mayNavigate('/trainer'));
 
   protected readonly next = computed<PathStep | null>(() => this.path.getNextStep(this.store.pathProgress()));
   protected readonly started = computed(() => this.path.pathSteps.some((entry) => this.path.isStepPassed(this.store.pathProgress(), entry.key)));

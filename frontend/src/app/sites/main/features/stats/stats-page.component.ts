@@ -3,9 +3,9 @@ import { AnotokiAuth } from '@anotoki/lib/auth';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { EmptyStateComponent } from '@anotoki/lib/ui/empty-state';
 import { StatTileComponent, StatTilesComponent } from '@anotoki/lib/ui/stat-tiles';
-import { LocalDatePipe } from '../../../../shared/i18n/local-date.pipe';
 import { stepShort, unitTitle } from '../../../../shared/i18n/path-words';
 import { Session, SessionMode } from '../../../../shared/music/music.types';
 import { PathService } from '../../../../shared/music/path.service';
@@ -102,7 +102,7 @@ interface RecentRow {
   templateUrl: './stats-page.component.html',
   styleUrl: './stats-page.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PianoKeyboardComponent, TranslatePipe, LocalDatePipe, OwnProgressComponent, ButtonComponent, CardComponent, EmptyStateComponent, StatTileComponent, StatTilesComponent],
+  imports: [PianoKeyboardComponent, TranslatePipe, AnotokiDatePipe, OwnProgressComponent, ButtonComponent, CardComponent, EmptyStateComponent, StatTileComponent, StatTilesComponent],
 })
 export class StatsPageComponent {
   private readonly store = inject(ProgressStore);

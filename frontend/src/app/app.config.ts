@@ -5,6 +5,7 @@ import { anotokiAuthInterceptor } from '@anotoki/lib/auth';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteStatus, siteStatusInterceptor } from '@anotoki/lib/migrations';
 import { ThemeService } from '@anotoki/lib/shell';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { routes } from './app.routes';
 import { provideSiteAuth } from './shared/auth/site-auth';
 import { ChangelogService } from './shared/changelog/changelog.service';
@@ -13,6 +14,7 @@ import { provideFamilyKit } from './shared/family-kit';
 import { provideSiteTranslations } from './shared/i18n/site-translations';
 import { pianoLegalConfig } from './shared/legal/legal.config';
 import { provideSiteAdmin } from './shared/site-admin';
+import { provideSiteSettings } from './shared/site-settings';
 import { BootService } from './shared/state/boot.service';
 import { provideSiteMigrations } from './shared/state/site-migrations';
 import { PianoTitleStrategy } from './shared/title.strategy';
@@ -24,6 +26,25 @@ import { PianoTitleStrategy } from './shared/title.strategy';
  * request says (the feedback form's message says itself it is anybody's, anotoki-lib 0.7.2), or as the page is shown.
  */
 export const SITE_INTERCEPTORS: HttpInterceptorFn[] = [siteStatusInterceptor, anotokiAuthInterceptor];
+
+/**
+ * Before the first view (the app's initializer, below): the theme (the family's ThemeService: the account's from the
+ * first frame, so nothing flashes), the changelog on its way, where the site stands (GET /api/site-status: while it is
+ * being updated or closed the start does only what works then) and the site settings beside it (GET
+ * /api/site-settings - before the router's first navigation, so Page access's guard decides the first page with them;
+ * it never rejects: a read that fails leaves every page anybody's), and then the start of the app - the sign-in (which,
+ * on the IAM's callback, puts the address the person came from back before the router reads it), the language and its
+ * strings, and the person's progress. index.html shows "Loading…" meanwhile.
+ */
+export async function startApp(): Promise<void> {
+  inject(ThemeService);
+  void inject(ChangelogService).load();
+  const site = inject(SiteStatus);
+  const settings = inject(SiteSettings);
+  const boot = inject(BootService);
+  await Promise.all([site.check(), settings.load()]);
+  return boot.start();
+}
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -47,9 +68,12 @@ export const appConfig: ApplicationConfig = {
     // The anotoki family's kit and frame (@anotoki/lib/ui's pieces, @anotoki/lib/shell): its words the database's
     // (anotoki.*), the theme the account's, the languages this app's (shared/family-kit.ts).
     provideFamilyKit(),
-    // The admin panel's People page and admin tools (error log, audit log, feedback, backups), and the visitors'
-    // feedback form - the family's (shared/site-admin.ts).
+    // The admin panel's People page and admin tools (error log, audit log, feedback, backups, site settings), and the
+    // visitors' feedback form - the family's (shared/site-admin.ts).
     provideSiteAdmin(),
+    // The family's site settings (@anotoki/lib/site-settings): the announcement, the administrators' notice above a
+    // page, Page access's guard - who the reader is from the token (shared/site-settings.ts).
+    provideSiteSettings(),
     // The anotoki family's legal pages - Terms, Privacy, Contact, and About and Support, on lazy routes open to anybody - and the footer's
     // links to them: the library's words around Piano Academy's facts, every address the pages link to in the code
     // (shared/legal/legal.config.ts; the facts, which only the pages read, come with their frame: sites/main/legal/legal-facts.ts).
@@ -57,20 +81,7 @@ export const appConfig: ApplicationConfig = {
     // The browser tab's title: a route's title is a translation key, worded in
     // the language on the page, before the app's name.
     { provide: TitleStrategy, useClass: PianoTitleStrategy },
-    // Before the first view: the theme (the family's ThemeService: the account's
-    // from the first frame, so nothing flashes), the changelog on its way, where
-    // the site stands (GET /api/site-status: while it is being updated the start
-    // does only what works then), and the start of the app - the sign-in (which,
-    // on the IAM's callback, puts the address the person came from back before
-    // the router reads it), the language and its strings, and the person's
-    // progress. index.html shows "Loading…" meanwhile.
-    provideAppInitializer(async () => {
-      inject(ThemeService);
-      void inject(ChangelogService).load();
-      const site = inject(SiteStatus);
-      const boot = inject(BootService);
-      await site.check();
-      return boot.start();
-    }),
+    // Before the first view: where the site stands and its settings, then the start (startApp, above).
+    provideAppInitializer(startApp),
   ],
 };

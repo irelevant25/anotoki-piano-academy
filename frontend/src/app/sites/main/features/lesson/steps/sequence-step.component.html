@@ -6,7 +6,7 @@
         @case ("tempo") {
             <p class="lesson-instruction">{{ "sequence.tempo.instruction" | translate }}</p>
             <div class="cluster controls">
-                <anotoki-select data-role="bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm().toString()" (valueChange)="chooseTempo($event)" />
+                <anotoki-select data-role="bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm()" (valueChange)="chooseTempo($event)" />
                 <button anotokiButton variant="primary" data-role="start" (click)="startInTime()">
                     {{ (started() ? "sequence.tempo.restart" : "sequence.tempo.start") | translate }}
                 </button>
@@ -22,7 +22,7 @@
             </p>
             <div class="cluster controls">
                 <button anotokiButton data-role="practice" (click)="startPractice()">{{ "sequence.song.practice" | translate }}</button>
-                <anotoki-select data-role="bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm().toString()" (valueChange)="chooseTempo($event)" />
+                <anotoki-select data-role="bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm()" (valueChange)="chooseTempo($event)" />
                 <button anotokiButton variant="primary" data-role="start" (click)="startInTime()">{{ "sequence.song.start" | translate }}</button>
             </div>
         }

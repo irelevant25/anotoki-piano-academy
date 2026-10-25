@@ -15,6 +15,8 @@ declare(strict_types=1);
  *                                         address of their own
  *
  *   /api/...     the API (api/index.php)
+ *   /robots.txt, the API's too (anotoki-lib's RobotsRoutes), as on the host -
+ *   /sitemap.xml composer.json's extra["anotoki-deploy"]["routes"]
  *   /setup.php   the setup page
  *   anything     the built app from ../frontend/dist/piano-academy/browser/,
  *   else         when it has been built: a file as it is, and any other path
@@ -26,7 +28,7 @@ declare(strict_types=1);
 
 $path = rawurldecode((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH));
 
-if ($path === '/api' || str_starts_with($path, '/api/')) {
+if ($path === '/api' || str_starts_with($path, '/api/') || $path === '/robots.txt' || $path === '/sitemap.xml') {
     require __DIR__ . '/api/index.php';
     return true;
 }

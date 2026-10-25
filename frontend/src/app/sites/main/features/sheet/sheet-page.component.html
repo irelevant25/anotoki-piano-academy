@@ -10,7 +10,7 @@
         <div class="practice">
             <p class="known-notes">{{ "sheet.knownNotes" | translate: { notes: knownNames } }}</p>
             <div class="cluster controls">
-                <anotoki-select id="sh-bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm().toString()" (valueChange)="chooseTempo($event)" />
+                <anotoki-select id="sh-bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm()" (valueChange)="chooseTempo($event)" />
                 <button anotokiButton id="sh-new" (click)="newSheet()">{{ "sheet.newSheet" | translate }}</button>
                 <button anotokiButton id="sh-start" [disabled]="playing()" (click)="start()">{{ "player.start" | translate }}</button>
             </div>

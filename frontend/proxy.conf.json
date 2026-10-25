@@ -5,6 +5,18 @@
     "changeOrigin": false,
     "logLevel": "warn"
   },
+  "/robots.txt": {
+    "target": "http://localhost:8300",
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn"
+  },
+  "/sitemap.xml": {
+    "target": "http://localhost:8300",
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn"
+  },
   "/setup.php": {
     "target": "http://localhost:8300",
     "secure": false,

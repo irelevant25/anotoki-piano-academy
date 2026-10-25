@@ -4,7 +4,7 @@ import { AnotokiAuth } from '@anotoki/lib/auth';
 import { provideAnotokiFeedback } from '@anotoki/lib/feedback';
 import { PeoplePerson, provideAnotokiPeople } from '@anotoki/lib/people';
 import { TranslationService } from '@anotoki/lib/translations';
-import { localDateText } from './i18n/local-date.pipe';
+import { AdminDates } from './admin-dates';
 import { VISITOR_KEEP_DAYS } from './i18n/visitor-words';
 import { ProgressStore } from './state/progress-store.service';
 import { MIGRATIONS_ROUTE } from './state/site-migrations';
@@ -23,8 +23,15 @@ export const FEEDBACK_SECTIONS: readonly { value: string; key: string }[] = [
   { value: 'Stats', key: 'nav.stats' },
 ];
 
-/** The admin panel's routes of the family's pages (sites/admin/admin.routes.ts), in the bar's order. */
-export const ADMIN_TOOL_ROUTES = { people: '/admin/people', errors: '/admin/errors', audit: '/admin/audit', feedback: '/admin/feedback', backups: '/admin/backups' } as const;
+/** The admin panel's routes of the family's pages (sites/admin/admin.routes.ts), in the menu's order. */
+export const ADMIN_TOOL_ROUTES = {
+  siteSettings: '/admin/site-settings',
+  people: '/admin/people',
+  feedback: '/admin/feedback',
+  errors: '/admin/errors',
+  audit: '/admin/audit',
+  backups: '/admin/backups',
+} as const;
 
 /**
  * The People page's question before a delete, in this app's words: who, and
@@ -69,6 +76,10 @@ export function deleteQuestion(person: PeoplePerson): { title: string; message: 
  *   the IAM asking for the password; its maker is named (the server's names).
  *   The admin bar's "Feedback" says how many are new (FeedbackUnread): no
  *   mail is sent.
+ * - The site settings (@anotoki/lib/admin/site-settings, anotoki-lib 0.11.0):
+ *   Getting in, the announcement and Page access, a card each - the maintenance
+ *   page's and the announcement's words written in each of this app's
+ *   languages, under their own names (the translations module's).
  * - The feedback form (@anotoki/lib/feedback/form, opened from the family's
  *   footer - its Feedback, @anotoki/lib/footer - and from Contact):
  *   for everybody, in the language on the page (English in the admin panel),
@@ -89,13 +100,12 @@ export function provideSiteAdmin(): EnvironmentProviders[] {
   return [
     provideAnotokiPeople(() => {
       const auth = inject(AnotokiAuth);
-      const i18n = inject(TranslationService);
       const injector = inject(Injector);
       return {
         isAdmin: () => auth.isAdmin(),
         me: () => auth.sub(),
         lead: 'Everybody who signed in and whom Piano Academy keeps anything of, the most recently seen first.',
-        formatDate: (iso) => localDateText(iso, 'stamp', i18n.locale(), auth.preferences()),
+        formatDate: (iso) => injector.get(AdminDates).format(iso),
         delete: {
           label: 'Delete their progress',
           question: (person) => deleteQuestion(person),
@@ -116,12 +126,15 @@ export function provideSiteAdmin(): EnvironmentProviders[] {
     provideAnotokiAdmin(() => {
       const auth = inject(AnotokiAuth);
       const i18n = inject(TranslationService);
+      const injector = inject(Injector);
       return {
         isAdmin: () => auth.isAdmin(),
         signInAgain: () => auth.signIn({ prompt: 'login' }),
         migrationsRoute: MIGRATIONS_ROUTE,
         siteName: 'Piano Academy',
-        formatDate: (iso) => localDateText(iso, 'stamp', i18n.locale(), auth.preferences()),
+        formatDate: (iso) => injector.get(AdminDates).format(iso),
+        // The Site settings page: a field for each language the pages are read in, under its own name.
+        languages: () => i18n.languages().map((language) => ({ code: language.code, name: language.native_name })),
       };
     }),
     provideAnotokiFeedback(() => {

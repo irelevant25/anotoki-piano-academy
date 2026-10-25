@@ -49,7 +49,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * Deleting a person deletes everything the app keeps of them: their note
  * progress, path progress and sessions, an imports row that names them, and
  * their users row (a string they reworded stays, by nobody:
- * translations.updated_by is ON DELETE SET NULL); their feedback messages
+ * translations.updated_by is ON DELETE SET NULL - and so does a site setting
+ * or a page's row they changed last, anotoki_site_settings.updated_by and
+ * anotoki_page_access.updated_by, set to nobody here); their feedback messages
  * lose the reply address and the browser, the words stay (the library does
  * that part, in the same transaction). It takes their users row first (FOR
  * UPDATE), as an import and a save do, so a save of theirs in flight waits
@@ -175,6 +177,14 @@ function peopleDelete(PDO $pdo, int $id): ?array
         dbExec("DELETE FROM $table WHERE user_id = ?", [$id], $pdo);
     }
     dbExec('DELETE FROM users WHERE id = ?', [$id], $pdo);
+    // Who last changed a site setting or a page's row (the library's tables keep the IAM id, with no foreign key):
+    // nobody now, as a word the person saved is (translations.updated_by is ON DELETE SET NULL) - the Privacy page
+    // says so. Nothing while the library's anotoki_admin/003 waits.
+    foreach ([AdminSchema::SITE_SETTINGS_TABLE, AdminSchema::PAGE_ACCESS_TABLE] as $table) {
+        if (AdminSchema::has($pdo, $table)) {
+            dbExec("UPDATE $table SET updated_by = NULL WHERE updated_by = ?", [$id], $pdo);
+        }
+    }
 
     return [
         PEOPLE_COLUMNS['notes'] => $counts['notes'],

@@ -4,6 +4,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { AnotokiAuth } from '@anotoki/lib/auth';
 import { SiteStatus } from '@anotoki/lib/migrations';
 import { TopBarBrand, TopBarComponent as FamilyTopBarComponent, TopBarLink, TopBarMenuItem, TopBarMenuNote, TopBarPerson, TopBarPhoneMark } from '@anotoki/lib/shell';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { filter, map } from 'rxjs';
@@ -89,6 +90,7 @@ export class TopBarComponent {
   protected readonly boot = inject(BootService);
   protected readonly store = inject(ProgressStore);
   private readonly site = inject(SiteStatus);
+  private readonly settings = inject(SiteSettings);
   private readonly i18n = inject(TranslationService);
   private readonly router = inject(Router);
   private readonly signOuts = inject(SignOutService);
@@ -119,10 +121,14 @@ export class TopBarComponent {
   /**
    * The sections, once the app runs (before, there is nothing to practise
    * on). While the site is not ready (the family's status page in the view's
-   * place) none.
+   * place) none. A section the site settings' Page access closes to the
+   * reader is left out: its page would not open for them (the family's
+   * pageAccessGuard), and a link that leads to the start page is no section.
    */
   protected readonly links = computed<TopBarLink[]>(() =>
-    this.boot.status() !== 'ready' || this.site.blocked() ? [] : APP_LINKS.map((link) => ({ id: link.path, label: this.i18n.t(link.key), path: link.path, under: link.under })),
+    this.boot.status() !== 'ready' || this.site.blocked()
+      ? []
+      : APP_LINKS.filter((link) => this.settings.mayNavigate(link.path)).map((link) => ({ id: link.path, label: this.i18n.t(link.key), path: link.path, under: link.under })),
   );
 
   /** Who is signed in: their name as it is (worded only when the token names nobody), the address under it when it is not the name, the role. */

@@ -2,6 +2,87 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-25 - the site settings, robots.txt and sitemap.xml, the family's dates, one admin menu (`anotoki-lib` 0.11.0)
+
+The owner's requests of 2026-10-25: the projects use the library first;
+genshin's Site settings on every site; robots.txt and sitemap.xml on every
+site; every admin menu in one shape. The choices made here:
+
+- **All three parts of the site settings** (`api/site_settings.php`,
+  `shared/site-settings.ts`): Getting in (closing the site for maintenance),
+  the announcement, Page access. The library's tables (its `anotoki_admin/003`),
+  its routes (`GET /api/site-settings`; `/api/admin/site-settings...` for the
+  site's ADMIN, every change audited) and its pages: the bar above the
+  learner's site's top bar, the administrators' notice between the notes and
+  the page (and in the admin frame's notice slot: the maintenance line), the
+  Site settings page (`/admin/site-settings`), the closed sign.
+- **The reserved API paths include the whole progress store** - `/api/state`,
+  `/api/progress`, `/api/path`, `/api/sessions`, the own progress file
+  (`/api/me`), the move at sign-in (`/api/visitor`) - beside the sign-in's
+  configuration, the health check (the deploy's smoke test) and the
+  library's own. Every page's start and every save use them: a row that took
+  `/api/progress` with one page would take it from every page, and a hidden
+  page could break the start of the others. Reserved also means open while
+  the site is closed: somebody practising when it closes keeps their own
+  progress (a page loaded afresh shows the sign; nobody new gets in). The
+  rows may claim the rest - `/api/feedback`, `/api/client-errors`, the admin
+  routes - and the ADMIN is never refused anything. The reserved pages are
+  the library's plus `/sign-in-failed` (the sign-in's screen, at an address of
+  its own here); the closed site keeps it open too (`OPEN_WHILE_CLOSED`).
+- **The staff route** is `/staff`, a route of its own before the learner's
+  (`**` would redirect it): its guard keeps the address while the site is not
+  open to the reader - the gate draws the closed sign over it, Sign in back
+  to the start page - and sends anybody to the start page otherwise.
+- **Page access governs every learner page** (Learn, a lesson, the Note
+  Trainer, Sheet Practice, Songs and a song, Stats: the family's
+  `pageAccessGuard`, a canMatch). A closed page falls through to Learn, as an
+  unknown address does; where Learn is closed to the reader too, the router
+  follows no second redirect, and a last `**` draws a page that says it is not
+  open (`sites/main/not-open`, the kit's empty state; migration 014's
+  `notOpen.*`, `title.notOpen`). The bar and the home page offer no section
+  the reader may not open.
+- **robots.txt and sitemap.xml** come from the API (`RobotsRoutes`; the
+  deploy's routes, the dev proxy and `router.php` send both to PHP). Robots are
+  kept out of `/admin`, `/api`, `/auth`, `/stats` (a learner's own numbers),
+  `/sign-in-failed` and `/staff`. The sitemap lists the legal pages, About
+  and Support - and Learn, the Note Trainer, Sheet Practice and Songs only
+  while the IAM lets visitors in: while it requires a sign-in they would send
+  a robot to the IAM. The address is the installation's, never a request's:
+  Piano had none, so a fifth settings file - optional, never written by
+  setup, uploaded by hand like `cloudflare.local.php` -,
+  `config/site.local.php` (`['public_url' => 'https://piano.anotoki.eu']`);
+  without it robots.txt names no sitemap and `/sitemap.xml` answers 404.
+- **The Privacy page stays true**: the announcement's hidden mark is stored
+  (the library's preset, `piano-academy:announcement`), and each setting and
+  each page's row keeps who changed it last - a part of its own, "If you
+  change the site's settings" (014's `legal.settings.*`); the People delete
+  sets that person to nobody there, as on the words (`peopleDelete()`).
+  `PIANO_LEGAL_UPDATED` is 2026-10-25.
+- **The family's dates** (`@anotoki/lib/ui/dates`) in place of the app's
+  `localDate` pipe and `date-patterns.ts` (gone): What's new's days
+  (`anotokiDate: 'day'`) and Stats' rounds (`'datetime'`), the account's
+  order and clock through `provideAnotokiUi`'s `dateChoices`. One difference:
+  a Slovak time before ten has two digits for its hour ("20. 10. 2026,
+  09:05"; "9:05" before) - the family's way. The admin panel's stamp
+  ("2026-10-20 18:05", or the account's order and clock) is
+  `sites/admin/admin-stamp.ts` on the family's `formatDateTime()`, handed to
+  the family's pages' `formatDate` by the admin frame as it opens
+  (`shared/admin-dates.ts`): the dates stay out of the first load. No "time
+  ago" and no search folding in the app, so nothing else to switch.
+- **The kit's typed select values**: the three tempo selects take the tempo
+  itself (`SelectOption<number>`), no `String()` in and `Number()` out. Looked
+  at and left: the progress file's size limit (a number of megabytes in a
+  sentence, not a file's size) and its own file button (one press that reads
+  the file at once, not the kit's picker with a list).
+- **One admin menu**: Localization - Translations, Languages; System - Site
+  settings, People, Feedback, Error log, Audit log, Backups, Migrations, the
+  same role checks (an EDITOR: Translations), Migrations alone while an update
+  waits. Piano has no admin pages of its own to stand above them.
+- **The first load** is 572.9 kB (558.8 before; 562.6 with the library's
+  0.11.0 alone): the site settings' pieces, which every page's start needs
+  (the service, the guard, the bar, the notice), are in it - under the 575
+  kB warning once the dates went to the admin panel's chunk.
+
 ## 2026-10-24 - the admin panel in the family's admin frame (`anotoki-lib` 0.10.0)
 
 The owner's request: every anotoki admin panel looks like genshin's, "so it is

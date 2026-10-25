@@ -13,10 +13,14 @@ declare(strict_types=1);
  *   routes/public.php         GET /api/health, GET /api/auth/config (anotoki/lib's
  *                             AuthRoutes::config()), GET /api/translations/{code} (its
  *                             TranslationsRoutes::bundle()), GET /api/site-status,
- *                             POST /api/feedback (the form at the foot of every page:
- *                             its FeedbackRoutes::public()), POST /api/client-errors (an
- *                             error a page met, into the error log: its
- *                             ErrorLogRoutes::client())
+ *                             GET /api/site-settings (what every page is told of the site
+ *                             settings: its SiteSettingsRoutes::public()), POST /api/feedback
+ *                             (the form at the foot of every page: its
+ *                             FeedbackRoutes::public()), POST /api/client-errors (an error a
+ *                             page met, into the error log: its ErrorLogRoutes::client()),
+ *                             GET /robots.txt and GET /sitemap.xml (its RobotsRoutes - the
+ *                             front controller is given both beside /api: composer.json's
+ *                             extra["anotoki-deploy"]["routes"], router.php)
  *   routes/progress.php       GET /api/state, PUT /api/progress, PUT /api/path, POST /api/sessions
  *                             (a person's or - when the IAM says sign-in is not required - a
  *                             visitor's, api/visitors.php), GET /api/me/export, POST /api/me/import
@@ -36,7 +40,10 @@ declare(strict_types=1);
  *                             the admin tools (api/admin_tools.php): /api/admin/errors...,
  *                             /api/admin/audit..., /api/admin/feedback..., /api/admin/backups...
  *                             - and GET /api/admin/backups/{id}/file?ticket=, a backup's
- *                             download, whose single-use ticket is its only check
+ *                             download, whose single-use ticket is its only check;
+ *                             the site settings (api/site_settings.php: SiteSettingsRoutes::admin()):
+ *                             GET, PUT /api/admin/site-settings, POST, PUT /api/admin/site-settings/pages,
+ *                             DELETE /api/admin/site-settings/pages/{id}
  *
  * The middleware, outermost first: security headers -> the error log's (anotoki/lib's
  * ErrorLogMiddleware::outer(): an answer worth seeing, written down) -> the error
@@ -45,9 +52,11 @@ declare(strict_types=1);
  * backup, after an answer that went well -> the people's scrub (anotoki/lib's
  * PeopleUpkeep: the IAM's deleted accounts, at most hourly, after the answer) ->
  * who the request is (anotoki/lib's Identify, for every route but the public ones:
- * meddleware/auth.php) -> routing -> on the progress routes, whose own progress it
- * is (the person or the visitor); on the move and the own file, the person; on the
- * admin routes, the person and their role, on each group.
+ * meddleware/auth.php) -> Page access (anotoki/lib's PageAccessGate: an API path a
+ * page's row refuses with it, 423 page_locked - api/site_settings.php) -> routing ->
+ * on the progress routes, whose own progress it is (the person or the visitor); on
+ * the move and the own file, the person; on the admin routes, the person and their
+ * role, on each group.
  *
  * The gate answers before any route runs (siteState(), api/migrations.php):
  * not set up - config/*.local.php missing, incomplete or not PHP that runs - every path but
@@ -55,9 +64,13 @@ declare(strict_types=1);
  * "setup": "/setup.php" only while the site was never installed; an update
  * pending - a migration waiting - every path but siteOpenPaths() and the
  * status is 503 {code: "update_pending", message} with Retry-After: 60, so
- * nothing runs on tables that are not there yet; unavailable (the database
- * out of reach) and ready: through, and a dead database is the error
- * handler's 503 database_unavailable as ever.
+ * nothing runs on tables that are not there yet; closed for maintenance (the
+ * site settings' Getting in, api/site_settings.php) - every path but
+ * siteOpenPaths(), the status and the reserved API paths is 503 {code:
+ * "maintenance", message, maintenance_message} with Retry-After: 300 to
+ * everybody but the site's ADMIN, whom the gate knows by the token alone;
+ * unavailable (the database out of reach) and ready: through, and a dead
+ * database is the error handler's 503 database_unavailable as ever.
  *
  * After the answer is written, the work a request queued for then
  * (api/after_response.php: the sweep of visitors unseen for 30 days, the
@@ -75,6 +88,7 @@ use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Migrations\Http\SiteGate;
 use Anotoki\Lib\Migrations\Http\SiteState;
 use Anotoki\Lib\People\Http\PeopleUpkeep;
+use Anotoki\Lib\SiteSettings\Http\PageAccessGate;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -129,7 +143,11 @@ function buildPianoApp(): \Slim\App
     require __DIR__ . '/routes/visitor.php';
     require __DIR__ . '/routes/admin.php';
 
-    // Added in this order, so they run the other way round.
+    // Added in this order, so they run the other way round. Page access (the library's PageAccessGate:
+    // api/site_settings.php) inside identify(), whose person it reads: an API path a page's row refuses with it is
+    // 423 page_locked for everybody that page is not shown to - never the site's ADMIN, never a reserved path (the
+    // public paths identify() passes by are all reserved, so the gate never asks for a person nobody looked for).
+    $app->add(new PageAccessGate(siteSettings(), $app->getResponseFactory()));
     $app->add(identify($app->getResponseFactory()));
     $app->add(new PeopleUpkeep(people(), static fn(): bool => siteState()->state() === SiteState::READY, afterResponse(...)));
     // The day's backup (anotoki/lib's Backups: the first answer of a UTC day that went well, after it).
@@ -141,7 +159,10 @@ function buildPianoApp(): \Slim\App
 
         return $response;
     });
-    $app->add(new SiteGate(siteState(), $app->getResponseFactory(), siteOpenPaths()));
+    // While the site is closed for maintenance (the site settings' Getting in) the gate lets the site's ADMIN through -
+    // judged by the token alone, as it runs before identify(): a forged, expired or foreign token is nobody. The
+    // library builds no gate for a site that can be closed without this check (no lockout).
+    $app->add(new SiteGate(siteState(), $app->getResponseFactory(), siteOpenPaths(), exempt: static fn(Request $request): bool => accessTokens()->personOf($request)?->isAdmin() ?? false));
 
     $errorMiddleware = $app->addErrorMiddleware(false, false, false);
     $errorMiddleware->setDefaultErrorHandler(

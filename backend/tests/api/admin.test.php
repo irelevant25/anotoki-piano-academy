@@ -3,8 +3,9 @@
 // The admin panel's routes, role by role, through the real server: every route
 // of the staff group (EDITOR or ADMIN) and of the ADMIN groups answers nobody
 // 401, a token that does not check out 401 - whatever role it names - a
-// learner 403, an editor 403 on ADMIN's (the people, the migrations and every
-// admin tool: EDITORs see none of them), and lets the right ones through. The
+// learner 403, an editor 403 on ADMIN's (the people, the migrations, every
+// admin tool and the site settings: EDITORs see none of them), and lets the
+// right ones through. The
 // People routes (the anotoki family's, anotoki/lib's PeopleRoutes): everybody
 // with their counts, and one person deleted whole - nobody else touched, a
 // string they reworded kept by nobody, the delete written into the audit log.
@@ -100,6 +101,11 @@ function admin_routes(): array
         ['POST', '/api/admin/backups/' . NO_BACKUP . '/ticket', new stdClass()], // 404
         ['GET', '/api/admin/backups/' . NO_BACKUP . '/preview', null], // 404
         ['POST', '/api/admin/backups/' . NO_BACKUP . '/restore', ['confirm' => '000000']], // 404
+        ['GET', '/api/admin/site-settings', null],
+        ['PUT', '/api/admin/site-settings', ['settings' => new stdClass()]], // no switch changed: nothing written
+        ['POST', '/api/admin/site-settings/pages', ['path' => '/staff']], // 422: a reserved page - nothing saved
+        ['PUT', '/api/admin/site-settings/pages', ['pages' => []]], // no page changed
+        ['DELETE', '/api/admin/site-settings/pages/999999', null], // 404: no such page
     ];
 }
 
@@ -121,6 +127,8 @@ function everything(): array
         dbAll("SELECT action, target_type, target_id FROM anotoki_audit_log WHERE action <> 'people.synced' ORDER BY id"),
         dbAll('SELECT id, status FROM anotoki_feedback ORDER BY id'),
         dbAll('SELECT sub FROM anotoki_people_anonymized ORDER BY 1'),
+        dbAll('SELECT name, value::text FROM anotoki_site_settings ORDER BY 1'),
+        dbAll('SELECT path, visibility, blocked FROM anotoki_page_access ORDER BY 1'),
     ];
 }
 
@@ -225,6 +233,11 @@ test('an administrator: through every route - staff and ADMIN alike', function (
         'POST /api/admin/backups/' . NO_BACKUP . '/ticket' => [404, 'not_found'],
         'GET /api/admin/backups/' . NO_BACKUP . '/preview' => [404, 'not_found'],
         'POST /api/admin/backups/' . NO_BACKUP . '/restore' => [404, 'not_found'],
+        'GET /api/admin/site-settings' => [200, null],
+        'PUT /api/admin/site-settings' => [200, null],
+        'POST /api/admin/site-settings/pages' => [422, 'invalid_page'],
+        'PUT /api/admin/site-settings/pages' => [200, null],
+        'DELETE /api/admin/site-settings/pages/999999' => [404, 'not_found'],
     ];
     $backups = static fn(): array => glob($GLOBALS['app']['config'] . '/storage/backups/*.anotoki-backup') ?: [];
     $before_backups = $backups();

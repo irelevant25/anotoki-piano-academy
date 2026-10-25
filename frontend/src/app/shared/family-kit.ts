@@ -1,4 +1,4 @@
-import { EnvironmentProviders, inject } from '@angular/core';
+import { EnvironmentProviders, Injector, inject } from '@angular/core';
 import { AnotokiAuth } from '@anotoki/lib/auth';
 import { provideAnotokiShell } from '@anotoki/lib/shell';
 import { TranslationService } from '@anotoki/lib/translations';
@@ -31,6 +31,12 @@ export const PIANO_ICON: IconPaths = [rect(2, 5, 20, 14, 2), 'M8 19v-5', 'M12 19
  *   in memory, this app's English for the few it says its own way
  *   (kept-english.ts, KEPT_LIBRARY_ENGLISH), else the kit's own built-in
  *   English and informal Slovak - never a key.
+ * - The dates are the family's (@anotoki/lib/ui/dates, anotoki-lib 0.11.0:
+ *   the anotokiDate pipe, AnotokiDates): in the page's locale (forKit()'s -
+ *   en-GB, sk-SK), in the anotoki account's date order and on its clock where
+ *   it chose them (AnotokiAuth.preferences: the token's preferences claim;
+ *   null for nobody, a visitor, an IAM that sends none - the language's own
+ *   way then).
  * - The theme is the family's ThemeService: the anotoki account's for
  *   somebody signed in (the IAM's 015 - AnotokiAuth.preferences, null for
  *   nobody, a visitor, an IAM that sends none: then this device's, and
@@ -45,10 +51,16 @@ export const PIANO_ICON: IconPaths = [rect(2, 5, 20, 14, 2), 'M8 19v-5', 'M12 19
  */
 export function provideFamilyKit(): EnvironmentProviders[] {
   return [
-    provideAnotokiUi(() => ({
-      ...inject(TranslationService).forKit(),
-      icons: { piano: PIANO_ICON },
-    })),
+    provideAnotokiUi(() => {
+      // The sign-in is asked for when a date is written, never as the kit's configuration is made: the sign-in reads the
+      // kit's words, which read this configuration - a circle otherwise.
+      const injector = inject(Injector);
+      return {
+        ...inject(TranslationService).forKit(),
+        dateChoices: () => injector.get(AnotokiAuth).preferences(),
+        icons: { piano: PIANO_ICON },
+      };
+    }),
     provideAnotokiShell(() => {
       const auth = inject(AnotokiAuth);
       return {

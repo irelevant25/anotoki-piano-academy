@@ -6,6 +6,7 @@ import { ROUTES, Router, provideRouter } from '@angular/router';
 import { SignInFailureComponent, type AnotokiUser } from '@anotoki/lib/auth';
 import { provideAnotokiLegal } from '@anotoki/lib/legal';
 import { SiteStatus } from '@anotoki/lib/migrations';
+import { SiteSettings } from '@anotoki/lib/site-settings';
 import { AnotokiThemeMode, ThemeService } from '@anotoki/lib/shell';
 import { TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
@@ -21,6 +22,7 @@ import { VISITOR_WORDS } from './shared/i18n/visitor-words';
 import { pianoLegalConfig } from './shared/legal/legal.config';
 import { MidiService } from './shared/midi/midi.service';
 import { provideSiteAdmin } from './shared/site-admin';
+import { provideSiteSettings } from './shared/site-settings';
 import { BootService } from './shared/state/boot.service';
 import { ProgressStore } from './shared/state/progress-store.service';
 import { SITE_STATUS_URL, provideSiteMigrations } from './shared/state/site-migrations';
@@ -102,6 +104,7 @@ async function shell(providers: Provider[] = []): Promise<Shell> {
       ...provideTestAuth(auth),
       provideFamilyKit(),
       provideSiteAdmin(),
+      provideSiteSettings(),
       provideAnotokiLegal(pianoLegalConfig),
       ...providers,
     ],
@@ -1162,6 +1165,46 @@ describe('the shell with no bundle', () => {
     await go(admin, '/admin/migrations');
     expect(admin.host.querySelector('app-view-root #stub-page')).not.toBeNull();
     expect(standsAlone(admin)).toEqual({ status: false, frame: [], mains: 0 });
+  });
+
+  it("the site settings: the announcement above the bar and the administrators' notice above the page - the learner's frame alone; closed for maintenance, the family's sign for everybody but the site's ADMIN, who uses the site as it is", async () => {
+    const s = await drawn(STATES['running, signed in, a piano connected, the list of changes there'], [anyPage]);
+    const load = TestBed.inject(SiteSettings).load();
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/site-settings')
+      .flush({ maintenance: false, announcement: { level: 'warning', message: { en: 'New songs on Friday.' } }, pages: [{ path: '/stats', visibility: 'EDITOR', blocked: false }] });
+    await load;
+    await go(s, '/trainer');
+    const bar = s.host.querySelector('anotoki-announcement [data-announcement]');
+    expect([bar?.getAttribute('data-level'), bar?.querySelector('.anotoki-announcement__message')?.textContent?.trim()]).toEqual(['warning', 'New songs on Friday.']);
+    // Above the site's own bar: the site talking, not navigation.
+    expect(bar!.compareDocumentPosition(s.host.querySelector('app-top-bar')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A learner is told nothing of what others are not shown - and the bar offers no section Page access closes to them.
+    expect(s.host.querySelector('anotoki-page-notice anotoki-alert')).toBeNull();
+    expect(Array.from(s.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs']);
+
+    // The site's ADMIN on a page kept for some readers: told so, between the notes and the page.
+    session(s.auth, { ...PERSON, roles: ['MEMBER', 'ADMIN'] });
+    await go(s, '/stats');
+    const notice = s.host.querySelector('anotoki-page-notice anotoki-alert[data-notice]');
+    expect(notice).not.toBeNull();
+    expect(notice!.compareDocumentPosition(s.host.querySelector('#view-root')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(Array.from(s.host.querySelectorAll(`${BAR.nav} a`)).map((link) => link.textContent?.trim())).toEqual(['Learn', 'Note Trainer', 'Sheet Practice', 'Songs', 'Stats']);
+    // The admin panel's frame is its own: neither of the shell's there.
+    await go(s, '/admin/translations');
+    expect(s.host.querySelector('anotoki-announcement, anotoki-page-notice')).toBeNull();
+
+    // Closed for maintenance: the ADMIN uses the site as it is - the frame round the page -, a learner reads the sign alone.
+    await go(s, '/trainer');
+    s.site.report('maintenance', true, { en: 'Back at noon.' });
+    await settled(s);
+    expect(standsAlone(s)).toEqual({ status: false, frame: FRAME, mains: 1 });
+    session(s.auth, { ...PERSON, roles: ['MEMBER'] });
+    await settled(s);
+    await new Promise((done) => setTimeout(done, 50));
+    await settled(s);
+    expect(standsAlone(s)).toEqual({ status: true, frame: [], mains: 1 });
+    expect(s.host.querySelector('anotoki-site-status [data-maintenance-message]')?.textContent?.trim()).toBe('Back at noon.');
   });
 
   it('draws nothing of its own round the admin panel - no bar, no note, no footer, no <main>: its frame has them - and makes its page once as the address crosses from one half to the other', async () => {

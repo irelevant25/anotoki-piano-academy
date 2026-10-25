@@ -8,8 +8,11 @@ import { SiteStatus } from '@anotoki/lib/migrations';
 import { ThemeToggleComponent } from '@anotoki/lib/shell';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
 import { CardComponent } from '@anotoki/lib/ui/card';
+import { AnotokiDates } from '@anotoki/lib/ui/dates';
 import { AnotokiIcons } from '@anotoki/lib/ui/icon';
-import { iconDatabase, iconGlobe, iconHistory, iconLanguages, iconMessage, iconSave, iconUsers } from '@anotoki/lib/ui/icons';
+import { PageNoticeComponent } from '@anotoki/lib/site-settings';
+import { iconDatabase, iconGlobe, iconHistory, iconLanguages, iconMessage, iconSave, iconUsers, iconWrench } from '@anotoki/lib/ui/icons';
+import { AdminDates } from '../../shared/admin-dates';
 import { SignOutService } from '../../shared/auth/sign-out.service';
 import { ChangelogService } from '../../shared/changelog/changelog.service';
 import { TRANSLATIONS_ROUTES } from '../../shared/i18n/site-translations';
@@ -17,6 +20,7 @@ import { ADMIN_TOOL_ROUTES } from '../../shared/site-admin';
 import { BootService } from '../../shared/state/boot.service';
 import { MIGRATIONS_ROUTE } from '../../shared/state/site-migrations';
 import { ChangelogDialogComponent } from '../../shared/ui/changelog-dialog/changelog-dialog.component';
+import { adminStamp } from './admin-stamp';
 
 /** A page of the admin panel in the frame's column: its words (English, as the panel is), where it goes, its icon, and whether it is the ADMIN's alone. */
 export interface AdminPage {
@@ -28,9 +32,10 @@ export interface AdminPage {
 }
 
 /**
- * The admin panel's pages under their headings, in the order the top bar had them before the frame: the app's words
- * (Translations for the staff, Languages for an ADMIN), then what keeps the site running - the people, the family's
- * admin tools (shared/site-admin.ts) and the database's migrations, all an ADMIN's.
+ * The admin panel's pages under their headings - the one shape of every anotoki admin panel (the owner's request of
+ * 2026-10-25): no pages of Piano Academy's own above the headings; Localization - Translations (the staff's),
+ * Languages (an ADMIN's); System - the family's pages in the family's order and words, all an ADMIN's: Site settings
+ * (shared/site-settings.ts), People, Feedback, Error log, Audit log, Backups (shared/site-admin.ts), Migrations.
  */
 export const ADMIN_GROUPS: readonly { label: string; pages: readonly AdminPage[] }[] = [
   {
@@ -43,6 +48,7 @@ export const ADMIN_GROUPS: readonly { label: string; pages: readonly AdminPage[]
   {
     label: 'System',
     pages: [
+      { label: 'Site settings', path: ADMIN_TOOL_ROUTES.siteSettings, icon: 'wrench', adminOnly: true },
       { label: 'People', path: ADMIN_TOOL_ROUTES.people, icon: 'users', adminOnly: true },
       { label: 'Feedback', path: ADMIN_TOOL_ROUTES.feedback, icon: 'message', adminOnly: true },
       { label: 'Error log', path: ADMIN_TOOL_ROUTES.errors, icon: 'alert', adminOnly: true },
@@ -63,7 +69,7 @@ export const ADMIN_BACK: AdminFrameLink = { label: 'Back to Piano Academy', path
  * The icons of the panel's pages that the kit does not draw itself (it has `alert`): the family's
  * (@anotoki/lib/ui/icons), registered as the panel opens - its lazy chunk carries them, never the first load.
  */
-const ADMIN_ICONS = { languages: iconLanguages, globe: iconGlobe, users: iconUsers, message: iconMessage, history: iconHistory, save: iconSave, database: iconDatabase };
+const ADMIN_ICONS = { languages: iconLanguages, globe: iconGlobe, wrench: iconWrench, users: iconUsers, message: iconMessage, history: iconHistory, save: iconSave, database: iconDatabase };
 
 /**
  * The admin panel (/admin), English like every page in it: the anotoki family's admin frame
@@ -77,12 +83,14 @@ const ADMIN_ICONS = { languages: iconLanguages, globe: iconGlobe, users: iconUse
  * shell draws nothing of its own round it (app.component: no bar, no notes, no footer of its - the frame has its own
  * <main>).
  *
- * The pages are the ones the person's role opens: Translations for the staff (EDITOR or ADMIN); Languages, People, the
- * admin tools and Migrations for ADMIN alone. While an update waits (the family's status page stands in every other
- * page's place) an ADMIN has the Migrations page alone. An ADMIN's "Feedback" says how many messages are new: asked
- * once as the panel opens (the family's FeedbackUnread; the Feedback page keeps it in step). The column only hides what
- * the server refuses anyway: an EDITOR who opens an ADMIN page by its address is sent to the start page (the family's
- * adminGuard), and the API answers 403 forbidden.
+ * The pages are the ones the person's role opens: Translations for the staff (EDITOR or ADMIN); Languages, Site
+ * settings, People, the admin tools and Migrations for ADMIN alone. While an update waits (the family's status page
+ * stands in every other page's place) an ADMIN has the Migrations page alone. An ADMIN's "Feedback" says how many
+ * messages are new: asked once as the panel opens (the family's FeedbackUnread; the Feedback page keeps it in step).
+ * The column only hides what the server refuses anyway: an EDITOR who opens an ADMIN page by its address is sent to the
+ * start page (the family's adminGuard), and the API answers 403 forbidden. Above every page, while the site is closed
+ * for maintenance, the family's notice says so (<anotoki-page-notice> in the frame's notice slot: no row of Page access
+ * governs /admin, so only the maintenance line shows here).
  *
  * Anybody else sees why there is nothing here, on a page of its own - no column, no menu (as genshin's page that says
  * the panel is not theirs):
@@ -104,7 +112,7 @@ const ADMIN_ICONS = { languages: iconLanguages, globe: iconGlobe, users: iconUse
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, AdminFrameComponent, ThemeToggleComponent, SiteFooterComponent, ChangelogDialogComponent, ButtonComponent, CardComponent],
+  imports: [RouterOutlet, RouterLink, AdminFrameComponent, ThemeToggleComponent, PageNoticeComponent, SiteFooterComponent, ChangelogDialogComponent, ButtonComponent, CardComponent],
 })
 export class AppComponent {
   protected readonly auth = inject(AnotokiAuth);
@@ -149,6 +157,10 @@ export class AppComponent {
 
   constructor() {
     inject(AnotokiIcons).register(ADMIN_ICONS);
+    // The panel's dates (People's, Migrations', the admin tools'): the family's, handed over as the panel opens - they
+    // come with its chunk, never with the first load (shared/admin-dates.ts).
+    const dates = inject(AnotokiDates);
+    inject(AdminDates).use((value) => adminStamp(value, dates));
     // How many feedback messages are new, for the column's "Feedback" - asked for an ADMIN (the family's count asks
     // nothing for anybody else), again when an ADMIN signs in here.
     effect(() => {

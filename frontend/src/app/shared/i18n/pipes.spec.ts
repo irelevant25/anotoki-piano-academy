@@ -2,9 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { type AnotokiPreferences } from '@anotoki/lib/auth';
 import { TranslatePipe, TranslatePluralPipe, TranslationService } from '@anotoki/lib/translations';
 import { provideTestTranslations } from '@anotoki/lib/translations/testing';
+import { AnotokiDatePipe, AnotokiDates } from '@anotoki/lib/ui/dates';
+import { provideFamilyKit } from '../family-kit';
 import { TestAuth, provideTestAuth } from '../testing/test-auth';
-import { formatClock, formatDatePattern } from './date-patterns';
-import { LocalDatePipe } from './local-date.pipe';
+import { adminStamp } from '../../sites/admin/admin-stamp';
 
 const ENGLISH = {
   'common.close': 'Close',
@@ -27,22 +28,25 @@ const SLOVAK = {
   'meet.instruction.other': 'Toto sú tvoje nové noty. Pri každej nájdi modrý kláves a stlač ho {times}-krát.',
 };
 
+/** The pipes as this app has them: its words, its sign-in, and the family's kit as it wires it (shared/family-kit.ts: the dates' locale and the account's choices). */
 function pipes(language: 'en' | 'sk') {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
     providers: [
       language === 'sk' ? provideTestTranslations(SLOVAK, { language: 'sk', english: ENGLISH }) : provideTestTranslations(ENGLISH),
       ...provideTestAuth(),
+      ...provideFamilyKit(),
       TranslatePipe,
       TranslatePluralPipe,
-      LocalDatePipe,
+      AnotokiDatePipe,
     ],
   });
   return {
     i18n: TestBed.inject(TranslationService),
     translate: TestBed.inject(TranslatePipe),
     plural: TestBed.inject(TranslatePluralPipe),
-    date: TestBed.inject(LocalDatePipe),
+    date: TestBed.inject(AnotokiDatePipe),
+    dates: TestBed.inject(AnotokiDates),
   };
 }
 
@@ -82,11 +86,13 @@ describe('the translate pipes', () => {
   });
 });
 
-describe('the localDate pipe', () => {
-  it('writes a day in full, the way the language does', () => {
+// The family's date pipe (@anotoki/lib/ui/dates' anotokiDate, anotoki-lib 0.11.0) in the place of this app's own
+// localDate: What's new's release days ('day', its 'day') and Stats' rounds ('datetime', its 'moment') - written as they
+// were, but for one thing: a Slovak time before ten has two digits for its hour (09:05, the family's way; 9:05 before).
+describe('the family’s date pipe, as this app wires it (shared/family-kit.ts)', () => {
+  it('writes a day in full, the way the language does - What’s new’s release days', () => {
     const noon = new Date(2026, 9, 20, 12).toISOString();
     expect(pipes('en').date.transform(noon, 'day')).toBe('20 October 2026');
-    expect(pipes('en').date.transform(noon)).toBe('20 October 2026');
     expect(pipes('sk').date.transform(noon, 'day')).toBe('20. októbra 2026');
   });
 
@@ -95,16 +101,19 @@ describe('the localDate pipe', () => {
     expect(pipes('sk').date.transform('2026-01-01', 'day')).toBe('1. januára 2026');
   });
 
-  it('writes a moment - when a round was played - with its time, in the learner’s own time zone', () => {
+  it('writes a moment - when a round was played - with its time, in the learner’s own time zone; a Slovak hour before ten with two digits', () => {
     const played = new Date(2026, 9, 20, 18, 5).toISOString();
-    expect(pipes('en').date.transform(played, 'moment')).toBe('20 Oct 2026, 18:05');
-    expect(pipes('sk').date.transform(played, 'moment')).toBe('20. 10. 2026, 18:05');
+    expect(pipes('en').date.transform(played, 'datetime')).toBe('20 Oct 2026, 18:05');
+    expect(pipes('sk').date.transform(played, 'datetime')).toBe('20. 10. 2026, 18:05');
+    const morning = new Date(2026, 9, 20, 9, 5).toISOString();
+    expect(pipes('en').date.transform(morning, 'datetime')).toBe('20 Oct 2026, 09:05');
+    expect(pipes('sk').date.transform(morning, 'datetime')).toBe('20. 10. 2026, 09:05');
   });
 
   it('gives nothing for nothing, and what is not a date back as it came', () => {
     const { date } = pipes('en');
     expect(date.transform(null, 'day')).toBe('');
-    expect(date.transform(undefined, 'moment')).toBe('');
+    expect(date.transform(undefined, 'datetime')).toBe('');
     expect(date.transform('', 'day')).toBe('');
     expect(date.transform('soon', 'day')).toBe('soon');
   });
@@ -115,14 +124,6 @@ describe('the localDate pipe', () => {
     expect(await i18n.setLanguage('en', { remember: false })).toBe(true);
     expect(date.transform('2026-10-20', 'day')).toBe('20 October 2026');
   });
-
-  it('writes the admin panel’s stamp as it always was: yyyy-MM-dd HH:mm here, the server’s own as it came', () => {
-    const { date } = pipes('en');
-    expect(date.transform(new Date(2026, 9, 1, 9, 5).toISOString(), 'stamp')).toBe('2026-10-01 09:05');
-    expect(date.transform('2026-10-04 09:30', 'stamp')).toBe('2026-10-04 09:30');
-    expect(date.transform(null, 'stamp')).toBe('');
-    expect(date.transform('soon', 'stamp')).toBe('soon');
-  });
 });
 
 /** Somebody signed in whose anotoki account chose these - the user AnotokiAuth holds - or, `signedIn` false, a session that ended. */
@@ -131,8 +132,9 @@ function account(preferences: AnotokiPreferences | null, signedIn = true): void 
   if (!signedIn) auth.now.set('signed-out');
 }
 
-describe('the localDate pipe, for somebody whose anotoki account chose an order or a clock', () => {
-  const chosen = (date_format: AnotokiPreferences['date_format'], time_format: AnotokiPreferences['time_format']): AnotokiPreferences => ({ theme: 'auto', date_format, time_format });
+const chosen = (date_format: AnotokiPreferences['date_format'], time_format: AnotokiPreferences['time_format']): AnotokiPreferences => ({ theme: 'auto', date_format, time_format });
+
+describe('the family’s date pipe, for somebody whose anotoki account chose an order or a clock', () => {
   const noon = new Date(2026, 9, 6, 12).toISOString();
   const evening = new Date(2026, 9, 20, 18, 5).toISOString();
   const morning = new Date(2026, 9, 20, 9, 5).toISOString();
@@ -154,32 +156,30 @@ describe('the localDate pipe, for somebody whose anotoki account chose an order 
   it('writes a moment as the date and the time side by side once either is chosen - each half the language’s own where it is automatic', () => {
     const en = pipes('en');
     account(chosen('ymd_dash', '24'));
-    expect(en.date.transform(evening, 'moment')).toBe('2026-10-20 18:05');
+    expect(en.date.transform(evening, 'datetime')).toBe('2026-10-20 18:05');
     account(chosen('dmy_dot', null));
-    expect(en.date.transform(evening, 'moment')).toBe('20.10.2026 18:05');
+    expect(en.date.transform(evening, 'datetime')).toBe('20.10.2026 18:05');
     // The 12-hour clock in the page language's words for am and pm.
     account(chosen(null, '12'));
-    expect(en.date.transform(evening, 'moment')).toBe(`20 Oct 2026 ${formatClock(new Date(evening), 'en-GB', '12')}`);
-    expect(formatClock(new Date(evening), 'en-GB', '12')).toBe('6:05 pm');
+    expect(en.date.transform(evening, 'datetime')).toBe('20 Oct 2026 6:05 pm');
 
     const sk = pipes('sk');
     account(chosen(null, '12'));
-    expect(sk.date.transform(evening, 'moment')).toBe('20. 10. 2026 6:05 PM');
-    // The 24-hour clock has two digits for the hour, where Slovak's own writes one.
+    expect(sk.date.transform(evening, 'datetime')).toBe('20. 10. 2026 6:05 PM');
     account(chosen(null, '24'));
-    expect(sk.date.transform(morning, 'moment')).toBe('20. 10. 2026 09:05');
+    expect(sk.date.transform(morning, 'datetime')).toBe('20. 10. 2026 09:05');
     account(chosen(null, null));
-    expect(sk.date.transform(morning, 'moment')).toBe('20. 10. 2026, 9:05');
+    expect(sk.date.transform(morning, 'datetime')).toBe('20. 10. 2026, 09:05');
   });
 
   it('writes as the language does for nobody signed in - a visitor, or a session that ended - and for an account that chose nothing', () => {
     const { date } = pipes('en');
     account(chosen('ymd_dash', '12'), false);
-    expect(date.transform(evening, 'moment')).toBe('20 Oct 2026, 18:05');
+    expect(date.transform(evening, 'datetime')).toBe('20 Oct 2026, 18:05');
     expect(date.transform('2026-10-20', 'day')).toBe('20 October 2026');
-    // An IAM that sends no preferences (before its 015): the app's own way, as before.
+    // An IAM that sends no preferences (before its 015): the language's own way.
     account(null);
-    expect(date.transform(evening, 'moment')).toBe('20 Oct 2026, 18:05');
+    expect(date.transform(evening, 'datetime')).toBe('20 Oct 2026, 18:05');
     account(chosen(null, null));
     expect(date.transform('2026-10-20', 'day')).toBe('20 October 2026');
   });
@@ -191,35 +191,24 @@ describe('the localDate pipe, for somebody whose anotoki account chose an order 
     account(chosen('mdy_slash', null));
     expect(date.transform('2026-10-20', 'day')).toBe('10/20/2026');
   });
-
-  it('writes the admin panel’s stamp in the account’s order and clock - the server’s own numbers as they are, never moved to another time zone', () => {
-    const { date } = pipes('en');
-    account(chosen('dmy_slash', '12'));
-    expect(date.transform(new Date(2026, 9, 1, 12, 0).toISOString(), 'stamp')).toBe('01/10/2026 12:00 pm');
-    expect(date.transform('2026-10-04 09:30', 'stamp')).toBe('04/10/2026 9:30 am');
-    account(chosen('dmy_dot', null));
-    expect(date.transform('2026-10-04 21:07', 'stamp')).toBe('4.10.2026 21:07');
-    expect(date.transform(new Date(2026, 9, 1, 9, 5).toISOString(), 'stamp')).toBe('1.10.2026 09:05');
-    account(chosen(null, '24'));
-    expect(date.transform('2026-03-29 02:30', 'stamp')).toBe('2026-03-29 02:30');
-  });
 });
 
-describe('the family’s date orders and clocks (date-patterns.ts)', () => {
-  it('pads where the order does, and not in the dotted one', () => {
-    const day = new Date(2026, 0, 5, 12);
-    expect([formatDatePattern(day, 'dmy_dot'), formatDatePattern(day, 'dmy_slash'), formatDatePattern(day, 'mdy_slash'), formatDatePattern(day, 'ymd_dash')]).toEqual([
-      '5.1.2026',
-      '05/01/2026',
-      '01/05/2026',
-      '2026-01-05',
-    ]);
+describe('the admin panel’s stamp (sites/admin/admin-stamp.ts): People’s, the Migrations page’s and the admin tools’ dates', () => {
+  it('writes yyyy-MM-dd HH:mm in the reader’s time zone, as it always was - nothing for nothing, a text that is no date as it came', () => {
+    const { dates } = pipes('en');
+    expect(adminStamp(new Date(2026, 9, 1, 9, 5).toISOString(), dates)).toBe('2026-10-01 09:05');
+    expect(adminStamp('2026-10-06T10:01:02Z', dates)).toBe(adminStamp(new Date(Date.UTC(2026, 9, 6, 10, 1, 2)).toISOString(), dates));
+    expect(adminStamp(null, dates)).toBe('');
+    expect(adminStamp('soon', dates)).toBe('soon');
   });
 
-  it('reads UTC numbers when told: what the server wrote on its own clock', () => {
-    const late = new Date(Date.UTC(2026, 11, 31, 23, 30));
-    expect(formatDatePattern(late, 'ymd_dash', true)).toBe('2026-12-31');
-    expect(formatClock(late, 'en-GB', '24', true)).toBe('23:30');
-    expect(formatClock(late, 'en-GB', '12', true)).toBe('11:30 pm');
+  it('writes the account’s order and clock in their place where it chose them', () => {
+    const { dates } = pipes('en');
+    account(chosen('dmy_slash', '12'));
+    expect(adminStamp(new Date(2026, 9, 1, 12, 0).toISOString(), dates)).toBe('01/10/2026 12:00 pm');
+    account(chosen('dmy_dot', null));
+    expect(adminStamp(new Date(2026, 9, 1, 9, 5).toISOString(), dates)).toBe('1.10.2026 09:05');
+    account(chosen(null, '12'));
+    expect(adminStamp(new Date(2026, 9, 1, 21, 7).toISOString(), dates)).toBe('2026-10-01 9:07 pm');
   });
 });

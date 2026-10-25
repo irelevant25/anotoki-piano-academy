@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, output } from '@a
 import { FALLBACK_LANGUAGE, TranslatePipe, TranslationService } from '@anotoki/lib/translations';
 import { BadgeComponent } from '@anotoki/lib/ui/badge';
 import { ButtonComponent } from '@anotoki/lib/ui/button';
+import { AnotokiDatePipe } from '@anotoki/lib/ui/dates';
 import { DialogComponent } from '@anotoki/lib/ui/dialog';
 import { ChangelogService } from '../../changelog/changelog.service';
-import { LocalDatePipe } from '../../i18n/local-date.pipe';
 
 /**
  * What is new, release by release (public/changelog.json) - opened from
@@ -31,7 +31,7 @@ import { LocalDatePipe } from '../../i18n/local-date.pipe';
   templateUrl: './changelog-dialog.component.html',
   styleUrl: './changelog-dialog.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslatePipe, LocalDatePipe, BadgeComponent, ButtonComponent, DialogComponent],
+  imports: [TranslatePipe, AnotokiDatePipe, BadgeComponent, ButtonComponent, DialogComponent],
 })
 export class ChangelogDialogComponent {
   protected readonly changelog = inject(ChangelogService);

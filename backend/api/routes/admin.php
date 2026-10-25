@@ -9,6 +9,7 @@ use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
 use Anotoki\Lib\Migrations\Migrator;
 use Anotoki\Lib\People\Http\PeopleRoutes;
+use Anotoki\Lib\SiteSettings\Http\SiteSettingsRoutes;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -103,6 +104,24 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                         browser's navigation sends no token, and the single-use ticket (60 seconds, one
  *                         backup, its hash kept) is the check
  *
+ * ADMIN alone - the site settings (anotoki/lib's SiteSettingsRoutes::admin(),
+ * api/site_settings.php: Getting in, the announcement, Page access):
+ *
+ *   GET    /api/admin/site-settings             {parts, settings: {name: {value, updated_at, updated_by,
+ *                                               updated_by_name}}, pages, levels, visibilities, reserved, limits}
+ *   PUT    /api/admin/site-settings             {settings: {name: value}}, the switches that changed -> the same;
+ *                                               audited site_settings.changed (each switch before and after)
+ *   POST   /api/admin/site-settings/pages       {path, visibility?, blocked?, api_paths?} -> 201 the same; audited
+ *                                               page_access.added; 409 page_exists; 422 invalid_page (a reserved
+ *                                               page, or one under it), invalid_api_path (a reserved API path, or
+ *                                               one that covers or sits inside one)
+ *   PUT    /api/admin/site-settings/pages       {pages: [{id, visibility?, blocked?, api_paths?}]} -> the same;
+ *                                               audited page_access.changed, an entry a row
+ *   DELETE /api/admin/site-settings/pages/{id}  -> the same; audited page_access.removed; 404 not_found
+ *
+ * 503 feature_unavailable while the library's anotoki_admin/003 waits. A
+ * reserved path: it answers while the site is closed for maintenance.
+ *
  * The error log and the backups (but restore) answer while an update waits:
  * they need no table. The words' routes answer in the library's order, after
  * the group's role check (401, 403): a {code} that is not a language's is
@@ -186,3 +205,8 @@ FeedbackRoutes::admin($app, '/api/admin/feedback', feedback(), adminContext(), a
 BackupsRoutes::admin($app, '/api/admin/backups', backups(), adminContext())->add(adminByToken());
 // The download: its single-use ticket is its check (a browser's navigation sends no token) - never an admin check.
 BackupsRoutes::file($app, '/api/admin/backups', backups(), adminContext());
+
+// The site settings (api/site_settings.php) - the site's ADMIN, from the token (the library's group asks
+// adminContext() too); every change audited by the library through auditLog(). A reserved path: it answers while the
+// site is closed for maintenance, so whoever closed it can open it again.
+SiteSettingsRoutes::admin($app, siteSettings(), adminContext(), auditLog())->add(adminByToken());

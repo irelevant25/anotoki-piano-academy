@@ -48,6 +48,10 @@ const WORDS: Record<string, string> = {
   'legal.words.what': 'Who saved a word.',
   'legal.words.why': 'Why who saved a word.',
   'legal.words.kept': 'How long who saved a word.',
+  'legal.settings.name': 'If you change the site’s settings',
+  'legal.settings.what': 'Who changed a setting.',
+  'legal.settings.why': 'Why who changed a setting.',
+  'legal.settings.kept': 'How long who changed a setting.',
   'legal.visitors.what': 'A visitor.',
   'legal.visitors.why': 'Why a visitor.',
   'legal.visitors.kept': 'Until a sign-in, or {days} days after the last visit.',
@@ -147,7 +151,7 @@ describe('the legal pages, as Piano Academy fills them in', () => {
     expect(() => config.facts()).toThrow(/frame/);
   });
 
-  it('the facts: four parts of its own, the visitors for the days the sweep keeps them, feedback, its audit log and plain backups in its words, its cookies and storage by name, the hosting company and Cloudflare', async () => {
+  it('the facts: five parts of its own, the visitors for the days the sweep keeps them, feedback, its audit log and plain backups in its words, its cookies and storage by name, the hosting company and Cloudflare', async () => {
     await configure();
     const facts = pianoLegalFacts(TestBed.inject(TranslationService), TestBed.inject(AnotokiAuth));
     expect(facts.site).toBe('Piano Academy');
@@ -155,7 +159,7 @@ describe('the legal pages, as Piano Academy fills them in', () => {
     expect(facts.updated).toBe(PIANO_LEGAL_UPDATED);
     // The anotoki account's pages at the IAM the app signs in with - never a string's address.
     expect(facts.account).toEqual({ deleteUrl: `${IAM}/account`, privacyUrl: `${IAM}/privacy` });
-    expect(facts.data.map((part) => part.name)).toEqual(['Your record', 'Your progress', 'Limits against floods', 'If you keep the site’s words']);
+    expect(facts.data.map((part) => part.name)).toEqual(['Your record', 'Your progress', 'Limits against floods', 'If you keep the site’s words', 'If you change the site’s settings']);
     expect(facts.visitors).toEqual({ what: WORDS['legal.visitors.what'], why: WORDS['legal.visitors.why'], kept: 'Until a sign-in, or 30 days after the last visit.' });
     // Piano Academy takes feedback (the form at the foot of every page): its own words for what a message keeps and how long.
     expect(facts.feedback).toEqual({ what: WORDS['legal.feedback.what'], kept: WORDS['legal.feedback.kept'] });
@@ -176,6 +180,8 @@ describe('the legal pages, as Piano Academy fills them in', () => {
       ['piano-academy:progress-replaced:…', 'local', null],
       ['piano-learning:last-midi-device-name', 'local', null],
       ['piano-academy:localization-drafts', 'session', null],
+      // The announcement the reader hid (the site settings): the library's preset, its own words.
+      ['piano-academy:announcement', null, 'announcement'],
     ]);
     expect(facts.processors).toEqual([{ preset: 'hosting', name: 'WebSupport s.r.o.', url: 'https://www.websupport.sk' }, { preset: 'cloudflare' }]);
   });
@@ -190,6 +196,7 @@ describe('the legal pages, as Piano Academy fills them in', () => {
       'data-1',
       'data-2',
       'data-3',
+      'data-4',
       'visitors',
       'feedback',
       'error-log',
@@ -215,6 +222,7 @@ describe('the legal pages, as Piano Academy fills them in', () => {
       'piano-academy:progress-replaced:…',
       'piano-learning:last-midi-device-name',
       'piano-academy:localization-drafts',
+      'piano-academy:announcement',
     ]);
     expect(texts(host, '[data-recipient] .anotoki-legal-page__item-name')).toEqual(['WebSupport s.r.o.', 'Cloudflare, Inc.']);
     expect(host.querySelector('[data-analytics]')?.textContent).toContain('umami.anotoki.eu');

@@ -4,7 +4,7 @@
             <div class="practice">
                 <div class="cluster controls">
                     <button anotokiButton id="sg-back" (click)="back()"><anotoki-icon name="arrowLeft" [size]="16" />{{ 'songs.back' | translate }}</button>
-                    <anotoki-select id="sg-bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm().toString()" (valueChange)="chooseTempo($event)" />
+                    <anotoki-select id="sg-bpm" [label]="'tempo.label' | translate" [options]="tempoOptions()" [value]="bpm()" (valueChange)="chooseTempo($event)" />
                     <button anotokiButton id="sg-start" [disabled]="playing()" (click)="start()">{{ 'player.start' | translate }}</button>
                 </div>
                 <app-notation id="sg-notation" />

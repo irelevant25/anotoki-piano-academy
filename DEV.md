@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.10.0"`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.11.0"`;
 in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
 Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.10.0/anotoki-lib-0.10.0.tgz`;
+tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.11.0/anotoki-lib-0.11.0.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -36,7 +36,10 @@ and every page's buttons, cards, alerts, badges, selects, dialogs and table
 - `frontend/README.md`); signing in (the IAM's SDKs moved into it), the people
 and the admin tools (below, *Signing in, people and the admin tools*); the
 legal pages (below, *Terms, Privacy and Contact*) and About and Support; the
-footer (below, *The family's footer*); the admin panel's frame. Both halves are at 0.10.0 (0.10.0 added the
+footer (below, *The family's footer*); the admin panel's frame; the site settings, robots.txt and sitemap.xml
+(below, *The site settings*). Both halves are at 0.11.0 (0.11.0 added the site settings - Getting in, the
+announcement, Page access -, robots.txt and sitemap.xml, the dates' pipes and the kit's typed select values, and the
+Migrator's one number for one file; 0.10.0 added the
 admin panel's frame - `<anotoki-admin-frame>`, genshin's: the panel's pages in a column on the left, no top bar
 there; 0.6.0 added the legal pages -
 Terms, Privacy, Contact and the footer's links - and the kit's chips, stat
@@ -188,11 +191,45 @@ the family's `SiteGate` in front of every route, `api/index.php`) and
   throughout;
 - **the database out of reach**: the routes answer as ever (503
   `database_unavailable`); the page says "The site is not available right
-  now".
+  now";
+- **closed for maintenance** (the site settings' Getting in, below): every path
+  answers 503 `maintenance` (`Retry-After: 300`) to everybody but the site's
+  ADMIN - but the open ones above and the reserved ones (the sign-in
+  settings, the words, the site settings, `/api/health`, and the progress
+  store whole: a learner practising when it closed keeps their progress).
+  Everybody else reads the family's closed sign with the administrators'
+  words; at `/staff` it offers Sign in, and the ADMIN who signs in there uses
+  the site as it is, told above every page that it is closed.
 
 On this computer that means: after writing a migration your own dev site
 says it is being updated until you apply it - `php migration.php`, Save on
 the setup page, or "Apply pending" as an ADMIN.
+
+### The site settings, robots.txt and sitemap.xml
+
+The admin panel's **Site settings** (System, first; the site's ADMIN alone):
+Getting in, the announcement and Page access - `anotoki-lib` 0.11.0's, wired
+in `backend/api/site_settings.php` and `frontend/src/app/shared/site-settings.ts`
+(the tables: the library's `anotoki_admin/003`). A page Page access closes to
+somebody falls through to Learn, as an unknown address does; where Learn is
+closed to them too, a page says it is not open. No row may claim a reserved
+API path - the progress store among them (`siteReservedApiPaths()`) - so a
+learner's saves work on every page they may use.
+
+`/robots.txt` and `/sitemap.xml` are the API's: `router.php` hands both to
+`api/index.php`, `ng serve`'s proxy (`frontend/proxy.conf.json`) sends both to
+`:8300`, and the deploy's `routes` send both to the front controller. They
+are written with the site's public address from the optional
+`backend/config/site.local.php` - never written by setup, never read off a
+request:
+
+```php
+<?php return ['public_url' => 'http://localhost:4500'];   // on the host: 'https://piano.anotoki.eu'
+```
+
+Without it robots.txt names no sitemap and `/sitemap.xml` answers 404
+`not_configured`. The sitemap is kept an hour in `storage/cache/anotoki-sitemap.json`
+(delete it to see a change of the IAM's sign-in switch at once).
 
 ### The app's words
 
@@ -340,8 +377,12 @@ throwaway database - committed, and run after anything a page shows changes
 
 ```bash
 # from the repository's root; PHP: the 8.2+ binary (Git Bash's `php` may be older)
-PHP=/path/to/php node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure]
+PHP=/path/to/php node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure] [--only=site-settings]
 ```
+
+`--only=site-settings` runs the site settings' tour alone (robots.txt and
+sitemap.xml fetched, the announcement, the Site settings page and its menu,
+the closed sign and its door) - a few minutes in place of the whole check.
 
 It builds the frontend, makes `piano_test_browser_<port>` from the tests'
 template, starts the stand-in IAM on 8597 (its key from the library's
@@ -682,7 +723,7 @@ is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
-library's 0.6.3)**: the build carries `anotoki-lib` 0.10.0 - both halves. The
+library's 0.6.3)**: the build carries `anotoki-lib` 0.11.0 - both halves. The
 foot of every page, the admin panel's too, is the family's footer
 (`<anotoki-site-footer>`, the build analyzer's): "v0.4.0 · What's new ·
 Feedback" (a screen reader hears "Version 0.4.0") - the version and What's new
@@ -711,6 +752,19 @@ footer's links. No migration of the app's: the library's
 the footer's two links and the feedback form's Clear) runs in the same Apply,
 after the app's own; until then the pages and the links say the library's
 built-in words.
+
+**The site settings (migration 014, 2026-10-25; the library's 0.11.0)**: the
+build carries `anotoki-lib` 0.11.0 - both halves. 014 is words only: the
+Privacy page's part about the site settings (`legal.settings.*`: who changed
+a setting last, and when) and the page that says a page is not open
+(`notOpen.*`, `title.notOpen`), English and informal Slovak, and its gate. The
+library's `anotoki_admin/003_site_settings.sql` (the site settings' two
+tables) runs before it, its `anotoki_translations/014_editor_and_piece_words.sql`
+and `015_site_settings_words.sql` after it - one Apply; until 003 is applied
+every switch is at its default and the Site settings page says an update
+waits. On the host, put `config/site.local.php` (`['public_url' =>
+'https://piano.anotoki.eu']`) beside the other settings by hand for the
+sitemap (README, *Hosting checklist*).
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code

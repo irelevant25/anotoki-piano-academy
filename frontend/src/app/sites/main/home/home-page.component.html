@@ -23,9 +23,11 @@
 @if (dueCount() > 0) {
     <anotoki-alert class="review-banner" tone="warning">
         <span>{{ due()[0] }}@if (due()[2]) {<strong>{{ dueCount() }}</strong>}{{ due()[1] }}</span>
-        <div alertActions>
-            <button anotokiButton size="sm" (click)="go('/trainer')">{{ 'home.reviewInTrainer' | translate }}</button>
-        </div>
+        @if (trainerOpen()) {
+            <div alertActions>
+                <button anotokiButton size="sm" (click)="go('/trainer')">{{ 'home.reviewInTrainer' | translate }}</button>
+            </div>
+        }
     </anotoki-alert>
 }
 
@@ -76,11 +78,12 @@
     }
 }
 
-<anotoki-card class="free-practice" [heading]="'home.free.title' | translate" [subheading]="'home.free.text' | translate">
-    <div class="cluster">
-        <button anotokiButton (click)="go('/trainer')">{{ 'nav.trainer' | translate }}</button>
-        <button anotokiButton (click)="go('/sheet')">{{ 'nav.sheet' | translate }}</button>
-        <button anotokiButton (click)="go('/songs')">{{ 'nav.songs' | translate }}</button>
-        <button anotokiButton (click)="go('/stats')">{{ 'nav.stats' | translate }}</button>
-    </div>
-</anotoki-card>
+@if (practice().length > 0) {
+    <anotoki-card class="free-practice" [heading]="'home.free.title' | translate" [subheading]="'home.free.text' | translate">
+        <div class="cluster">
+            @for (section of practice(); track section.path) {
+                <button anotokiButton (click)="go(section.path)">{{ section.key | translate }}</button>
+            }
+        </div>
+    </anotoki-card>
+}

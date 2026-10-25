@@ -60,8 +60,8 @@ export class SongPlayerPageComponent implements OnInit {
     return song ? [0.75, 1, 1.25].map((factor) => ({ value: Math.round(song.bpm * factor), original: factor === 1 })) : [];
   });
   /** The tempos as the select's choices, in the page's language ("100 BPM (original)"). */
-  protected readonly tempoOptions = computed<SelectOption[]>(() =>
-    this.tempos().map((tempo) => ({ value: String(tempo.value), label: this.i18n.t(tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm', { bpm: tempo.value }) })),
+  protected readonly tempoOptions = computed<SelectOption<number>[]>(() =>
+    this.tempos().map((tempo) => ({ value: tempo.value, label: this.i18n.t(tempo.original ? 'tempo.bpmOriginal' : 'tempo.bpm', { bpm: tempo.value }) })),
   );
 
   private readonly staff = viewChild(NotationComponent);
@@ -107,8 +107,8 @@ export class SongPlayerPageComponent implements OnInit {
     this.player.load(song.notes, { timeSignature: song.timeSignature });
   }
 
-  protected chooseTempo(value: string): void {
-    this.bpm.set(Number(value));
+  protected chooseTempo(value: number): void {
+    this.bpm.set(value);
   }
 
   protected start(): void {

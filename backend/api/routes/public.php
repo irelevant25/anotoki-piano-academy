@@ -6,6 +6,8 @@ use Anotoki\Lib\Auth\Http\AuthRoutes;
 use Anotoki\Lib\ErrorLog\Http\ErrorLogRoutes;
 use Anotoki\Lib\Feedback\Http\FeedbackRoutes;
 use Anotoki\Lib\Migrations\Http\MigrationsRoutes;
+use Anotoki\Lib\Robots\Http\RobotsRoutes;
+use Anotoki\Lib\SiteSettings\Http\SiteSettingsRoutes;
 use Anotoki\Lib\Translations\Http\TranslationsRoutes;
 use Anotoki\Lib\Translations\Translations;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -34,9 +36,16 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                                 translations_unavailable (Retry-After 60) while the
  *                                 database has no words yet
  *   GET  /api/site-status         where the site stands: {state: "ready" | "not_set_up" |
- *                                 "update_pending" | "unavailable", installed} - and
- *                                 nothing else (anotoki/lib's MigrationsRoutes::status());
- *                                 answered in every state, not set up too
+ *                                 "update_pending" | "unavailable" | "maintenance",
+ *                                 installed} - with maintenance_message (the administrators'
+ *                                 words per language) while the site is closed - and nothing
+ *                                 else (anotoki/lib's MigrationsRoutes::status()); answered in
+ *                                 every state, not set up too
+ *   GET  /api/site-settings       what every page is told of the site settings (anotoki/lib's
+ *                                 SiteSettingsRoutes::public(), api/site_settings.php):
+ *                                 {maintenance, announcement: null | {level, message: {en,
+ *                                 sk, ...}}, pages: [{path, visibility, blocked}]} - never a
+ *                                 page's API paths
  *   POST /api/feedback            a message from the form at the foot of every page
  *                                 (anotoki/lib's FeedbackRoutes::public()): {kind, section?,
  *                                 subject?, message, email?, page?, language?, anonymous?}
@@ -57,12 +66,20 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                                 person by their account, a visitor by their address bucket
  *                                 - and 500 a day from the visitors, as many from the people
  *                                 signed in (429 too_many)
+ *   GET  /robots.txt              what robots leave alone - /admin, /api, /auth, /stats,
+ *                                 /sign-in-failed, /staff - and the sitemap's address by the
+ *                                 site's configured public address (anotoki/lib's
+ *                                 RobotsRoutes::robots(); no Sitemap line without one)
+ *   GET  /sitemap.xml             the public pages, absolute, without what Page access hides
+ *                                 (RobotsRoutes::sitemap()); 404 not_configured while the site
+ *                                 has no public address (config/site.local.php)
  *
  * The first three answer while an update waits too (siteOpenPaths() in
  * api/index.php): somebody can sign in then, and the pages have their words.
- * The first four read no token at all (meddleware/auth.php's publicPaths());
- * the last two read who is asking as every route does (identify()) - a token
- * that does not check out is 401 there too.
+ * The first five, robots.txt and sitemap.xml read no token at all
+ * (meddleware/auth.php's publicPaths()); the feedback and the pages' errors
+ * read who is asking as every route does (identify()) - a token that does not
+ * check out is 401 there too.
  *
  * @var \Slim\App $app
  */
@@ -112,3 +129,13 @@ FeedbackRoutes::public($app, '/api/feedback', feedback(), adminContext(), feedba
 // by the library's limits - a person by their account (adminContext()'s actorId), a visitor by their address
 // bucket (its trusted proxies: Cloudflare's).
 ErrorLogRoutes::client($app, '/api/client-errors', errorLog(), adminContext());
+
+// What every page is told of the site settings (api/site_settings.php), before anybody signs in: the announcement,
+// whether the site is closed (for the administrators' notice), the pages Page access governs. No token read; open
+// while the site is closed (a reserved path).
+SiteSettingsRoutes::public($app, siteSettings());
+
+// robots.txt and sitemap.xml (api/site_settings.php's siteRobots()): no token read; behind the site's gate like any
+// route - a robot told 503 with Retry-After keeps what it had.
+RobotsRoutes::robots($app, siteRobots());
+RobotsRoutes::sitemap($app, siteRobots());
