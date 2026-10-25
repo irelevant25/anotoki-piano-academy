@@ -12,8 +12,8 @@ PostgreSQL under their anotoki IAM user id.
 | Frontend | `frontend/` | Angular 21, standalone + zoneless, signals; VexFlow 5.0.0 (npm) ([frontend/README.md](frontend/README.md)) |
 | Knowledge base | `docs/`, `.claude/` | architecture, API, decisions; the skill and the agent |
 
-Dev addresses: frontend `http://localhost:4500` (`ng serve`, proxying `/api` and
-`/setup.php`), backend `:8300` (`composer start` in `backend/`), the IAM
+Dev addresses: frontend `http://localhost:4500` (`ng serve`, proxying `/api`,
+`/setup.php`, `/robots.txt` and `/sitemap.xml`), backend `:8300` (`composer start` in `backend/`), the IAM
 `http://localhost:4300` (repo `../anotoki-iam`: `backend/` on 8100, `frontend/`
 on 4300). Sign in at `http://localhost:4500`: that is the address the IAM
 knows for `piano-academy` (`127.0.0.1` does not sign in).
@@ -372,6 +372,25 @@ new's 0.4.0: the footer, and "Feedback". The first load is 558.1 kB
 (549.4 before), under its warning, which the owner raised from 550 kB to
 575 kB the same day.
 
+**2026-10-25: the site settings, robots.txt and sitemap.xml - `anotoki-lib`
+0.11.0** (both halves; the owner's requests of 2026-10-25 for every anotoki
+site, `docs/decisions.md`). The family's site settings, all three parts, on
+the admin panel's new Site settings page (ADMIN; `api/site_settings.php`,
+`shared/site-settings.ts`): Getting in (closed for maintenance), the
+announcement (a line above the learner's bar) and Page access (who each
+learner page is shown to) - below. The admin panel's menu is the family's
+one shape: Localization (Translations, Languages), System (Site settings,
+People, Feedback, Error log, Audit log, Backups, Migrations). robots.txt and
+sitemap.xml are the library's, answered by the front controller. The dates
+are the kit's (`@anotoki/lib/ui/dates`: the `localDate` pipe and
+`date-patterns.ts` are gone - the same output, but a Slovak hour before ten
+has two digits), the tempo selects take the kit's typed options. Migration
+**014** (words only: the Privacy page's part about the settings and the page
+that is not open, seven keys) goes with the library's `anotoki_admin/003`
+and its translations 014 and 015 in one Apply. In What's new's 0.4.0: the
+announcement and the closed page. The first load is 572.9 kB (558.8 before),
+under its 575 kB warning.
+
 ## Always, before any work here
 
 1. Load the **`piano-learning-app` skill** (`.claude/skills/piano-learning-app/SKILL.md`):
@@ -493,9 +512,12 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   sign-in and whenever it changes, never while its own save is out) and the
   bar's theme switch saves a choice (`AnotokiAuth.savePreferences()`: one at
   a time, the latest last; refused, the account's theme back and
-  `theme.notSaved`); the `localDate` pipe follows the account's date order and
-  clock (`stamp` for the admin panel's People, Migrations and admin tools -
-  the family's pages take it as their `formatDate`, `localDateText()`);
+  `theme.notSaved`); the family's dates (`@anotoki/lib/ui/dates`, the
+  `anotokiDate` pipe; `provideFamilyKit()`'s `dateChoices`) follow the
+  account's date order and clock - the admin panel's stamp too (People,
+  Migrations, the admin tools: `sites/admin/admin-stamp.ts`, handed to
+  `shared/admin-dates.ts` as the panel opens, the family's pages'
+  `formatDate`);
   the language chooser (the family's) saves a signed-in person's choice
   (the family's `TranslationService.setLanguage()`, its `account.save`
   `AnotokiAuth.savePreferences()` - `shared/i18n/site-translations.ts`: a language the
@@ -520,17 +542,17 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   words; **ADMIN** also adds / changes / deletes languages, applies database
   updates, sees and deletes people's data (`/api/admin/people`) and has the
   admin tools - the error log (the server's failures and the pages' own
-  errors), the audit log, feedback, backups (EDITORs see
-  none of them: the owner's decision). `ROLE_ADMIN`, `ROLE_EDITOR`,
+  errors), the audit log, feedback, backups - and the site settings (EDITORs
+  see none of them: the owner's decision). `ROLE_ADMIN`, `ROLE_EDITOR`,
   `ROLES_STAFF`; `requireRole(...ROLES_STAFF)` / `requireRole(ROLE_ADMIN)` /
   `adminByToken()` on a whole Slim group in `api/routes/admin.php`
   (`/api/admin/...`), so a route added later cannot forget it; 403
   `forbidden` in this app's words (the library's groups guard themselves
   too). The frontend only hides what the server refuses anyway: the admin
-  panel is `/admin` (English; Translations for `isStaff`, Languages / People
-  / Feedback / Error log / Audit log / Backups / Migrations for `isAdmin` via
-  the family's `adminGuard`; "Admin panel" in the person's menu, as on every
-  anotoki site). People's delete asks its question alone (no recent sign-in)
+  panel is `/admin` (English; Translations for `isStaff`, Languages / Site
+  settings / People / Feedback / Error log / Audit log / Backups / Migrations
+  for `isAdmin` via the family's `adminGuard`; "Admin panel" in the person's
+  menu, as on every anotoki site). People's delete asks its question alone (no recent sign-in)
   and is audited (`person.data_deleted`, inside the delete's own
   transaction); a restore of an older backup does it again.
 - **Settings are required and never committed**: `backend/config/database.local.php`
@@ -561,7 +583,9 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   `/api/auth/config`, `/api/translations/{code}` (the library's
   `TranslationsRoutes::openPath()`), `/api/health`,
   `/api/admin/migrations...` - so somebody can sign in, the pages have their
-  words and an ADMIN reaches Apply. In the browser `<anotoki-site-gate>` -
+  words and an ADMIN reaches Apply; closed by the site settings, `503 {code:
+  "maintenance"}` to everybody but the site's ADMIN (below). In the browser
+  `<anotoki-site-gate>` -
   the outermost of the shell, its whole frame (the bar, the notes, the
   page's `<main>`, the footer) the marked template (`<ng-template
   anotokiSitePages>`), made only while the gate shows it, so no page runs
@@ -584,6 +608,45 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   family's `Migrator` (`databaseMigrator()`) and take one advisory lock
   (`DATABASE_UPDATE_LOCK`). Never print the database password; never copy
   it anywhere git would publish.
+- **The site settings are the family's** (`anotoki-lib` 0.11.0, all three
+  parts; `api/site_settings.php`, `shared/site-settings.ts`; the admin
+  panel's Site settings page, ADMIN, every change audited). **Getting in**:
+  closed for maintenance, the gate answers `503 {code: "maintenance",
+  message, maintenance_message}` (`Retry-After: 300`) to everybody but the
+  site's ADMIN - known by the token alone (`SiteGate`'s `exempt`,
+  `accessTokens()->personOf()`; the library builds no closable gate without
+  it) - but on `siteOpenPaths()` and the reserved API paths; the pages draw
+  the family's closed sign, its Sign in at `/staff` alone (`STAFF_ROUTE`,
+  `staffRouteGuard`: the start page while the site is open), the family's
+  open pages and `/sign-in-failed` anybody's (`OPEN_WHILE_CLOSED`). **The
+  reserved API paths** (`siteReservedApiPaths()`: the sign-in's
+  configuration, `/api/health`, `/api/me`, the whole progress store -
+  `/api/state`, `/api/progress`, `/api/path`, `/api/sessions` -,
+  `/api/visitor`) answer while the site is closed and no Page access row
+  may claim one: a learner's progress is saved whatever the settings say (a
+  new route a learner's start or saves need goes there). **The
+  announcement**: the family's line above the learner's bar
+  (`<anotoki-announcement>`, hidden in a browser until its words change -
+  `piano-academy:announcement`). **Page access** governs the learner pages
+  (Learn, a lesson, the Note Trainer, Sheet Practice, Songs and a song,
+  Stats): the family's `pageAccessGuard`, a canMatch on each (a closed page
+  falls through to Learn; where Learn is closed too, `sites/main/not-open`),
+  the bar and Learn's free practice leave out what would not open,
+  `<anotoki-page-notice>` tells the administrators, and the server's
+  `PageAccessGate` (inside `identify()`) answers `423 page_locked` on the
+  API paths a row names - the guard is no boundary. The pages read the
+  settings beside the site's status, before the first navigation
+  (`startApp()`). **robots.txt and sitemap.xml** are the library's
+  (`siteRobots()`, `RobotsRoutes`; the release's `routes` and `router.php`
+  hand the front controller both): robots kept out of `/admin`, `/api`,
+  `/auth`, `/stats`, `/sign-in-failed`, `/staff`; the sitemap the legal
+  pages, About, Support and - while the IAM lets visitors in - Learn, the
+  Note Trainer, Sheet Practice and Songs, never one Page access hides, by the
+  address `config/site.local.php` names (`['public_url' => ...]`,
+  `siteAddress()`; optional, uploaded by hand, never written by setup; never
+  the request's Host; without it no Sitemap line and `/sitemap.xml` 404). A
+  person deleted on People leaves the settings they changed by nobody; the
+  Privacy page says what the settings keep (014's `legal.settings.*`).
 - **The owner's database is `anotoki_piano_academy`** (their IAM user id is 1;
   new setups default to `anotoki_piano`, port 5432). Never run a test, an
   experiment or a manual server against it: use a throwaway `piano_test_*`
@@ -620,7 +683,8 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   family's kit has a piece (`@anotoki/lib`: a button, a card - the
   highlighted one too -, an alert, a badge, a chip, a field, a select, a
   dialog, the spinner, an error state, stat tiles, step dots, the table
-  styles and their number columns, the bar, a menu, a popover, a question,
+  styles and their number columns, the dates, the announcement, the bar, a
+  menu, a popover, a question,
   an icon, the legal pages and links, the footer) it is the family's, as the family
   draws it - a site gives its colours, never its own look to a kit
   component; what the kit lacks and is Piano's alone (the path's phases and
@@ -651,10 +715,14 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   request of 2026-10-24; `sites/admin/app.component`, `app-admin-root`): on
   the left the panel's name ("anotoki Piano Academy · admin panel"), who is
   signed in, "Back to Piano Academy", Sign out (the bar's, `SignOutService`),
-  the family's theme switch and the pages under Localization and System by
-  role (`ADMIN_GROUPS`) - an ADMIN's "Feedback" with how many messages are
-  new (the family's `FeedbackUnread`), Migrations alone while an update
-  waits; the page and the footer on the right; a phone's row and drawer up
+  the family's theme switch and the pages under Localization (Translations,
+  Languages) and System (Site settings, People, Feedback, Error log, Audit
+  log, Backups, Migrations) by role (`ADMIN_GROUPS`; the one shape of every
+  anotoki admin panel, the owner's request of 2026-10-25) - an ADMIN's
+  "Feedback" with how many messages are new (the family's `FeedbackUnread`),
+  Migrations alone while an update waits; while the site is closed for
+  maintenance the family's notice above the page (`<anotoki-page-notice
+  adminFrameNotice>`); the page and the footer on the right; a phone's row and drawer up
   to 860 px; in English (`TranslationService.effectiveLanguage`). The shell
   draws nothing round it: no bar, no notes, no footer, no `<main>` of its
   own (`shared/view-root` moves the one outlet out of the learner's
@@ -700,7 +768,7 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the staff's to write (`/api/admin/...`). `setup.php` stays parseable by
   PHP 7.4 (it must be able to say "PHP is too old"); the rest needs 8.2.
 - **The app's words live in the database** (`languages`, `translation_keys`,
-  `translations`; migrations 002 to 013, then the library's set
+  `translations`; migrations 002 to 014, then the library's set
   `anotoki_translations`) and are edited in the browser, on the admin panel's
   Translations and Languages pages (the family's, from
   `@anotoki/lib/translations/admin`; English, not translated; EDITOR rewords,
@@ -743,14 +811,14 @@ features / bug fixes - and `frontend/package.json`'s version line the same).
   the build goes to the end; its admin tools' set always) and as an installed
   one stood before 0.4 with `test_migrate_as_installed()`.
 - **The family's library** (`anotoki-lib`, one version for both halves):
-  0.10.0 - PHP `anotoki/lib` (`^0.10.0`, Composer's VCS repository on GitHub,
+  0.11.0 - PHP `anotoki/lib` (`^0.11.0`, Composer's VCS repository on GitHub,
   committed in `vendor/`), Angular `@anotoki/lib` (the GitHub release's
-  v0.10.0 tarball, in both lock files). Never
+  v0.11.0 tarball, in both lock files). Never
   from a local path. Updating: DEV.md (Prerequisites) - both halves
   together, after its CHANGELOG.md (a release that leaves a half unchanged
   may leave it where it is). Each kit piece is imported from its own entry
   point (`@anotoki/lib/ui/config`, `/ui/icon`, `/ui/dialog`, `/ui/select`,
-  `/ui/chips`, `/ui/stat-tiles`, `/ui/stepper`...; never the
+  `/ui/chips`, `/ui/stat-tiles`, `/ui/stepper`, `/ui/dates`...; never the
   `@anotoki/lib/ui` barrel, which would put the whole kit in the first load),
   and a spec reads the kit's markup by the kit's own class names
   (`anotoki-<component>__<part>`, `--<state>`). Its components take this app's colours from the
@@ -791,7 +859,7 @@ npm run build                             # production -> dist/piano-academy/bro
 cd .. && bun run format:check             # Prettier on every file of both halves, at the root (bun install there first)
 
 # The app in a browser, signed in through the stand-in IAM (from the root; PHP=<8.2+ binary>)
-node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure]
+node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure] [--only=site-settings]
 ```
 
 ## Working conventions

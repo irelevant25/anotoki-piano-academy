@@ -1,11 +1,11 @@
 // The browser check's tours (run.mjs starts everything and runs this):
 //
-//   node flow.mjs <app> <iam> <work folder> [--measure]
+//   node flow.mjs <app> <iam> <work folder> [--measure] [--only=site-settings]
 //
 // Headless Edge (BROWSER=chrome for Chrome) through playwright-core, installed in $PW_DIR - never in the
 // repository. One browser context per person, so each has storage of its own. Every step prints "ok" or
 // "FAIL"; the screenshots go to <work>/shots - look at them. --measure prints only what the top bar's row
-// needs (how PHONE_BAR_MAX was chosen).
+// needs (how PHONE_BAR_MAX was chosen). --only=site-settings runs the site settings' tour alone (anotoki-lib 0.11.0).
 
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,6 +18,7 @@ const { chromium } = require('playwright-core');
 
 const [APP, IAM, WORK] = process.argv.slice(2);
 const MEASURE = process.argv.includes('--measure');
+const ONLY = process.argv.find((arg) => arg.startsWith('--only='))?.slice('--only='.length) ?? null;
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '../../../..');
 const shots = join(WORK, 'shots');
@@ -147,7 +148,7 @@ const standsAlone = (page) =>
   );
 
 /** An ADMIN's pages in the admin panel's frame (sites/admin/app.component's ADMIN_GROUPS): the family's admin tools among them. */
-const ADMIN_SECTIONS = 'Translations|Languages|People|Feedback|Error log|Audit log|Backups|Migrations';
+const ADMIN_SECTIONS = 'Translations|Languages|Site settings|People|Feedback|Error log|Audit log|Backups|Migrations';
 
 /** The family's screen of a sign-in that did not work (<anotoki-sign-in-failure>, on /sign-in-failed under the bar). */
 const FAILURE = 'anotoki-sign-in-failure';
@@ -491,6 +492,185 @@ if (MEASURE) {
   console.log(`The widest row: ${widest} px (with a device name at its widest) - PHONE_BAR_MAX now: ${PHONE_BAR_MAX}. The row's own limit: ${rowMax} px.`);
   await browser.close();
   process.exit(widest <= PHONE_BAR_MAX && widest <= rowMax ? 0 : 1);
+}
+
+/* ------------------------------------------------------- the site settings (anotoki-lib 0.11.0) */
+
+/** The site settings' switches straight in the throwaway database (the admin page's work - its own tests are the library's). */
+function siteSwitches(values) {
+  const rows = Object.entries(values).map(([name, value]) => `('${name}', '${JSON.stringify(value).replace(/'/g, "''")}'::jsonb)`);
+  onTheDatabase(`INSERT INTO anotoki_site_settings (name, value) VALUES ${rows.join(', ')} ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value`);
+}
+
+/** No sideways scroll on the page: nothing wider than the window. */
+const fitsWidth = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+
+/**
+ * The site settings, as Piano Academy wires them (shared/site-settings.ts, api/site_settings.php): robots.txt and
+ * sitemap.xml from the API, by the address the settings name; the announcement above a learner page's bar (1280 light
+ * English, 390 dark Slovak); the admin panel's Site settings page and its menu (1280 light, 390 dark - English); the
+ * site closed for maintenance - the family's closed sign alone, its door at /staff (1280 light English, 390 dark
+ * Slovak), and the ADMIN through that door using the site as it is, the notice above the page. Screenshots
+ * site-settings-*; robots.txt and sitemap.xml saved beside them.
+ */
+async function siteSettingsTour() {
+  step('The site settings: robots.txt and sitemap.xml, the announcement, the admin page and its menu, the site closed for maintenance');
+  const siteFile = join(WORK, 'config', 'site.local.php');
+  try {
+    // robots.txt and sitemap.xml, by the address the installation's settings name (config/site.local.php) - never a request's Host.
+    writeFileSync(siteFile, `<?php return ['public_url' => '${APP}'];\n`);
+    const robots = await fetch(`${APP}/robots.txt`, { headers: { 'X-Forwarded-Host': 'evil.example' } });
+    const robotsText = await robots.text();
+    const sitemap = await fetch(`${APP}/sitemap.xml`);
+    const sitemapText = await sitemap.text();
+    writeFileSync(join(shots, 'site-settings-robots.txt'), robotsText);
+    writeFileSync(join(shots, 'site-settings-sitemap.xml'), sitemapText);
+    console.log(`\n--- ${APP}/robots.txt\n${robotsText}--- ${APP}/sitemap.xml\n${sitemapText}---`);
+    check(robots.status === 200 && robots.headers.get('content-type') === 'text/plain; charset=utf-8', 'robots.txt: the API answers it, as text', [robots.status, robots.headers.get('content-type')]);
+    check(
+      ['/admin', '/api', '/auth', '/stats', '/sign-in-failed', '/staff'].every((path) => robotsText.includes(`\nDisallow: ${path}\n`)) && robotsText.endsWith(`\nSitemap: ${APP}/sitemap.xml\n`),
+      "robots.txt: robots kept out of the admin panel, the API, the sign-in and the learner's own pages; the sitemap by the configured address",
+      robotsText,
+    );
+    const locations = [...sitemapText.matchAll(/<loc>([^<]*)<\/loc>/g)].map((match) => match[1]);
+    check(
+      sitemap.status === 200 && JSON.stringify(locations) === JSON.stringify(['/terms', '/privacy', '/contact', '/about', '/support'].map((path) => `${APP}${path}`)),
+      'sitemap.xml: the pages anybody reads while the IAM requires a sign-in - the legal pages, About and Support',
+      locations,
+    );
+
+    // The announcement: a learner page with the bar above the site's own bar.
+    siteSwitches({
+      announcement_enabled: true,
+      announcement_level: 'warning',
+      announcement_message: { en: 'New songs arrive on Friday - the site may be slow for a few minutes.', sk: 'V piatok pribudnú nové skladby – stránka môže byť pár minút pomalšia.' },
+    });
+    for (const [width, scheme, language, words] of [
+      [1280, 'light', 'en', 'New songs arrive on Friday'],
+      [390, 'dark', 'sk', 'V piatok pribudnú nové skladby'],
+    ]) {
+      const context = await newContext({ width, scheme });
+      const page = await signedIn(context, MIA, `/trainer?lang=${language}`);
+      await page.waitForSelector('anotoki-announcement [data-announcement]', { timeout: 20000 });
+      const placed = await page.evaluate(() => {
+        const bar = document.querySelector('anotoki-announcement [data-announcement]').getBoundingClientRect();
+        const top = document.querySelector('anotoki-top-bar').getBoundingClientRect();
+        return {
+          message: document.querySelector('.anotoki-announcement__message').textContent.trim(),
+          above: bar.bottom <= top.top + 1,
+          level: document.querySelector('[data-announcement]').getAttribute('data-level'),
+          lang: document.documentElement.lang,
+        };
+      });
+      check(
+        placed.message.startsWith(words) && placed.above && placed.level === 'warning' && placed.lang === language,
+        `the announcement above the bar, in ${language}, at ${width} ${scheme}`,
+        placed,
+      );
+      check(await fitsWidth(page), `the announcement at ${width}: no sideways scroll`);
+      check((await keysOnPage(page)).length === 0, `the announcement's page at ${width}: no key where a word should be`, await keysOnPage(page));
+      await page.screenshot({ path: join(shots, `site-settings-announcement-${width}-${scheme}-${language}.png`), fullPage: true });
+      await context.close();
+    }
+    onTheDatabase('DELETE FROM anotoki_site_settings');
+
+    // The admin panel's Site settings page and its menu - the family's one shape: Localization, then System.
+    const menu = ['Translations', 'Languages', 'Site settings', 'People', 'Feedback', 'Error log', 'Audit log', 'Backups', 'Migrations'];
+    for (const [width, scheme] of [
+      [1280, 'light'],
+      [390, 'dark'],
+    ]) {
+      const context = await newContext({ width, scheme });
+      const page = await signedIn(context, ADA, '/admin/site-settings');
+      await page.waitForSelector('anotoki-site-settings-page [data-cards] [data-card]', { timeout: 20000 });
+      const cards = await page.$$eval('anotoki-site-settings-page [data-card]', (all) => all.map((card) => card.getAttribute('data-card')));
+      check(JSON.stringify(cards) === JSON.stringify(['getting_in', 'announcement', 'page_access']), `the Site settings page at ${width}: a card for each of the three parts`, cards);
+      check((await page.title()) === 'Site settings · Admin panel · Piano Academy', 'its title', await page.title());
+      check(await fitsWidth(page), `the Site settings page at ${width}: no sideways scroll`);
+      if (width > ADMIN_FRAME_PHONE_MAX) {
+        check(
+          JSON.stringify(await adminPages(page)) === JSON.stringify(menu),
+          'the menu: Localization - Translations, Languages; System - Site settings, People, Feedback, Error log, Audit log, Backups, Migrations',
+          await adminPages(page),
+        );
+        check(JSON.stringify(await page.$$eval(ADMIN_FRAME.headings, (all) => all.map((one) => one.textContent.trim()))) === '["Localization","System"]', 'under two headings, no page above them');
+        await page.screenshot({ path: join(shots, `site-settings-admin-${width}-${scheme}.png`), fullPage: true });
+      } else {
+        await page.screenshot({ path: join(shots, `site-settings-admin-${width}-${scheme}.png`), fullPage: true });
+        await page.click(ADMIN_FRAME.menu);
+        await page.waitForSelector(`${ADMIN_FRAME.drawer} .anotoki-side-nav__link`, { timeout: 10000 });
+        await page.waitForTimeout(400);
+        check(JSON.stringify(await adminPages(page)) === JSON.stringify(menu), "the menu in the phone's drawer, in the same shape", await adminPages(page));
+        await page.screenshot({ path: join(shots, `site-settings-admin-menu-${width}-${scheme}.png`) });
+      }
+      await context.close();
+    }
+
+    // Closed for maintenance: the family's closed sign alone, the administrators' words in the page's language - Sign in at
+    // /staff alone.
+    siteSwitches({
+      maintenance_mode: true,
+      maintenance_message: { en: 'Piano Academy is getting new songs. Back at noon.', sk: 'Piano Academy dostáva nové skladby. Vrátime sa na obed.' },
+    });
+    for (const [width, scheme, language, words] of [
+      [1280, 'light', 'en', 'Piano Academy is getting new songs. Back at noon.'],
+      [390, 'dark', 'sk', 'Piano Academy dostáva nové skladby. Vrátime sa na obed.'],
+    ]) {
+      const context = await newContext({ width, scheme });
+      const page = await context.newPage();
+      await page.goto(`${APP}/trainer?lang=${language}`);
+      await page.waitForSelector('anotoki-maintenance-page [data-maintenance]', { timeout: 20000 });
+      const sign = await page.evaluate(() => ({
+        title: document.querySelector('.anotoki-maintenance-page__title')?.textContent.trim(),
+        message: document.querySelector('[data-maintenance-message]')?.textContent.trim(),
+        door: !!document.querySelector('[data-staff-sign-in]'),
+        frame: ['app-top-bar', 'anotoki-top-bar', 'anotoki-site-footer'].filter((selector) => document.querySelector(selector)),
+        mains: document.querySelectorAll('main').length,
+      }));
+      check(
+        sign.message === words && !sign.door && sign.frame.length === 0 && sign.mains === 1,
+        `closed: the sign alone, the administrators' words in ${language}, no Sign in - at ${width} ${scheme}`,
+        sign,
+      );
+      check(new URL(page.url()).pathname === '/trainer', 'nobody sent to the IAM: the address stays', page.url());
+      check(await fitsWidth(page), `the closed sign at ${width}: no sideways scroll`);
+      check((await keysOnPage(page)).length === 0, `the closed sign at ${width}: no key where a word should be`, await keysOnPage(page));
+      await page.screenshot({ path: join(shots, `site-settings-maintenance-${width}-${scheme}-${language}.png`), fullPage: true });
+
+      // The staff route: the sign's one door.
+      await page.goto(`${APP}/staff?lang=${language}`);
+      await page.waitForSelector('anotoki-maintenance-page [data-staff-sign-in]', { timeout: 20000 });
+      check(new URL(page.url()).pathname === '/staff', 'at /staff the address stays, and the sign offers Sign in', page.url());
+      await page.screenshot({ path: join(shots, `site-settings-maintenance-staff-${width}-${scheme}-${language}.png`), fullPage: true });
+
+      if (width === 1280) {
+        // The site's ADMIN through the door: back to the start page, the site as it is - with the notice above the page.
+        await iamAs(ADA);
+        await page.click('[data-staff-sign-in]');
+        await page.waitForSelector(BAR.signedIn, { timeout: 20000 });
+        await page.waitForSelector('anotoki-page-notice anotoki-alert[data-notice]', { timeout: 20000 });
+        check(new URL(page.url()).pathname === '/', 'the ADMIN signed in at the door, back on the start page - the site as it is', page.url());
+        await page.screenshot({ path: join(shots, `site-settings-maintenance-admin-${width}-${scheme}-${language}.png`), fullPage: true });
+      }
+      await context.close();
+    }
+  } finally {
+    onTheDatabase('DELETE FROM anotoki_site_settings');
+    rmSync(siteFile, { force: true });
+  }
+}
+
+if (ONLY === 'site-settings') {
+  try {
+    await siteSettingsTour();
+    check(errors.length === 0, 'no error on any page', errors);
+  } catch (error) {
+    check(false, 'the tour ran to its end', String(error?.stack ?? error));
+  } finally {
+    await browser.close();
+  }
+  console.log(`\n${failures.length === 0 ? 'Every check passed.' : `${failures.length} failed:\n  ${failures.join('\n  ')}`}`);
+  process.exit(failures.length === 0 ? 0 : 1);
 }
 
 /* ------------------------------------------------------------------ the tours */
@@ -866,7 +1046,7 @@ try {
     });
     check(
       JSON.stringify(drawer) === JSON.stringify({ name: 'ada', back: 'Back to Piano Academy', signOut: 'Sign out', theme: 3, pages: ADMIN_SECTIONS }),
-      'at 360 Menu opens the drawer: the person, Back, Sign out, the theme, the eight pages',
+      'at 360 Menu opens the drawer: the person, Back, Sign out, the theme, the nine pages',
       drawer,
     );
     await admin.screenshot({ path: join(shots, 'admin-drawer-360.png') });
@@ -2218,6 +2398,8 @@ try {
     check(!!(await page.$('#own-progress')) && !(await siteStatus(page)) && new URL(page.url()).pathname === '/stats', 'set up again: Try again - the page starts afresh, on Stats', page.url());
     await context.close();
   }
+
+  await siteSettingsTour();
 
   check(errors.length === 0, 'no error on any page', errors);
 } catch (error) {

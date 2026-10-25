@@ -124,8 +124,10 @@ Working conventions specific to this repo:
   up yet" card's words deleted, 008, the round theme button's words deleted,
   009, the kit's words copied under the library's keys, 010, the people's
   `users.anonymized_at`, 011, the sign-in failure's words moved under the
-  library's keys, and 012, the legal pages' words, are written whole and
-  final and wait for the owner at the hand-over - a later change is 013),
+  library's keys, 012, the legal pages' words, 013, the old footer's one
+  word deleted, and 014, the site settings' words (2026-10-25), are written
+  whole and final, each applied by the owner at a hand-over - a later change
+  is 015),
   applied by the anotoki family's engine
   (`anotoki/lib`'s `Migrator`, `api/migrations.php`: the library's
   `anotoki_admin`, this app's set, then the library's `anotoki_translations`
@@ -164,6 +166,14 @@ Working conventions specific to this repo:
   `BootService` waits (`waiting`) and
   the sign-in guards send nobody to the IAM then. A new route that must
   answer while an update waits goes into `siteOpenPaths()` (`api/index.php`).
+  While the site settings close the site for maintenance (`anotoki-lib`
+  0.11.0) the gate answers `maintenance` to everybody but the site's ADMIN
+  (its `exempt`: the token alone) - but on the open paths and the reserved
+  API paths (`siteReservedApiPaths()`, `api/site_settings.php`: the
+  sign-in's configuration, the health check, `/api/me`, the progress store,
+  the move), which no Page access row may claim; the pages draw the family's
+  closed sign (Sign in at `/staff` alone). A new route a learner's start or
+  saves need goes into the reserved paths.
 - Learning-path step keys (`unitId/stepId`) are persisted - never rename ids.
 - Before reporting done: `php tests/run.php` in `backend/` (it must pass on
   PHP 8.5; the hosting runs 8.2, so use nothing 8.2 lacks), `npm test` and `npm run build` in
@@ -175,7 +185,7 @@ Working conventions specific to this repo:
   `php tests/tools/testdb.php template --fresh`.
 
 - Signing in, the People page and the admin tools are the family's
-  (`anotoki-lib` 0.10.0, both halves): in the browser `@anotoki/lib/auth`, wired in
+  (`anotoki-lib` 0.11.0, both halves): in the browser `@anotoki/lib/auth`, wired in
   `shared/auth/site-auth.ts` (`AnotokiAuth`, the interceptor, the guards,
   `/auth/callback` and the failure screen `/sign-in-failed`; `hint: false` -
   no sign-in by the IAM's hint); People (`api/people.php`,
@@ -200,14 +210,17 @@ Working conventions specific to this repo:
   deleting the file switches the secret off); a keyed
   hash of an address is kept (a pseudonym), never the address itself. A
   spec stands `TestAuth` (`shared/testing/test-auth.ts`) in for `AnotokiAuth`.
-- The anotoki family's kit (`@anotoki/lib` 0.10.0, wired in
+- The anotoki family's kit (`@anotoki/lib` 0.11.0, wired in
   `shared/family-kit.ts`): the top bar, its menus, the piano's popover, the
   language chooser, the theme switch and `ThemeService`, the brand, icons,
   spinner and the questions (`ConfirmService`, `<anotoki-confirm-host>` in
   the app's root) are the family's - and every page's buttons
   (`anotokiButton`), cards (the Continue card `tone="highlight"`), alerts
   (the notes under the bar too), badges, the path's chips (`/ui/chips`),
-  selects (`/ui/select`, lazy: the piano's in a `@defer`), stat tiles
+  selects (`/ui/select`, lazy: the piano's in a `@defer`), the dates
+  (`/ui/dates`: the `anotokiDate` pipe on What's new and Stats,
+  `formatDateTime()` for the admin panel's stamp), the site settings'
+  announcement and notice (`@anotoki/lib/site-settings`), stat tiles
   (`/ui/stat-tiles`), a lesson's step dots (`/ui/stepper`), What's new's
   dialog (made when it opens), the error state, the table styles (numbers
   `.cell-num`), and Terms, Privacy and Contact (`@anotoki/lib/legal/pages`,
@@ -229,8 +242,9 @@ Working conventions specific to this repo:
   Piano's alone (the path's phases and units, the practice screens -
   `sites/main/features/_practice.scss` -, the meet step's count of plays, the keyboard,
   the staff, the piano's button) is built from the `--anotoki-*` tokens. The
-  first load is 558.1 kB since the footer, over its 550 kB warning (the
-  owner's call): build and read "Initial total" before adding anything to
+  first load is 572.9 kB since the site settings (anotoki-lib 0.11.0),
+  under its 575 kB warning (the owner's call): build and read "Initial
+  total" before adding anything to
   the first page; there is no global
   rule for buttons, selects or cards. Specs read the kit's markup by
   its own class names (`anotoki-<component>__<part>`); `provideTestKit()`,
@@ -248,10 +262,14 @@ Working conventions specific to this repo:
   the admin panel is in the family's admin frame (`@anotoki/lib/admin/frame`,
   anotoki-lib 0.10.0; `sites/admin/app.component`) - the panel's name, the
   person, "Back to Piano Academy", Sign out (`SignOutService`, the bar's), the
-  theme and the pages under Localization and System by role on the left, the
-  page and the footer on the right, a drawer on a phone, English
+  theme and the pages under Localization (Translations, Languages) and System
+  (Site settings, People, Feedback, Error log, Audit log, Backups, Migrations)
+  by role on the left, the page - the family's notice above it while the site
+  is closed - and the footer on the right, a drawer on a phone, English
   (`effectiveLanguage`); the shell draws nothing round it
-  (`shared/view-root`). The bar's words are keys, in kept-english.ts too.
+  (`shared/view-root`). The bar's words are keys, in kept-english.ts too; a
+  section Page access closes to the reader is left out
+  (`SiteSettings.mayNavigate()`).
 - The theme, the dates, the clock and the language are the anotoki
   account's for somebody signed in (the IAM's 015; the family's
   `AnotokiAuth.preferences`, null for nobody, a visitor or an IAM
@@ -261,8 +279,10 @@ Working conventions specific to this repo:
   the language chooser through the family's `TranslationService` (`forShell()` -> `setLanguage()`, its `account.save` `AnotokiAuth.savePreferences()`)
   (`invalid_request`: silent; else, `access_denied` too, `anotoki.language.notSaved`
   - words that promise no retry); a date or time a page writes goes
-  through the `localDate` pipe, which follows the account's order and clock
-  (`stamp` for the admin panel's numbers). The family's language order:
+  through the family's dates (`@anotoki/lib/ui/dates`' `anotokiDate` pipe,
+  given the account's order and clock by `provideFamilyKit()`'s
+  `dateChoices`; the admin panel's stamp `sites/admin/admin-stamp.ts`,
+  handed to `shared/admin-dates.ts` as the panel opens). The family's language order:
   signed in with preferences, `?lang=` and this page's choice, then the
   account's `locale`, then this device's choice, the browser's - an account
   change made elsewhere followed when it comes (not over `?lang=`, not while

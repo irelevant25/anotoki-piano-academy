@@ -1,6 +1,6 @@
 // The whole browser check in one go, from the repository's root:
 //
-//   node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure]
+//   node .claude/skills/check-in-browser/scripts/run.mjs [--no-build] [--keep] [--measure] [--only=site-settings]
 //
 // It builds the frontend (unless --no-build), makes a throwaway database (piano_test_browser_<port>, a copy of the
 // tests' template - backend/tests/tools/testenv.php), starts the anotoki family's stand-in IAM
@@ -134,10 +134,14 @@ try {
   const shots = join(work, 'shots');
   mkdirSync(shots, { recursive: true });
   console.log(`Screenshots: ${shots}\n`);
-  const flow = spawn(process.execPath, [join(here, 'flow.mjs'), `http://127.0.0.1:${SITE}`, `http://127.0.0.1:${IAM}`, work, ...(args.has('--measure') ? ['--measure'] : [])], {
-    stdio: 'inherit',
-    env: { ...process.env, PW_DIR: pw },
-  });
+  const flow = spawn(
+    process.execPath,
+    [join(here, 'flow.mjs'), `http://127.0.0.1:${SITE}`, `http://127.0.0.1:${IAM}`, work, ...[...args].filter((arg) => arg === '--measure' || arg.startsWith('--only='))],
+    {
+      stdio: 'inherit',
+      env: { ...process.env, PW_DIR: pw },
+    },
+  );
   code = await new Promise((done) => flow.on('exit', (exitCode) => done(exitCode ?? 1)));
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
