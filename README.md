@@ -199,10 +199,10 @@ hosting:
     closed: the site keeps running, believes no `CF-Connecting-IP` (every visitor counts as the Cloudflare
     edge they came through, sharing its limits) and says so once a day in PHP's error log until the file is
     mended.
-- **The site's address** for robots.txt and sitemap.xml: `config/site.local.php`
-  (`return ['public_url' => 'https://piano.anotoki.eu'];`, put there by hand, never by setup) - without it
-  `/robots.txt` names no sitemap and `/sitemap.xml` answers 404. Never read off a request: a `Host` header is
-  anybody's to write.
+- **The site's address** for robots.txt and sitemap.xml: nothing to upload - a release names
+  `https://piano.anotoki.eu`, the address it is deployed to. Only a site served at another address puts
+  `config/site.local.php` beside the other settings by hand (`return ['public_url' => 'https://...'];`, never
+  written by setup). Never read off a request: a `Host` header is anybody's to write.
 - **After an upload**: the private folders (`storage/`, `config/`) answer 403 in a browser; the host check's
   "Who connects" says Cloudflare, not a proxy of the host's (behind one, every visitor would share one
   address); pending database updates are applied on the admin panel's Migrations page.
@@ -216,6 +216,16 @@ Web MIDI only on secure pages - `https://`, or `http://127.0.0.1` and
 
 ## Current state
 
+- **`anotoki-lib` 0.11.1, and the site's address without a file (2026-10-25,
+  later).** Both halves at 0.11.1, the family's fixes after 0.11.0: the
+  announcement's bar and the administrators' notice load only when there is
+  something to draw (the first load 567.5 kB, 572.9 before), the kit's date
+  and number fields and a dialog's autofocus mended, the error log keeps the
+  site settings' states out, the sitemap keeps `:` in a path. `/robots.txt`
+  names the sitemap with no file to upload: a release says
+  `https://piano.anotoki.eu`, a checkout `http://localhost:4500`, and the
+  optional `config/site.local.php` names another - never a request's `Host`.
+  No migration, no line in What's new.
 - **The site settings, robots.txt and sitemap.xml (2026-10-25).**
   `anotoki-lib` 0.11.0, both halves: the administrators' Site settings page
   (the admin panel's System, first) - an announcement in a bar above the

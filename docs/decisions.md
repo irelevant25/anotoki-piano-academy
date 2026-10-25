@@ -2,6 +2,38 @@
 
 Why things are the way they are. Read the reason before undoing one.
 
+## 2026-10-25, later - `anotoki-lib` 0.11.1, and the site's address without a file
+
+0.11.1 mends what the sites found on 0.11.0; nothing a site uses changed, so
+both halves moved by their version alone (the PHP lock at v0.11.1 -
+Composer's `^0.11.0` reaches it -, the Angular tarball v0.11.1 in both lock
+files). What it means here:
+
+- **The announcement's bar and the administrators' notice come only when
+  there is something to draw** (the library's `site-settings/bar` and
+  `/notice`, fetched by the elements Piano already writes): the first load is
+  567.5 kB (572.9 at 0.11.0), and a page with no announcement fetches no bar.
+  No code of Piano's changed for it. The kit's date and number fields and a
+  dialog's autofocus are mended (Piano draws none of those fields), the error
+  log keeps `maintenance` and `page_locked` out as expected states, and the
+  sitemap keeps `:` in a path as the router does (no page of Piano's has one).
+- **The site's address needs no file** (the owner's request of 2026-10-25,
+  the survey's rule): `siteAddress()` is `config/site.local.php`'s
+  `public_url` where the file names a usable one, else where the code runs -
+  a release (`release.json` beside `backend/`, the state rule's own mark) is
+  `https://piano.anotoki.eu`, the one address the deploy tool puts it at
+  (`PIANO_RELEASE_ADDRESS`, `composer.json`'s `url`: a test holds them
+  together), a checkout `http://localhost:4500` - never a request's `Host`.
+  So robots.txt always names the sitemap and the live site has no file to
+  upload; the file stays for a site served at another address (the tests,
+  the browser check, a host of its own). A file that cannot be read cleanly,
+  or names no usable address (an http(s) origin, nothing after its host and
+  port, one PHP's URL parser takes), is passed over - said once a day, never
+  its text - and the code's place holds: the address is no secret, so a slip
+  in the file falls back to the right answer, not to none (the origin
+  secret's file fails closed for the opposite reason). This replaces 0.11.0's
+  "without it robots.txt names no sitemap" below.
+
 ## 2026-10-25 - the site settings, robots.txt and sitemap.xml, the family's dates, one admin menu (`anotoki-lib` 0.11.0)
 
 The owner's requests of 2026-10-25: the projects use the library first;
@@ -52,6 +84,7 @@ site; every admin menu in one shape. The choices made here:
   setup, uploaded by hand like `cloudflare.local.php` -,
   `config/site.local.php` (`['public_url' => 'https://piano.anotoki.eu']`);
   without it robots.txt names no sitemap and `/sitemap.xml` answers 404.
+  (Later the same day the address needed no file: above.)
 - **The Privacy page stays true**: the announcement's hidden mark is stored
   (the library's preset, `piano-academy:announcement`), and each setting and
   each page's row keeps who changed it last - a part of its own, "If you

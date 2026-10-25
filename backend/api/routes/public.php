@@ -68,11 +68,11 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  *                                 signed in (429 too_many)
  *   GET  /robots.txt              what robots leave alone - /admin, /api, /auth, /stats,
  *                                 /sign-in-failed, /staff - and the sitemap's address by the
- *                                 site's configured public address (anotoki/lib's
- *                                 RobotsRoutes::robots(); no Sitemap line without one)
- *   GET  /sitemap.xml             the public pages, absolute, without what Page access hides
- *                                 (RobotsRoutes::sitemap()); 404 not_configured while the site
- *                                 has no public address (config/site.local.php)
+ *                                 site's own public address (anotoki/lib's
+ *                                 RobotsRoutes::robots(); siteAddress(): config/site.local.php's,
+ *                                 else the release's or the checkout's - never the request's Host)
+ *   GET  /sitemap.xml             the public pages, absolute, by the same address, without what
+ *                                 Page access hides (RobotsRoutes::sitemap())
  *
  * The first three answer while an update waits too (siteOpenPaths() in
  * api/index.php): somebody can sign in then, and the pages have their words.

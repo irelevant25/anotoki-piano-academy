@@ -101,8 +101,9 @@ const SITE_ROBOTS_DISALLOW = ['/stats', '/sign-in-failed', '/staff'];
 
 /**
  * robots.txt and sitemap.xml (the library's Robots; RobotsRoutes in
- * routes/public.php): the site's configured public address (siteAddress(),
- * config/site.local.php - never the request's Host), the pages above, without
+ * routes/public.php): the site's own public address (siteAddress():
+ * config/site.local.php's, else a release's https://piano.anotoki.eu or a
+ * checkout's http://localhost:4500 - never the request's Host), the pages above, without
  * what Page access hides (a page for people signed in, for editors, for
  * administrators, or switched off) - kept an hour in storage/cache, made again
  * at once when what Page access hides or the address changes. The learner's
@@ -116,7 +117,7 @@ function siteRobots(): Robots
     static $robots = null;
 
     return $robots ??= new Robots(
-        address: static fn(): ?string => siteAddress(),
+        address: static fn(): string => siteAddress(),
         disallow: SITE_ROBOTS_DISALLOW,
         pages: SITE_OPEN_PAGES,
         entries: static fn(): array => authLoginRequired() ? [] : SITE_LEARNER_PAGES,

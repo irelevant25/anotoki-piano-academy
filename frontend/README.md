@@ -191,7 +191,7 @@ proxy.conf.json                      /api, /setup.php, /robots.txt and /sitemap.
 ```
 
 `@anotoki/lib` is the Angular half of the anotoki family's library (the PHP
-half is the backend's `anotoki/lib`; one version for both - 0.11.0): in
+half is the backend's `anotoki/lib`; one version for both - 0.11.1): in
 `package.json` as its GitHub release's tarball, in both `bun.lock` and
 `package-lock.json`. Each kit piece is imported from its own entry point -
 never the `@anotoki/lib/ui` barrel, which would put the whole kit in the
@@ -268,7 +268,9 @@ first load - and a spec reads the kit's markup by the kit's own class names
   the bar's sections and Learn's free practice), `pageAccessGuard` (a
   canMatch on each learner page), `<anotoki-announcement>` above the bar and
   `<anotoki-page-notice>` above the page (`app.component.html`; the notice
-  in the admin frame too); `/admin/site-settings` - the admin panel's Site
+  in the admin frame too) - each fetching what it draws (the bar,
+  `site-settings/bar`; the notice, `/notice`) only when there is something
+  to draw, since 0.11.1; `/admin/site-settings` - the admin panel's Site
   settings page, lazy. Nothing of it is a security boundary: the server
   refuses a closed page's API paths itself.
 - `@anotoki/lib/migrations/page` - the admin panel's Migrations page, lazy.
@@ -336,10 +338,12 @@ Sign in at `http://localhost:4500` - the address the IAM knows for
 `piano-academy`; `127.0.0.1` does not sign in. Any page you open while
 signed out sends you to the IAM first, and back - but Terms, Privacy and
 Contact, which are anybody's. The first load's budget warns at 575 kB (550
-until the family's footer, 2026-10-18: the owner's call): it is 572.9 kB
-(558.8 before anotoki-lib 0.11.0 - the site settings' announcement, notice
-and guard, and the kit's newer core; the closed sign and the dates stay
-lazy); a new piece in it needs room made first.
+until the family's footer, 2026-10-18: the owner's call): it is 567.5 kB
+with anotoki-lib 0.11.1, whose announcement and notice fetch their bar and
+notice only when there is something to draw (572.9 with 0.11.0, which drew
+both in it; 558.8 before 0.11.0's site settings and the kit's newer core;
+the closed sign and the dates stay lazy); a new piece in it needs room made
+first.
 
 ## Tests
 

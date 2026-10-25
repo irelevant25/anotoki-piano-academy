@@ -100,15 +100,17 @@ declare(strict_types=1);
  *
  * A fifth file is optional, never written or read by setup.php: site.local.php
  * - the site's public address, which robots.txt names the sitemap by and the
- * sitemap writes every page's address with (anotoki-lib 0.11.0's Robots,
- * api/site_settings.php):
+ * sitemap writes every page's address with (anotoki-lib 0.11's Robots,
+ * api/site_settings.php) - only where it is not the one the code's place
+ * gives: a release's https://piano.anotoki.eu, a checkout's
+ * http://localhost:4500 (siteAddress()). The live site needs none:
  *
- *       return ['public_url' => 'https://piano.anotoki.eu'];
+ *       return ['public_url' => 'https://piano.example'];
  *
  * Never an address read off a request: a Host header is anybody's to write.
- * Without it (or with one that cannot be read cleanly, or names none) the site
- * runs as ever - robots.txt names no sitemap, and /sitemap.xml answers 404
- * not_configured (siteAddress()).
+ * One that cannot be read cleanly, or names no usable address, is passed over
+ * and the address of where the code runs holds - robots.txt keeps its Sitemap
+ * line.
  *
  * The tests run against throwaway databases with settings of their own:
  * PIANO_TEST_CONFIG names a folder holding the same two files, and it is only
@@ -454,45 +456,59 @@ function originSecretFile(): ?string
     return trim($secret);
 }
 
+/** Where a release is served: the address composer.json's extra["anotoki-deploy"] deploys it to (`url` - tests/unit/config.test.php holds the two together). */
+const PIANO_RELEASE_ADDRESS = 'https://piano.anotoki.eu';
+
+/** Where a checkout is served on this computer: ng serve, the address the IAM knows for piano-academy here (CLAUDE.md's development addresses). */
+const PIANO_DEVELOPMENT_ADDRESS = 'http://localhost:4500';
+
 /**
- * The site's public address - 'https://piano.anotoki.eu' - from the optional
- * config/site.local.php (['public_url' => ...]; see the top of this file), or
- * null: no file, one that cannot be read cleanly (settingsFileReadCleanly()),
- * or one that names no public_url (a text with something in it) - each fault
- * said once a day, never the file's text. What robots.txt and sitemap.xml are
- * written with (api/site_settings.php's siteRobots(); the library's
- * Robots::address() takes an http(s) origin alone, anything else is none) -
- * never the request's Host, which anybody may write. Read once per request,
- * again with $reload.
+ * The site's own public address, as its origin ('https://piano.anotoki.eu'):
+ * robots.txt's Sitemap line and every address in sitemap.xml (anotoki-lib
+ * 0.11's Robots, api/site_settings.php's siteRobots()) - never one read off a
+ * request, whose Host header is anybody's to write. Where the code runs says
+ * it (the survey's rule): a release (release.json beside backend/ -
+ * anotoki-deploy put it on the host; stateRoot()'s own mark) is
+ * PIANO_RELEASE_ADDRESS, the one address the deploy tool puts a release at; a
+ * checkout is PIANO_DEVELOPMENT_ADDRESS. The fifth file, optional and by hand
+ * - setup.php never writes it - names another (a host of its own, the tests,
+ * the browser check): `return ['public_url' => 'https://piano.example'];`.
+ *
+ * A file there that cannot be read cleanly (settingsFileReadCleanly()), a
+ * folder in its place, or one that names no usable public_url - an http(s)
+ * origin, nothing after its host and port - is passed over, said at most once
+ * a day (by its fault, never its text), and the address of where the code runs
+ * holds: robots.txt keeps its Sitemap line. Read once per request, again with
+ * $reload.
  */
-function siteAddress(bool $reload = false): ?string
+function siteAddress(bool $reload = false): string
 {
-    static $read = false;
     static $address = null;
 
-    if ($read && !$reload) {
+    if ($address !== null && !$reload) {
         return $address;
     }
-    $read = true;
+    $runs = is_file(dirname(__DIR__) . '/release.json') ? PIANO_RELEASE_ADDRESS : PIANO_DEVELOPMENT_ADDRESS;
     $file = localConfigFile('site');
     if (!file_exists($file)) {
-        return $address = null;
+        return $address = $runs;
+    }
+    $read = is_file($file) ? settingsFileReadCleanly($file) : ['value' => null, 'problem' => 'is no file (a folder in its place?)'];
+    if ($read['problem'] !== null) {
+        settingsSaid("config/site.local.php {$read['problem']}: the address where the code runs holds ({$runs}).");
+
+        return $address = $runs;
+    }
+    $url = is_array($read['value']) ? $read['value']['public_url'] ?? null : null;
+    $url = is_string($url) ? trim($url) : '';
+    // One PHP's URL parser takes too (a port up to 65535), as the library's Robots reads it: robots.txt keeps its line.
+    if (preg_match('~^https?://[A-Za-z0-9.-]+(:\d{1,5})?/?$~D', $url) !== 1 || parse_url($url) === false) {
+        settingsSaid("config/site.local.php names no usable public_url (an http(s) origin, nothing after its host and port): the address where the code runs holds ({$runs}).");
+
+        return $address = $runs;
     }
 
-    $values = settingsFileReadCleanly($file);
-    if ($values['problem'] !== null) {
-        settingsSaid("config/site.local.php {$values['problem']}, so the site has no public address: robots.txt names no sitemap, and /sitemap.xml answers 404.");
-
-        return $address = null;
-    }
-    $url = is_array($values['value']) ? $values['value']['public_url'] ?? null : null;
-    if (!is_string($url) || trim($url) === '') {
-        settingsSaid("config/site.local.php holds no public_url (the site's address, https://...): robots.txt names no sitemap, and /sitemap.xml answers 404.");
-
-        return $address = null;
-    }
-
-    return $address = trim($url);
+    return $address = rtrim($url, '/');
 }
 
 /**
@@ -532,7 +548,7 @@ function originSecretNobodyCarries(): string
  * either, said by the kind of error and its line alone. What each caller makes
  * of no file is its own: the database's or the auth's leaves the site not set
  * up (localSettings()), the visitors' the defaults, the cloudflare's a secret
- * no request carries, the site's no public address.
+ * no request carries, the site's the address of where the code runs.
  *
  * @return array{value: mixed, problem: ?string}
  */

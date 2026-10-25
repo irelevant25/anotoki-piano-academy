@@ -261,12 +261,17 @@ test('the setup page on a real host: the token, the tests, the database - and th
     assert_same(['ok' => true, 'database' => $database, 'pending' => []], site($site, 'GET', '/api/health')['body']);
     assert_match('/<title>Piano Academy<\/title>/', site($site, 'GET', '/')['raw'], 'the app');
     // robots.txt and sitemap.xml are the API's (composer.json's routes: the front controller before any file of the app).
+    // A release names the address it is deployed to (PIANO_RELEASE_ADDRESS, composer.json's) with no file to upload -
+    // never the Host it was asked by.
+    assert_false(file_exists("$dist/config/site.local.php"), 'setup never writes the site\'s address, and the site needs none');
     $robots = site($site, 'GET', '/robots.txt');
     assert_same([200, 'text/plain; charset=utf-8'], [$robots['status'], $robots['headers']['content-type'] ?? null], 'robots.txt from the API');
     assert_match('/^User-agent: \*\nDisallow: \/admin\nDisallow: \/api\nDisallow: \/auth\n/m', $robots['raw']);
-    assert_no_match('/Sitemap:/', $robots['raw'], 'no public address configured (config/site.local.php): no Sitemap line - never the request\'s Host');
+    assert_true(str_ends_with($robots['raw'], "\nSitemap: https://piano.anotoki.eu/sitemap.xml\n"), 'the release\'s own address: ' . $robots['raw']);
     $sitemap = site($site, 'GET', '/sitemap.xml');
-    assert_same([404, 'not_configured'], [$sitemap['status'], $sitemap['body']['code'] ?? null], 'and no sitemap');
+    assert_same(200, $sitemap['status'], $sitemap['raw']);
+    assert_true(str_contains($sitemap['raw'], '<loc>https://piano.anotoki.eu/privacy</loc>'), $sitemap['raw']);
+    assert_false(str_contains($robots['raw'] . $sitemap['raw'], SITE_HOST) || str_contains($robots['raw'] . $sitemap['raw'], '127.0.0.1'), 'never the Host a request named, nor where it came in');
 
     // Where the site stands: ready, and installed - so the setup page is never offered again, not even when
     // its settings go missing later (a half-finished upload): then the site is only "not available right now".

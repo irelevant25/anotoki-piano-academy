@@ -3,9 +3,10 @@
 // config/config.php: the settings come from the two *.local.php files and
 // nowhere else - without them the app is not set up, a committed file can
 // never stand in for them, and the tests' own folder is only ever for a
-// throwaway database. The one committed default: where a request comes from
+// throwaway database. Two committed defaults: where a request comes from
 // (Cloudflare's published ranges, the family's list), which the optional
-// visitors.local.php may override.
+// visitors.local.php may override, and the site's own address (a release's,
+// a checkout's), which the optional site.local.php may.
 
 declare(strict_types=1);
 
@@ -200,40 +201,62 @@ test(
 );
 
 test(
-    'the site\'s public address (robots.txt and sitemap.xml): config/site.local.php\'s public_url, read cleanly - none without the file, nor with one that cannot be read cleanly or names none, each said once and never its text; never a reason for "not set up"',
+    'the site\'s own address (robots.txt and sitemap.xml): where the code runs says it - a checkout the development address, a release the one composer.json deploys it to -, config/site.local.php\'s public_url names another; one that cannot be read cleanly or names none usable is passed over, said once and never its text; never a reason for "not set up"',
     function (): void {
+        // The address a release is deployed to is composer.json's, which the deploy tool reads: one address, held together.
+        $deploy = json_decode((string) file_get_contents(TEST_BACKEND . '/composer.json'), true)['extra']['anotoki-deploy'];
+        assert_same(PIANO_RELEASE_ADDRESS, $deploy['url'], 'the release\'s address is the one the deploy tool puts it at');
+        assert_same(['api', 'robots.txt', 'sitemap.xml'], $deploy['routes'], 'and the release\'s front controller is given robots.txt and sitemap.xml beside /api');
+        // A checkout carries no release.json (a release does: tests/api/hosting.test.php serves one built - its address there).
+        assert_false(is_file(TEST_BACKEND . '/release.json'), 'this is a checkout');
+
         $url = 'https://piano.example.test';
+        $here = PIANO_DEVELOPMENT_ADDRESS;
+        $none = 'config/site.local.php names no usable public_url';
         $cases = [
-            'no file' => [null, null, null],
-            'a public_url' => ["<?php return ['public_url' => ' {$url} '];\n", $url, null],
+            'no file' => [null, $here, null],
+            'a public_url' => ["<?php return ['public_url' => ' {$url}/ '];\n", $url, null],
+            'a port is part of an origin' => ["<?php return ['public_url' => 'http://127.0.0.1:8590'];\n", 'http://127.0.0.1:8590', null],
+            'a folder in its place' => [false, $here, 'config/site.local.php is no file'],
             'a byte-order mark before <?php declare(strict_types=1)' => [
                 "\xEF\xBB\xBF<?php declare(strict_types=1);\nreturn ['public_url' => '{$url}'];\n",
-                null,
+                $here,
                 'config/site.local.php does not start with <?php',
             ],
-            'text after a closing tag' => ["<?php ?>\nhello\n<?php return ['public_url' => '{$url}'];\n", null, 'config/site.local.php prints 6 bytes of its own'],
-            'a misspelt key' => ["<?php return ['public_uri' => '{$url}'];\n", null, 'config/site.local.php holds no public_url'],
-            'a blank one' => ["<?php return ['public_url' => '  '];\n", null, 'config/site.local.php holds no public_url'],
-            'no array' => ["<?php return '{$url}';\n", null, 'config/site.local.php holds no public_url'],
+            'text after a closing tag' => ["<?php ?>\nhello\n<?php return ['public_url' => '{$url}'];\n", $here, 'config/site.local.php prints 6 bytes of its own'],
+            'a misspelt key' => ["<?php return ['public_uri' => '{$url}'];\n", $here, $none],
+            'a blank one' => ["<?php return ['public_url' => '  '];\n", $here, $none],
+            'no array' => ["<?php return '{$url}';\n", $here, $none],
+            'a path after it' => ["<?php return ['public_url' => '{$url}/piano'];\n", $here, $none],
+            'a port no URL has (the library would take no address)' => ["<?php return ['public_url' => 'http://127.0.0.1:99999'];\n", $here, $none],
+            'no http(s) origin' => ["<?php return ['public_url' => 'javascript:alert(1)//piano.example.test'];\n", $here, $none],
         ];
         foreach ($cases as $case => [$contents, $expected, $said]) {
             $dir = test_temp_dir('site-config');
             file_put_contents("$dir/database.local.php", '<?php return ' . var_export(good_database(), true) . ';');
             file_put_contents("$dir/auth.local.php", '<?php return ' . var_export(test_auth_settings(), true) . ';');
-            if ($contents !== null) {
+            if ($contents === false) {
+                mkdir("$dir/site.local.php");
+            } elseif ($contents !== null) {
                 file_put_contents("$dir/site.local.php", $contents);
             }
             ob_start();
             try {
                 $log = config_log_of(static function () use ($dir, $case, $expected): void {
-                    assert_same($expected, with_config_dir($dir, static fn(): ?string => siteAddress(true)), $case);
+                    // Read three times (every request reads it): the same address each time.
+                    for ($i = 0; $i < 3; $i++) {
+                        assert_same($expected, with_config_dir($dir, static fn(): string => siteAddress(true)), $case);
+                    }
                     assert_same(null, with_config_dir($dir, 'settingsProblem'), "$case: never a reason for \"not set up\"");
                 });
             } finally {
                 $printed = (string) ob_get_clean();
             }
             assert_same('', $printed, "$case: nothing of the file printed");
-            assert_true($said === null ? !str_contains($log, 'site.local.php') : str_contains($log, "[config] $said"), "$case: said - $log");
+            assert_true(
+                $said === null ? !str_contains($log, 'site.local.php') : substr_count($log, "[config] $said") === 1 && str_contains($log, "the address where the code runs holds ({$here})."),
+                "$case: said once, and what holds - $log",
+            );
             assert_false(str_contains($log, 'piano.example.test'), "$case: never its text in the log");
         }
         siteAddress(true);

@@ -249,10 +249,14 @@ the header is no setting. See `backend/config/config.php`.
 by setup, never a reason for "not set up"): the origin secret, below. So is
 `backend/config/site.local.php` (never written by setup, never a reason for
 "not set up"; anotoki-lib 0.11.0): the site's public address,
-`['public_url' => 'https://...']` (`siteAddress()`), from which robots.txt's
-Sitemap line and sitemap.xml's addresses are written - never from the
-request's Host, which anybody can set. Without it robots.txt names no
-sitemap and `/sitemap.xml` answers `404 not_configured`.
+`['public_url' => 'https://...']`, only where it is not the one the code's
+place gives (`siteAddress()`: a release - `release.json` beside `backend/` -
+is `https://piano.anotoki.eu`, the address the deploy tool puts it at, a
+checkout `http://localhost:4500`). robots.txt's Sitemap line and
+sitemap.xml's addresses are written with it - never with the request's
+Host, which anybody can set. One that cannot be read cleanly, or names no
+usable address, is passed over and the code's place holds: robots.txt always
+names the sitemap.
 
 Every one of these files is read cleanly or not at all
 (`settingsFileReadCleanly()`, as the IAM reads its own). A file edited by
@@ -545,7 +549,7 @@ every anotoki site) are routes the same way, in the same frame, and
 headings (`anotoki.about.title`, `anotoki.support.title` - the app's name
 alone while no bundle is in memory).
 
-**The family's kit** (`@anotoki/lib` 0.11.0, `shared/family-kit.ts`): the top
+**The family's kit** (`@anotoki/lib` 0.11.1, `shared/family-kit.ts`): the top
 bar, its menus and popovers, the language chooser, the theme switch and
 `ThemeService`, the brand, the icons, the spinner and the questions
 (`ConfirmService`, drawn by `<anotoki-confirm-host>` in `AppComponent`) are
@@ -566,9 +570,10 @@ from its own entry point (`@anotoki/lib/ui/config`, `/ui/button`,
 `/ui/card`...: the first load carries only the pieces it draws; the select
 is lazy - the piano's select in the bar is a `@defer` block,
 loaded once the page is idle, and What's new and the footer's feedback form
-load when they open: the first load is 572.9 kB with anotoki-lib 0.11.0's
-site settings - the announcement, the notice above a page, Page access's
-guard - and the kit's newer core (558.1 kB from the family's footer until
+load when they open: the first load is 567.5 kB with anotoki-lib 0.11.1 -
+whose announcement and page notice fetch their bar and notice only when
+there is something to draw, Page access's guard staying - (572.9 kB with
+0.11.0, which drew both in it; 558.1 kB from the family's footer until
 then), under its 575 kB warning - 550 until the owner raised it the day the
 footer came). They draw with the family's tokens, which
 `styles.scss` writes in Piano's palette (`anotoki.root()`, light and dark:
@@ -710,8 +715,9 @@ settings themselves would lock everybody out. **robots.txt and sitemap.xml**
 alone; the sitemap lists the legal pages, About and Support, and Learn, the
 Note Trainer, Sheet Practice and Songs only while the IAM lets visitors in
 (signed out, they lead to the IAM), never one Page access hides - by the
-configured address (`config/site.local.php`) alone, kept for an hour (made
-again at once when what Page access hides changes).
+site's own address alone (`siteAddress()`: `config/site.local.php`'s, else
+the release's or the checkout's), kept for an hour (made again at once when
+what Page access hides, or the address, changes).
 
 **Saving** (`shared/state/progress-store.service.ts`, `api/api.service.ts`):
 `ApiService.fetchState()` keeps the generation; every `PUT /api/progress` and

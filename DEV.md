@@ -21,10 +21,10 @@ peers otherwise.
 **The anotoki family's library** (`anotoki-lib`, on GitHub:
 `irelevant25/anotoki-lib`) has two halves with one version, and both come
 from GitHub, never from a folder next door: the PHP package `anotoki/lib`
-(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.11.0"`;
-in `vendor/anotoki/lib`, committed with the rest of `vendor/`) and the
-Angular package `@anotoki/lib` (`frontend/package.json`: the release's
-tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.11.0/anotoki-lib-0.11.0.tgz`;
+(`backend/composer.json`: its VCS repository and `"anotoki/lib": "^0.11.0"`,
+`composer.lock` at v0.11.1; in `vendor/anotoki/lib`, committed with the rest
+of `vendor/`) and the Angular package `@anotoki/lib` (`frontend/package.json`:
+the release's tarball, `https://github.com/irelevant25/anotoki-lib/releases/download/v0.11.1/anotoki-lib-0.11.1.tgz`;
 in both `bun.lock` and `package-lock.json`). Its migrations module: the
 engine, the gate in front of the API, and the pages of a site that is not
 ready (below, *While the site is not ready*); its translations: the words'
@@ -37,7 +37,9 @@ and every page's buttons, cards, alerts, badges, selects, dialogs and table
 and the admin tools (below, *Signing in, people and the admin tools*); the
 legal pages (below, *Terms, Privacy and Contact*) and About and Support; the
 footer (below, *The family's footer*); the admin panel's frame; the site settings, robots.txt and sitemap.xml
-(below, *The site settings*). Both halves are at 0.11.0 (0.11.0 added the site settings - Getting in, the
+(below, *The site settings*). Both halves are at 0.11.1 (0.11.1 mended what the sites found on 0.11.0 - the
+announcement's bar and the administrators' notice out of the first load, the kit's date and number fields, a dialog's
+autofocus, the error log's expected codes, the sitemap's `:`; 0.11.0 added the site settings - Getting in, the
 announcement, Page access -, robots.txt and sitemap.xml, the dates' pipes and the kit's typed select values, and the
 Migrator's one number for one file; 0.10.0 added the
 admin panel's frame - `<anotoki-admin-frame>`, genshin's: the panel's pages in a column on the left, no top bar
@@ -219,17 +221,21 @@ learner's saves work on every page they may use.
 `/robots.txt` and `/sitemap.xml` are the API's: `router.php` hands both to
 `api/index.php`, `ng serve`'s proxy (`frontend/proxy.conf.json`) sends both to
 `:8300`, and the deploy's `routes` send both to the front controller. They
-are written with the site's public address from the optional
-`backend/config/site.local.php` - never written by setup, never read off a
-request:
+are written with the site's own address (`siteAddress()` in
+`backend/config/config.php`) - never one read off a request: a release says
+`https://piano.anotoki.eu`, the address it is deployed to, and a checkout
+`http://localhost:4500`, so neither needs a file. Only a site served at
+another address puts the optional `backend/config/site.local.php` there by
+hand (never written by setup):
 
 ```php
-<?php return ['public_url' => 'http://localhost:4500'];   // on the host: 'https://piano.anotoki.eu'
+<?php return ['public_url' => 'https://piano.example'];
 ```
 
-Without it robots.txt names no sitemap and `/sitemap.xml` answers 404
-`not_configured`. The sitemap is kept an hour in `storage/cache/anotoki-sitemap.json`
-(delete it to see a change of the IAM's sign-in switch at once).
+One that cannot be read cleanly, or names no usable address, is passed over
+(said once a day in PHP's error log) and the code's own address holds. The
+sitemap is kept an hour in `storage/cache/anotoki-sitemap.json` (delete it to
+see a change of the IAM's sign-in switch at once).
 
 ### The app's words
 
@@ -723,7 +729,7 @@ is named (WebSupport s.r.o., the owner's word of 2026-10-18: `{ preset:
 is public the owner confirms the facts `docs/decisions.md` (2026-10-18) lists.
 
 **The family's footer (migration 013, 2026-10-18, after the deploy; the
-library's 0.6.3)**: the build carries `anotoki-lib` 0.11.0 - both halves. The
+library's 0.6.3)**: the build carries `anotoki-lib` 0.11.1 - both halves. The
 foot of every page, the admin panel's too, is the family's footer
 (`<anotoki-site-footer>`, the build analyzer's): "v0.4.0 · What's new ·
 Feedback" (a screen reader hears "Version 0.4.0") - the version and What's new
@@ -754,7 +760,7 @@ after the app's own; until then the pages and the links say the library's
 built-in words.
 
 **The site settings (migration 014, 2026-10-25; the library's 0.11.0)**: the
-build carries `anotoki-lib` 0.11.0 - both halves. 014 is words only: the
+build carries `anotoki-lib` 0.11.1 - both halves. 014 is words only: the
 Privacy page's part about the site settings (`legal.settings.*`: who changed
 a setting last, and when) and the page that says a page is not open
 (`notOpen.*`, `title.notOpen`), English and informal Slovak, and its gate. The
@@ -762,9 +768,14 @@ library's `anotoki_admin/003_site_settings.sql` (the site settings' two
 tables) runs before it, its `anotoki_translations/014_editor_and_piece_words.sql`
 and `015_site_settings_words.sql` after it - one Apply; until 003 is applied
 every switch is at its default and the Site settings page says an update
-waits. On the host, put `config/site.local.php` (`['public_url' =>
-'https://piano.anotoki.eu']`) beside the other settings by hand for the
-sitemap (README, *Hosting checklist*).
+waits.
+
+**The library's 0.11.1 (2026-10-25, later)**: no migration, nothing to
+Apply. The announcement's bar and the administrators' notice load only when
+there is something to draw. robots.txt and sitemap.xml name the release's
+own address, `https://piano.anotoki.eu` - no `config/site.local.php` to
+upload (README, *Hosting checklist*); after the upload `/robots.txt` ends
+with `Sitemap: https://piano.anotoki.eu/sitemap.xml`.
 
 Strings the owner reworded in the browser survive every later migration
 (each insert is `ON CONFLICT DO NOTHING`); a string reworded in the code

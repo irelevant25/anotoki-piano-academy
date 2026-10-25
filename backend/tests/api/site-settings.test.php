@@ -22,11 +22,11 @@
 //   page; one put in by hand is passed over;
 // - every change audited, and a person's data deleted leaves the settings
 //   they changed by nobody;
-// - robots.txt and sitemap.xml: by the configured public address alone (never
-//   the request's Host), the public pages - the learner's only while the IAM
-//   lets visitors in -, without what Page access hides; no address, no
-//   sitemap. (Who may reach the admin routes - nobody 401, a learner and an
-//   editor 403 - is tests/api/admin.test.php's.)
+// - robots.txt and sitemap.xml: by the site's own address alone -
+//   config/site.local.php's, else where the code runs, never the request's
+//   Host -, the public pages - the learner's only while the IAM lets visitors
+//   in -, without what Page access hides. (Who may reach the admin routes -
+//   nobody 401, a learner and an editor 403 - is tests/api/admin.test.php's.)
 
 declare(strict_types=1);
 
@@ -394,23 +394,32 @@ test('a person\'s data deleted on the People page leaves the site settings they 
 });
 
 test(
-    'robots.txt and sitemap.xml: by the configured public address alone - never the request\'s Host -, the public pages, the learner\'s only while the IAM lets visitors in, never one Page access hides; no address, no sitemap',
+    'robots.txt and sitemap.xml: by the site\'s own address alone - config/site.local.php\'s, else where the code runs (a checkout here), never the request\'s Host -, the public pages, the learner\'s only while the IAM lets visitors in, never one Page access hides',
     function (): void {
         settings_cleared();
         site_file(null);
         sitemap_forgotten();
         $disallowed = "User-agent: *\nDisallow: /admin\nDisallow: /api\nDisallow: /auth\nDisallow: /stats\nDisallow: /sign-in-failed\nDisallow: /staff\n";
+        $here = PIANO_DEVELOPMENT_ADDRESS;
 
-        // No address: robots.txt names no sitemap, and there is none.
+        // No file: the address of where the code runs - this checkout's -, never the Host the request named.
         $robots = ask('GET', '/robots.txt', null, ['Host: evil.example']);
         assert_same([200, 'text/plain; charset=utf-8', 'public, max-age=3600'], [$robots['status'], $robots['headers']['content-type'] ?? null, $robots['headers']['cache-control'] ?? null]);
-        assert_same("# The robots of every search engine: what to leave alone, and where the site's pages are listed.\n" . $disallowed, $robots['raw'], 'no Sitemap line - never the request\'s Host');
-        $none = ask('GET', '/sitemap.xml');
-        assert_same([404, 'not_configured'], [$none['status'], $none['body']['code'] ?? null]);
+        assert_same(
+            "# The robots of every search engine: what to leave alone, and where the site's pages are listed.\n" . $disallowed . "\nSitemap: {$here}/sitemap.xml\n",
+            $robots['raw'],
+            'the Sitemap line by the checkout\'s address - never the request\'s Host',
+        );
+        $sitemap = ask('GET', '/sitemap.xml', null, ['Host: evil.example']);
+        assert_same(200, $sitemap['status'], $sitemap['raw']);
+        assert_same(["{$here}/terms", "{$here}/privacy", "{$here}/contact", "{$here}/about", "{$here}/support"], sitemap_locations($sitemap['raw']));
+        assert_false(str_contains($robots['raw'] . $sitemap['raw'], 'evil.example'), 'nothing of the Host anywhere');
 
-        // A file that cannot be read cleanly is no address either (a byte-order mark before <?php: never compiled).
+        // A file that cannot be read cleanly is passed over (a byte-order mark before <?php: never compiled): the checkout's address holds.
         site_file("\xEF\xBB\xBF<?php return ['public_url' => '" . SITE_URL . "'];\n");
-        assert_same(404, ask('GET', '/sitemap.xml')['status']);
+        assert_true(str_ends_with(ask('GET', '/robots.txt')['raw'], "\nSitemap: {$here}/sitemap.xml\n"), 'the address where the code runs holds');
+
+        // The file names another: that one - the kept sitemap made again at once (the address is in its key).
         site_file(['public_url' => SITE_URL]);
 
         // Sign-in required (the IAM's switch, as the tests start): the pages anybody reads alone.
